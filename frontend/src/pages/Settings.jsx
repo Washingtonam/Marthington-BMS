@@ -6,7 +6,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 
 const Settings = () => {
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL =
+    "https://marthington.onrender.com/api";
   const location = useLocation();
 
   const {

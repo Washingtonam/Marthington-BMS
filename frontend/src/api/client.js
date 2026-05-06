@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL =
+  "https://marthington.onrender.com/api";
 const clearSession = () => {
   localStorage.removeItem("bms_token");
   localStorage.removeItem("bms_user");
