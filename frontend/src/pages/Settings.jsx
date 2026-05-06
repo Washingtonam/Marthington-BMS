@@ -3,7 +3,10 @@ import { useLocation } from "react-router-dom";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+
+
 const Settings = () => {
+  const API_URL = import.meta.env.VITE_API_URL;
   const location = useLocation();
 
   const {
@@ -53,7 +56,7 @@ const Settings = () => {
     if (reference) {
       setVerifying(true);
 
-      fetch(`http://localhost:5001/api/payments/verify?reference=${reference}`, {
+      fetch(`${API_URL}/payments/verify?reference=${reference}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("bms_token")}`
         }
@@ -149,7 +152,7 @@ const Settings = () => {
       setProcessingPayment(true);
 
       const res = await fetch(
-        `http://localhost:5001/api/payments/initialize?cycle=${cycle}`,
+        `${API_URL}/payments/initialize?cycle=${cycle}`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("bms_token")}`
