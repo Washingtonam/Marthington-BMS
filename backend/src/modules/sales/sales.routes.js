@@ -1,0 +1,38 @@
+import express from "express";
+import protect from "../../middlewares/auth.middleware.js";
+import checkPermission from "../../middlewares/permission.middleware.js";
+import checkSubscription from "../../middlewares/subscription.middleware.js"; // 🔥 NEW
+import salesController from "./sales.controller.js";
+
+const router = express.Router();
+
+// 🔥 CREATE SALE (PROTECTED + SUBSCRIPTION AWARE)
+router.post(
+  "/",
+  protect,
+  checkSubscription, // 🔥 MUST COME BEFORE CONTROLLER
+  checkPermission("canMakeSale"),
+  salesController.createSale
+);
+
+// 🔥 GET ALL SALES
+router.get(
+  "/",
+  protect,
+  salesController.getSales
+);
+
+// 🔥 GET SINGLE SALE (PRIVATE)
+router.get(
+  "/:id",
+  protect,
+  salesController.getSaleById
+);
+
+// 🔥 PUBLIC RECEIPT (NO AUTH — GROWTH ENGINE)
+router.get(
+  "/public/:id",
+  salesController.getPublicSale
+);
+
+export default router;

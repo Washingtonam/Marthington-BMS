@@ -1,0 +1,267 @@
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useEffect
+} from "react";
+
+import {
+  loginUser,
+  registerUser
+} from "../api/auth.js";
+
+import {
+  getBusiness
+} from "../api/business.js";
+
+const AuthContext = createContext(null);
+
+const storedUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_user"));
+  } catch {
+    return null;
+  }
+};
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(storedUser);
+
+  const [token, setToken] = useState(
+    localStorage.getItem("bms_token")
+  );
+
+  const [business, setBusiness] = useState(null);
+
+  const [loadingBusiness, setLoadingBusiness] =
+    useState(true);
+
+  const [impersonatedBusiness, setImpersonatedBusiness] =
+    useState(null);
+
+  // 🔥 LOAD IMPERSONATION
+  useEffect(() => {
+    const saved = localStorage.getItem(
+      "bms_impersonation"
+    );
+
+    // 🔥 ONLY SUPER ADMIN SHOULD KEEP IMPERSONATION
+    if (saved && user?.role === "super_admin") {
+      setImpersonatedBusiness(saved);
+    } else {
+      localStorage.removeItem("bms_impersonation");
+    }
+  }, [user]);
+
+  // 🔥 LOAD BUSINESS
+  useEffect(() => {
+    if (!token) {
+      setBusiness(null);
+      setLoadingBusiness(false);
+      return;
+    }
+
+    if (user?.role === "super_admin") {
+      setBusiness(null);
+      setLoadingBusiness(false);
+      return;
+    }
+    
+    let isMounted = true;
+
+    const run = async () => {
+      try {
+        setLoadingBusiness(true);
+
+        const data = await getBusiness();
+
+        if (!isMounted) return;
+
+        setBusiness(data || null);
+
+      } catch (err) {
+        console.error(
+          "Business load failed:",
+          err.message
+        );
+
+        if (!isMounted) return;
+
+        setBusiness(null);
+
+      } finally {
+        if (isMounted) {
+          setLoadingBusiness(false);
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      isMounted = false;
+    };
+
+  }, [token, impersonatedBusiness]);
+
+  // 🔥 SESSION PERSIST
+  const persistSession = (session) => {
+    // 🔥 CLEAR OLD IMPERSONATION ON NEW LOGIN
+    localStorage.removeItem("bms_impersonation");
+
+    localStorage.setItem(
+      "bms_token",
+      session.token
+    );
+
+    localStorage.setItem(
+      "bms_user",
+      JSON.stringify(session.user)
+    );
+
+    setToken(session.token);
+    setUser(session.user);
+
+    setImpersonatedBusiness(null);
+  };
+
+  // 🔥 LOGIN
+  const login = async (payload) => {
+    const session = await loginUser(payload);
+
+    persistSession(session);
+
+    return session;
+  };
+
+  // 🔥 REGISTER
+  const register = async (payload) => {
+    const session = await registerUser(payload);
+
+    persistSession(session);
+
+    return session;
+  };
+
+  // 🔥 LOGOUT
+  const logout = () => {
+    localStorage.removeItem("bms_token");
+
+    localStorage.removeItem("bms_user");
+
+    localStorage.removeItem(
+      "bms_impersonation"
+    );
+
+    setToken(null);
+
+    setUser(null);
+
+    setBusiness(null);
+
+    setImpersonatedBusiness(null);
+
+    // 🔥 HARD RESET
+    window.location.href = "/login";
+  };
+
+  // 🔥 MANUAL REFRESH
+  const refreshBusiness = async () => {
+    try {
+      setLoadingBusiness(true);
+
+      const data = await getBusiness();
+
+      setBusiness(data || null);
+
+    } catch (err) {
+      console.error(err);
+
+      setBusiness(null);
+
+    } finally {
+      setLoadingBusiness(false);
+    }
+  };
+
+  // 🔥 DERIVED STATE
+  const isPro =
+    business?.subscription?.plan === "pro";
+
+  const subscriptionStatus =
+    business?.subscription?.status;
+
+  const expiresAt =
+    business?.subscription?.expiresAt;
+
+  const value = useMemo(
+    () => ({
+      isAuthenticated: Boolean(token && user),
+
+      login,
+      logout,
+      register,
+
+      user,
+
+      business,
+
+      isPro,
+
+      subscriptionStatus,
+
+      expiresAt,
+
+      loadingBusiness,
+
+      refreshBusiness,
+
+      impersonatedBusiness,
+
+      startImpersonation: (id) => {
+        if (user?.role !== "super_admin") return;
+
+        localStorage.setItem(
+          "bms_impersonation",
+          id
+        );
+
+        setImpersonatedBusiness(id);
+      },
+
+      stopImpersonation: () => {
+        localStorage.removeItem(
+          "bms_impersonation"
+        );
+
+        setImpersonatedBusiness(null);
+      }
+    }),
+    [
+      token,
+      user,
+      business,
+      impersonatedBusiness,
+      loadingBusiness
+    ]
+  );
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error(
+      "useAuth must be used within AuthProvider"
+    );
+  }
+
+  return context;
+};
