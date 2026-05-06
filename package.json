@@ -6,17 +6,15 @@
   "main": "electron/main.js",
 
   "scripts": {
-    "client": "vite",
+    "client": "cd frontend && vite",
+
+    "build-client": "cd frontend && vite build",
 
     "electron": "electron .",
 
     "dev": "concurrently \"npm run client\" \"wait-on http://localhost:5173 && npm run electron\"",
 
-    "build": "vite build",
-
-    "preview": "vite preview",
-
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build-client && electron-builder"
   },
 
   "build": {
@@ -24,23 +22,41 @@
 
     "productName": "Marthington BMS",
 
+    "copyright": "Copyright © 2026 Marthington",
+
     "directories": {
       "output": "dist-electron"
     },
 
     "files": [
-      "dist/**/*",
+      "frontend/dist/**/*",
       "electron/**/*",
       "package.json"
     ],
 
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+
+      "artifactName": "Marthington-BMS-Setup.${ext}",
+
+      "icon": "frontend/public/logo.ico"
     },
 
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Marthington BMS"
     }
   },
 
@@ -49,6 +65,7 @@
     "cross-env": "^10.1.0",
     "electron": "^42.0.0",
     "electron-builder": "^26.8.1",
+    "vite": "^8.0.10",
     "wait-on": "^9.0.5"
   }
 }
