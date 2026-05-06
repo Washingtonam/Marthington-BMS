@@ -3,46 +3,17 @@ const {
   BrowserWindow
 } = require("electron");
 
-const path = require("path");
-
-const isDev =
-  !app.isPackaged;
-
 function createWindow() {
 
-  const win =
-    new BrowserWindow({
+  const win = new BrowserWindow({
+    width: 1400,
+    height: 900
+  });
 
-      width: 1400,
-      height: 900,
-
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    });
-
-  // DEV MODE
-  if (isDev) {
-
-    win.loadURL(
-      "http://localhost:5173"
-    );
-
-    win.webContents.openDevTools();
-
-  }
-
-  // PRODUCTION MODE
-  else {
-
-    win.loadFile(
-      path.join(
-        __dirname,
-        "../frontend/dist/index.html"
-      )
-    );
-  }
+  // LOAD LIVE WEBSITE
+  win.loadURL(
+    "https://marthington.vercel.app"
+  );
 }
 
 app.whenReady().then(() => {
@@ -52,8 +23,7 @@ app.whenReady().then(() => {
   app.on("activate", () => {
 
     if (
-      BrowserWindow.getAllWindows()
-        .length === 0
+      BrowserWindow.getAllWindows().length === 0
     ) {
       createWindow();
     }
