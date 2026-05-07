@@ -369,14 +369,57 @@ Thank you for your patronage.
           </style>
 
         </head>
+          <body>
+            <div
+              style="
+                position:fixed;
+                top:16px;
+                right:16px;
+                z-index:9999;
+                display:flex;
+                gap:10px;
+              "
+            >
 
-        <body>
+              <button
+                onclick="window.print()"
+                style="
+                  border:none;
+                  background:black;
+                  color:white;
+                  padding:12px 18px;
+                  border-radius:10px;
+                  cursor:pointer;
+                  font-weight:700;
+                "
+              >
+                Print / Save PDF
+              </button>
 
-          ${receiptHTML}
+              <button
+                onclick="window.close()"
+                style="
+                  border:none;
+                  background:#ef4444;
+                  color:white;
+                  padding:12px 18px;
+                  border-radius:10px;
+                  cursor:pointer;
+                  font-weight:700;
+                "
+              >
+                Close
+              </button>
+
+            </div>
+
+            ${receiptHTML}
+
+          </body>
 
           
 
-        </body>
+        
 
       </html>
     `);
