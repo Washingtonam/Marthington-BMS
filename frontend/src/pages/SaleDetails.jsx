@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
+
 import "../styles/receipt.css";
+
 import {
   useParams,
   useNavigate,
@@ -30,7 +32,8 @@ const SaleDetails = () => {
 
   const receiptRef = useRef();
 
-  const [sale, setSale] = useState(null);
+  const [sale, setSale] =
+    useState(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -39,7 +42,7 @@ const SaleDetails = () => {
     useState("");
 
   // =====================================
-  // LOAD SALE
+  // LOAD
   // =====================================
 
   useEffect(() => {
@@ -55,8 +58,6 @@ const SaleDetails = () => {
 
         setSale(data);
 
-        // AUTO WHATSAPP
-
         if (
           location.state?.autoSend &&
           location.state?.phone
@@ -70,6 +71,7 @@ const SaleDetails = () => {
             );
 
           }, 1200);
+
         }
 
       } catch (err) {
@@ -82,6 +84,7 @@ const SaleDetails = () => {
       } finally {
 
         setLoading(false);
+
       }
     };
 
@@ -90,7 +93,7 @@ const SaleDetails = () => {
   }, [id]);
 
   // =====================================
-  // STATES
+  // LOADING
   // =====================================
 
   if (loading) {
@@ -177,9 +180,8 @@ Thank you for your patronage.
           await html2canvas(
             element,
             {
-              scale: 5,
+              scale: 4,
               useCORS: true,
-              allowTaint: true,
               backgroundColor: "#ffffff",
               logging: false
             }
@@ -194,10 +196,9 @@ Thank you for your patronage.
         const pdfWidth = 80;
 
         const pdfHeight =
-          (
-            canvas.height *
-            pdfWidth
-          ) / canvas.width;
+          (canvas.height *
+            pdfWidth) /
+          canvas.width;
 
         const pdf =
           new jsPDF({
@@ -285,7 +286,12 @@ Thank you for your patronage.
 
             ${cssText}
 
+            * {
+              box-sizing: border-box;
+            }
+
             body {
+
               margin: 0;
               padding: 24px;
 
@@ -293,23 +299,33 @@ Thank you for your patronage.
 
               display: flex;
               justify-content: center;
+
+              font-family:
+                Inter,
+                sans-serif;
             }
 
             .receipt {
+
               width: 100% !important;
               max-width: 380px !important;
+
             }
 
             img {
+
               display: block;
               max-width: 100%;
+
             }
 
             @media print {
 
               body {
+
                 background: white !important;
                 padding: 0 !important;
+
               }
 
               .receipt {
@@ -317,19 +333,22 @@ Thank you for your patronage.
                 width: 80mm !important;
                 max-width: 80mm !important;
 
+                margin: 0 auto !important;
+
                 border-radius: 0 !important;
 
                 box-shadow: none !important;
 
-                margin: 0 auto !important;
-
                 print-color-adjust: exact !important;
                 -webkit-print-color-adjust: exact !important;
+
               }
 
               @page {
+
                 size: 80mm auto;
                 margin: 0;
+
               }
 
             }
@@ -341,6 +360,22 @@ Thank you for your patronage.
         <body>
 
           ${receiptHTML}
+
+          <script>
+
+            window.onload = () => {
+
+              setTimeout(() => {
+
+                window.focus();
+
+                window.print();
+
+              }, 800);
+
+            };
+
+          </script>
 
         </body>
 
@@ -555,6 +590,7 @@ Thank you for your patronage.
             {sale.notes && (
 
               <>
+
                 <Divider />
 
                 <div className="receipt-notes">
@@ -630,7 +666,7 @@ Thank you for your patronage.
 
             <button
               onClick={handlePrint}
-              className="w-full bg-black text-white py-3 rounded-2xl font-medium"
+              className="w-full bg-black text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
               Print Receipt
             </button>
@@ -639,7 +675,7 @@ Thank you for your patronage.
 
             <button
               onClick={handleDownloadPDF}
-              className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium"
+              className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
               Download PDF
             </button>
@@ -663,7 +699,7 @@ Thank you for your patronage.
                 }
 
               }}
-              className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium"
+              className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
               Send via WhatsApp
             </button>
@@ -674,7 +710,7 @@ Thank you for your patronage.
               onClick={() =>
                 navigate("/app/sales")
               }
-              className="w-full border border-gray-300 py-3 rounded-2xl font-medium"
+              className="w-full border border-gray-300 py-3 rounded-2xl font-medium hover:bg-gray-50 transition"
             >
               Back to Sales
             </button>
