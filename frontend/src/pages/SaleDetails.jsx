@@ -374,27 +374,7 @@ Thank you for your patronage.
 
           ${receiptHTML}
 
-          <script>
-
-            window.onload = () => {
-
-              setTimeout(() => {
-
-                window.focus();
-
-                printWindow.print();
-
-              }, 800);
-
-            };
-
-            window.onafterprint = () => {
-
-              window.close();
-
-            };
-
-          </script>
+          
 
         </body>
 
