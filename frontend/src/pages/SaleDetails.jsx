@@ -227,206 +227,195 @@ Thank you for your patronage.
 
   const handlePrint = () => {
 
-    const receiptHTML =
-      receiptRef.current?.outerHTML;
+  const receiptHTML =
+    receiptRef.current?.outerHTML;
 
-    if (!receiptHTML) return;
+  if (!receiptHTML) return;
 
-    let cssText = "";
+  let cssText = "";
 
-    for (const sheet of document.styleSheets) {
+  for (const sheet of document.styleSheets) {
 
-      try {
+    try {
 
-        for (const rule of sheet.cssRules) {
-
-          cssText += rule.cssText;
-
-        }
-
-      } catch (err) {
-
-        console.warn(
-          "Cannot access stylesheet",
-          err
-        );
+      for (const rule of sheet.cssRules) {
+        cssText += rule.cssText;
       }
-    }
 
-    const printWindow =
-      window.open(
-        "",
-        "_blank",
-        "width=450,height=900"
+    } catch (err) {
+
+      console.warn(
+        "Cannot access stylesheet",
+        err
       );
-
-    if (!printWindow) {
-
-      setUpgradeMsg(
-        "Popup blocked. Please allow popups."
-      );
-
-      return;
     }
+  }
 
-    printWindow.document.write(`
-      <html>
+  const printWindow =
+    window.open(
+      "",
+      "_blank",
+      "width=1000,height=900"
+    );
 
-        <head>
+  printWindow.document.write(`
+    <html>
 
-          <title>
-            Receipt ${sale.receiptId}
-          </title>
+      <head>
 
-          <meta charset="UTF-8" />
+        <title>
+          Receipt ${sale.receiptId}
+        </title>
 
-          <style>
+        <style>
 
-            ${cssText}
+          ${cssText}
 
-            * {
-              box-sizing: border-box;
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+
+            margin: 0;
+            padding: 30px;
+
+            background: #eef2f7;
+
+            font-family:
+              Inter,
+              sans-serif;
+          }
+
+          .preview-wrapper {
+
+            min-height: 100vh;
+
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .preview-actions {
+
+            width: 100%;
+            max-width: 900px;
+
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+
+            margin-bottom: 24px;
+          }
+
+          .preview-actions button {
+
+            border: 0;
+
+            padding: 12px 18px;
+
+            border-radius: 12px;
+
+            cursor: pointer;
+
+            font-weight: 700;
+          }
+
+          .print-btn {
+
+            background: #111827;
+            color: white;
+          }
+
+          .close-btn {
+
+            background: #dc2626;
+            color: white;
+          }
+
+          .receipt {
+
+            width: 100% !important;
+            max-width: 380px !important;
+          }
+
+          img {
+
+            display: block;
+            max-width: 100%;
+          }
+
+          @media print {
+
+            .preview-actions {
+              display: none !important;
             }
 
-            html,
             body {
 
-              margin: 0;
-              padding: 0;
-
-              background: #f3f4f6;
-
-              font-family:
-                Inter,
-                sans-serif;
-
-            }
-
-            body {
-
-              display: flex;
-              justify-content: center;
-
-              padding: 24px;
-
+              background: white !important;
+              padding: 0 !important;
             }
 
             .receipt {
 
-              width: 100% !important;
-              max-width: 380px !important;
+              width: 80mm !important;
+              max-width: 80mm !important;
 
+              margin: 0 auto !important;
+
+              border-radius: 0 !important;
+
+              box-shadow: none !important;
+
+              print-color-adjust: exact !important;
+              -webkit-print-color-adjust: exact !important;
             }
 
-            img {
+            @page {
 
-              max-width: 100%;
-              display: block;
-
+              size: 80mm auto;
+              margin: 0;
             }
+          }
 
-            @media print {
+        </style>
 
-              html,
-              body {
+      </head>
 
-                background: white !important;
-                padding: 0 !important;
+      <body>
 
-              }
+        <div class="preview-wrapper">
 
-              body {
+          <div class="preview-actions">
 
-                display: block !important;
-
-              }
-
-              .receipt {
-
-                width: 80mm !important;
-                max-width: 80mm !important;
-
-                margin: 0 auto !important;
-
-                border-radius: 0 !important;
-
-                box-shadow: none !important;
-
-                print-color-adjust: exact !important;
-                -webkit-print-color-adjust: exact !important;
-
-              }
-
-              @page {
-
-                size: 80mm auto;
-                margin: 0;
-
-              }
-
-            }
-
-          </style>
-
-        </head>
-          <body>
-            <div
-              style="
-                position:fixed;
-                top:16px;
-                right:16px;
-                z-index:9999;
-                display:flex;
-                gap:10px;
-              "
+            <button
+              class="print-btn"
+              onclick="window.print()"
             >
+              Print / Save PDF
+            </button>
 
-              <button
-                onclick="window.print()"
-                style="
-                  border:none;
-                  background:black;
-                  color:white;
-                  padding:12px 18px;
-                  border-radius:10px;
-                  cursor:pointer;
-                  font-weight:700;
-                "
-              >
-                Print / Save PDF
-              </button>
+            <button
+              class="close-btn"
+              onclick="window.close()"
+            >
+              Close
+            </button>
 
-              <button
-                onclick="window.close()"
-                style="
-                  border:none;
-                  background:#ef4444;
-                  color:white;
-                  padding:12px 18px;
-                  border-radius:10px;
-                  cursor:pointer;
-                  font-weight:700;
-                "
-              >
-                Close
-              </button>
+          </div>
 
-            </div>
+          ${receiptHTML}
 
-            ${receiptHTML}
+        </div>
 
-          </body>
+      </body>
 
-          
+    </html>
+  `);
 
-        
-
-      </html>
-    `);
-
-    printWindow.document.close();
-  };
-
+  printWindow.document.close();
+};
   return (
 
     <section className="min-h-screen bg-gray-100 py-8 px-4">
