@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-
+import "../styles/receipt.css";
 import {
   useParams,
   useNavigate,
@@ -118,10 +118,6 @@ const SaleDetails = () => {
     business.receiptTheme ||
     "modern";
 
-  const isPro =
-    business.subscription?.status ===
-    "active";
-
   // =====================================
   // WHATSAPP
   // =====================================
@@ -175,27 +171,33 @@ Thank you for your patronage.
         const element =
           receiptRef.current;
 
+        if (!element) return;
+
         const canvas =
           await html2canvas(
             element,
             {
-              scale: 4,
+              scale: 5,
               useCORS: true,
-              backgroundColor: "#ffffff"
+              allowTaint: true,
+              backgroundColor: "#ffffff",
+              logging: false
             }
           );
 
         const imgData =
           canvas.toDataURL(
-            "image/png"
+            "image/png",
+            1.0
           );
 
         const pdfWidth = 80;
 
         const pdfHeight =
-          (canvas.height *
-            pdfWidth) /
-          canvas.width;
+          (
+            canvas.height *
+            pdfWidth
+          ) / canvas.width;
 
         const pdf =
           new jsPDF({
@@ -213,7 +215,9 @@ Thank you for your patronage.
           0,
           0,
           pdfWidth,
-          pdfHeight
+          pdfHeight,
+          undefined,
+          "FAST"
         );
 
         pdf.save(
@@ -234,9 +238,119 @@ Thank you for your patronage.
   // PRINT
   // =====================================
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
 
-    window.print();
+    const printContents =
+      receiptRef.current;
+
+    if (!printContents) return;
+
+    const clonedNode =
+      printContents.cloneNode(true);
+
+    const printWindow =
+      window.open(
+        "",
+        "_blank",
+        "width=420,height=900"
+      );
+
+    const styles =
+      Array.from(
+        document.querySelectorAll(
+          'style, link[rel="stylesheet"]'
+        )
+      )
+        .map((style) =>
+          style.outerHTML
+        )
+        .join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+
+          <title>
+            Receipt ${sale.receiptId}
+          </title>
+
+          ${styles}
+
+          <style>
+
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              margin: 0;
+              padding: 24px;
+              background: #f3f4f6;
+              display: flex;
+              justify-content: center;
+              font-family:
+                Inter,
+                sans-serif;
+            }
+
+            .print-container {
+              width: 100%;
+              max-width: 380px;
+            }
+
+            .receipt {
+              width: 100% !important;
+            }
+
+            img {
+              max-width: 100%;
+              display: block;
+            }
+
+            @media print {
+
+              body {
+                background: white;
+                padding: 0;
+              }
+
+              .print-container {
+                width: 80mm;
+                max-width: 80mm;
+              }
+
+            }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <div class="print-container">
+            ${clonedNode.outerHTML}
+          </div>
+
+          <script>
+
+            window.onload = () => {
+
+              setTimeout(() => {
+
+                window.focus();
+
+              }, 300);
+
+            };
+
+          </script>
+
+        </body>
+
+      </html>
+    `);
+
+    printWindow.document.close();
   };
 
   return (
@@ -263,6 +377,7 @@ Thank you for your patronage.
                 <img
                   src={business.logo}
                   alt="watermark"
+                  crossOrigin="anonymous"
                 />
 
               </div>
@@ -278,6 +393,7 @@ Thank you for your patronage.
                 <img
                   src={business.logo}
                   alt="logo"
+                  crossOrigin="anonymous"
                 />
 
               </div>
@@ -313,14 +429,22 @@ Thank you for your patronage.
             <div className="receipt-meta">
 
               <div className="receipt-row">
-                <span>Receipt ID</span>
+
+                <span>
+                  Receipt ID
+                </span>
+
                 <strong>
                   {sale.receiptId}
                 </strong>
+
               </div>
 
               <div className="receipt-row">
-                <span>Date</span>
+
+                <span>
+                  Date
+                </span>
 
                 <strong>
 
@@ -329,27 +453,35 @@ Thank you for your patronage.
                   ).toLocaleString()}
 
                 </strong>
+
               </div>
 
               <div className="receipt-row">
-                <span>Cashier</span>
+
+                <span>
+                  Cashier
+                </span>
 
                 <strong>
                   {sale.createdBy?.name || "-"}
                 </strong>
+
               </div>
 
               {sale.customerName && (
 
                 <div className="receipt-row">
 
-                  <span>Customer</span>
+                  <span>
+                    Customer
+                  </span>
 
                   <strong>
                     {sale.customerName}
                   </strong>
 
                 </div>
+
               )}
 
             </div>

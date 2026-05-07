@@ -1,0 +1,411 @@
+/* =========================================
+   RECEIPT ENGINE
+========================================= */
+
+.receipt {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 24px;
+  overflow: hidden;
+
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.08);
+
+  color: #111827;
+
+  font-family:
+    Inter,
+    sans-serif;
+
+  isolation: isolate;
+}
+
+/* =========================================
+   WATERMARK
+========================================= */
+
+.receipt-watermark {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+.receipt-watermark img {
+  width: 65%;
+  object-fit: contain;
+
+  opacity: 0.05;
+
+  filter:
+    grayscale(100%);
+}
+
+/* =========================================
+   LOGO
+========================================= */
+
+.receipt-logo {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  justify-content: center;
+
+  margin-bottom: 18px;
+}
+
+.receipt-logo img {
+  display: block;
+
+  max-height: 70px;
+  max-width: 180px;
+
+  object-fit: contain;
+}
+
+/* =========================================
+   BUSINESS
+========================================= */
+
+.receipt-business {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-business h1 {
+  margin: 0;
+
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+
+  text-transform: uppercase;
+}
+
+.receipt-business p {
+  margin: 6px 0 0;
+
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* =========================================
+   DIVIDER
+========================================= */
+
+.receipt-divider {
+  border-top: 1px dashed #d1d5db;
+
+  margin: 18px 0;
+}
+
+/* =========================================
+   META
+========================================= */
+
+.receipt-meta {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  gap: 10px;
+}
+
+.receipt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  font-size: 14px;
+}
+
+.receipt-row span {
+  color: #6b7280;
+}
+
+.receipt-row strong {
+  font-weight: 700;
+  text-align: right;
+}
+
+/* =========================================
+   ITEMS
+========================================= */
+
+.receipt-items {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  gap: 16px;
+}
+
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+
+  gap: 16px;
+}
+
+.receipt-item h4 {
+  margin: 0;
+
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.receipt-item p {
+  margin: 4px 0 0;
+
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.receipt-item strong {
+  white-space: nowrap;
+
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* =========================================
+   TOTAL
+========================================= */
+
+.receipt-total {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #111827;
+  color: white;
+
+  border-radius: 18px;
+
+  padding: 16px 18px;
+
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.receipt-total span {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.receipt-total strong {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+/* =========================================
+   NOTES
+========================================= */
+
+.receipt-notes {
+  position: relative;
+  z-index: 2;
+}
+
+.receipt-notes h4 {
+  margin: 0 0 6px;
+
+  font-size: 14px;
+}
+
+.receipt-notes p {
+  margin: 0;
+
+  font-size: 13px;
+  line-height: 1.5;
+
+  color: #6b7280;
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.receipt-footer {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-footer p {
+  margin: 8px 0;
+
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.receipt-footer .thank-you {
+  font-size: 14px;
+  font-weight: 700;
+
+  color: #111827;
+}
+
+/* =========================================
+   THEMES
+========================================= */
+
+/* MODERN */
+
+.receipt-modern {
+  border: 1px solid #f1f5f9;
+}
+
+/* MINIMAL */
+
+.receipt-minimal {
+  border: 1px solid #e5e7eb;
+
+  box-shadow: none;
+}
+
+/* CLASSIC */
+
+.receipt-classic {
+  border-radius: 0;
+
+  box-shadow: none;
+
+  font-family:
+    "Courier New",
+    monospace;
+}
+
+/* PREMIUM */
+
+.receipt-premium::before {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 6px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #111827,
+      #16a34a
+    );
+}
+
+/* =========================================
+   PRINT ENGINE
+========================================= */
+
+@media print {
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: white !important;
+
+    width: 80mm !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt,
+  .receipt * {
+    visibility: visible !important;
+  }
+
+  .receipt {
+    position: absolute !important;
+
+    top: 0 !important;
+    left: 0 !important;
+
+    width: 80mm !important;
+    max-width: 80mm !important;
+
+    margin: 0 auto !important;
+    padding: 12px !important;
+
+    border-radius: 0 !important;
+
+    box-shadow: none !important;
+
+    background: white !important;
+
+    overflow: visible !important;
+  }
+
+  .receipt-watermark img {
+    opacity: 0.04 !important;
+  }
+
+  .receipt-logo img {
+    max-width: 120px !important;
+    max-height: 55px !important;
+  }
+
+  .receipt-total {
+    background: #111827 !important;
+    color: white !important;
+
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 640px) {
+
+  .receipt {
+    max-width: 100%;
+
+    border-radius: 22px;
+
+    padding: 18px;
+  }
+
+  .receipt-business h1 {
+    font-size: 24px;
+  }
+
+  .receipt-total strong {
+    font-size: 24px;
+  }
+}
