@@ -187,7 +187,7 @@ export const AuthProvider = ({ children }) => {
 
   // 🔥 DERIVED STATE
   const isPro =
-    business?.subscription?.plan === "pro";
+    business?.subscription?.status === "active";
 
   const subscriptionStatus =
     business?.subscription?.status;

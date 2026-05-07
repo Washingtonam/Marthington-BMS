@@ -1,6 +1,9 @@
 import express from "express";
 import multer from "multer";
+
 import protect from "../../middlewares/auth.middleware.js";
+import checkPermission from "../../middlewares/permission.middleware.js";
+
 import {
   getBusiness,
   updateBusiness
@@ -8,14 +11,32 @@ import {
 
 const router = express.Router();
 
-// 🔥 MULTER SETUP (STORE FILE IN MEMORY)
+// 🔥 MULTER
 const storage = multer.memoryStorage();
+
 const upload = multer({ storage });
 
-// EXISTING ROUTES (UNCHANGED)
-router.get("/", protect, getBusiness);
+// =====================================
+// GET BUSINESS SETTINGS
+// =====================================
 
-// 🔥 UPDATED ROUTE (NOW ACCEPTS FILE)
-router.put("/", protect, upload.single("logo"), updateBusiness);
+router.get(
+  "/",
+  protect,
+  checkPermission("canManageSettings"),
+  getBusiness
+);
+
+// =====================================
+// UPDATE BUSINESS SETTINGS
+// =====================================
+
+router.put(
+  "/",
+  protect,
+  checkPermission("canManageSettings"),
+  upload.single("logo"),
+  updateBusiness
+);
 
 export default router;

@@ -115,8 +115,8 @@ const SaleDetails = () => {
     "modern";
 
   const isPro =
-    business.subscription?.status ===
-    "active";
+    business.subscription?.plan ===
+    "pro";
 
   // ====================================
   // WHATSAPP
@@ -169,54 +169,67 @@ Thank you for your patronage.
   // PDF
   // ====================================
 
-  const handleDownloadPDF =
-    async () => {
+  const handleDownloadPDF = async () => {
 
-      if (!isPro) {
+    if (!isPro) {
+      setUpgradeMsg(
+        "PDF download is a Pro feature."
+      );
+      return;
+    }
 
-        setUpgradeMsg(
-          "PDF download is a Pro feature."
-        );
+    try {
 
-        return;
-      }
+      const element = receiptRef.current;
 
-      const canvas =
-        await html2canvas(
-          receiptRef.current,
-          {
-            scale: 3,
-            useCORS: true,
-            backgroundColor: "#ffffff"
-          }
-        );
+      const canvas = await html2canvas(
+        element,
+        {
+          scale: 4,
+          useCORS: true,
+          backgroundColor: "#ffffff"
+        }
+      );
 
       const imgData =
-        canvas.toDataURL("image/png");
+        canvas.toDataURL("image/jpeg", 1.0);
 
-      const pdf =
-        new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: [
-            80,
-            canvas.height * 0.264
-          ]
-        });
+      // 🔥 THERMAL WIDTH
+      const pdfWidth = 80;
+
+      // 🔥 PERFECT HEIGHT SCALE
+      const pdfHeight =
+        (canvas.height * pdfWidth) /
+        canvas.width;
+
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [pdfWidth, pdfHeight]
+      });
 
       pdf.addImage(
         imgData,
-        "PNG",
+        "JPEG",
         0,
         0,
-        80,
-        canvas.height * 0.264
+        pdfWidth,
+        pdfHeight
       );
 
       pdf.save(
-        `receipt-${sale.receiptId}.pdf`
+        `Receipt-${sale.receiptId}.pdf`
       );
-    };
+
+    } catch (err) {
+
+      console.error(err);
+
+      setUpgradeMsg(
+        "PDF generation failed"
+      );
+    }
+  };
 
   // ====================================
   // PRINT
@@ -488,7 +501,17 @@ Thank you for your patronage.
 
             {/* TOTAL */}
 
-            <div className="flex justify-between items-center">
+            <div className={`
+                flex
+                justify-between
+                items-center
+                mt-4
+                p-3
+                rounded-xl
+                ${theme === "premium"
+                  ? "bg-black text-white"
+                  : "bg-gray-100"}
+              `}>
 
               <span className="text-lg font-bold">
                 TOTAL

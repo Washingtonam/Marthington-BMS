@@ -694,24 +694,20 @@ label input:focus {
 
   /* Position receipt */
   .receipt {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    
-    width: 80mm !important; /* 🔥 REAL THERMAL SIZE */
-    padding: 10px !important;
-
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    background: white !important;
+    width: 80mm;
+    max-width: 100%;
+    background: white;
+    padding: 14px;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+    transition: all 0.2s ease;
   }
 
-  /* Remove buttons */
-  .no-print {
-    display: none !important;
+    /* Remove buttons */
+    .no-print {
+      display: none !important;
+    }
   }
-}
 
 /* 🔥 BASE RECEIPT */
 .receipt {
@@ -773,27 +769,34 @@ label input:focus {
    🔥 PREMIUM (NEW — THIS IS MONEY)
 ========================= */
 .receipt.premium {
-  font-family: Inter, sans-serif;
-  background: linear-gradient(180deg, #ffffff, #f9fafb);
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
-  padding: 20px;
+  position: relative;
+  overflow: hidden;
 }
 
-.receipt.premium h2 {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 1px;
+.receipt.premium::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 5px;
+
+  background: linear-gradient(
+    90deg,
+    #111827,
+    #16a34a
+  );
 }
 
-.receipt.premium .font-bold {
-  color: #111827;
+.receipt.premium h1 {
+  font-size: 22px;
+  font-weight: 800;
 }
 
-.receipt.premium .opacity-70 {
-  opacity: 0.6;
-}
-
-.receipt.premium .border-t {
-  border-color: #e5e7eb;
+.receipt.premium .total-section {
+  background: #111827;
+  color: white;
+  padding: 12px;
+  border-radius: 12px;
 }
