@@ -108,17 +108,24 @@ const Billing = () => {
 
     <section className="page-stack">
 
+      {/* HEADER */}
+
       <div className="page-heading">
 
         <div>
 
           <span>
-            Monetization
+            Subscription
           </span>
 
           <h1>
             Billing Center
           </h1>
+
+          <p className="mt-2 text-gray-500">
+            Manage your subscription, unlock premium tools
+            and scale your business faster.
+          </p>
 
         </div>
 
@@ -132,71 +139,57 @@ const Billing = () => {
 
       {/* CURRENT PLAN */}
 
-      <div className="tool-panel">
+      <div className="tool-panel rounded-3xl border border-gray-200">
 
-        <div className="panel-heading">
-
-          <h2>
-            Current Subscription
-          </h2>
-
-        </div>
-
-        <div className="grid gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
 
           <div>
 
-            <strong>
-              Plan
-            </strong>
+            <p className="text-sm uppercase tracking-wider text-gray-500 font-semibold">
+              Current Subscription
+            </p>
 
-            <p className="capitalize">
-              {billing?.plan}
+            <h2 className="text-4xl font-extrabold mt-2 capitalize">
+              {billing?.plan || "Free"}
+            </h2>
+
+            <p className="mt-2 text-gray-500 capitalize">
+              {billing?.status || "inactive"}
             </p>
 
           </div>
 
-          <div>
+          <div className="grid grid-cols-2 gap-4 w-full lg:w-auto">
 
-            <strong>
-              Status
-            </strong>
+            <div className="bg-gray-50 rounded-2xl p-4 min-w-[150px]">
 
-            <p className="capitalize">
-              {billing?.status}
-            </p>
+              <p className="text-xs text-gray-500 uppercase">
+                Billing Cycle
+              </p>
 
-          </div>
+              <h3 className="text-xl font-bold mt-2 capitalize">
+                {
+                  billing?.billingCycle ||
+                  "N/A"
+                }
+              </h3>
 
-          <div>
+            </div>
 
-            <strong>
-              Billing Cycle
-            </strong>
+            <div className="bg-gray-50 rounded-2xl p-4 min-w-[150px]">
 
-            <p className="capitalize">
-              {
-                billing?.billingCycle ||
-                "N/A"
-              }
-            </p>
+              <p className="text-xs text-gray-500 uppercase">
+                Days Left
+              </p>
 
-          </div>
+              <h3 className="text-xl font-bold mt-2">
+                {
+                  billing?.daysLeft ||
+                  0
+                } days
+              </h3>
 
-          <div>
-
-            <strong>
-              Days Left
-            </strong>
-
-            <p>
-              {
-                billing?.daysLeft ||
-                0
-              }
-              {" "}
-              days
-            </p>
+            </div>
 
           </div>
 
@@ -206,51 +199,76 @@ const Billing = () => {
 
       {/* PRICING */}
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-8">
 
         {/* MONTHLY */}
 
-        <div className="tool-panel border-2 border-gray-200">
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm p-8 relative overflow-hidden">
 
-          <h2 className="text-xl font-bold">
-            Pro Monthly
-          </h2>
+          <div className="mb-8">
 
-          <div className="text-4xl font-bold mt-4">
-            ₦5,000
+            <h2 className="text-3xl font-extrabold">
+              Pro Monthly
+            </h2>
+
+            <div className="mt-6 flex items-end gap-2">
+
+              <span className="text-6xl font-black">
+                ₦15,000
+              </span>
+
+              <span className="text-gray-500 mb-2">
+                / month
+              </span>
+
+            </div>
+
+            <p className="text-gray-500 mt-4 leading-7">
+              Perfect for growing businesses that want
+              modern receipts, reports, staff controls
+              and unlimited products.
+            </p>
+
           </div>
 
-          <p className="text-gray-500 mt-2">
-            Per month
-          </p>
+          <div className="space-y-4 text-sm">
 
-          <ul className="mt-6 space-y-2 text-sm">
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Unlimited products</span>
+            </div>
 
-            <li>
-              ✅ Unlimited products
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Unlimited staff accounts</span>
+            </div>
 
-            <li>
-              ✅ Unlimited staff
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>WhatsApp receipts</span>
+            </div>
 
-            <li>
-              ✅ WhatsApp receipts
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Premium receipt templates</span>
+            </div>
 
-            <li>
-              ✅ Analytics dashboard
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>PDF exports</span>
+            </div>
 
-            <li>
-              ✅ Reports system
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Analytics dashboard</span>
+            </div>
 
-            <li>
-              ✅ Team management
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Business reports</span>
+            </div>
 
-          </ul>
+          </div>
 
           <button
             onClick={() =>
@@ -264,7 +282,7 @@ const Billing = () => {
               "monthly"
             }
 
-            className="mt-8 w-full bg-black text-white p-3 rounded-xl"
+            className="mt-10 w-full bg-black hover:bg-gray-900 text-white p-4 rounded-2xl font-bold transition"
           >
 
             {processing ===
@@ -278,43 +296,65 @@ const Billing = () => {
 
         {/* YEARLY */}
 
-        <div className="tool-panel border-2 border-green-500 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-green-600 to-green-700 text-white rounded-[32px] shadow-xl p-8 relative overflow-hidden">
 
-          <div className="absolute top-0 right-0 bg-green-600 text-white text-xs px-3 py-1">
-            SAVE MORE
+          <div className="absolute top-5 right-5 bg-white text-green-700 text-xs px-4 py-2 rounded-full font-bold">
+            SAVE ₦30,000
           </div>
 
-          <h2 className="text-xl font-bold">
-            Pro Yearly
-          </h2>
+          <div className="mb-8">
 
-          <div className="text-4xl font-bold mt-4">
-            ₦50,000
+            <h2 className="text-3xl font-extrabold">
+              Pro Yearly
+            </h2>
+
+            <div className="mt-6 flex items-end gap-2">
+
+              <span className="text-6xl font-black">
+                ₦150,000
+              </span>
+
+              <span className="text-green-100 mb-2">
+                / year
+              </span>
+
+            </div>
+
+            <p className="text-green-100 mt-4 leading-7">
+              Best for serious businesses that want long-term
+              growth with maximum savings and future upgrades.
+            </p>
+
           </div>
 
-          <p className="text-gray-500 mt-2">
-            Per year
-          </p>
+          <div className="space-y-4 text-sm">
 
-          <ul className="mt-6 space-y-2 text-sm">
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Everything in Monthly</span>
+            </div>
 
-            <li>
-              ✅ Everything in Monthly
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Priority support</span>
+            </div>
 
-            <li>
-              ✅ Priority support
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Early access to AI tools</span>
+            </div>
 
-            <li>
-              ✅ Future AI tools
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Multi-location ready</span>
+            </div>
 
-            <li>
-              ✅ Multi-location ready
-            </li>
+            <div className="flex items-center gap-3">
+              <span>✅</span>
+              <span>Future enterprise features</span>
+            </div>
 
-          </ul>
+          </div>
 
           <button
             onClick={() =>
@@ -328,7 +368,7 @@ const Billing = () => {
               "yearly"
             }
 
-            className="mt-8 w-full bg-green-600 text-white p-3 rounded-xl"
+            className="mt-10 w-full bg-white text-green-700 hover:bg-gray-100 p-4 rounded-2xl font-bold transition"
           >
 
             {processing ===
@@ -337,6 +377,51 @@ const Billing = () => {
               : "Upgrade Yearly"}
 
           </button>
+
+        </div>
+
+      </div>
+
+      {/* TRUST */}
+
+      <div className="grid md:grid-cols-3 gap-6">
+
+        <div className="bg-white border rounded-3xl p-6 shadow-sm">
+
+          <h3 className="font-bold text-2xl">
+            Smart Receipts
+          </h3>
+
+          <p className="mt-3 text-gray-500">
+            Professional PDF and WhatsApp receipts
+            that improve customer trust.
+          </p>
+
+        </div>
+
+        <div className="bg-white border rounded-3xl p-6 shadow-sm">
+
+          <h3 className="font-bold text-2xl">
+            Cloud Sync
+          </h3>
+
+          <p className="mt-3 text-gray-500">
+            Access your business securely from
+            anywhere and any device.
+          </p>
+
+        </div>
+
+        <div className="bg-white border rounded-3xl p-6 shadow-sm">
+
+          <h3 className="font-bold text-2xl">
+            Business Growth
+          </h3>
+
+          <p className="mt-3 text-gray-500">
+            Scale your operations with analytics,
+            inventory and team management.
+          </p>
 
         </div>
 
