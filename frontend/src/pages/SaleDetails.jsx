@@ -180,49 +180,35 @@ Thank you for your patronage.
           await html2canvas(
             element,
             {
-              scale: 4,
+              scale: 5,
               useCORS: true,
               backgroundColor: "#ffffff",
               logging: false
             }
           );
 
-        const imgData =
+        const image =
           canvas.toDataURL(
-            "image/png",
+            "image/jpeg",
             1.0
           );
 
-        const pdfWidth = 80;
+        const link =
+          document.createElement("a");
 
-        const pdfHeight =
-          (canvas.height *
-            pdfWidth) /
-          canvas.width;
+        link.href = image;
 
-        const pdf =
-          new jsPDF({
-            orientation: "portrait",
-            unit: "mm",
-            format: [
-              pdfWidth,
-              pdfHeight
-            ]
-          });
+        link.download =
+          `Receipt-${sale.receiptId}.jpg`;
 
-        pdf.addImage(
-          imgData,
-          "PNG",
-          0,
-          0,
-          pdfWidth,
-          pdfHeight,
-          undefined,
-          "FAST"
+        document.body.appendChild(
+          link
         );
 
-        pdf.save(
-          `Receipt-${sale.receiptId}.pdf`
+        link.click();
+
+        document.body.removeChild(
+          link
         );
 
       } catch (err) {
@@ -230,7 +216,7 @@ Thank you for your patronage.
         console.error(err);
 
         setUpgradeMsg(
-          "Failed to generate PDF"
+          "Failed to download receipt"
         );
       }
     };
@@ -677,7 +663,7 @@ Thank you for your patronage.
               onClick={handleDownloadPDF}
               className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
-              Download PDF
+              Download JPG
             </button>
 
             {/* WHATSAPP */}
