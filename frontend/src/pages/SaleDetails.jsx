@@ -380,7 +380,7 @@ Thank you for your patronage.
 
               setTimeout(() => {
 
-                printWindow.focus();
+                window.focus();
 
                 printWindow.print();
 
