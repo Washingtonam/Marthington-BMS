@@ -16,8 +16,6 @@ import {
 
 import html2canvas from "html2canvas";
 
-import jsPDF from "jspdf";
-
 const Divider = () => (
   <div className="receipt-divider" />
 );
@@ -42,7 +40,7 @@ const SaleDetails = () => {
     useState("");
 
   // =====================================
-  // LOAD
+  // LOAD SALE
   // =====================================
 
   useEffect(() => {
@@ -57,6 +55,8 @@ const SaleDetails = () => {
           await request(`/sales/${id}`);
 
         setSale(data);
+
+        // AUTO WHATSAPP
 
         if (
           location.state?.autoSend &&
@@ -163,10 +163,10 @@ Thank you for your patronage.
   };
 
   // =====================================
-  // PDF
+  // DOWNLOAD JPG
   // =====================================
 
-  const handleDownloadPDF =
+  const handleDownloadImage =
     async () => {
 
       try {
@@ -216,13 +216,13 @@ Thank you for your patronage.
         console.error(err);
 
         setUpgradeMsg(
-          "Failed to download receipt"
+          "Failed to download receipt image"
         );
       }
     };
 
   // =====================================
-  // PRINT
+  // PRINT ENGINE
   // =====================================
 
   const handlePrint = () => {
@@ -241,6 +241,7 @@ Thank you for your patronage.
         for (const rule of sheet.cssRules) {
 
           cssText += rule.cssText;
+
         }
 
       } catch (err) {
@@ -259,6 +260,15 @@ Thank you for your patronage.
         "width=450,height=900"
       );
 
+    if (!printWindow) {
+
+      setUpgradeMsg(
+        "Popup blocked. Please allow popups."
+      );
+
+      return;
+    }
+
     printWindow.document.write(`
       <html>
 
@@ -268,6 +278,8 @@ Thank you for your patronage.
             Receipt ${sale.receiptId}
           </title>
 
+          <meta charset="UTF-8" />
+
           <style>
 
             ${cssText}
@@ -276,19 +288,27 @@ Thank you for your patronage.
               box-sizing: border-box;
             }
 
+            html,
             body {
 
               margin: 0;
-              padding: 24px;
+              padding: 0;
 
               background: #f3f4f6;
-
-              display: flex;
-              justify-content: center;
 
               font-family:
                 Inter,
                 sans-serif;
+
+            }
+
+            body {
+
+              display: flex;
+              justify-content: center;
+
+              padding: 24px;
+
             }
 
             .receipt {
@@ -300,17 +320,24 @@ Thank you for your patronage.
 
             img {
 
-              display: block;
               max-width: 100%;
+              display: block;
 
             }
 
             @media print {
 
+              html,
               body {
 
                 background: white !important;
                 padding: 0 !important;
+
+              }
+
+              body {
+
+                display: block !important;
 
               }
 
@@ -358,6 +385,12 @@ Thank you for your patronage.
                 window.print();
 
               }, 800);
+
+            };
+
+            window.onafterprint = () => {
+
+              window.close();
 
             };
 
@@ -592,6 +625,7 @@ Thank you for your patronage.
                 </div>
 
               </>
+
             )}
 
             <Divider />
@@ -620,7 +654,7 @@ Thank you for your patronage.
 
         </div>
 
-        {/* ACTIONS */}
+        {/* ACTION PANEL */}
 
         <div className="xl:sticky xl:top-6 h-fit no-print">
 
@@ -633,7 +667,7 @@ Thank you for your patronage.
               </h2>
 
               <p className="text-sm text-gray-500 mt-1">
-                Print, share and export receipt
+                Print, save as PDF or share receipt
               </p>
 
             </div>
@@ -654,13 +688,13 @@ Thank you for your patronage.
               onClick={handlePrint}
               className="w-full bg-black text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
-              Print Receipt
+              Print / Save PDF
             </button>
 
-            {/* PDF */}
+            {/* JPG */}
 
             <button
-              onClick={handleDownloadPDF}
+              onClick={handleDownloadImage}
               className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
               Download JPG
@@ -682,12 +716,13 @@ Thank you for your patronage.
                     sale,
                     phone
                   );
+
                 }
 
               }}
               className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
             >
-              Send via WhatsApp
+              Share via WhatsApp
             </button>
 
             {/* BACK */}
