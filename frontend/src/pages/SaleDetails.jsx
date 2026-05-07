@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+
 import {
   useParams,
   useNavigate,
@@ -12,10 +13,11 @@ import {
 } from "../utils/formatters.js";
 
 import html2canvas from "html2canvas";
+
 import jsPDF from "jspdf";
 
 const Divider = () => (
-  <div className="border-t border-dashed border-gray-300 my-4" />
+  <div className="receipt-divider" />
 );
 
 const SaleDetails = () => {
@@ -26,6 +28,8 @@ const SaleDetails = () => {
 
   const location = useLocation();
 
+  const receiptRef = useRef();
+
   const [sale, setSale] = useState(null);
 
   const [loading, setLoading] =
@@ -34,11 +38,9 @@ const SaleDetails = () => {
   const [upgradeMsg, setUpgradeMsg] =
     useState("");
 
-  const receiptRef = useRef();
-
-  // ====================================
+  // =====================================
   // LOAD SALE
-  // ====================================
+  // =====================================
 
   useEffect(() => {
 
@@ -54,17 +56,20 @@ const SaleDetails = () => {
         setSale(data);
 
         // AUTO WHATSAPP
+
         if (
           location.state?.autoSend &&
-          location.state?.phone &&
-          data.business?.subscription?.status ===
-            "active"
+          location.state?.phone
         ) {
 
-          sendWhatsApp(
-            data,
-            location.state.phone
-          );
+          setTimeout(() => {
+
+            sendWhatsApp(
+              data,
+              location.state.phone
+            );
+
+          }, 1200);
         }
 
       } catch (err) {
@@ -77,7 +82,6 @@ const SaleDetails = () => {
       } finally {
 
         setLoading(false);
-
       }
     };
 
@@ -85,9 +89,9 @@ const SaleDetails = () => {
 
   }, [id]);
 
-  // ====================================
-  // LOADING
-  // ====================================
+  // =====================================
+  // STATES
+  // =====================================
 
   if (loading) {
 
@@ -115,29 +119,23 @@ const SaleDetails = () => {
     "modern";
 
   const isPro =
-    business.subscription?.plan ===
-    "pro";
+    business.subscription?.status ===
+    "active";
 
-  // ====================================
+  // =====================================
   // WHATSAPP
-  // ====================================
+  // =====================================
 
   const sendWhatsApp = (
     saleData,
     phone
   ) => {
 
-    if (!isPro) {
-
-      setUpgradeMsg(
-        "WhatsApp sharing is a Pro feature."
-      );
-
-      return;
-    }
+    if (!phone) return;
 
     const cleanPhone =
-      phone.replace(/\D/g, "")
+      phone
+        .replace(/\D/g, "")
         .replace(/^0/, "234");
 
     const receiptLink =
@@ -165,144 +163,80 @@ Thank you for your patronage.
     );
   };
 
-  // ====================================
+  // =====================================
   // PDF
-  // ====================================
+  // =====================================
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF =
+    async () => {
 
-    if (!isPro) {
-      setUpgradeMsg(
-        "PDF download is a Pro feature."
-      );
-      return;
-    }
+      try {
 
-    try {
+        const element =
+          receiptRef.current;
 
-      const element = receiptRef.current;
+        const canvas =
+          await html2canvas(
+            element,
+            {
+              scale: 4,
+              useCORS: true,
+              backgroundColor: "#ffffff"
+            }
+          );
 
-      const canvas = await html2canvas(
-        element,
-        {
-          scale: 4,
-          useCORS: true,
-          backgroundColor: "#ffffff"
-        }
-      );
+        const imgData =
+          canvas.toDataURL(
+            "image/png"
+          );
 
-      const imgData =
-        canvas.toDataURL("image/jpeg", 1.0);
+        const pdfWidth = 80;
 
-      // 🔥 THERMAL WIDTH
-      const pdfWidth = 80;
+        const pdfHeight =
+          (canvas.height *
+            pdfWidth) /
+          canvas.width;
 
-      // 🔥 PERFECT HEIGHT SCALE
-      const pdfHeight =
-        (canvas.height * pdfWidth) /
-        canvas.width;
+        const pdf =
+          new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: [
+              pdfWidth,
+              pdfHeight
+            ]
+          });
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [pdfWidth, pdfHeight]
-      });
+        pdf.addImage(
+          imgData,
+          "PNG",
+          0,
+          0,
+          pdfWidth,
+          pdfHeight
+        );
 
-      pdf.addImage(
-        imgData,
-        "JPEG",
-        0,
-        0,
-        pdfWidth,
-        pdfHeight
-      );
+        pdf.save(
+          `Receipt-${sale.receiptId}.pdf`
+        );
 
-      pdf.save(
-        `Receipt-${sale.receiptId}.pdf`
-      );
+      } catch (err) {
 
-    } catch (err) {
+        console.error(err);
 
-      console.error(err);
+        setUpgradeMsg(
+          "Failed to generate PDF"
+        );
+      }
+    };
 
-      setUpgradeMsg(
-        "PDF generation failed"
-      );
-    }
-  };
-
-  // ====================================
+  // =====================================
   // PRINT
-  // ====================================
+  // =====================================
 
   const handlePrint = () => {
 
-    const printContents =
-      receiptRef.current.innerHTML;
-
-    const printWindow =
-      window.open(
-        "",
-        "",
-        "width=420,height=800"
-      );
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Receipt</title>
-
-          <style>
-
-            body {
-              font-family: Arial, sans-serif;
-              padding: 0;
-              margin: 0;
-              background: white;
-              display: flex;
-              justify-content: center;
-            }
-
-            .print-wrapper {
-              width: 80mm;
-              padding: 12px;
-            }
-
-            img {
-              max-width: 120px;
-              object-fit: contain;
-            }
-
-            .divider {
-              border-top: 1px dashed #999;
-              margin: 10px 0;
-            }
-
-          </style>
-
-        </head>
-
-        <body>
-
-          <div class="print-wrapper">
-            ${printContents}
-          </div>
-
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-
-    printWindow.focus();
-
-    setTimeout(() => {
-
-      printWindow.print();
-
-      printWindow.close();
-
-    }, 500);
+    window.print();
   };
 
   return (
@@ -311,34 +245,39 @@ Thank you for your patronage.
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
 
-        {/* RECEIPT AREA */}
+        {/* RECEIPT */}
 
         <div className="flex justify-center">
 
           <div
             ref={receiptRef}
-            className={`
-              bg-white
-              w-full
-              max-w-[380px]
-              rounded-3xl
-              shadow-xl
-              p-6
-              receipt
-              ${theme}
-            `}
+            className={`receipt receipt-${theme}`}
           >
+
+            {/* WATERMARK */}
+
+            {business.logo && (
+
+              <div className="receipt-watermark">
+
+                <img
+                  src={business.logo}
+                  alt="watermark"
+                />
+
+              </div>
+
+            )}
 
             {/* LOGO */}
 
             {business.logo && (
 
-              <div className="flex justify-center mb-4">
+              <div className="receipt-logo">
 
                 <img
                   src={business.logo}
                   alt="logo"
-                  className="max-h-14 object-contain"
                 />
 
               </div>
@@ -347,98 +286,70 @@ Thank you for your patronage.
 
             {/* BUSINESS */}
 
-            <div className="text-center">
+            <div className="receipt-business">
 
-              <h1 className="font-bold text-xl uppercase tracking-wide">
-
+              <h1>
                 {business.name}
-
               </h1>
 
               {business.address && (
-
-                <p className="text-xs text-gray-500 mt-1">
-
+                <p>
                   {business.address}
-
                 </p>
-
               )}
 
               {business.phone && (
-
-                <p className="text-xs text-gray-500">
-
+                <p>
                   {business.phone}
-
                 </p>
-
               )}
 
             </div>
 
             <Divider />
 
-            {/* SALE INFO */}
+            {/* META */}
 
-            <div className="space-y-2 text-sm">
+            <div className="receipt-meta">
 
-              <div className="flex justify-between">
-
-                <span className="text-gray-500">
-                  Receipt ID
-                </span>
-
-                <span className="font-medium">
+              <div className="receipt-row">
+                <span>Receipt ID</span>
+                <strong>
                   {sale.receiptId}
-                </span>
-
+                </strong>
               </div>
 
-              <div className="flex justify-between">
+              <div className="receipt-row">
+                <span>Date</span>
 
-                <span className="text-gray-500">
-                  Date
-                </span>
-
-                <span>
+                <strong>
 
                   {new Date(
                     sale.createdAt
                   ).toLocaleString()}
 
-                </span>
-
+                </strong>
               </div>
 
-              <div className="flex justify-between">
+              <div className="receipt-row">
+                <span>Cashier</span>
 
-                <span className="text-gray-500">
-                  Cashier
-                </span>
-
-                <span>
-
+                <strong>
                   {sale.createdBy?.name || "-"}
-
-                </span>
-
+                </strong>
               </div>
 
               {sale.customerName && (
 
-                <div className="flex justify-between">
+                <div className="receipt-row">
 
-                  <span className="text-gray-500">
-                    Customer
-                  </span>
+                  <span>Customer</span>
 
-                  <span>
+                  <strong>
                     {sale.customerName}
-                  </span>
+                  </strong>
 
                 </div>
-
               )}
 
             </div>
@@ -447,51 +358,44 @@ Thank you for your patronage.
 
             {/* ITEMS */}
 
-            <div className="space-y-4">
+            <div className="receipt-items">
 
               {sale.items?.map(
                 (item, index) => (
 
                   <div
                     key={index}
-                    className="space-y-1"
+                    className="receipt-item"
                   >
 
-                    <div className="flex justify-between gap-3">
+                    <div>
 
-                      <div>
+                      <h4>
+                        {item.name}
+                      </h4>
 
-                        <div className="font-semibold text-sm">
+                      <p>
 
-                          {item.name}
-
-                        </div>
-
-                        <div className="text-xs text-gray-500">
-
-                          {item.quantity}
-                          {" × "}
-                          {formatCurrency(
-                            item.sellingPrice
-                          )}
-
-                        </div>
-
-                      </div>
-
-                      <div className="font-semibold text-sm whitespace-nowrap">
-
+                        {item.quantity}
+                        {" × "}
                         {formatCurrency(
-                          item.quantity *
-                            item.sellingPrice
+                          item.sellingPrice
                         )}
 
-                      </div>
+                      </p>
 
                     </div>
 
-                  </div>
+                    <strong>
 
+                      {formatCurrency(
+                        item.quantity *
+                        item.sellingPrice
+                      )}
+
+                    </strong>
+
+                  </div>
                 )
               )}
 
@@ -501,29 +405,19 @@ Thank you for your patronage.
 
             {/* TOTAL */}
 
-            <div className={`
-                flex
-                justify-between
-                items-center
-                mt-4
-                p-3
-                rounded-xl
-                ${theme === "premium"
-                  ? "bg-black text-white"
-                  : "bg-gray-100"}
-              `}>
+            <div className="receipt-total">
 
-              <span className="text-lg font-bold">
+              <span>
                 TOTAL
               </span>
 
-              <span className="text-2xl font-extrabold">
+              <strong>
 
                 {formatCurrency(
                   sale.totalAmount
                 )}
 
-              </span>
+              </strong>
 
             </div>
 
@@ -534,31 +428,29 @@ Thank you for your patronage.
               <>
                 <Divider />
 
-                <div>
+                <div className="receipt-notes">
 
-                  <div className="font-semibold text-sm mb-1">
+                  <h4>
                     Notes
-                  </div>
+                  </h4>
 
-                  <p className="text-xs text-gray-600">
+                  <p>
                     {sale.notes}
                   </p>
 
                 </div>
-              </>
 
+              </>
             )}
 
             <Divider />
 
             {/* FOOTER */}
 
-            <div className="text-center text-xs text-gray-500 space-y-2">
+            <div className="receipt-footer">
 
-              <p className="font-semibold text-gray-700">
-
+              <p className="thank-you">
                 Thank you for your patronage
-
               </p>
 
               {business.receiptFooter && (
@@ -567,7 +459,7 @@ Thank you for your patronage.
                 </p>
               )}
 
-              <p className="pt-2">
+              <p>
                 Powered by Marthington
               </p>
 
@@ -577,9 +469,9 @@ Thank you for your patronage.
 
         </div>
 
-        {/* ACTION PANEL */}
+        {/* ACTIONS */}
 
-        <div className="xl:sticky xl:top-6 h-fit">
+        <div className="xl:sticky xl:top-6 h-fit no-print">
 
           <div className="bg-white rounded-3xl shadow-lg p-5 space-y-4">
 
@@ -609,7 +501,7 @@ Thank you for your patronage.
 
             <button
               onClick={handlePrint}
-              className="w-full bg-black text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
+              className="w-full bg-black text-white py-3 rounded-2xl font-medium"
             >
               Print Receipt
             </button>
@@ -618,7 +510,7 @@ Thank you for your patronage.
 
             <button
               onClick={handleDownloadPDF}
-              className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
+              className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium"
             >
               Download PDF
             </button>
@@ -642,7 +534,7 @@ Thank you for your patronage.
                 }
 
               }}
-              className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
+              className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium"
             >
               Send via WhatsApp
             </button>
@@ -651,31 +543,12 @@ Thank you for your patronage.
 
             <button
               onClick={() =>
-                navigate("/app/pos")
+                navigate("/app/sales")
               }
-              className="w-full border border-gray-300 py-3 rounded-2xl font-medium hover:bg-gray-50 transition"
+              className="w-full border border-gray-300 py-3 rounded-2xl font-medium"
             >
-              Back to POS
+              Back to Sales
             </button>
-
-            {/* UPGRADE */}
-
-            {!isPro && (
-
-              <div className="pt-2 border-t">
-
-                <button
-                  onClick={() =>
-                    navigate("/app/settings")
-                  }
-                  className="w-full bg-gradient-to-r from-black to-gray-700 text-white py-3 rounded-2xl font-semibold"
-                >
-                  Upgrade to Pro 🚀
-                </button>
-
-              </div>
-
-            )}
 
           </div>
 
