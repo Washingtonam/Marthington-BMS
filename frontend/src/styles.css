@@ -59,13 +59,40 @@ a {
 .sidebar {
   position: sticky;
   top: 0;
+
   display: flex;
   flex-direction: column;
   gap: 24px;
+
   height: 100vh;
+
   padding: 22px;
+
   color: #eef8f1;
   background: #18251e;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  scrollbar-width: thin;
+  scrollbar-color: #3d5246 transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: #3d5246;
+  border-radius: 999px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: #587263;
 }
 
 .brand-block {
