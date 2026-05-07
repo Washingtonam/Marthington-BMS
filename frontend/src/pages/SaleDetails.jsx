@@ -238,36 +238,32 @@ Thank you for your patronage.
   // PRINT
   // =====================================
 
-  const handlePrint = async () => {
+  const handlePrint = () => {
 
-    const printContents =
-      receiptRef.current;
+    const receiptHTML =
+      receiptRef.current?.outerHTML;
 
-    if (!printContents) return;
+    if (!receiptHTML) return;
 
-    const clonedNode =
-      printContents.cloneNode(true);
+    const styles =
+      Array.from(
+        document.querySelectorAll(
+          'link[rel="stylesheet"], style'
+        )
+      )
+        .map((el) => el.outerHTML)
+        .join("");
 
     const printWindow =
       window.open(
         "",
         "_blank",
-        "width=420,height=900"
+        "width=450,height=900"
       );
-
-    const styles =
-      Array.from(
-        document.querySelectorAll(
-          'style, link[rel="stylesheet"]'
-        )
-      )
-        .map((style) =>
-          style.outerHTML
-        )
-        .join("");
 
     printWindow.document.write(`
       <html>
+
         <head>
 
           <title>
@@ -278,45 +274,59 @@ Thank you for your patronage.
 
           <style>
 
-            * {
-              box-sizing: border-box;
-            }
-
             body {
               margin: 0;
               padding: 24px;
+
               background: #f3f4f6;
+
               display: flex;
               justify-content: center;
+
               font-family:
                 Inter,
                 sans-serif;
             }
 
-            .print-container {
-              width: 100%;
-              max-width: 380px;
-            }
-
             .receipt {
               width: 100% !important;
+              max-width: 380px !important;
+
+              margin: auto !important;
+
+              display: block !important;
             }
 
             img {
-              max-width: 100%;
               display: block;
+              max-width: 100%;
             }
 
             @media print {
 
               body {
-                background: white;
-                padding: 0;
+                background: white !important;
+                padding: 0 !important;
               }
 
-              .print-container {
-                width: 80mm;
-                max-width: 80mm;
+              .receipt {
+
+                width: 80mm !important;
+                max-width: 80mm !important;
+
+                border-radius: 0 !important;
+
+                box-shadow: none !important;
+
+                margin: 0 auto !important;
+
+                print-color-adjust: exact !important;
+                -webkit-print-color-adjust: exact !important;
+              }
+
+              @page {
+                size: 80mm auto;
+                margin: 0;
               }
 
             }
@@ -327,23 +337,7 @@ Thank you for your patronage.
 
         <body>
 
-          <div class="print-container">
-            ${clonedNode.outerHTML}
-          </div>
-
-          <script>
-
-            window.onload = () => {
-
-              setTimeout(() => {
-
-                window.focus();
-
-              }, 300);
-
-            };
-
-          </script>
+          ${receiptHTML}
 
         </body>
 
