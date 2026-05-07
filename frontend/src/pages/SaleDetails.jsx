@@ -245,14 +245,25 @@ Thank you for your patronage.
 
     if (!receiptHTML) return;
 
-    const styles =
-      Array.from(
-        document.querySelectorAll(
-          'link[rel="stylesheet"], style'
-        )
-      )
-        .map((el) => el.outerHTML)
-        .join("");
+    let cssText = "";
+
+    for (const sheet of document.styleSheets) {
+
+      try {
+
+        for (const rule of sheet.cssRules) {
+
+          cssText += rule.cssText;
+        }
+
+      } catch (err) {
+
+        console.warn(
+          "Cannot access stylesheet",
+          err
+        );
+      }
+    }
 
     const printWindow =
       window.open(
@@ -270,9 +281,9 @@ Thank you for your patronage.
             Receipt ${sale.receiptId}
           </title>
 
-          ${styles}
-
           <style>
+
+            ${cssText}
 
             body {
               margin: 0;
@@ -282,19 +293,11 @@ Thank you for your patronage.
 
               display: flex;
               justify-content: center;
-
-              font-family:
-                Inter,
-                sans-serif;
             }
 
             .receipt {
               width: 100% !important;
               max-width: 380px !important;
-
-              margin: auto !important;
-
-              display: block !important;
             }
 
             img {
