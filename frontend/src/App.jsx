@@ -23,6 +23,8 @@ import Invoices from "./pages/Invoices.jsx";
 import VerifyPayment from "./pages/VerifyPayment.jsx";
 import Customers from "./pages/Customers.jsx";
 import Services from "./pages/Services.jsx";
+import StaffReports from "./pages/StaffReports.jsx";
+import InventoryReports from "./pages/InventoryReports.jsx";
 
 
 // 🔥 PUBLIC RECEIPT
@@ -70,6 +72,8 @@ const App = () => {
             <Route path="invoices" element={<Invoices />} />
             <Route path="customers" element={<Customers />} />
             <Route path="services" element={<Services />} />
+            <Route path="staff-reports" element={<StaffReports />} />
+            <Route path="inventory-reports" element={<InventoryReports />} />
           </Route>
 
           {/* ================= ADMIN ================= */}

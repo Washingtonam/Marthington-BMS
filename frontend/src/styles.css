@@ -675,128 +675,368 @@ label input:focus {
   }
 }
 
-/* 🔥 CLEAN PRINT SYSTEM (THERMAL RECEIPT READY) */
-@media print {
-  body {
-    background: white !important;
-  }
+/* =========================================
+   RECEIPT ENGINE
+========================================= */
 
-  /* Hide everything */
-  body * {
-    visibility: hidden;
-  }
-
-  /* Show only receipt */
-  .receipt,
-  .receipt * {
-    visibility: visible;
-  }
-
-  /* Position receipt */
-  .receipt {
-    width: 80mm;
-    max-width: 100%;
-    background: white;
-    padding: 14px;
-    border-radius: 12px;
-    box-shadow: 0 12px 30px rgba(0,0,0,0.08);
-    transition: all 0.2s ease;
-  }
-
-    /* Remove buttons */
-    .no-print {
-      display: none !important;
-    }
-  }
-
-/* 🔥 BASE RECEIPT */
 .receipt {
-  width: 320px;
-  background: white;
-  padding: 16px;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.08);
-  transition: all 0.2s ease;
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 24px;
+  overflow: hidden;
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.08);
+
+  color: #111827;
+
+  font-family:
+    Inter,
+    sans-serif;
 }
 
-/* =========================
-   🔵 MODERN (DEFAULT SaaS)
-========================= */
-.receipt.modern {
-  font-family: Inter, sans-serif;
-  border: 1px solid #f0f0f0;
+/* =========================================
+   WATERMARK
+========================================= */
+
+.receipt-watermark {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  pointer-events: none;
+
+  z-index: 0;
 }
 
-.receipt.modern h2 {
-  font-size: 16px;
-  letter-spacing: 0.5px;
+.receipt-watermark img {
+  width: 65%;
+  opacity: 0.05;
+  object-fit: contain;
 }
 
-/* =========================
-   ⚫ CLASSIC (THERMAL POS)
-========================= */
-.receipt.classic {
-  font-family: "Courier New", monospace;
-  width: 280px;
-  background: #fff;
-  border-radius: 0;
-  box-shadow: none;
+/* =========================================
+   LOGO
+========================================= */
+
+.receipt-logo {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  justify-content: center;
+
+  margin-bottom: 18px;
 }
 
-.receipt.classic h2 {
+.receipt-logo img {
+  max-height: 70px;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+/* =========================================
+   BUSINESS
+========================================= */
+
+.receipt-business {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-business h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.receipt-business p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* =========================================
+   DIVIDER
+========================================= */
+
+.receipt-divider {
+  border-top: 1px dashed #d1d5db;
+  margin: 18px 0;
+}
+
+/* =========================================
+   META
+========================================= */
+
+.receipt-meta {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  gap: 10px;
+}
+
+.receipt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
   font-size: 14px;
 }
 
-.receipt.classic .border-t {
-  border-style: dashed;
+.receipt-row span {
+  color: #6b7280;
 }
 
-/* =========================
-   ⚪ MINIMAL (CLEAN PREMIUM)
-========================= */
-.receipt.minimal {
-  font-family: system-ui;
-  background: #ffffff;
-  border: 1px solid #eaeaea;
-  box-shadow: none;
+.receipt-row strong {
+  font-weight: 700;
+  text-align: right;
 }
 
-.receipt.minimal h2 {
-  font-weight: 600;
-}
+/* =========================================
+   ITEMS
+========================================= */
 
-/* =========================
-   🔥 PREMIUM (NEW — THIS IS MONEY)
-========================= */
-.receipt.premium {
+.receipt-items {
   position: relative;
-  overflow: hidden;
+  z-index: 2;
+
+  display: grid;
+  gap: 16px;
 }
 
-.receipt.premium::before {
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.receipt-item h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.receipt-item p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.receipt-item strong {
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+/* =========================================
+   TOTAL
+========================================= */
+
+.receipt-total {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: #111827;
+  color: white;
+
+  border-radius: 18px;
+
+  padding: 16px 18px;
+}
+
+.receipt-total span {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.receipt-total strong {
+  font-size: 32px;
+  font-weight: 900;
+}
+
+/* =========================================
+   NOTES
+========================================= */
+
+.receipt-notes {
+  position: relative;
+  z-index: 2;
+}
+
+.receipt-notes h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.receipt-notes p {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.receipt-footer {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-footer p {
+  margin: 8px 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.receipt-footer .thank-you {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* =========================================
+   THEMES
+========================================= */
+
+/* MODERN */
+
+.receipt-modern {
+  border: 1px solid #f1f5f9;
+}
+
+/* MINIMAL */
+
+.receipt-minimal {
+  box-shadow: none;
+  border: 1px solid #e5e7eb;
+}
+
+/* CLASSIC */
+
+.receipt-classic {
+  border-radius: 0;
+  box-shadow: none;
+
+  font-family:
+    "Courier New",
+    monospace;
+}
+
+/* PREMIUM */
+
+.receipt-premium::before {
   content: "";
+
   position: absolute;
   top: 0;
   left: 0;
 
   width: 100%;
-  height: 5px;
+  height: 6px;
 
-  background: linear-gradient(
-    90deg,
-    #111827,
-    #16a34a
-  );
+  background:
+    linear-gradient(
+      90deg,
+      #111827,
+      #16a34a
+    );
 }
 
-.receipt.premium h1 {
-  font-size: 22px;
-  font-weight: 800;
+/* =========================================
+   PRINT ENGINE
+========================================= */
+
+@media print {
+
+  body {
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt,
+  .receipt * {
+    visibility: visible;
+  }
+
+  .receipt {
+    position: absolute;
+    left: 50%;
+    top: 0;
+
+    transform: translateX(-50%);
+
+    width: 80mm !important;
+    max-width: 80mm !important;
+
+    padding: 10px !important;
+
+    border-radius: 0 !important;
+
+    box-shadow: none !important;
+
+    background: white !important;
+  }
+
+  .receipt-watermark img {
+    opacity: 0.04 !important;
+  }
+
+  .receipt-total {
+    background: #111827 !important;
+    color: white !important;
+
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 0;
+    size: 80mm auto;
+  }
 }
 
-.receipt.premium .total-section {
-  background: #111827;
-  color: white;
-  padding: 12px;
-  border-radius: 12px;
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 640px) {
+
+  .receipt {
+    max-width: 100%;
+    border-radius: 22px;
+    padding: 18px;
+  }
+
+  .receipt-business h1 {
+    font-size: 24px;
+  }
+
+  .receipt-total strong {
+    font-size: 24px;
+  }
 }

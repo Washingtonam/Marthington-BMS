@@ -1,28 +1,24 @@
-import {
-  useEffect,
-  useState
-} from "react";
+import { useEffect, useState } from "react";
+
+import { useNavigate } from "react-router-dom";
 
 import request from "../api/client.js";
 
-import {
-  formatCurrency
-} from "../utils/formatters.js";
-
-import {
-  CSVLink
-} from "react-csv";
+import { formatCurrency } from "../utils/formatters.js";
 
 const Reports = () => {
 
-  const [reports, setReports] =
-    useState(null);
+  const navigate = useNavigate();
 
-  const [loading, setLoading] =
-    useState(true);
+  const [reports, setReports] = useState(null);
 
-  const [error, setError] =
-    useState("");
+  const [loading, setLoading] = useState(true);
+
+  const [error, setError] = useState("");
+
+  // =====================================
+  // LOAD REPORTS
+  // =====================================
 
   useEffect(() => {
 
@@ -30,18 +26,14 @@ const Reports = () => {
 
       try {
 
-        const data =
-          await request(
-            "/reports"
-          );
+        const data = await request("/reports");
 
         setReports(data);
 
       } catch (err) {
 
         setError(
-          err.message ||
-          "Failed to load reports"
+          err.message || "Failed to load reports"
         );
 
       } finally {
@@ -64,27 +56,7 @@ const Reports = () => {
     );
   }
 
-  const overview =
-    reports?.overview || {};
-
-  const csvData =
-    reports?.recentSales?.map(
-      (sale) => ({
-        Receipt:
-          sale.receiptId,
-
-        Amount:
-          sale.totalAmount,
-
-        Staff:
-          sale.createdBy?.name,
-
-        Date:
-          new Date(
-            sale.createdAt
-          ).toLocaleString()
-      })
-    ) || [];
+  const overview = reports?.overview || {};
 
   return (
 
@@ -96,29 +68,15 @@ const Reports = () => {
 
         <div>
 
-          <span>
-            Reporting Center
-          </span>
+          <span>Business Intelligence</span>
 
-          <h1>
-            Reports
-          </h1>
+          <h1>Reports Hub</h1>
 
         </div>
 
-        <CSVLink
-          data={csvData}
-
-          filename="sales-report.csv"
-
-          className="bg-black text-white px-4 py-2 rounded-md text-sm"
-        >
-
-          Export CSV
-
-        </CSVLink>
-
       </div>
+
+      {/* ERROR */}
 
       {error && (
         <div className="form-error">
@@ -126,270 +84,254 @@ const Reports = () => {
         </div>
       )}
 
-      {/* OVERVIEW */}
+      {/* METRICS */}
 
       <div className="metrics-grid">
 
         <div className="tool-panel">
-          <strong>
-            Today's Revenue
-          </strong>
+          <strong>Today's Revenue</strong>
 
           <h2>
-            {
-              formatCurrency(
-                overview.todayRevenue
-              )
-            }
+            {formatCurrency(
+              overview.todayRevenue
+            )}
           </h2>
         </div>
 
         <div className="tool-panel">
-          <strong>
-            Monthly Revenue
-          </strong>
+          <strong>Monthly Revenue</strong>
 
           <h2>
-            {
-              formatCurrency(
-                overview.monthlyRevenue
-              )
-            }
+            {formatCurrency(
+              overview.monthlyRevenue
+            )}
           </h2>
         </div>
 
         <div className="tool-panel">
-          <strong>
-            Monthly Profit
-          </strong>
+          <strong>Monthly Profit</strong>
 
           <h2>
-            {
-              formatCurrency(
-                overview.monthlyProfit
-              )
-            }
+            {formatCurrency(
+              overview.monthlyProfit
+            )}
           </h2>
         </div>
 
         <div className="tool-panel">
-          <strong>
-            Inventory Value
-          </strong>
+          <strong>Inventory Value</strong>
 
           <h2>
-            {
-              formatCurrency(
-                overview.inventoryValue
-              )
-            }
+            {formatCurrency(
+              overview.inventoryValue
+            )}
           </h2>
         </div>
 
       </div>
 
-      {/* STAFF PERFORMANCE */}
+      {/* REPORT MODULES */}
 
-      <div className="tool-panel">
+      <div className="grid lg:grid-cols-3 gap-6">
 
-        <div className="panel-heading">
-          <h2>
-            Staff Performance
-          </h2>
-        </div>
+        {/* STAFF */}
 
-        <div className="product-table">
+        <div className="tool-panel">
 
-          <div className="product-row product-row-head">
+          <div className="panel-heading">
 
-            <span>Staff</span>
+            <div>
 
-            <span>Sales</span>
+              <h2>
+                Staff Performance
+              </h2>
 
-            <span>Revenue</span>
+              <p>
+                View staff revenue,
+                sales history and analytics.
+              </p>
+
+            </div>
 
           </div>
 
-          {!reports
-            ?.staffPerformance
-            ?.length && (
-            <div className="empty-state">
-              No staff data
-            </div>
-          )}
+          <div className="compact-list">
 
-          {reports
-            ?.staffPerformance
-            ?.map((staff, index) => (
+            {reports?.staffPerformance
+              ?.slice(0, 3)
+              .map((staff, index) => (
 
-              <div
-                key={index}
-                className="product-row"
-              >
+                <div
+                  key={index}
+                  className="compact-row"
+                >
 
-                <span>
-                  {staff.name}
-                </span>
+                  <div>
 
-                <span>
-                  {staff.sales}
-                </span>
+                    <strong>
+                      {staff.name}
+                    </strong>
 
-                <span>
+                    <span>
+                      {staff.sales} sales
+                    </span>
 
-                  {
-                    formatCurrency(
-                      staff.revenue
-                    )
-                  }
-
-                </span>
-
-              </div>
-            ))}
-
-        </div>
-
-      </div>
-
-      {/* LOW STOCK */}
-
-      <div className="tool-panel">
-
-        <div className="panel-heading">
-          <h2>
-            Low Stock Alerts
-          </h2>
-        </div>
-
-        <div className="compact-list">
-
-          {!reports
-            ?.lowStockProducts
-            ?.length && (
-            <div className="empty-state">
-              No low stock products
-            </div>
-          )}
-
-          {reports
-            ?.lowStockProducts
-            ?.map((product) => (
-
-              <div
-                key={product._id}
-                className="compact-row"
-              >
-
-                <div>
+                  </div>
 
                   <strong>
-                    {product.name}
+                    {formatCurrency(
+                      staff.revenue
+                    )}
                   </strong>
-
-                  <span>
-                    SKU:
-                    {" "}
-                    {product.sku || "N/A"}
-                  </span>
 
                 </div>
 
-                <span className="text-red-500 font-semibold">
-
-                  {product.stock}
-
-                </span>
-
-              </div>
-            ))}
-
-        </div>
-
-      </div>
-
-      {/* RECENT SALES */}
-
-      <div className="tool-panel">
-
-        <div className="panel-heading">
-          <h2>
-            Recent Sales
-          </h2>
-        </div>
-
-        <div className="product-table">
-
-          <div className="product-row product-row-head">
-
-            <span>
-              Receipt
-            </span>
-
-            <span>
-              Amount
-            </span>
-
-            <span>
-              Staff
-            </span>
-
-            <span>
-              Date
-            </span>
+              ))}
 
           </div>
 
-          {!reports
-            ?.recentSales
-            ?.length && (
-            <div className="empty-state">
-              No sales yet
+          <button
+            onClick={() =>
+              navigate("/app/reports/staff")
+            }
+            className="primary-button mt-4 w-full"
+          >
+            View Staff Analytics
+          </button>
+
+        </div>
+
+        {/* LOW STOCK */}
+
+        <div className="tool-panel">
+
+          <div className="panel-heading">
+
+            <div>
+
+              <h2>
+                Low Stock Alerts
+              </h2>
+
+              <p>
+                Monitor inventory items
+                running low.
+              </p>
+
             </div>
-          )}
 
-          {reports
-            ?.recentSales
-            ?.map((sale) => (
+          </div>
 
-              <div
-                key={sale._id}
-                className="product-row"
-              >
+          <div className="compact-list">
 
-                <span>
-                  {sale.receiptId}
-                </span>
+            {reports?.lowStockProducts
+              ?.slice(0, 3)
+              .map((product) => (
 
-                <span>
+                <div
+                  key={product._id}
+                  className="compact-row"
+                >
 
-                  {
-                    formatCurrency(
+                  <div>
+
+                    <strong>
+                      {product.name}
+                    </strong>
+
+                    <span>
+                      SKU:
+                      {" "}
+                      {product.sku || "N/A"}
+                    </span>
+
+                  </div>
+
+                  <strong className="text-red-500">
+                    {product.stock}
+                  </strong>
+
+                </div>
+
+              ))}
+
+          </div>
+
+          <button
+            onClick={() =>
+              navigate("/app/reports/inventory")
+            }
+            className="primary-button mt-4 w-full"
+          >
+            Open Inventory Alerts
+          </button>
+
+        </div>
+
+        {/* SALES */}
+
+        <div className="tool-panel">
+
+          <div className="panel-heading">
+
+            <div>
+
+              <h2>
+                Sales Center
+              </h2>
+
+              <p>
+                Access receipts,
+                transactions and customer sales.
+              </p>
+
+            </div>
+
+          </div>
+
+          <div className="compact-list">
+
+            {reports?.recentSales
+              ?.slice(0, 3)
+              .map((sale) => (
+
+                <div
+                  key={sale._id}
+                  className="compact-row"
+                >
+
+                  <div>
+
+                    <strong>
+                      #{sale.receiptId}
+                    </strong>
+
+                    <span>
+                      {sale.createdBy?.name || "Unknown"}
+                    </span>
+
+                  </div>
+
+                  <strong>
+                    {formatCurrency(
                       sale.totalAmount
-                    )
-                  }
+                    )}
+                  </strong>
 
-                </span>
+                </div>
 
-                <span>
-                  {
-                    sale.createdBy?.name ||
-                    "Unknown"
-                  }
-                </span>
+              ))}
 
-                <span>
+          </div>
 
-                  {
-                    new Date(
-                      sale.createdAt
-                    ).toLocaleString()
-                  }
-
-                </span>
-
-              </div>
-            ))}
+          <button
+            onClick={() =>
+              navigate("/app/sales")
+            }
+            className="primary-button mt-4 w-full"
+          >
+            Open Sales Center
+          </button>
 
         </div>
 
