@@ -111,8 +111,8 @@ const initializeSubscription =
 
       const amount =
         billingCycle === "yearly"
-          ? 50000
-          : 5000;
+          ? 150000
+          : 15000;
 
       const payment =
         await initializePayment({
