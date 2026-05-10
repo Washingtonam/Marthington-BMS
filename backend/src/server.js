@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import app from "./app.js";
 import connectDB from "./config/db.js";
-import paymentRoutes from "./modules/payments/payment.routes.js";
+
 
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
@@ -15,8 +15,7 @@ const startServer = async () => {
     await connectDB();
     console.log("✅ Database connected");
 
-    // ✅ ROUTES
-    app.use("/api/payments", paymentRoutes);
+    
 
     // 🔥 SAFE JOB WRAPPER
     const safeRunSubscriptionCheck = async (source = "manual") => {
