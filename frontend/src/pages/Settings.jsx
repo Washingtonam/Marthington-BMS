@@ -2,12 +2,9 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
-
-
+import request from "../api/client.js"; // 🔥 Ensure this import is correct
 
 const Settings = () => {
-  const API_URL =
-    "https://marthington.onrender.com/api";
   const location = useLocation();
 
   const {
@@ -57,12 +54,8 @@ const Settings = () => {
     if (reference) {
       setVerifying(true);
 
-      fetch(`${API_URL}/payments/verify?reference=${reference}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("bms_token")}`
-        }
-      })
-        .then((res) => res.json())
+      // Using the robust 'request' utility instead of raw fetch
+      request(`/payments/verify?reference=${reference}`)
         .then(async () => {
           await refreshBusiness();
           setUpgradeMsg("🎉 Upgrade successful! You are now on Pro.");
@@ -104,7 +97,6 @@ const Settings = () => {
 
     img.onload = () => {
       const canvas = document.createElement("canvas");
-
       const MAX_WIDTH = 300;
       const scale = Math.min(1, MAX_WIDTH / img.width);
 
@@ -148,35 +140,31 @@ const Settings = () => {
     setLoading(false);
   };
 
+  // 🔥 FIXED: Now sends JSON body to match Backend Controller
   const handleUpgrade = async (cycle) => {
     try {
       setProcessingPayment(true);
+      setUpgradeMsg(""); 
 
-      const res = await fetch(
-        `${API_URL}/payments/initialize?cycle=${cycle}`,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("bms_token")}`
-          }
-        }
-      );
+      const data = await request("/payments/initialize", {
+        method: "POST",
+        body: JSON.stringify({ billingCycle: cycle })
+      });
 
-      const data = await res.json();
-
-      if (!data.authorization_url) {
-        throw new Error("Payment init failed");
+      if (!data.authorizationUrl) {
+        throw new Error("Payment initialization failed");
       }
 
-      window.location.href = data.authorization_url;
+      window.location.href = data.authorizationUrl;
 
-    } catch {
-      setUpgradeMsg("Payment failed. Try again.");
+    } catch (err) {
+      setUpgradeMsg(err.message || "Payment failed. Try again.");
       setProcessingPayment(false);
     }
   };
 
   if (loadingBusiness) {
-    return <div className="p-6">Loading...</div>;
+    return <div className="p-6 text-center font-semibold">Loading your workspace...</div>;
   }
 
   return (
@@ -193,11 +181,12 @@ const Settings = () => {
         ].map((tab) => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`block w-full text-left px-3 py-2 rounded-md text-sm mb-1 ${
+            className={`block w-full text-left px-3 py-2 rounded-md text-sm mb-1 transition ${
               activeTab === tab.key
-                ? "bg-black text-white"
-                : "hover:bg-gray-100"
+                ? "bg-black text-white shadow-md"
+                : "hover:bg-gray-100 text-gray-600"
             }`}
           >
             {tab.label}
@@ -205,157 +194,164 @@ const Settings = () => {
         ))}
       </aside>
 
-      {/* MAIN */}
+      {/* MAIN FORM */}
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {upgradeMsg && (
-          <div className="bg-blue-100 text-blue-700 px-4 py-2 rounded-md text-sm">
+          <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm border border-blue-100 animate-pulse">
             {upgradeMsg}
           </div>
         )}
 
         {verifying && (
-          <div className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-md text-sm">
-            Verifying payment...
+          <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-xl text-sm border border-yellow-100">
+            Verifying payment with Paystack...
           </div>
         )}
 
-        {/* BUSINESS */}
+        {/* BUSINESS TAB */}
         {activeTab === "business" && (
-          <div className="tool-panel">
-            <h2 className="font-bold text-lg mb-4">Business Profile</h2>
-
+          <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
+            <h2 className="font-bold text-lg mb-2">Business Profile</h2>
             <div className="grid gap-4">
-              <input name="name" value={form.name} onChange={handleChange} />
-              <input name="phone" value={form.phone} onChange={handleChange} />
-              <input name="address" value={form.address} onChange={handleChange} />
-              <input name="email" value={form.email} onChange={handleChange} />
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Business Name</label>
+                <input className="input-field" name="name" value={form.name} onChange={handleChange} placeholder="Enter Business Name" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Phone Number</label>
+                <input className="input-field" name="phone" value={form.phone} onChange={handleChange} placeholder="+234..." />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Address</label>
+                <input className="input-field" name="address" value={form.address} onChange={handleChange} placeholder="Physical Location" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Official Email</label>
+                <input className="input-field" name="email" value={form.email} onChange={handleChange} placeholder="biz@example.com" />
+              </div>
             </div>
           </div>
         )}
 
-        {/* RECEIPTS */}
+        {/* RECEIPTS TAB */}
         {activeTab === "receipt" && (
-          <div className="tool-panel">
-            <select name="receiptTheme" value={form.receiptTheme} onChange={handleChange}>
-              <option value="modern">Modern</option>
-              <option value="classic">Classic 🔒</option>
-              <option value="minimal">Minimal 🔒</option>
-              <option value="premium">Premium 🔒</option>
-            </select>
+          <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
+            <h2 className="font-bold text-lg mb-2">Receipt Customization</h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Receipt Theme</label>
+                <select className="input-field mt-1" name="receiptTheme" value={form.receiptTheme} onChange={handleChange}>
+                  <option value="modern">Modern (Default)</option>
+                  <option value="classic">Classic 🔒</option>
+                  <option value="minimal">Minimal 🔒</option>
+                  <option value="premium">Premium 🔒</option>
+                </select>
+              </div>
 
-            <textarea
-              name="receiptFooter"
-              value={form.receiptFooter}
-              onChange={handleChange}
-              rows={3}
-            />
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Footer Message</label>
+                <textarea
+                  className="input-field mt-1"
+                  name="receiptFooter"
+                  placeholder="Thank you for your patronage!"
+                  value={form.receiptFooter}
+                  onChange={handleChange}
+                  rows={3}
+                />
+              </div>
 
-            <input type="file" onChange={handleLogo} />
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Business Logo (Pro Only)</label>
+                <input className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800" type="file" onChange={handleLogo} />
+              </div>
+            </div>
           </div>
         )}
 
-        {/* BILLING */}
+        {/* BILLING TAB */}
         {activeTab === "billing" && (
           <div className="space-y-6">
-
-            {/* CURRENT PLAN */}
-            <div className="bg-black text-white rounded-2xl p-6">
-              <p className="text-sm opacity-80">Current Plan</p>
-              <h2 className="text-2xl font-bold capitalize">
-                {business?.plan}
+            <div className="bg-black text-white rounded-2xl p-6 shadow-lg">
+              <p className="text-sm opacity-70">Current Active Plan</p>
+              <h2 className="text-3xl font-bold capitalize mt-1">
+                {business?.plan || "Free"}
               </h2>
 
               {business?.subscription?.expiresAt && (
-                <p className="text-sm mt-2 opacity-80">
-                  Expires:{" "}
-                  {new Date(
-                    business.subscription.expiresAt
-                  ).toLocaleDateString()}
+                <p className="text-sm mt-3 bg-white/10 w-fit px-3 py-1 rounded-full">
+                  Renewal Date: {new Date(business.subscription.expiresAt).toLocaleDateString()}
                 </p>
               )}
             </div>
 
-            {/* PLANS */}
             <div className="grid md:grid-cols-3 gap-4">
-
-              {/* FREE */}
-              <div className="border rounded-2xl p-5">
+              {/* FREE PLAN */}
+              <div className="border rounded-2xl p-5 bg-gray-50/50">
                 <h3 className="font-bold text-lg">Free</h3>
                 <p className="text-2xl font-bold mt-2">₦0</p>
-
-                <ul className="mt-4 text-sm space-y-2">
+                <ul className="mt-4 text-xs space-y-2 text-gray-600">
                   <li>✔ 10 Products</li>
                   <li>✔ Basic POS</li>
-                  <li>✔ Manual receipts</li>
+                  <li>✔ Manual Receipts</li>
                 </ul>
-
                 {business?.plan === "free" && (
-                  <p className="mt-4 text-xs text-gray-500">
-                    Current plan
-                  </p>
+                  <div className="mt-5 text-center text-xs font-bold text-gray-400 border border-dashed p-2 rounded-lg">ACTIVE</div>
                 )}
               </div>
 
-              {/* MONTHLY */}
-              <div className="border-2 border-black rounded-2xl p-5">
+              {/* MONTHLY PRO */}
+              <div className={`border-2 rounded-2xl p-5 transition ${isPro ? 'border-gray-200 opacity-60' : 'border-black shadow-md'}`}>
                 <h3 className="font-bold text-lg">Pro Monthly</h3>
                 <p className="text-2xl font-bold mt-2">₦15,000</p>
-
-                <ul className="mt-4 text-sm space-y-2">
-                  <li>✔ Unlimited products</li>
-                  <li>✔ WhatsApp receipts</li>
-                  <li>✔ Branding</li>
+                <ul className="mt-4 text-xs space-y-2">
+                  <li>✔ Unlimited Products</li>
+                  <li>✔ WhatsApp Receipts</li>
+                  <li>✔ Custom Branding</li>
                 </ul>
-
                 {!isPro && (
                   <button
                     type="button"
                     onClick={() => handleUpgrade("monthly")}
-                    className="mt-5 w-full bg-black text-white py-2 rounded-lg"
+                    disabled={processingPayment}
+                    className="mt-5 w-full bg-black text-white py-2.5 rounded-xl font-bold hover:scale-[1.02] transition active:scale-[0.98]"
                   >
-                    Upgrade Monthly
+                    {processingPayment === "monthly" ? "Processing..." : "Upgrade Monthly"}
                   </button>
                 )}
               </div>
 
-              {/* YEARLY */}
-              <div className="border-2 border-green-600 rounded-2xl p-5 relative">
-
-                <span className="absolute top-3 right-3 bg-green-600 text-white text-xs px-2 py-1 rounded-full">
-                  Save ₦30,000
+              {/* YEARLY PRO */}
+              <div className={`border-2 rounded-2xl p-5 relative transition ${isPro ? 'border-gray-200 opacity-60' : 'border-green-600 shadow-lg'}`}>
+                <span className="absolute -top-3 right-4 bg-green-600 text-white text-[10px] px-3 py-1 rounded-full font-black">
+                  SAVE ₦30,000
                 </span>
-
                 <h3 className="font-bold text-lg">Pro Yearly</h3>
-                <p className="text-2xl font-bold mt-2">₦150,000</p>
-
-                <p className="text-xs text-gray-500">
-                  ₦12,500 / month
-                </p>
-
-                <ul className="mt-4 text-sm space-y-2">
+                <p className="text-2xl font-bold mt-2 text-green-700">₦150,000</p>
+                <p className="text-[10px] text-gray-500 font-medium">Equiv. to ₦12,500 / month</p>
+                <ul className="mt-4 text-xs space-y-2">
                   <li>✔ Everything in Monthly</li>
-                  <li>✔ 2 Months Free</li>
+                  <li>✔ 2 Months FREE</li>
+                  <li>✔ Priority Support</li>
                 </ul>
-
                 {!isPro && (
                   <button
                     type="button"
                     onClick={() => handleUpgrade("yearly")}
-                    className="mt-5 w-full bg-green-600 text-white py-2 rounded-lg"
+                    disabled={processingPayment}
+                    className="mt-5 w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 hover:scale-[1.02] transition active:scale-[0.98]"
                   >
-                    Upgrade Yearly 🚀
+                    {processingPayment === "yearly" ? "Processing..." : "Upgrade Yearly 🚀"}
                   </button>
                 )}
               </div>
-
             </div>
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button className="primary-button min-w-[200px]">
-            {loading ? "Saving..." : "Save Changes"}
+        <div className="flex justify-end pt-4">
+          <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-gray-800 transition disabled:bg-gray-400">
+            {loading ? "Saving Changes..." : "Save Settings"}
           </button>
         </div>
 
