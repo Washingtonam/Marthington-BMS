@@ -631,7 +631,7 @@ const Services = () => {
                 handleChange
               }
 
-              placeholder="NIN Modification"
+              placeholder="Service Name"
             />
 
           </label>
@@ -653,7 +653,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="Identity Services"
+                placeholder="Services Type"
               />
 
             </label>
@@ -671,7 +671,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="NIN-DOB"
+                placeholder="Service Code (Optional)"
               />
 
             </label>
@@ -695,7 +695,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="5000"
+                placeholder="Service Price"
               />
 
             </label>
@@ -717,7 +717,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="2000"
+                placeholder="Service Cost"
               />
 
             </label>

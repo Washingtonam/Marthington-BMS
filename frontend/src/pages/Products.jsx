@@ -779,6 +779,7 @@ const Products = () => {
               name="name"
               value={form.name}
               onChange={handleChange}
+              placeholder="Product Name"
               required
             />
           </label>
@@ -790,7 +791,7 @@ const Products = () => {
               name="category"
               value={form.category}
               onChange={handleChange}
-              placeholder="Electronics"
+              placeholder="Category"
             />
           </label>
 
@@ -813,6 +814,7 @@ const Products = () => {
               name="sellingPrice"
               value={form.sellingPrice}
               onChange={handleChange}
+              placeholder="Selling Price"
               required
             />
           </label>
@@ -825,6 +827,7 @@ const Products = () => {
               name="costPrice"
               value={form.costPrice}
               onChange={handleChange}
+              placeholder="Cost Price"
             />
           </label>
 
@@ -836,6 +839,7 @@ const Products = () => {
               name="stock"
               value={form.stock}
               onChange={handleChange}
+              placeholder="Stock Quantity"
               required
             />
           </label>
