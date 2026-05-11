@@ -47,7 +47,6 @@ const getSubscriptionStatus = async (req, res) => {
 // ======================================
 const initializeSubscription = async (req, res) => {
   try {
-    // 🔥 Support both Body (standard) and Query (legacy/settings)
     const billingCycle = req.body.billingCycle || req.query.cycle;
 
     if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
@@ -64,20 +63,20 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    // Determine amount in Naira
     const amountInNaira = billingCycle === "yearly" ? 150000 : 15000;
 
-    // Initialize Paystack with subunit conversion (Naira to Kobo)
+    // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
       email: business.email,
       amount: amountInNaira * 100, 
+      // 🔥 ADDED: This ensures Paystack redirects back to Marthington
+      callback_url: "https://marthington.onrender.com/settings", 
       metadata: {
         businessId: business._id.toString(),
         billingCycle
       }
     });
 
-    // 🔥 Safety Check: Prevent 500 crash if Paystack service fails
     if (!payment || !payment.authorization_url) {
       return res.status(502).json({
         message: "Failed to communicate with payment gateway. Please try again."
@@ -119,7 +118,6 @@ const verifySubscription = async (req, res) => {
     }
 
     const metadata = payment.metadata;
-
     const business = await Business.findById(metadata.businessId);
 
     if (!business) {
@@ -131,25 +129,23 @@ const verifySubscription = async (req, res) => {
     const now = new Date();
     const expiresAt = new Date();
 
-    // Set expiration based on the cycle used
     if (metadata.billingCycle === "yearly") {
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     } else {
       expiresAt.setMonth(expiresAt.getMonth() + 1);
     }
 
-    // Update business subscription object
+    // 🔥 Syncing both the subscription object and top-level plan field
     business.subscription = {
       plan: "pro",
       billingCycle: metadata.billingCycle,
       status: "active",
       startedAt: now,
       expiresAt,
-      amount: payment.amount / 100, // Convert Kobo back to Naira for records
+      amount: payment.amount / 100, 
       reference
     };
 
-    // Update the top-level plan field if you have one
     business.plan = "pro"; 
 
     await business.save();

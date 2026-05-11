@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom"; // 🔥 Added useNavigate for cleaner URL handling
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import request from "../api/client.js"; // 🔥 Ensure this import is correct
+import request from "../api/client.js";
 
 const Settings = () => {
   const location = useLocation();
+  const navigate = useNavigate(); // 🔥 Added to help clear the URL after success
 
   const {
     business,
@@ -31,7 +32,7 @@ const Settings = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // 🔥 SYNC FORM
+  // 🔥 SYNC FORM (Preserved)
   useEffect(() => {
     if (!business) return;
 
@@ -46,27 +47,32 @@ const Settings = () => {
     });
   }, [business]);
 
-  // 🔥 VERIFY PAYMENT
+  // 🔥 UPDATED VERIFY PAYMENT: Handled callback and instant UI refresh
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const reference = params.get("reference");
 
     if (reference) {
       setVerifying(true);
+      setUpgradeMsg("Verifying your transaction with Paystack...");
 
-      // Using the robust 'request' utility instead of raw fetch
       request(`/payments/verify?reference=${reference}`)
         .then(async () => {
-          await refreshBusiness();
-          setUpgradeMsg("🎉 Upgrade successful! You are now on Pro.");
+          // 🔥 CRITICAL: This updates the AuthContext so "Free" flips to "Pro" instantly
+          await refreshBusiness(); 
+          
+          setUpgradeMsg("🎉 Upgrade successful! Your Pro features are now active.");
           setVerifying(false);
+          
+          // 🔥 Clean the URL: Removes the reference so it doesn't re-verify on refresh
+          navigate("/settings", { replace: true }); 
         })
-        .catch(() => {
-          setUpgradeMsg("Payment verification failed");
+        .catch((err) => {
+          setUpgradeMsg(err.message || "Payment verification failed. Please contact support.");
           setVerifying(false);
         });
     }
-  }, [location]);
+  }, [location, refreshBusiness, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -140,10 +146,9 @@ const Settings = () => {
     setLoading(false);
   };
 
-  // 🔥 FIXED: Now sends JSON body to match Backend Controller
   const handleUpgrade = async (cycle) => {
     try {
-      setProcessingPayment(true);
+      setProcessingPayment(cycle); // Pass the specific cycle to show loader on correct button
       setUpgradeMsg(""); 
 
       const data = await request("/payments/initialize", {
@@ -155,6 +160,7 @@ const Settings = () => {
         throw new Error("Payment initialization failed");
       }
 
+      // Redirect user to Paystack
       window.location.href = data.authorizationUrl;
 
     } catch (err) {
@@ -164,13 +170,13 @@ const Settings = () => {
   };
 
   if (loadingBusiness) {
-    return <div className="p-6 text-center font-semibold">Loading your workspace...</div>;
+    return <div className="p-6 text-center font-semibold text-green-600">Syncing with Marthington Cloud...</div>;
   }
 
   return (
     <section className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6">
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR (Preserved) */}
       <aside className="bg-white border rounded-2xl p-5 h-fit shadow-sm">
         <h2 className="font-bold mb-4 text-lg">Settings</h2>
 
@@ -194,7 +200,7 @@ const Settings = () => {
         ))}
       </aside>
 
-      {/* MAIN FORM */}
+      {/* MAIN FORM (Preserved) */}
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {upgradeMsg && (
@@ -209,7 +215,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* BUSINESS TAB */}
+        {/* BUSINESS TAB (Preserved) */}
         {activeTab === "business" && (
           <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-2">Business Profile</h2>
@@ -234,7 +240,7 @@ const Settings = () => {
           </div>
         )}
 
-        {/* RECEIPTS TAB */}
+        {/* RECEIPTS TAB (Preserved) */}
         {activeTab === "receipt" && (
           <div className="tool-panel space-y-4 bg-white p-6 rounded-2xl border">
             <h2 className="font-bold text-lg mb-2">Receipt Customization</h2>
@@ -269,17 +275,17 @@ const Settings = () => {
           </div>
         )}
 
-        {/* BILLING TAB */}
+        {/* BILLING TAB (Preserved + Fixed Logic) */}
         {activeTab === "billing" && (
           <div className="space-y-6">
             <div className="bg-black text-white rounded-2xl p-6 shadow-lg">
               <p className="text-sm opacity-70">Current Active Plan</p>
-              <h2 className="text-3xl font-bold capitalize mt-1">
-                {business?.plan || "Free"}
+              <h2 className="text-2xl font-bold capitalize mt-1">
+                {business?.subscription?.plan || "Free"} 
               </h2>
 
-              {business?.subscription?.expiresAt && (
-                <p className="text-sm mt-3 bg-white/10 w-fit px-3 py-1 rounded-full">
+              {business?.subscription?.expiresAt && business?.subscription?.plan === "pro" && (
+                <p className="text-sm mt-3 bg-white/10 w-fit px-3 py-1 rounded-full border border-white/20">
                   Renewal Date: {new Date(business.subscription.expiresAt).toLocaleDateString()}
                 </p>
               )}
@@ -291,11 +297,11 @@ const Settings = () => {
                 <h3 className="font-bold text-lg">Free</h3>
                 <p className="text-2xl font-bold mt-2">₦0</p>
                 <ul className="mt-4 text-xs space-y-2 text-gray-600">
-                  <li>✔ 10 Products</li>
+                  <li>✔ 20 Products</li>
                   <li>✔ Basic POS</li>
                   <li>✔ Manual Receipts</li>
                 </ul>
-                {business?.plan === "free" && (
+                {(!business?.subscription?.plan || business?.subscription?.plan === "free") && (
                   <div className="mt-5 text-center text-xs font-bold text-gray-400 border border-dashed p-2 rounded-lg">ACTIVE</div>
                 )}
               </div>
@@ -316,7 +322,7 @@ const Settings = () => {
                     disabled={processingPayment}
                     className="mt-5 w-full bg-black text-white py-2.5 rounded-xl font-bold hover:scale-[1.02] transition active:scale-[0.98]"
                   >
-                    {processingPayment === "monthly" ? "Processing..." : "Upgrade Monthly"}
+                    {processingPayment === "monthly" ? "Redirecting..." : "Upgrade Monthly"}
                   </button>
                 )}
               </div>
@@ -341,7 +347,7 @@ const Settings = () => {
                     disabled={processingPayment}
                     className="mt-5 w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 hover:scale-[1.02] transition active:scale-[0.98]"
                   >
-                    {processingPayment === "yearly" ? "Processing..." : "Upgrade Yearly 🚀"}
+                    {processingPayment === "yearly" ? "Redirecting..." : "Upgrade Yearly 🚀"}
                   </button>
                 )}
               </div>
