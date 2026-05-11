@@ -1,9 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/AppLayout.jsx";
-import AdminLayout from "./components/AdminLayout.jsx"; // 🔥 NEW
+import AdminLayout from "./components/AdminLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
-import { CSVLink } from "react-csv";
 
 // 🔥 LANDING
 import Landing from "./pages/Landing.jsx";
@@ -25,7 +24,6 @@ import Customers from "./pages/Customers.jsx";
 import Services from "./pages/Services.jsx";
 import StaffReports from "./pages/StaffReports.jsx";
 import InventoryReports from "./pages/InventoryReports.jsx";
-
 
 // 🔥 PUBLIC RECEIPT
 import PublicReceipt from "./pages/PublicReceipt.jsx";
@@ -59,7 +57,13 @@ const App = () => {
               </ProtectedRoute>
             }
           >
+            {/* 🔥 UPDATED INDEX LOGIC: 
+                If the user lands on /app, it will show Dashboard.
+                However, our Sidebar logic in AppLayout will now hide the link 
+                based on the 'canViewDashboard' permission we added. 
+            */}
             <Route index element={<Dashboard />} />
+            
             <Route path="products" element={<Products />} />
             <Route path="pos" element={<POS />} />
             <Route path="sales" element={<Sales />} />
@@ -67,13 +71,16 @@ const App = () => {
             <Route path="staff" element={<Staff />} />
             <Route path="settings" element={<Settings />} />
             <Route path="reports" element={<Reports />} />
+            
+            {/* 🔥 FIXED: These now point correctly to the sub-report pages */}
+            <Route path="staff-reports" element={<StaffReports />} />
+            <Route path="inventory-reports" element={<InventoryReports />} />
+
             <Route path="billing" element={<Billing />} />
             <Route path="verify-payment" element={<VerifyPayment />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="customers" element={<Customers />} />
             <Route path="services" element={<Services />} />
-            <Route path="staff-reports" element={<StaffReports />} />
-            <Route path="inventory-reports" element={<InventoryReports />} />
           </Route>
 
           {/* ================= ADMIN ================= */}
@@ -81,7 +88,7 @@ const App = () => {
             path="/admin"
             element={
               <ProtectedRoute requiredRole="super_admin">
-                <AdminLayout /> {/* 🔥 THIS IS THE FIX */}
+                <AdminLayout />
               </ProtectedRoute>
             }
           >

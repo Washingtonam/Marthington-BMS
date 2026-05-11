@@ -5,55 +5,90 @@ const getReports = async (req, res) => {
   try {
     const businessId = req.user.businessId;
 
+    // 1. Load Data
     const sales = await Sale.find({ business: businessId })
-      .populate("createdBy", "name")
+      .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
     const products = await Product.find({ business: businessId });
 
+    // 2. Precise Time Boundaries
     const now = new Date();
-    const todayStart = new Date(now.setHours(0,0,0,0));
-    const weekStart = new Date(now.setDate(now.getDate() - now.getDay())); // Start of current week
+    
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const weekStart = new Date();
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Filter Logic
+    // 3. Filter Sales by Timeframes
     const todaySales = sales.filter(s => new Date(s.createdAt) >= todayStart);
     const weeklySales = sales.filter(s => new Date(s.createdAt) >= weekStart);
     const monthlySales = sales.filter(s => new Date(s.createdAt) >= monthStart);
 
-    // Revenue Calculations
+    // 4. Revenue & Profit Calculations
     const todayRevenue = todaySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const monthlyRevenue = monthlySales.reduce((sum, s) => sum + s.totalAmount, 0);
     const monthlyProfit = monthlySales.reduce((sum, s) => sum + (s.totalProfit || 0), 0);
 
-    // Inventory Value
+    // 5. Inventory Value
     const inventoryValue = products.reduce((sum, p) => sum + (p.price || 0) * (p.stock || 0), 0);
 
-    // 🔥 STAFF PERFORMANCE (Now with specific Time breakdown)
+    // 6. 🔥 ADVANCED STAFF PERFORMANCE (Daily & Weekly breakdown)
     const staffMap = {};
+
     sales.forEach((sale) => {
-      const name = sale.createdBy?.name || "Unknown";
+      const staffId = sale.createdBy?._id?.toString() || "unknown";
+      const name = sale.createdBy?.name || "Unknown Staff";
       const saleDate = new Date(sale.createdAt);
 
-      if (!staffMap[name]) {
-        staffMap[name] = { name, totalSales: 0, totalRevenue: 0, todaySales: 0, weeklySales: 0 };
+      if (!staffMap[staffId]) {
+        staffMap[staffId] = { 
+          name, 
+          totalSales: 0, 
+          totalRevenue: 0, 
+          todaySales: 0, 
+          todayRevenue: 0,
+          weeklySales: 0,
+          weeklyRevenue: 0
+        };
       }
 
-      staffMap[name].totalSales += 1;
-      staffMap[name].totalRevenue += sale.totalAmount;
+      // Lifetime (Current Records) Stats
+      staffMap[staffId].totalSales += 1;
+      staffMap[staffId].totalRevenue += sale.totalAmount;
 
-      if (saleDate >= todayStart) staffMap[name].todaySales += 1;
-      if (saleDate >= weekStart) staffMap[name].weeklySales += 1;
+      // Today's Stats
+      if (saleDate >= todayStart) {
+        staffMap[staffId].todaySales += 1;
+        staffMap[staffId].todayRevenue += sale.totalAmount;
+      }
+
+      // This Week's Stats
+      if (saleDate >= weekStart) {
+        staffMap[staffId].weeklySales += 1;
+        staffMap[staffId].weeklyRevenue += sale.totalAmount;
+      }
     });
 
+    // 7. Final Response JSON
     res.json({
-      overview: { todayRevenue, monthlyRevenue, monthlyProfit, inventoryValue },
-      staffPerformance: Object.values(staffMap).sort((a, b) => b.totalRevenue - a.totalRevenue),
+      overview: { 
+        todayRevenue, 
+        monthlyRevenue, 
+        monthlyProfit, 
+        inventoryValue 
+      },
+      staffPerformance: Object.values(staffMap).sort((a, b) => b.todayRevenue - a.todayRevenue),
       lowStockProducts: products.filter((p) => p.stock <= 5),
       recentSales: sales.slice(0, 20)
     });
 
   } catch (err) {
+    console.error("Report Generation Error:", err.message);
     res.status(500).json({ message: err.message });
   }
 };
