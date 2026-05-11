@@ -1,342 +1,137 @@
 import { useEffect, useState } from "react";
-
 import { useNavigate } from "react-router-dom";
-
 import request from "../api/client.js";
-
 import { formatCurrency } from "../utils/formatters.js";
 
 const Reports = () => {
-
   const navigate = useNavigate();
-
   const [reports, setReports] = useState(null);
-
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
 
-  // =====================================
-  // LOAD REPORTS
-  // =====================================
-
   useEffect(() => {
-
     const load = async () => {
-
       try {
-
         const data = await request("/reports");
-
         setReports(data);
-
       } catch (err) {
-
-        setError(
-          err.message || "Failed to load reports"
-        );
-
+        setError(err.message || "Failed to load reports");
       } finally {
-
         setLoading(false);
-
       }
     };
-
     load();
-
   }, []);
 
-  if (loading) {
-
-    return (
-      <div className="p-6">
-        Loading reports...
-      </div>
-    );
-  }
+  if (loading) return <div className="p-6">Loading reports...</div>;
 
   const overview = reports?.overview || {};
 
   return (
-
     <section className="page-stack">
-
-      {/* HEADER */}
-
       <div className="page-heading">
-
         <div>
-
           <span>Business Intelligence</span>
-
           <h1>Reports Hub</h1>
-
         </div>
-
       </div>
 
-      {/* ERROR */}
-
-      {error && (
-        <div className="form-error">
-          {error}
-        </div>
-      )}
-
-      {/* METRICS */}
+      {error && <div className="form-error">{error}</div>}
 
       <div className="metrics-grid">
-
         <div className="tool-panel">
           <strong>Today's Revenue</strong>
-
-          <h2>
-            {formatCurrency(
-              overview.todayRevenue
-            )}
-          </h2>
+          <h2>{formatCurrency(overview.todayRevenue)}</h2>
         </div>
-
         <div className="tool-panel">
           <strong>Monthly Revenue</strong>
-
-          <h2>
-            {formatCurrency(
-              overview.monthlyRevenue
-            )}
-          </h2>
+          <h2>{formatCurrency(overview.monthlyRevenue)}</h2>
         </div>
-
         <div className="tool-panel">
           <strong>Monthly Profit</strong>
-
-          <h2>
-            {formatCurrency(
-              overview.monthlyProfit
-            )}
-          </h2>
+          <h2>{formatCurrency(overview.monthlyProfit)}</h2>
         </div>
-
         <div className="tool-panel">
           <strong>Inventory Value</strong>
-
-          <h2>
-            {formatCurrency(
-              overview.inventoryValue
-            )}
-          </h2>
+          <h2>{formatCurrency(overview.inventoryValue)}</h2>
         </div>
-
       </div>
 
-      {/* REPORT MODULES */}
-
       <div className="grid lg:grid-cols-3 gap-6">
-
-        {/* STAFF */}
-
+        {/* STAFF PERFORMANCE */}
         <div className="tool-panel">
-
           <div className="panel-heading">
-
             <div>
-
-              <h2>
-                Staff Performance
-              </h2>
-
-              <p>
-                View staff revenue,
-                sales history and analytics.
-              </p>
-
+              <h2>Staff Performance</h2>
+              <p>View staff revenue and analytics.</p>
             </div>
-
           </div>
-
           <div className="compact-list">
-
-            {reports?.staffPerformance
-              ?.slice(0, 3)
-              .map((staff, index) => (
-
-                <div
-                  key={index}
-                  className="compact-row"
-                >
-
-                  <div>
-
-                    <strong>
-                      {staff.name}
-                    </strong>
-
-                    <span>
-                      {staff.sales} sales
-                    </span>
-
-                  </div>
-
-                  <strong>
-                    {formatCurrency(
-                      staff.revenue
-                    )}
-                  </strong>
-
+            {reports?.staffPerformance?.slice(0, 3).map((staff, index) => (
+              <div key={index} className="compact-row">
+                <div>
+                  <strong>{staff.name}</strong>
+                  <span>{staff.sales} sales</span>
                 </div>
-
-              ))}
-
+                <strong>{formatCurrency(staff.revenue)}</strong>
+              </div>
+            ))}
           </div>
-
-          <button
-            onClick={() =>
-              navigate("/app/reports/staff")
-            }
-            className="primary-button mt-4 w-full"
-          >
+          {/* 🔥 FIXED PATH */}
+          <button onClick={() => navigate("/app/staff-reports")} className="primary-button mt-4 w-full">
             View Staff Analytics
           </button>
-
         </div>
 
         {/* LOW STOCK */}
-
         <div className="tool-panel">
-
           <div className="panel-heading">
-
             <div>
-
-              <h2>
-                Low Stock Alerts
-              </h2>
-
-              <p>
-                Monitor inventory items
-                running low.
-              </p>
-
+              <h2>Low Stock Alerts</h2>
+              <p>Monitor items running low.</p>
             </div>
-
           </div>
-
           <div className="compact-list">
-
-            {reports?.lowStockProducts
-              ?.slice(0, 3)
-              .map((product) => (
-
-                <div
-                  key={product._id}
-                  className="compact-row"
-                >
-
-                  <div>
-
-                    <strong>
-                      {product.name}
-                    </strong>
-
-                    <span>
-                      SKU:
-                      {" "}
-                      {product.sku || "N/A"}
-                    </span>
-
-                  </div>
-
-                  <strong className="text-red-500">
-                    {product.stock}
-                  </strong>
-
+            {reports?.lowStockProducts?.slice(0, 3).map((product) => (
+              <div key={product._id} className="compact-row">
+                <div>
+                  <strong>{product.name}</strong>
+                  <span>SKU: {product.sku || "N/A"}</span>
                 </div>
-
-              ))}
-
+                <strong className="text-red-500">{product.stock}</strong>
+              </div>
+            ))}
           </div>
-
-          <button
-            onClick={() =>
-              navigate("/app/reports/inventory")
-            }
-            className="primary-button mt-4 w-full"
-          >
+          {/* 🔥 FIXED PATH */}
+          <button onClick={() => navigate("/app/inventory-reports")} className="primary-button mt-4 w-full">
             Open Inventory Alerts
           </button>
-
         </div>
 
-        {/* SALES */}
-
+        {/* SALES CENTER */}
         <div className="tool-panel">
-
           <div className="panel-heading">
-
             <div>
-
-              <h2>
-                Sales Center
-              </h2>
-
-              <p>
-                Access receipts,
-                transactions and customer sales.
-              </p>
-
+              <h2>Sales Center</h2>
+              <p>Access receipts and transactions.</p>
             </div>
-
           </div>
-
           <div className="compact-list">
-
-            {reports?.recentSales
-              ?.slice(0, 3)
-              .map((sale) => (
-
-                <div
-                  key={sale._id}
-                  className="compact-row"
-                >
-
-                  <div>
-
-                    <strong>
-                      #{sale.receiptId}
-                    </strong>
-
-                    <span>
-                      {sale.createdBy?.name || "Unknown"}
-                    </span>
-
-                  </div>
-
-                  <strong>
-                    {formatCurrency(
-                      sale.totalAmount
-                    )}
-                  </strong>
-
+            {reports?.recentSales?.slice(0, 3).map((sale) => (
+              <div key={sale._id} className="compact-row">
+                <div>
+                  <strong>#{sale.receiptId}</strong>
+                  <span>{sale.createdBy?.name || "Unknown"}</span>
                 </div>
-
-              ))}
-
+                <strong>{formatCurrency(sale.totalAmount)}</strong>
+              </div>
+            ))}
           </div>
-
-          <button
-            onClick={() =>
-              navigate("/app/sales")
-            }
-            className="primary-button mt-4 w-full"
-          >
+          <button onClick={() => navigate("/app/sales")} className="primary-button mt-4 w-full">
             Open Sales Center
           </button>
-
         </div>
-
       </div>
-
     </section>
   );
 };
