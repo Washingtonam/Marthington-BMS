@@ -16,27 +16,45 @@ const request = async (path, options = {}) => {
 
   try {
     const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+    
+    // If the server is down or returns a 5xx error, jump to catch block to try offline
+    if (response.status >= 500) throw new Error("Server Error");
+
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
-      localStorage.clear(); 
+      localStorage.clear();
+      window.location.href = "/login";
       return;
     }
 
     if (!response.ok) throw new Error(data.message || "Request failed.");
 
-    // SUCCESS CASE: If we just fetched products, update the offline cache
-    if (path === "/products" && !options.method) {
-      await db.products.bulkPut(data);
+    // SUCCESS: If we are fetching products, save them to IndexedDB for next time
+    if (path.includes("/products") && (!options.method || options.method === "GET")) {
+       // Ensure data is an array before saving
+       const productsArray = Array.isArray(data) ? data : (data.products || []);
+       if (productsArray.length > 0) {
+         await db.products.clear(); // Fresh sync
+         await db.products.bulkPut(productsArray);
+       }
     }
 
     return data;
 
   } catch (err) {
-    // OFFLINE CASE: If it's a POST/PUT (like making a sale) and we have no network
+    console.warn(`Network fail for ${path}, checking offline database...`);
+
+    // OFFLINE FALLBACK: Load inventory from IndexedDB
+    if (path.includes("/products") && (!options.method || options.method === "GET")) {
+      const localProducts = await db.products.toArray();
+      if (localProducts.length > 0) {
+        return localProducts; // Return the cached inventory
+      }
+    }
+
+    // OFFLINE POST: Queue sales if network is dead
     if (options.method === "POST" && path.includes("/sales")) {
-      console.warn("Offline detected. Saving sale to local queue...");
-      
       await db.pendingSales.add({
         path,
         options: {
@@ -45,16 +63,7 @@ const request = async (path, options = {}) => {
         },
         timestamp: Date.now()
       });
-
-      return { success: true, offline: true, message: "Sale saved locally. Will sync when online." };
-    }
-
-    // If it's a GET request (like checking a price), try loading from IndexedDB
-    if (!options.method || options.method === "GET") {
-      if (path === "/products") {
-        const localData = await db.products.toArray();
-        if (localData.length > 0) return localData;
-      }
+      return { success: true, offline: true };
     }
 
     throw err;
