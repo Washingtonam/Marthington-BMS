@@ -131,18 +131,12 @@ const Dashboard = () => {
       </div>
 
       {/* CENTER CHARTS */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-xl font-black text-gray-800 tracking-tight">Sales Performance</h2>
-            <select className="bg-gray-50 border-none text-xs font-bold py-2 px-4 rounded-lg outline-none">
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-            </select>
-          </div>
-          <div className="h-[350px] w-full">
-            <SalesChart data={analytics?.salesTrend || []} />
-          </div>
+      <div className="bg-white p-6 rounded-3xl shadow-sm border min-h-0"> 
+        <h2 className="text-lg font-bold text-gray-800 mb-6">Sales Performance Trend</h2>
+        
+        {/* The container MUST have a defined height for ResponsiveContainer to work */}
+        <div className="h-[400px] w-full min-w-0"> 
+          <SalesChart data={salesTrend} />
         </div>
       </div>
 
