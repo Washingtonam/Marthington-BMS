@@ -8,14 +8,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Move recharts and other heavy libs to a separate vendor file
           if (id.includes('node_modules')) {
-            if (id.includes('recharts')) return 'recharts';
-            return 'vendor';
+            if (id.includes('recharts')) return 'recharts-vendor';
+            if (id.includes('react-router')) return 'router-vendor';
+            return 'vendor'; // everything else goes here
           }
-        },
-      },
+        }
+      }
     },
-    chunkSizeWarningLimit: 600, // Slightly increase limit to suppress warning
-  },
+    chunkSizeWarningLimit: 1000,
+  }
 });
