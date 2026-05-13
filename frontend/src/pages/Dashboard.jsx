@@ -6,6 +6,8 @@ import SalesChart from "../components/charts/SalesChart.jsx";
 import TopProducts from "../components/TopProducts.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
+// ... (keep existing imports)
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const [analytics, setAnalytics] = useState(null);
@@ -29,13 +31,19 @@ const Dashboard = () => {
     load();
   }, [refreshKey]);
 
-  const metrics = useMemo(() => ({
-    totalRevenue: analytics?.metrics?.totalRevenue || 0,
-    totalProfit: analytics?.metrics?.totalProfit || 0,
-    totalSales: analytics?.metrics?.totalSales || 0,
-    inventoryValue: analytics?.metrics?.inventoryValue || 0,
-    lowStockCount: analytics?.metrics?.lowStockCount || 0,
-    averageOrderValue: analytics?.metrics?.averageOrderValue || 0,
+  // 1. EXTRACT CHART DATA HERE
+  const { metrics, salesTrend, topProducts, lowStockProducts } = useMemo(() => ({
+    metrics: {
+      totalRevenue: analytics?.metrics?.totalRevenue || 0,
+      totalProfit: analytics?.metrics?.totalProfit || 0,
+      totalSales: analytics?.metrics?.totalSales || 0,
+      inventoryValue: analytics?.metrics?.inventoryValue || 0,
+      lowStockCount: analytics?.metrics?.lowStockCount || 0,
+      averageOrderValue: analytics?.metrics?.averageOrderValue || 0,
+    },
+    salesTrend: analytics?.salesTrend || [], // Extracting the chart array
+    topProducts: analytics?.topProducts || [],
+    lowStockProducts: analytics?.lowStockProducts || [],
   }), [analytics]);
 
   if (loading) {
@@ -45,7 +53,7 @@ const Dashboard = () => {
             <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
             <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-blue-600">MT</div>
         </div>
-        <p className="text-gray-400 font-bold tracking-widest text-xs animate-pulse">GENERATING INSIGHTS...</p>
+        <p className="text-gray-400 font-bold tracking-widest text-xs animate-pulse uppercase">Syncing business data...</p>
       </div>
     );
   }
@@ -61,13 +69,13 @@ const Dashboard = () => {
             <span className="text-blue-600 font-bold text-[10px] uppercase tracking-widest">Live Business Intelligence</span>
           </div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Executive Overview</h1>
-          <p className="text-gray-500 text-sm font-medium">Overview for {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p className="text-gray-500 text-sm font-medium">Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
 
         <div className="flex items-center gap-3">
             <button 
                 onClick={() => setRefreshKey(prev => prev + 1)}
-                className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+                className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm active:rotate-180 duration-500"
                 title="Refresh Data"
             >
                 🔄
@@ -88,77 +96,42 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* KPI GRID - Improved for Responsiveness */}
-      {/* Change this line in your Dashboard.jsx */}
+      {/* KPI GRID */}
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <MetricCard
-          icon="💰"
-          label="Revenue"
-          value={formatCurrency(metrics.totalRevenue)}
-          trend="+12%" // Example static trend, replace with real data if available
-          tone="revenue"
-        />
-        <MetricCard
-          icon="📈"
-          label="Profit"
-          value={formatCurrency(metrics.totalProfit)}
-          tone="success"
-        />
-        <MetricCard
-          icon="🧾"
-          label="Total Sales"
-          value={metrics.totalSales}
-          tone="neutral"
-        />
-        <MetricCard
-          icon="📦"
-          label="Stock Value"
-          value={formatCurrency(metrics.inventoryValue)}
-          tone="neutral"
-        />
-        <MetricCard
-          icon="🚨"
-          label="Low Stock"
-          value={metrics.lowStockCount}
-          tone={metrics.lowStockCount > 0 ? "warning" : "success"}
-        />
-        <MetricCard
-          icon="💳"
-          label="Avg. Order"
-          value={formatCurrency(metrics.averageOrderValue)}
-          tone="neutral"
-        />
+        <MetricCard icon="💰" label="Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
+        <MetricCard icon="📈" label="Profit" value={formatCurrency(metrics.totalProfit)} tone="success" />
+        <MetricCard icon="🧾" label="Total Sales" value={metrics.totalSales} tone="neutral" />
+        <MetricCard icon="📦" label="Stock Value" value={formatCurrency(metrics.inventoryValue)} tone="neutral" />
+        <MetricCard icon="🚨" label="Low Stock" value={metrics.lowStockCount} tone={metrics.lowStockCount > 0 ? "warning" : "success"} />
+        <MetricCard icon="💳" label="Avg. Order" value={formatCurrency(metrics.averageOrderValue)} tone="neutral" />
       </div>
 
-      {/* CENTER CHARTS */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border min-h-0"> 
-        <h2 className="text-lg font-bold text-gray-800 mb-6">Sales Performance Trend</h2>
-        
-        {/* The container MUST have a defined height for ResponsiveContainer to work */}
-        <div className="h-[400px] w-full min-w-0"> 
-          <SalesChart data={salesTrend} />
-        </div>
+      {/* CHART SECTION - Fixed Container */}
+      <div className="grid grid-cols-1 min-h-0 min-w-0"> 
+        <SalesChart data={salesTrend} />
       </div>
 
       {/* BOTTOM SECTION */}
       <div className="grid lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">
-            <TopProducts products={analytics?.topProducts || []} />
+            <TopProducts products={topProducts} />
         </div>
 
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-black text-gray-800 tracking-tight">Inventory Alerts</h2>
-            <span className="bg-red-50 text-red-600 text-[10px] font-black px-3 py-1 rounded-full uppercase">Action Required</span>
+            {lowStockProducts.length > 0 && (
+              <span className="bg-red-50 text-red-600 text-[10px] font-black px-3 py-1 rounded-full uppercase animate-pulse">Action Required</span>
+            )}
           </div>
 
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-            {(analytics?.lowStockProducts || []).length === 0 ? (
+            {lowStockProducts.length === 0 ? (
               <div className="text-center py-20 bg-gray-50 rounded-[2rem] border-2 border-dashed border-gray-200">
                 <p className="text-gray-400 text-sm font-bold">Inventory levels optimal</p>
               </div>
             ) : (
-                (analytics?.lowStockProducts || []).map((product) => (
+                lowStockProducts.map((product) => (
                 <div
                   key={product._id}
                   className="flex justify-between items-center p-5 bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:border-red-100 transition-all group"
@@ -168,11 +141,11 @@ const Dashboard = () => {
                         {product.name.charAt(0)}
                     </div>
                     <div>
-                        <p className="font-bold text-gray-900 group-hover:text-red-600 transition-colors">{product.name}</p>
+                        <p className="font-bold text-gray-900 group-hover:text-red-600 transition-colors line-clamp-1">{product.name}</p>
                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{product.sku || "NO SKU"}</p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex-shrink-0">
                     <div className="text-red-600 font-black text-lg">{product.stock}</div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase">Units Left</p>
                   </div>
