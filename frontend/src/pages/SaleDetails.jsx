@@ -1,759 +1,304 @@
 import { useEffect, useState, useRef } from "react";
-
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import html2canvas from "html2canvas";
+import request from "../api/client.js";
+import { formatCurrency } from "../utils/formatters.js";
 import "../styles/receipt.css";
 
-import {
-  useParams,
-  useNavigate,
-  useLocation
-} from "react-router-dom";
-
-import request from "../api/client.js";
-
-import {
-  formatCurrency
-} from "../utils/formatters.js";
-
-import html2canvas from "html2canvas";
-
-const Divider = () => (
-  <div className="receipt-divider" />
-);
+const Divider = () => <div className="receipt-divider" />;
 
 const SaleDetails = () => {
-
   const { id } = useParams();
-
   const navigate = useNavigate();
-
   const location = useLocation();
-
   const receiptRef = useRef();
 
-  const [sale, setSale] =
-    useState(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [upgradeMsg, setUpgradeMsg] =
-    useState("");
+  const [sale, setSale] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [statusMsg, setStatusMsg] = useState({ type: "", text: "" });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // =====================================
-  // LOAD SALE
+  // DATA FETCHING
   // =====================================
-
   useEffect(() => {
-
-    const load = async () => {
-
+    const fetchSaleData = async () => {
       try {
-
         setLoading(true);
-
-        const data =
-          await request(`/sales/${id}`);
-
+        const data = await request(`/sales/${id}`);
         setSale(data);
 
-        // AUTO WHATSAPP
-
-        if (
-          location.state?.autoSend &&
-          location.state?.phone
-        ) {
-
+        // Auto-trigger WhatsApp if coming from a fresh sale
+        if (location.state?.autoSend && location.state?.phone) {
           setTimeout(() => {
-
-            sendWhatsApp(
-              data,
-              location.state.phone
-            );
-
-          }, 1200);
-
+            sendWhatsApp(data, location.state.phone);
+          }, 1000);
         }
-
       } catch (err) {
-
-        setUpgradeMsg(
-          err.message ||
-          "Failed to load receipt"
-        );
-
+        setStatusMsg({ 
+          type: "error", 
+          text: err.message || "Could not retrieve receipt data." 
+        });
       } finally {
-
         setLoading(false);
-
       }
     };
 
-    load();
-
-  }, [id]);
-
-  // =====================================
-  // LOADING
-  // =====================================
-
-  if (loading) {
-
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading receipt...
-      </div>
-    );
-  }
-
-  if (!sale) {
-
-    return (
-      <div className="min-h-screen flex items-center justify-center text-red-500">
-        Receipt not found
-      </div>
-    );
-  }
-
-  const business =
-    sale.business || {};
-
-  const theme =
-    business.receiptTheme ||
-    "modern";
+    fetchSaleData();
+  }, [id, location.state]);
 
   // =====================================
-  // WHATSAPP
+  // ACTIONS
   // =====================================
 
-  const sendWhatsApp = (
-    saleData,
-    phone
-  ) => {
+  const getReceiptLink = (receiptId) => `${window.location.origin}/r/${receiptId}`;
 
+  const sendWhatsApp = (saleData, phone) => {
     if (!phone) return;
+    const cleanPhone = phone.replace(/\D/g, "").replace(/^0/, "234");
+    const link = getReceiptLink(saleData.receiptId);
 
-    const cleanPhone =
-      phone
-        .replace(/\D/g, "")
-        .replace(/^0/, "234");
+    const message = `🧾 *${saleData.business?.name || "Receipt"}*\n\nHello ${saleData.customerName || "Customer"},\n\nYour receipt is ready.\n\n💰 *Total: ${formatCurrency(saleData.totalAmount)}*\n\n🔗 *View online:*\n${link}\n\nThank you for your patronage!`;
 
-    const receiptLink =
-      `${window.location.origin}/r/${saleData.receiptId}`;
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+  };
 
-    const message = `
-🧾 ${saleData.business?.name}
+  const handleCopyLink = () => {
+    const link = getReceiptLink(sale.receiptId);
+    navigator.clipboard.writeText(link);
+    setStatusMsg({ type: "success", text: "Link copied to clipboard!" });
+    setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
+  };
 
-Hello ${saleData.customerName || "Customer"},
+  const handleDownloadImage = async () => {
+    try {
+      setIsGenerating(true);
+      const element = receiptRef.current;
+      if (!element) return;
 
-Your receipt is ready.
+      const canvas = await html2canvas(element, {
+        scale: 3, // High quality but balanced file size
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      });
 
-💰 Amount:
-${formatCurrency(saleData.totalAmount)}
+      const image = canvas.toDataURL("image/jpeg", 0.9);
+      const link = document.createElement("a");
+      link.href = image;
+      link.download = `Receipt-${sale.receiptId}.jpg`;
+      link.click();
+    } catch (err) {
+      setStatusMsg({ type: "error", text: "Image generation failed." });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-🔗 View Receipt:
-${receiptLink}
+  const handlePrint = () => {
+    const content = receiptRef.current?.innerHTML;
+    const printWindow = window.open("", "_blank", "width=800,height=900");
+    
+    // Collect all active styles
+    let styles = "";
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) styles += rule.cssText;
+      } catch (e) { /* Cross-origin styles skip */ }
+    }
 
-Thank you for your patronage.
-`;
-
-    window.open(
-      `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`,
-      "_blank"
-    );
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Receipt - ${sale.receiptId}</title>
+          <style>
+            ${styles}
+            body { background: #f3f4f6; padding: 20px; font-family: system-ui, sans-serif; }
+            .print-wrap { display: flex; flex-direction: column; align-items: center; }
+            .receipt { background: white; width: 100%; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+            @media print {
+              body { background: white; padding: 0; }
+              .receipt { width: 80mm; max-width: 80mm; box-shadow: none; border: none; }
+              @page { size: 80mm auto; margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-wrap">
+            <div class="receipt">${content}</div>
+          </div>
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   // =====================================
-  // DOWNLOAD JPG
+  // RENDER HELPERS
   // =====================================
 
-  const handleDownloadImage =
-    async () => {
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
+      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-gray-500 font-medium">Fetching receipt...</p>
+    </div>
+  );
+
+  if (!sale) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center p-8 bg-white rounded-3xl shadow-sm">
+        <p className="text-red-500 font-bold text-xl">Receipt not found</p>
+        <button onClick={() => navigate("/app/sales")} className="mt-4 text-blue-600 underline">Return to Sales</button>
+      </div>
+    </div>
+  );
+
+  const business = sale.business || {};
+  const theme = business.receiptTheme || "modern";
 
-      try {
-
-        const element =
-          receiptRef.current;
-
-        if (!element) return;
-
-        const canvas =
-          await html2canvas(
-            element,
-            {
-              scale: 5,
-              useCORS: true,
-              backgroundColor: "#ffffff",
-              logging: false
-            }
-          );
-
-        const image =
-          canvas.toDataURL(
-            "image/jpeg",
-            1.0
-          );
-
-        const link =
-          document.createElement("a");
-
-        link.href = image;
-
-        link.download =
-          `Receipt-${sale.receiptId}.jpg`;
-
-        document.body.appendChild(
-          link
-        );
-
-        link.click();
-
-        document.body.removeChild(
-          link
-        );
-
-      } catch (err) {
-
-        console.error(err);
-
-        setUpgradeMsg(
-          "Failed to download receipt image"
-        );
-      }
-    };
-
-  // =====================================
-  // PRINT ENGINE
-  // =====================================
-
-  const handlePrint = () => {
-
-  const receiptHTML =
-    receiptRef.current?.outerHTML;
-
-  if (!receiptHTML) return;
-
-  let cssText = "";
-
-  for (const sheet of document.styleSheets) {
-
-    try {
-
-      for (const rule of sheet.cssRules) {
-        cssText += rule.cssText;
-      }
-
-    } catch (err) {
-
-      console.warn(
-        "Cannot access stylesheet",
-        err
-      );
-    }
-  }
-
-  const printWindow =
-    window.open(
-      "",
-      "_blank",
-      "width=1000,height=900"
-    );
-
-  printWindow.document.write(`
-    <html>
-
-      <head>
-
-        <title>
-          Receipt ${sale.receiptId}
-        </title>
-
-        <style>
-
-          ${cssText}
-
-          * {
-            box-sizing: border-box;
-          }
-
-          body {
-
-            margin: 0;
-            padding: 30px;
-
-            background: #eef2f7;
-
-            font-family:
-              Inter,
-              sans-serif;
-          }
-
-          .preview-wrapper {
-
-            min-height: 100vh;
-
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-
-          .preview-actions {
-
-            width: 100%;
-            max-width: 900px;
-
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-
-            margin-bottom: 24px;
-          }
-
-          .preview-actions button {
-
-            border: 0;
-
-            padding: 12px 18px;
-
-            border-radius: 12px;
-
-            cursor: pointer;
-
-            font-weight: 700;
-          }
-
-          .print-btn {
-
-            background: #111827;
-            color: white;
-          }
-
-          .close-btn {
-
-            background: #dc2626;
-            color: white;
-          }
-
-          .receipt {
-
-            width: 100% !important;
-            max-width: 380px !important;
-          }
-
-          img {
-
-            display: block;
-            max-width: 100%;
-          }
-
-          @media print {
-
-            .preview-actions {
-              display: none !important;
-            }
-
-            body {
-
-              background: white !important;
-              padding: 0 !important;
-            }
-
-            .receipt {
-
-              width: 80mm !important;
-              max-width: 80mm !important;
-
-              margin: 0 auto !important;
-
-              border-radius: 0 !important;
-
-              box-shadow: none !important;
-
-              print-color-adjust: exact !important;
-              -webkit-print-color-adjust: exact !important;
-            }
-
-            @page {
-
-              size: 80mm auto;
-              margin: 0;
-            }
-          }
-
-        </style>
-
-      </head>
-
-      <body>
-
-        <div class="preview-wrapper">
-
-          <div class="preview-actions">
-
-            <button
-              class="print-btn"
-              onclick="window.print()"
-            >
-              Print / Save PDF
-            </button>
-
-            <button
-              class="close-btn"
-              onclick="window.close()"
-            >
-              Close
-            </button>
-
-          </div>
-
-          ${receiptHTML}
-
-        </div>
-
-      </body>
-
-    </html>
-  `);
-
-  printWindow.document.close();
-};
   return (
-
-    <section className="min-h-screen bg-gray-100 py-8 px-4">
-
-      <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-
-        {/* RECEIPT */}
-
-        <div className="flex justify-center">
-
-          <div
-            ref={receiptRef}
-            className={`receipt receipt-${theme}`}
+    <section className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_350px] gap-8">
+        
+        {/* LEFT: RECEIPT PREVIEW */}
+        <div className="flex flex-col items-center">
+          <div 
+            ref={receiptRef} 
+            className={`receipt receipt-${theme} shadow-2xl rounded-xl overflow-hidden`}
           >
-
-            {/* WATERMARK */}
-
+            {/* LOGO & WATERMARK */}
             {business.logo && (
-
-              <div className="receipt-watermark">
-
-                <img
-                  src={business.logo}
-                  alt="watermark"
-                  crossOrigin="anonymous"
-                />
-
-              </div>
-
-            )}
-
-            {/* LOGO */}
-
-            {business.logo && (
-
-              <div className="receipt-logo">
-
-                <img
-                  src={business.logo}
-                  alt="logo"
-                  crossOrigin="anonymous"
-                />
-
-              </div>
-
-            )}
-
-            {/* BUSINESS */}
-
-            <div className="receipt-business">
-
-              <h1>
-                {business.name}
-              </h1>
-
-              {business.address && (
-                <p>
-                  {business.address}
-                </p>
-              )}
-
-              {business.phone && (
-                <p>
-                  {business.phone}
-                </p>
-              )}
-
-            </div>
-
-            <Divider />
-
-            {/* META */}
-
-            <div className="receipt-meta">
-
-              <div className="receipt-row">
-
-                <span>
-                  Receipt ID
-                </span>
-
-                <strong>
-                  {sale.receiptId}
-                </strong>
-
-              </div>
-
-              <div className="receipt-row">
-
-                <span>
-                  Date
-                </span>
-
-                <strong>
-
-                  {new Date(
-                    sale.createdAt
-                  ).toLocaleString()}
-
-                </strong>
-
-              </div>
-
-              <div className="receipt-row">
-
-                <span>
-                  Cashier
-                </span>
-
-                <strong>
-                  {sale.createdBy?.name || "-"}
-                </strong>
-
-              </div>
-
-              {sale.customerName && (
-
-                <div className="receipt-row">
-
-                  <span>
-                    Customer
-                  </span>
-
-                  <strong>
-                    {sale.customerName}
-                  </strong>
-
+              <>
+                <div className="receipt-watermark">
+                  <img src={business.logo} alt="" crossOrigin="anonymous" />
                 </div>
+                <div className="receipt-logo">
+                  <img src={business.logo} alt="Business Logo" crossOrigin="anonymous" />
+                </div>
+              </>
+            )}
 
-              )}
-
+            <div className="receipt-business text-center">
+              <h1 className="text-2xl font-bold">{business.name}</h1>
+              {business.address && <p className="text-sm opacity-80">{business.address}</p>}
+              {business.phone && <p className="text-sm opacity-80">{business.phone}</p>}
             </div>
 
             <Divider />
 
-            {/* ITEMS */}
+            <div className="receipt-meta space-y-1">
+              <div className="receipt-row"><span>Receipt ID</span><strong>#{sale.receiptId}</strong></div>
+              <div className="receipt-row"><span>Date</span><strong>{new Date(sale.createdAt).toLocaleString()}</strong></div>
+              <div className="receipt-row"><span>Cashier</span><strong>{sale.createdBy?.name || "Staff"}</strong></div>
+              {sale.customerName && <div className="receipt-row"><span>Customer</span><strong>{sale.customerName}</strong></div>}
+            </div>
 
-            <div className="receipt-items">
+            <Divider />
 
-              {sale.items?.map(
-                (item, index) => (
-
-                  <div
-                    key={index}
-                    className="receipt-item"
-                  >
-
-                    <div>
-
-                      <h4>
-                        {item.name}
-                      </h4>
-
-                      <p>
-
-                        {item.quantity}
-                        {" × "}
-                        {formatCurrency(
-                          item.sellingPrice
-                        )}
-
-                      </p>
-
-                    </div>
-
-                    <strong>
-
-                      {formatCurrency(
-                        item.quantity *
-                        item.sellingPrice
-                      )}
-
-                    </strong>
-
+            <div className="receipt-items py-2">
+              {sale.items?.map((item, idx) => (
+                <div key={idx} className="receipt-item flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-800">{item.name}</h4>
+                    <p className="text-sm text-gray-500">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
                   </div>
-                )
-              )}
-
+                  <strong className="text-gray-900">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
+                </div>
+              ))}
             </div>
 
             <Divider />
 
-            {/* TOTAL */}
-
-            <div className="receipt-total">
-
-              <span>
-                TOTAL
-              </span>
-
-              <strong>
-
-                {formatCurrency(
-                  sale.totalAmount
-                )}
-
-              </strong>
-
+            <div className="receipt-total flex justify-between items-center py-2">
+              <span className="text-lg font-bold">TOTAL</span>
+              <strong className="text-2xl font-black text-blue-700">{formatCurrency(sale.totalAmount)}</strong>
             </div>
-
-            {/* NOTES */}
 
             {sale.notes && (
-
               <>
-
                 <Divider />
-
-                <div className="receipt-notes">
-
-                  <h4>
-                    Notes
-                  </h4>
-
-                  <p>
-                    {sale.notes}
-                  </p>
-
+                <div className="receipt-notes italic text-sm text-gray-600">
+                  <h4 className="not-italic font-bold text-gray-800">Notes:</h4>
+                  <p>{sale.notes}</p>
                 </div>
-
               </>
-
             )}
 
             <Divider />
 
-            {/* FOOTER */}
-
-            <div className="receipt-footer">
-
-              <p className="thank-you">
-                Thank you for your patronage
-              </p>
-
-              {business.receiptFooter && (
-                <p>
-                  {business.receiptFooter}
-                </p>
-              )}
-
-              <p>
-                Powered by Marthington
-              </p>
-
+            <div className="receipt-footer text-center space-y-1 text-xs text-gray-500">
+              <p className="font-bold text-gray-700">Thank you for your patronage!</p>
+              {business.receiptFooter && <p>{business.receiptFooter}</p>}
+              <p className="pt-2 opacity-50 uppercase tracking-widest">Powered by Marthington</p>
             </div>
-
           </div>
-
         </div>
 
-        {/* ACTION PANEL */}
+        {/* RIGHT: ACTION PANEL */}
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl shadow-xl p-6 sticky top-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">Receipt Actions</h2>
+            <p className="text-sm text-gray-500 mb-6">Manage sharing and printing for this transaction.</p>
 
-        <div className="xl:sticky xl:top-6 h-fit no-print">
-
-          <div className="bg-white rounded-3xl shadow-lg p-5 space-y-4">
-
-            <div>
-
-              <h2 className="font-bold text-lg">
-                Receipt Actions
-              </h2>
-
-              <p className="text-sm text-gray-500 mt-1">
-                Print, save as PDF or share receipt
-              </p>
-
-            </div>
-
-            {upgradeMsg && (
-
-              <div className="bg-red-100 text-red-700 text-sm rounded-xl px-4 py-3">
-
-                {upgradeMsg}
-
+            {statusMsg.text && (
+              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${
+                statusMsg.type === "error" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
+              }`}>
+                {statusMsg.text}
               </div>
-
             )}
 
-            {/* PRINT */}
+            <div className="grid gap-3">
+              <button 
+                onClick={handlePrint}
+                className="flex items-center justify-center gap-2 w-full bg-gray-900 text-white py-3.5 rounded-2xl font-semibold hover:bg-black transition-all"
+              >
+                🖨️ Print / Save PDF
+              </button>
 
-            <button
-              onClick={handlePrint}
-              className="w-full bg-black text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
-            >
-              Print / Save PDF
-            </button>
+              <button 
+                onClick={handleDownloadImage}
+                disabled={isGenerating}
+                className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-3.5 rounded-2xl font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
+              >
+                {isGenerating ? "Generating..." : "🖼️ Download Image (JPG)"}
+              </button>
 
-            {/* JPG */}
+              <button 
+                onClick={() => {
+                  const phone = prompt("Enter customer WhatsApp number (e.g. 080123...)");
+                  if (phone) sendWhatsApp(sale, phone);
+                }}
+                className="flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3.5 rounded-2xl font-semibold hover:bg-green-700 transition-all"
+              >
+                💬 Share via WhatsApp
+              </button>
 
-            <button
-              onClick={handleDownloadImage}
-              className="w-full bg-blue-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
-            >
-              Download JPG
-            </button>
+              <button 
+                onClick={handleCopyLink}
+                className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-700 py-3.5 rounded-2xl font-semibold hover:bg-gray-200 transition-all"
+              >
+                🔗 Copy Receipt Link
+              </button>
 
-            {/* WHATSAPP */}
-
-            <button
-              onClick={() => {
-
-                const phone =
-                  prompt(
-                    "Enter customer phone number"
-                  );
-
-                if (phone) {
-
-                  sendWhatsApp(
-                    sale,
-                    phone
-                  );
-
-                }
-
-              }}
-              className="w-full bg-green-600 text-white py-3 rounded-2xl font-medium hover:opacity-90 transition"
-            >
-              Share via WhatsApp
-            </button>
-
-            {/* BACK */}
-
-            <button
-              onClick={() =>
-                navigate("/app/sales")
-              }
-              className="w-full border border-gray-300 py-3 rounded-2xl font-medium hover:bg-gray-50 transition"
-            >
-              Back to Sales
-            </button>
-
+              <div className="pt-4 mt-4 border-t border-gray-100">
+                <button 
+                  onClick={() => navigate("/app/sales")}
+                  className="w-full text-gray-500 font-medium py-2 hover:text-gray-800 transition-colors"
+                >
+                  ← Back to Sales History
+                </button>
+              </div>
+            </div>
           </div>
-
         </div>
-
       </div>
-
     </section>
   );
 };
