@@ -44,35 +44,31 @@ const POS = () => {
   // INITIALIZATION & CLEANUP
   // ====================================
   useEffect(() => {
-    // Initialize Broadcast Channel only on Mount
     bc.current = new BroadcastChannel('marthington_customer_display');
 
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [productData, serviceData] = await Promise.all([
-          request("/products?page=1&limit=500"),
-          getServices({ activeOnly: true })
-        ]);
-        
-        setProducts(Array.isArray(productData) ? productData : productData.products || []);
-        const safeServices = Array.isArray(serviceData) ? serviceData : serviceData.services || [];
-        setServices(safeServices.filter((s) => s.isActive !== false));
-      } catch (err) {
-        setError("System Error: Unable to sync inventory.");
-      } finally {
-        setLoading(false);
+    // NEW: Listen for new windows opening and send them the current cart
+    const handleSyncRequest = (event) => {
+      if (event.data.type === "REQUEST_SYNC") {
+        // Trigger the existing sync function manually
+        syncToCustomerDisplay(cart, total);
       }
     };
 
+    bc.current.addEventListener("message", handleSyncRequest);
+
+    const loadData = async () => {
+      /* ... your existing loadData code ... */
+    };
     loadData();
 
-    // Cleanup: Close channel when user leaves POS to prevent memory leaks/errors
     return () => {
-      if (bc.current) bc.current.close();
+      if (bc.current) {
+        bc.current.removeEventListener("message", handleSyncRequest);
+        bc.current.close();
+      }
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
-  }, []);
+  }, [cart, total, syncToCustomerDisplay]); // Added dependencies to ensure fresh data is sent
 
   // ====================================
   // SECONDARY SCREEN LOGIC

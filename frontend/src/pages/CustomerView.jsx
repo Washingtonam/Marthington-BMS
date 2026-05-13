@@ -12,7 +12,6 @@ const CustomerView = () => {
   });
 
   useEffect(() => {
-    // We initialize the channel inside useEffect to prevent SSR/Initialization errors
     const bc = new BroadcastChannel('marthington_customer_display');
 
     const handleMessage = (event) => {
@@ -31,7 +30,9 @@ const CustomerView = () => {
 
     bc.addEventListener("message", handleMessage);
 
-    // Clean up to prevent memory leaks and initialization errors on hot-reload
+    // NEW: Ask the POS to send the current data immediately upon opening
+    bc.postMessage({ type: "REQUEST_SYNC" });
+
     return () => {
       bc.removeEventListener("message", handleMessage);
       bc.close();
