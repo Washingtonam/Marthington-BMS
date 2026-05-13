@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"; // Added useRef
 import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import { getServices } from "../api/services.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+// Initialize Broadcast Channel for Secondary Screen
+const bc = new BroadcastChannel('marthington_customer_display');
+
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
+  const debounceTimer = useRef(null); // To hide live price typing
 
   // ====================================
   // STATE MANAGEMENT
@@ -23,20 +27,47 @@ const POS = () => {
   const [activeTab, setActiveTab] = useState("products");
   const [visibleProducts, setVisibleProducts] = useState(12);
 
-  // CUSTOMER DATA
-  const [customer, setCustomer] = useState({
-    name: "",
-    phone: "",
-    notes: ""
-  });
+  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
 
-  // QUICK SERVICE FORM
-  const [serviceForm, setServiceForm] = useState({ name: "", price: "" });
-
-  // PERMISSIONS & STATUS
   const isPro = business?.subscription?.status === "active";
   const canOverride = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canOverridePrice;
+
+  // ====================================
+  // SECONDARY SCREEN LOGIC (The "Invisible" Filter)
+  // ====================================
+  const syncToCustomerDisplay = useCallback((currentCart, currentTotal) => {
+    // Clear existing timer if user is still typing
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    // Set a small delay (800ms) so the customer only sees the final price, 
+    // not the staff member erasing and re-typing it.
+    debounceTimer.current = setTimeout(() => {
+      bc.postMessage({
+        type: "UPDATE_CART",
+        businessName: business?.name,
+        items: currentCart.map(i => ({
+          name: i.name,
+          quantity: i.quantity,
+          price: i.sellingPrice,
+          subtotal: i.quantity * i.sellingPrice
+        })),
+        total: currentTotal,
+        customerName: customer.name,
+        customerNotes: customer.notes
+      });
+    }, 800);
+  }, [business?.name, customer.name, customer.notes]);
+
+  // Sync whenever cart or total changes
+  useEffect(() => {
+    syncToCustomerDisplay(cart, total);
+  }, [cart, total, syncToCustomerDisplay]);
+
+  const openCustomerDisplay = () => {
+    // This opens the new route in a popup window for the second monitor
+    window.open('/app/customer-view', 'CustomerWindow', 'width=800,height=600');
+  };
 
   // ====================================
   // DATA INITIALIZATION
@@ -46,12 +77,10 @@ const POS = () => {
       try {
         setLoading(true);
         const [productData, serviceData] = await Promise.all([
-          request("/products?page=1&limit=200"), // Increased limit for better local filtering
+          request("/products?page=1&limit=200"),
           getServices({ activeOnly: true })
         ]);
-
         setProducts(Array.isArray(productData) ? productData : productData.products || []);
-        
         const safeServices = Array.isArray(serviceData) ? serviceData : serviceData.services || [];
         setServices(safeServices.filter((s) => s.isActive !== false));
       } catch (err) {
@@ -97,7 +126,6 @@ const POS = () => {
 
       if (existingIndex > -1) {
         const newCart = [...prev];
-        // Stock check for products
         if (isProduct && newCart[existingIndex].quantity >= item.stock) {
           setUpgradeMsg(`Limited Stock: Only ${item.stock} available.`);
           return prev;
@@ -132,11 +160,10 @@ const POS = () => {
   , [cart]);
 
   // ====================================
-  // CHECKOUT & WHATSAPP
+  // CHECKOUT
   // ====================================
   const checkout = async () => {
     if (!cart.length || processing) return;
-
     try {
       setProcessing(true);
       const payload = {
@@ -159,7 +186,9 @@ const POS = () => {
       });
 
       if (res?.sale) {
-        // Handle WhatsApp Notification
+        // Notify Customer Display of Success
+        bc.postMessage({ type: "SALE_COMPLETE", receiptId: res.sale.receiptId });
+
         if (autoSend && customer.phone && isPro) {
           const cleanPhone = customer.phone.replace(/\D/g, "").replace(/^0/, "234");
           const receiptLink = `${window.location.origin}/r/${res.sale.receiptId}`;
@@ -180,16 +209,24 @@ const POS = () => {
 
   return (
     <div className="flex flex-col xl:flex-row gap-6 p-2 lg:p-4">
-      {/* LEFT COLUMN: SELECTION */}
+      {/* LEFT COLUMN */}
       <div className="flex-1 space-y-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border flex gap-4">
           <input
             type="text"
             placeholder="Search inventory..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500"
+            className="flex-1 bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500"
           />
+          {/* Secondary Screen Trigger */}
+          <button 
+            onClick={openCustomerDisplay}
+            className="px-4 bg-gray-100 hover:bg-gray-200 rounded-xl text-xs font-bold text-gray-600 transition-colors"
+            title="Open Customer Display"
+          >
+            🖥️ Screen 2
+          </button>
         </div>
 
         <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
@@ -237,18 +274,9 @@ const POS = () => {
             ))
           )}
         </div>
-        
-        {activeTab === "products" && filteredProducts.length >= visibleProducts && (
-          <button 
-            onClick={() => setVisibleProducts(v => v + 12)}
-            className="w-full py-3 text-blue-600 font-medium hover:bg-blue-50 rounded-xl"
-          >
-            Show More Items
-          </button>
-        )}
       </div>
 
-      {/* RIGHT COLUMN: CART & CHECKOUT */}
+      {/* RIGHT COLUMN: CART */}
       <div className="xl:w-[400px] space-y-4">
         <div className="bg-white p-5 rounded-2xl shadow-sm border sticky top-4">
           <div className="flex justify-between items-center mb-4">
@@ -274,8 +302,11 @@ const POS = () => {
                     <input 
                       type="number" 
                       value={item.sellingPrice}
-                      onChange={(e) => setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: Number(e.target.value)} : i))}
-                      className="w-20 text-right text-xs border-none bg-transparent focus:ring-0 font-semibold"
+                      onChange={(e) => {
+                        const newPrice = Number(e.target.value);
+                        setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: newPrice} : i));
+                      }}
+                      className="w-20 text-right text-xs border-none bg-transparent focus:ring-0 font-semibold text-blue-600"
                     />
                   )}
                 </div>
@@ -291,32 +322,22 @@ const POS = () => {
               className="w-full text-sm border-gray-200 rounded-lg"
             />
             <input 
-              placeholder="WhatsApp Number (e.g. 080...)"
+              placeholder="WhatsApp Number"
               value={customer.phone}
               onChange={e => setCustomer({...customer, phone: e.target.value})}
               className="w-full text-sm border-gray-200 rounded-lg"
             />
+            <input 
+              placeholder="Notes (e.g. Special discounts, serial numbers)"
+              value={customer.notes}
+              onChange={e => setCustomer({...customer, notes: e.target.value})}
+              className="w-full text-sm border-gray-200 rounded-lg mb-2" 
+            />
             
-            <div className="flex items-center gap-2 py-2">
-              <input 
-                type="checkbox" 
-                id="autoSend"
-                checked={autoSend}
-                disabled={!isPro}
-                onChange={() => setAutoSend(!autoSend)}
-                className="rounded text-blue-600"
-              />
-              <label htmlFor="autoSend" className="text-xs text-gray-600">
-                Send Receipt via WhatsApp {!isPro && <span className="text-orange-500">(Pro Only)</span>}
-              </label>
-            </div>
-
             <div className="flex justify-between text-xl font-black pt-2">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>
             </div>
-
-            {upgradeMsg && <p className="text-xs text-red-500 bg-red-50 p-2 rounded">{upgradeMsg}</p>}
 
             <button
               onClick={checkout}

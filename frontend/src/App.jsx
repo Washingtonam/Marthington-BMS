@@ -25,6 +25,9 @@ import Services from "./pages/Services.jsx";
 import StaffReports from "./pages/StaffReports.jsx";
 import InventoryReports from "./pages/InventoryReports.jsx";
 
+// 🔥 NEW: CUSTOMER VIEW
+import CustomerView from "./pages/CustomerView.jsx";
+
 // 🔥 PUBLIC RECEIPT
 import PublicReceipt from "./pages/PublicReceipt.jsx";
 
@@ -48,6 +51,19 @@ const App = () => {
           {/* PUBLIC RECEIPT */}
           <Route path="/r/:id" element={<PublicReceipt />} />
 
+          {/* 🔥 CUSTOMER VIEW (STANDALONE)
+              We put this outside AppLayout so it doesn't show the sidebar/header.
+              It is still protected so only staff can open it on the 2nd monitor.
+          */}
+          <Route 
+            path="/app/customer-view" 
+            element={
+              <ProtectedRoute>
+                <CustomerView />
+              </ProtectedRoute>
+            } 
+          />
+
           {/* ================= NORMAL APP ================= */}
           <Route
             path="/app"
@@ -57,11 +73,6 @@ const App = () => {
               </ProtectedRoute>
             }
           >
-            {/* 🔥 UPDATED INDEX LOGIC: 
-                If the user lands on /app, it will show Dashboard.
-                However, our Sidebar logic in AppLayout will now hide the link 
-                based on the 'canViewDashboard' permission we added. 
-            */}
             <Route index element={<Dashboard />} />
             
             <Route path="products" element={<Products />} />
@@ -72,7 +83,6 @@ const App = () => {
             <Route path="settings" element={<Settings />} />
             <Route path="reports" element={<Reports />} />
             
-            {/* 🔥 FIXED: These now point correctly to the sub-report pages */}
             <Route path="staff-reports" element={<StaffReports />} />
             <Route path="inventory-reports" element={<InventoryReports />} />
 
