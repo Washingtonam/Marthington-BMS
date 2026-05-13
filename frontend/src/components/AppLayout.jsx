@@ -8,71 +8,71 @@ const navItems = [
     label: "Dashboard",
     href: "/app",
     icon: "chart",
-    // 🔥 Dashboard now requires the specific permission we added in Staff.jsx
-    permission: "canViewDashboard" 
+    permission: "canViewDashboard",
+    isPremium: false // Standard feature
   },
-
   {
     label: "Products",
     href: "/app/products",
     icon: "boxes",
-    permission: "canViewProducts"
+    permission: "canViewProducts",
+    isPremium: false // Standard feature
   },
-
   {
     label: "Services",
     href: "/app/services",
     icon: "package",
-    permission: "canViewProducts"
+    permission: "canViewProducts",
+    isPremium: false // Standard feature
   },
-
   {
     label: "Sales",
     href: "/app/pos",
     icon: "cart",
-    permission: "canMakeSale"
+    permission: "canMakeSale",
+    isPremium: false // Standard feature
   },
-
   {
     label: "Reports",
     href: "/app/reports",
     icon: "chart",
-    permission: "canViewReports"
+    permission: "canViewReports",
+    isPremium: true // 🔥 PRO FEATURE
   },
-
   {
     label: "Staff",
     href: "/app/staff",
     icon: "team",
-    permission: "canManageStaff"
+    permission: "canManageStaff",
+    isPremium: true // 🔥 PRO FEATURE
   },
-
-  {
-    label: "Billing",
-    href: "/app/billing",
-    icon: "wallet",
-    permission: "canManageSettings"
-  },
-
-  {
-    label: "Settings",
-    href: "/app/settings",
-    icon: "settings",
-    permission: "canManageSettings"
-  },
-
   {
     label: "Invoices",
     href: "/app/invoices",
     icon: "receipt",
-    permission: "canViewSales"
+    permission: "canViewSales",
+    isPremium: false // Standard feature
   },
-
   {
     label: "Customers",
     href: "/app/customers",
     icon: "team",
-    permission: "canViewSales"
+    permission: "canViewSales",
+    isPremium: false // Standard feature
+  },
+  {
+    label: "Billing",
+    href: "/app/billing",
+    icon: "wallet",
+    permission: "canManageSettings",
+    isPremium: false // Keep accessible so they can upgrade
+  },
+  {
+    label: "Settings",
+    href: "/app/settings",
+    icon: "settings",
+    permission: "canManageSettings",
+    isPremium: false 
   }
 ];
 
@@ -82,6 +82,7 @@ const AppLayout = () => {
   const {
     logout,
     user,
+    isPro, // 🔥 Now using the boolean from your AuthContext
     impersonatedBusiness,
     stopImpersonation
   } = useAuth();
@@ -94,21 +95,27 @@ const AppLayout = () => {
   };
 
   // =====================================
-  // ACCESS CHECK (Upgraded)
+  // ACCESS CHECK (Upgraded for Freemium)
   // =====================================
-  const hasAccess = (permission) => {
-    // 1. SUPER ADMIN & OWNER ALWAYS HAVE ACCESS
-    if (user?.role === "super_admin" || user?.role === "owner") {
-      return true;
+  const hasAccess = (item) => {
+    // 1. SUPER ADMIN ALWAYS HAS ACCESS
+    if (user?.role === "super_admin") return true;
+
+    // 2. CHECK PREMIUM LOCK
+    // If the item is premium and the business is NOT Pro, hide it.
+    if (item.isPremium && !isPro) {
+      return false;
     }
 
-    // 2. IF NO PERMISSION IS DEFINED ON THE ITEM, ALLOW ACCESS
-    if (!permission) {
-      return true;
+    // 3. OWNER ALWAYS HAS ACCESS TO REMAINING NON-PRO ITEMS
+    if (user?.role === "owner") return true;
+
+    // 4. CHECK SPECIFIC STAFF PERMISSIONS
+    if (item.permission) {
+      return user?.permissions?.[item.permission] || false;
     }
 
-    // 3. CHECK SPECIFIC STAFF PERMISSIONS
-    return user?.permissions?.[permission] || false;
+    return true;
   };
 
   return (
@@ -129,7 +136,7 @@ const AppLayout = () => {
         {/* NAVIGATION */}
         <nav className="sidebar-nav mt-6">
           {navItems
-            .filter((item) => hasAccess(item.permission)) // 🔥 Filters sidebar based on new logic
+            .filter((item) => hasAccess(item)) // 🔥 Filters based on Role + Subscription
             .map((item) => (
               <NavLink
                 key={item.label}
@@ -142,33 +149,32 @@ const AppLayout = () => {
               >
                 <Icon name={item.icon} />
                 <span>{item.label}</span>
+                {item.isPremium && !isPro && (
+                   <span className="ml-auto text-[10px] bg-yellow-500 text-black px-1 rounded font-bold">PRO</span>
+                )}
               </NavLink>
             ))}
         </nav>
 
         {/* QUICK ACTIONS */}
         <div className="flex flex-col gap-2 px-4 mt-4">
-          {hasAccess("canManageProducts") && (
-            <button
-              className="quick-create"
-              type="button"
-              onClick={() => navigate("/app/products")}
-            >
-              <Icon name="add" />
-              <span>New Product</span>
-            </button>
-          )}
+          <button
+            className="quick-create"
+            type="button"
+            onClick={() => navigate("/app/products")}
+          >
+            <Icon name="add" />
+            <span>New Product</span>
+          </button>
 
-          {hasAccess("canMakeSale") && (
-            <button
-              className="quick-create bg-blue-600 text-white hover:bg-blue-700"
-              type="button"
-              onClick={() => navigate("/app/pos")}
-            >
-              <Icon name="cart" />
-              <span>New Sale</span>
-            </button>
-          )}
+          <button
+            className="quick-create bg-blue-600 text-white hover:bg-blue-700"
+            type="button"
+            onClick={() => navigate("/app/pos")}
+          >
+            <Icon name="cart" />
+            <span>New Sale</span>
+          </button>
         </div>
       </aside>
 
@@ -205,6 +211,14 @@ const AppLayout = () => {
 
           {/* USER CHIP */}
           <div className="user-chip">
+            {!isPro && (
+              <button 
+                onClick={() => navigate("/app/billing")}
+                className="mr-4 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded border border-yellow-200 font-bold hover:bg-yellow-200 transition-colors"
+              >
+                UPGRADE TO PRO
+              </button>
+            )}
             <div>
               <strong className="capitalize">{user?.name}</strong>
               <span className="capitalize">{user?.role?.replace("_", " ")}</span>
