@@ -1,14 +1,13 @@
 import React from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Defs,
-  LinearGradient
+// 1. Cleaned up imports: removed duplicate line and non-existent Defs/LinearGradient
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  CartesianGrid 
 } from "recharts";
 import { formatCurrency } from "../../utils/formatters.js";
 
@@ -37,13 +36,12 @@ const SalesChartContent = ({ data = [] }) => {
     <div style={{ width: "100%", height: "350px", minHeight: "350px" }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          {/* 2. Using standard lowercase SVG tags for gradients */}
           <defs>
-            {/* Revenue Gradient */}
             <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/>
               <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
             </linearGradient>
-            {/* Profit Gradient */}
             <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
               <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
@@ -69,7 +67,6 @@ const SalesChartContent = ({ data = [] }) => {
           
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e5e7eb', strokeWidth: 2 }} />
           
-          {/* Revenue Area */}
           <Area
             name="Revenue"
             type="monotone"
@@ -81,7 +78,6 @@ const SalesChartContent = ({ data = [] }) => {
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
 
-          {/* Profit Area (Optional: Only shows if profit exists in data) */}
           <Area
             name="Profit"
             type="monotone"
@@ -107,7 +103,6 @@ const SalesChart = ({ data = [] }) => {
           <p className="text-xs text-gray-500 font-bold uppercase tracking-tighter">Daily performance tracking</p>
         </div>
         
-        {/* Simple Legend */}
         <div className="flex gap-4">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-blue-600"></span>

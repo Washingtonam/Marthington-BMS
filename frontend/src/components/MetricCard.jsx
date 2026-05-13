@@ -30,3 +30,6 @@ const MetricCard = ({ icon, label, value, tone }) => {
     </div>
   );
 };
+
+// Add this at the very bottom
+export default MetricCard;
