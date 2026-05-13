@@ -4,6 +4,8 @@ import App from "./App.jsx";
 import request from "./api/client.js";
 import { db } from "./api/offlineDb";
 import "./index.css";
+// 👇 ADD THIS LINE BACK - This is likely where your layout grid lives!
+import "./styles.css"; 
 
 const Root = () => {
   useEffect(() => {
@@ -17,7 +19,6 @@ const Root = () => {
 
       for (const item of pending) {
         try {
-          // Attempt to push to server
           await fetch(`https://marthington.onrender.com/api${item.path}`, {
             ...item.options,
             body: JSON.stringify(item.options.body),
@@ -26,7 +27,6 @@ const Root = () => {
                 "Authorization": `Bearer ${localStorage.getItem("bms_token")}`
             }
           });
-          // Remove from local DB if successful
           await db.pendingSales.delete(item.id);
         } catch (e) {
           console.error("Sync failed for item", item.id, e);
@@ -34,9 +34,7 @@ const Root = () => {
       }
     };
 
-    // Listen for network changes
     window.addEventListener('online', syncOfflineData);
-    // Also try to sync when app first starts
     syncOfflineData();
 
     return () => window.removeEventListener('online', syncOfflineData);
