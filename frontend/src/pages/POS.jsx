@@ -108,10 +108,18 @@ const POS = () => {
           request("/products"),
           getServices()
         ]);
-        setProducts(prodRes || []);
-        setServices(servRes || []);
+
+        // FIX: Ensure we are setting arrays. 
+        // If your API returns { products: [...] }, use prodRes.products
+        const cleanProducts = Array.isArray(prodRes) ? prodRes : (prodRes?.products || []);
+        const cleanServices = Array.isArray(servRes) ? servRes : (servRes?.services || []);
+
+        setProducts(cleanProducts);
+        setServices(cleanServices);
       } catch (err) {
+        console.error("POS Load Error:", err);
         setUpgradeMsg("Failed to load inventory.");
+        setProducts([]); // Fallback to empty array to prevent .filter crash
       } finally {
         setLoading(false);
       }
@@ -127,11 +135,14 @@ const POS = () => {
   // SEARCH & FILTER
   // ====================================
   const filteredProducts = useMemo(() => {
+    // Safety check: if products is somehow not an array, return empty
+    if (!Array.isArray(products)) return [];
+
     const keyword = search.toLowerCase();
     const base = products.filter((p) => 
-        p.name?.toLowerCase().includes(keyword) || 
-        p.sku?.toLowerCase().includes(keyword) ||
-        p.category?.toLowerCase().includes(keyword)
+        p?.name?.toLowerCase().includes(keyword) || 
+        p?.sku?.toLowerCase().includes(keyword) ||
+        p?.category?.toLowerCase().includes(keyword)
     );
     return base.slice(0, visibleProducts);
   }, [products, search, visibleProducts]);
