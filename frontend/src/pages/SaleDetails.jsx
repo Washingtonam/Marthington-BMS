@@ -5,7 +5,7 @@ import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
 import "../styles/receipt.css";
 
-const Divider = () => <div className="receipt-divider" />;
+const Divider = () => <div className="receipt-divider" style={{ borderTop: "2px dashed #000", margin: "8px 0" }} />;
 
 const SaleDetails = () => {
   const { id } = useParams();
@@ -112,6 +112,13 @@ const SaleDetails = () => {
           <title>Print Receipt - ${sale.receiptId}</title>
           <style>
             ${styles}
+            /* Global Force-Bold for Thermal Hardware Compatibility */
+            * { 
+              font-weight: 900 !important; 
+              color: #000000 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
             body { background: #f3f4f6; padding: 20px; font-family: system-ui, sans-serif; }
             .print-wrap { display: flex; flex-direction: column; align-items: center; }
             .receipt { background: white; width: 100%; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
@@ -120,6 +127,7 @@ const SaleDetails = () => {
               .receipt { width: 80mm; max-width: 80mm; box-shadow: none; border: none; }
               @page { size: 80mm auto; margin: 0; }
               .no-print { display: none; }
+              .receipt-divider { border-top: 3px dashed #000000 !important; margin: 10px 0 !important; }
             }
           </style>
         </head>
@@ -146,7 +154,7 @@ const SaleDetails = () => {
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center space-y-4">
       <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-gray-500 font-medium">Fetching receipt...</p>
+      <p className="text-gray-500 font-bold">Fetching receipt...</p>
     </div>
   );
 
@@ -154,7 +162,7 @@ const SaleDetails = () => {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center p-8 bg-white rounded-3xl shadow-sm">
         <p className="text-red-500 font-bold text-xl">Receipt not found</p>
-        <button onClick={() => navigate("/app/sales")} className="mt-4 text-blue-600 underline">Return to Sales</button>
+        <button onClick={() => navigate("/app/sales")} className="mt-4 text-blue-600 underline font-bold">Return to Sales</button>
       </div>
     </div>
   );
@@ -163,14 +171,15 @@ const SaleDetails = () => {
   const theme = business.receiptTheme || "modern";
 
   return (
-    <section className="min-h-screen bg-gray-50 py-8 px-4">
+    <section className="min-h-screen bg-gray-50 py-8 px-4 font-bold">
       <div className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-[1fr_350px] gap-8">
         
         {/* LEFT: RECEIPT PREVIEW */}
         <div className="flex flex-col items-center">
           <div 
             ref={receiptRef} 
-            className={`receipt receipt-${theme} shadow-2xl rounded-xl overflow-hidden`}
+            className={`receipt receipt-${theme} shadow-2xl rounded-xl overflow-hidden p-4 font-bold text-black`}
+            style={{ color: "#000000" }}
           >
             {/* LOGO & WATERMARK */}
             {business.logo && (
@@ -184,58 +193,58 @@ const SaleDetails = () => {
               </>
             )}
 
-            <div className="receipt-business text-center">
-              <h1 className="text-2xl font-bold">{business.name}</h1>
-              {business.address && <p className="text-sm opacity-80">{business.address}</p>}
-              {business.phone && <p className="text-sm opacity-80">{business.phone}</p>}
+            <div className="receipt-business text-center font-bold">
+              <h1 className="text-2xl font-black uppercase tracking-wide text-black">{business.name}</h1>
+              {business.address && <p className="text-sm font-bold text-black">{business.address}</p>}
+              {business.phone && <p className="text-sm font-bold text-black">Tel: {business.phone}</p>}
             </div>
 
             <Divider />
 
-            <div className="receipt-meta space-y-1">
-              <div className="receipt-row"><span>Receipt ID</span><strong>#{sale.receiptId}</strong></div>
-              <div className="receipt-row"><span>Date</span><strong>{new Date(sale.createdAt).toLocaleString()}</strong></div>
-              <div className="receipt-row"><span>Cashier</span><strong>{sale.createdBy?.name || "Staff"}</strong></div>
-              {sale.customerName && <div className="receipt-row"><span>Customer</span><strong>{sale.customerName}</strong></div>}
+            <div className="receipt-meta space-y-1 text-black font-bold">
+              <div className="receipt-row flex justify-between"><span>Receipt ID:</span><strong className="font-black">#{sale.receiptId}</strong></div>
+              <div className="receipt-row flex justify-between"><span>Date:</span><strong className="font-black">{new Date(sale.createdAt).toLocaleString()}</strong></div>
+              <div className="receipt-row flex justify-between"><span>Cashier:</span><strong className="font-black">{sale.createdBy?.name || "Staff"}</strong></div>
+              {sale.customerName && <div className="receipt-row flex justify-between"><span>Customer:</span><strong className="font-black">{sale.customerName}</strong></div>}
             </div>
 
             <Divider />
 
-            <div className="receipt-items py-2">
+            <div className="receipt-items py-2 text-black font-bold">
               {sale.items?.map((item, idx) => (
-                <div key={idx} className="receipt-item flex justify-between items-start mb-3">
+                <div key={idx} className="receipt-item flex justify-between items-start mb-3 font-bold">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-gray-800">{item.name}</h4>
-                    <p className="text-sm text-gray-500">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
+                    <h4 className="font-black text-black text-base">{item.name}</h4>
+                    <p className="text-sm font-bold text-black">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
                   </div>
-                  <strong className="text-gray-900">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
+                  <strong className="text-black font-black text-base">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
                 </div>
               ))}
             </div>
 
             <Divider />
 
-            <div className="receipt-total flex justify-between items-center py-2">
-              <span className="text-lg font-bold">TOTAL</span>
-              <strong className="text-2xl font-black text-blue-700">{formatCurrency(sale.totalAmount)}</strong>
+            <div className="receipt-total flex justify-between items-center py-2 text-black font-bold">
+              <span className="text-xl font-black">TOTAL:</span>
+              <strong className="text-2xl font-black text-black">{formatCurrency(sale.totalAmount)}</strong>
             </div>
 
             {sale.notes && (
               <>
                 <Divider />
-                <div className="receipt-notes italic text-sm text-gray-600">
-                  <h4 className="not-italic font-bold text-gray-800">Notes:</h4>
-                  <p>{sale.notes}</p>
+                <div className="receipt-notes text-sm text-black font-bold">
+                  <h4 className="font-black text-black">Notes:</h4>
+                  <p className="font-bold">{sale.notes}</p>
                 </div>
               </>
             )}
 
             <Divider />
 
-            <div className="receipt-footer text-center space-y-1 text-xs text-gray-500">
-              <p className="font-bold text-gray-700">Thank you for your patronage!</p>
-              {business.receiptFooter && <p>{business.receiptFooter}</p>}
-              <p className="pt-2 opacity-50 uppercase tracking-widest">Powered by Marthington</p>
+            <div className="receipt-footer text-center space-y-1 text-xs text-black font-bold">
+              <p className="font-black text-sm text-black">Thank you for your patronage!</p>
+              {business.receiptFooter && <p className="font-bold">{business.receiptFooter}</p>}
+              <p className="pt-2 font-black uppercase tracking-widest text-xs">Powered by Marthington</p>
             </div>
           </div>
         </div>
@@ -247,7 +256,7 @@ const SaleDetails = () => {
             <p className="text-sm text-gray-500 mb-6">Manage sharing and printing for this transaction.</p>
 
             {statusMsg.text && (
-              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-medium ${
+              <div className={`mb-4 px-4 py-3 rounded-xl text-sm font-bold ${
                 statusMsg.type === "error" ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"
               }`}>
                 {statusMsg.text}
@@ -257,7 +266,7 @@ const SaleDetails = () => {
             <div className="grid gap-3">
               <button 
                 onClick={handlePrint}
-                className="flex items-center justify-center gap-2 w-full bg-gray-900 text-white py-3.5 rounded-2xl font-semibold hover:bg-black transition-all"
+                className="flex items-center justify-center gap-2 w-full bg-gray-900 text-white py-3.5 rounded-2xl font-bold hover:bg-black transition-all"
               >
                 🖨️ Print / Save PDF
               </button>
@@ -265,7 +274,7 @@ const SaleDetails = () => {
               <button 
                 onClick={handleDownloadImage}
                 disabled={isGenerating}
-                className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-3.5 rounded-2xl font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
+                className="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-3.5 rounded-2xl font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
               >
                 {isGenerating ? "Generating..." : "🖼️ Download Image (JPG)"}
               </button>
@@ -275,14 +284,14 @@ const SaleDetails = () => {
                   const phone = prompt("Enter customer WhatsApp number (e.g. 080123...)");
                   if (phone) sendWhatsApp(sale, phone);
                 }}
-                className="flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3.5 rounded-2xl font-semibold hover:bg-green-700 transition-all"
+                className="flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3.5 rounded-2xl font-bold hover:bg-green-700 transition-all"
               >
                 💬 Share via WhatsApp
               </button>
 
               <button 
                 onClick={handleCopyLink}
-                className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-700 py-3.5 rounded-2xl font-semibold hover:bg-gray-200 transition-all"
+                className="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-700 py-3.5 rounded-2xl font-bold hover:bg-gray-200 transition-all"
               >
                 🔗 Copy Receipt Link
               </button>
@@ -290,7 +299,7 @@ const SaleDetails = () => {
               <div className="pt-4 mt-4 border-t border-gray-100">
                 <button 
                   onClick={() => navigate("/app/sales")}
-                  className="w-full text-gray-500 font-medium py-2 hover:text-gray-800 transition-colors"
+                  className="w-full text-gray-500 font-bold py-2 hover:text-gray-800 transition-colors"
                 >
                   ← Back to Sales History
                 </button>
