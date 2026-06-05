@@ -34,6 +34,8 @@ const Products = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
@@ -44,6 +46,11 @@ const Products = () => {
   // ====================================
   useEffect(() => {
     loadProducts();
+  }, [page, search, categoryFilter]);
+
+  useEffect(() => {
+    if (!page && !search && !categoryFilter) return;
+    setSelectedProductIds([]);
   }, [page, search, categoryFilter]);
 
   const loadProducts = async () => {
@@ -135,6 +142,49 @@ const Products = () => {
     }
   };
 
+  const allSelected = products.length > 0 && selectedProductIds.length === products.length;
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedProductIds([]);
+      return;
+    }
+
+    setSelectedProductIds(products.map((product) => product._id));
+  };
+
+  const toggleProductSelection = (id) => {
+    setSelectedProductIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((productId) => productId !== id)
+        : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedProductIds.length) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete these ${selectedProductIds.length} products? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleting(true);
+      await request("/products/bulk", {
+        method: "DELETE",
+        body: JSON.stringify({ ids: selectedProductIds })
+      });
+      setSuccess(`${selectedProductIds.length} product(s) deleted successfully`);
+      setSelectedProductIds([]);
+      loadProducts();
+    } catch (err) {
+      alert(err.message || "Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -204,9 +254,34 @@ const Products = () => {
           </select>
         </div>
 
+        {selectedProductIds.length > 0 && (
+          <div className="mb-4 rounded-3xl border border-red-100 bg-red-50 px-5 py-4 transition-all duration-200 ease-in-out shadow-sm shadow-red-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-red-700">Selected {selectedProductIds.length} item(s)</p>
+              <p className="text-xs text-red-500">You can delete all selected products in one action.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {bulkDeleting ? "Deleting..." : "🗑️ Delete Selected"}
+            </button>
+          </div>
+        )}
+
         {/* TABLE */}
         <div className="product-table mt-4">
           <div className="product-row product-row-head">
+            <span className="w-12 flex items-center justify-center">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleSelectAll}
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 transition-all duration-200 ease-in-out focus:ring-0"
+              />
+            </span>
             <span>Name</span>
             <span>Category</span>
             <span>Price</span>
@@ -222,6 +297,14 @@ const Products = () => {
           ) : (
             products.map((p) => (
               <div className="product-row" key={p._id}>
+                <span className="w-12 flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedProductIds.includes(p._id)}
+                    onChange={() => toggleProductSelection(p._id)}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900 transition-all duration-200 ease-in-out focus:ring-0"
+                  />
+                </span>
                 <span>
                   <div className="font-semibold">{p.name}</div>
                   <div className="text-xs text-gray-400">SKU: {p.sku || "N/A"}</div>

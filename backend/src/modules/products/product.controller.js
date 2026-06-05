@@ -145,6 +145,29 @@ const updateProduct = async (req, res) => {
   }
 };
 
+// 🔥 BULK DELETE PRODUCTS
+const bulkDeleteProducts = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || !ids.length) {
+      return res.status(400).json({ message: "A non-empty array of product ids is required." });
+    }
+
+    const result = await Product.deleteMany({
+      _id: { $in: ids },
+      business: req.user.businessId
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} product(s)`
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // 🔥 DELETE PRODUCT
 const deleteProduct = async (req, res) => {
   try {
@@ -159,4 +182,4 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-export default { createProduct, bulkImportProducts, getProducts, updateProduct, deleteProduct };
+export default { createProduct, bulkImportProducts, getProducts, updateProduct, deleteProduct, bulkDeleteProducts };

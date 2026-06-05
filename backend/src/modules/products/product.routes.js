@@ -26,6 +26,13 @@ router.post(
   productController.bulkImportProducts
 );
 
+// 🔥 BULK DELETE PRODUCTS
+router.delete(
+  "/bulk",
+  protect,
+  checkPermission("canManageProducts"),
+  productController.bulkDeleteProducts
+);
 
 // 🔥 GET PRODUCTS
 router.get(
