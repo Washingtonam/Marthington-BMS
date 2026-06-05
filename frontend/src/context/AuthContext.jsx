@@ -17,12 +17,41 @@ import {
 
 const AuthContext = createContext(null);
 
-const storedUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("bms_user"));
-  } catch {
-    return null;
+export const usePermissions = (user, business) => {
+  if (!user) {
+    return {
+      isPro: false,
+      role: "guest",
+      canManage: false,
+      canSell: false,
+      businessPlan: "free",
+      isBusinessPremium: false
+    };
   }
+
+  const businessPlan = business?.subscription?.plan;
+  const subscriptionStatus = business?.subscription?.status;
+  const inheritedPlan = businessPlan || user.businessPlan || "free";
+
+  const isPro =
+    user.role === "owner"
+      ? inheritedPlan === "pro" && subscriptionStatus === "active"
+      :
+        (inheritedPlan === "pro" && subscriptionStatus === "active") ||
+        user.isBusinessPremium === true;
+
+  return {
+    isPro,
+    role: user.role,
+    canManage: user.role === "owner",
+    canSell:
+      user.role === "owner" ||
+      user.role === "staff" ||
+      user.role === "manager" ||
+      user.role === "cashier",
+    businessPlan: inheritedPlan,
+    isBusinessPremium: isPro
+  };
 };
 
 export const AuthProvider = ({ children }) => {
@@ -186,14 +215,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 🔥 DERIVED STATE
-  const isPro =
-    business?.subscription?.status === "active";
-
-  const subscriptionStatus =
-    business?.subscription?.status;
-
-  const expiresAt =
-    business?.subscription?.expiresAt;
+  const permissions = usePermissions(user, business);
+  const isPro = permissions.isPro;
+  const subscriptionStatus = business?.subscription?.status;
+  const expiresAt = business?.subscription?.expiresAt;
 
   const value = useMemo(
     () => ({
@@ -208,6 +233,12 @@ export const AuthProvider = ({ children }) => {
       business,
 
       isPro,
+
+      permissions,
+
+      businessPlan: permissions.businessPlan,
+
+      isBusinessPremium: permissions.isBusinessPremium,
 
       subscriptionStatus,
 

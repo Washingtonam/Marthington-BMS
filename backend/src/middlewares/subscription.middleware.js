@@ -1,4 +1,5 @@
 import Business from "../modules/businesses/business.model.js";
+import User from "../modules/users/user.model.js";
 
 const checkSubscription = async (req, res, next) => {
   try {
@@ -31,6 +32,29 @@ const checkSubscription = async (req, res, next) => {
       }
     }
 
+    // 🔥 STAFF SUBSCRIPTION INHERITANCE
+    if (
+      req.user.role !== "owner" &&
+      req.user.role !== "super_admin" &&
+      business.owner
+    ) {
+      const owner = await User.findById(business.owner);
+      if (owner) {
+        // The business subscription is the authoritative premium source.
+        // Staff accounts should inherit the owner's business/subscription state.
+        req.subscription = {
+          active:
+            business.plan === "pro" &&
+            business.subscription?.status === "active",
+          plan: business.plan,
+          expiresAt: business.subscription?.expiresAt || null,
+          ownerId: owner._id.toString()
+        };
+        req.isPremiumBusiness = req.subscription.active;
+        return next();
+      }
+    }
+
     // 🔥 FINAL STATE
     const isActive =
       business.plan === "pro" &&
@@ -41,6 +65,7 @@ const checkSubscription = async (req, res, next) => {
       plan: business.plan,
       expiresAt: business.subscription?.expiresAt || null
     };
+    req.isPremiumBusiness = isActive;
 
     next();
 
