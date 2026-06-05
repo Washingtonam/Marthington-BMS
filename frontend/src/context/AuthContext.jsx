@@ -17,6 +17,14 @@ import {
 
 const AuthContext = createContext(null);
 
+const storedUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_user"));
+  } catch {
+    return null;
+  }
+};
+
 export const usePermissions = (user, business) => {
   if (!user) {
     return {
