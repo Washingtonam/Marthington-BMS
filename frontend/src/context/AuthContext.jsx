@@ -240,6 +240,8 @@ export const AuthProvider = ({ children }) => {
 
       business,
 
+      businessType: business?.businessType || "general_services",
+
       isPro,
 
       permissions,

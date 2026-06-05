@@ -29,6 +29,7 @@ export const updateBusiness = async (payload = {}) => {
   formData.append("email", payload.email ?? "");
   formData.append("receiptFooter", payload.receiptFooter ?? "");
   formData.append("receiptTheme", payload.receiptTheme ?? "");
+  formData.append("businessType", payload.businessType ?? "general_services");
 
   // 🔥 FILE UPLOAD
   if (payload.logo instanceof File) {

@@ -73,6 +73,17 @@ const businessSchema = new mongoose.Schema(
       ref: "User"
     },
 
+    businessType: {
+      type: String,
+      enum: [
+        "retail_hardware",
+        "restaurant_hospitality",
+        "hotel_lodging",
+        "general_services"
+      ],
+      default: "general_services"
+    },
+
     // 🔥 SINGLE SOURCE OF TRUTH
     subscription: {
       plan: {

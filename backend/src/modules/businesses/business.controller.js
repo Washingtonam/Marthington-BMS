@@ -71,6 +71,7 @@ export const updateBusiness = async (req, res) => {
       email,
       receiptFooter,
       receiptTheme,
+      businessType,
       logo
     } = req.body;
 
@@ -97,6 +98,7 @@ export const updateBusiness = async (req, res) => {
     business.email = email ?? business.email;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
+    business.businessType = businessType ?? business.businessType;
 
     await business.save();
 

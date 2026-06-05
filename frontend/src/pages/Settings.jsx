@@ -22,6 +22,7 @@ const Settings = () => {
     address: "",
     phone: "",
     email: "",
+    businessType: "general_services",
     receiptFooter: "",
     receiptTheme: "modern",
     logo: ""
@@ -41,6 +42,7 @@ const Settings = () => {
       address: business.address || "",
       phone: business.phone || "",
       email: business.email || "",
+      businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
       receiptTheme: business.receiptTheme || "modern",
       logo: ""
@@ -235,6 +237,15 @@ const Settings = () => {
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Official Email</label>
                 <input className="input-field" name="email" value={form.email} onChange={handleChange} placeholder="biz@example.com" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Business Type</label>
+                <select className="input-field" name="businessType" value={form.businessType} onChange={handleChange}>
+                  <option value="general_services">General Services</option>
+                  <option value="retail_hardware">Retail & Hardware</option>
+                  <option value="restaurant_hospitality">Restaurant & Hospitality</option>
+                  <option value="hotel_lodging">Hotel & Lodging</option>
+                </select>
               </div>
             </div>
           </div>
