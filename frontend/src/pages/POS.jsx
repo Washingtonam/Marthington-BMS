@@ -104,14 +104,17 @@ const POS = () => {
     const loadData = async () => {
       try {
         setLoading(true);
+        const limit = isPro ? 1000 : 20;
         const [prodRes, servRes] = await Promise.all([
-          request("/products"),
+          request(`/products?limit=${limit}`),
           getServices()
         ]);
 
-        // FIX: Ensure we are setting arrays. 
-        // If your API returns { products: [...] }, use prodRes.products
-        const cleanProducts = Array.isArray(prodRes) ? prodRes : (prodRes?.products || []);
+        // Ensure we are setting arrays.
+        // If the API returns { products: [...] }, use prodRes.products.
+        const cleanProducts = Array.isArray(prodRes)
+          ? prodRes
+          : (prodRes?.products || prodRes?.data?.products || []);
         const cleanServices = Array.isArray(servRes) ? servRes : (servRes?.services || []);
 
         setProducts(cleanProducts);
@@ -125,7 +128,7 @@ const POS = () => {
       }
     };
     loadData();
-  }, []);
+  }, [isPro]);
 
   const openCustomerDisplay = () => {
     window.open('/app/customer-view', 'CustomerWindow', 'width=1000,height=700');
@@ -144,8 +147,13 @@ const POS = () => {
         p?.sku?.toLowerCase().includes(keyword) ||
         p?.category?.toLowerCase().includes(keyword)
     );
+
+    if (isPro) {
+      return base;
+    }
+
     return base.slice(0, visibleProducts);
-  }, [products, search, visibleProducts]);
+  }, [products, search, visibleProducts, isPro]);
 
   const filteredServices = useMemo(() => {
     const keyword = search.toLowerCase();
