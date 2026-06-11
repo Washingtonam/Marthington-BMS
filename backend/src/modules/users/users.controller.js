@@ -29,12 +29,16 @@ export const createStaff = async (req, res) => {
       business: req.user.businessId,
       isActive: true,
       permissions: {
+        canViewProducts: true,
         canCreateProduct: false,
         canEditProduct: false,
         canDeleteProduct: false,
         canMakeSale: true,
+        canViewSales: true,
         canOverridePrice: false,
         canViewReports: false,
+        canManageStaff: false,
+        canManageSettings: false,
         ...permissions
       }
     });

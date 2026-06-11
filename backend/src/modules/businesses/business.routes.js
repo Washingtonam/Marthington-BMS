@@ -17,20 +17,17 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // =====================================
-// GET BUSINESS SETTINGS
+// GET BUSINESS (PUBLIC READ - for staff)
 // =====================================
-
 router.get(
   "/",
   protect,
-  checkPermission("canManageSettings"),
   getBusiness
 );
 
 // =====================================
-// UPDATE BUSINESS SETTINGS
+// UPDATE BUSINESS SETTINGS (RESTRICTED)
 // =====================================
-
 router.put(
   "/",
   protect,
