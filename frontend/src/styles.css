@@ -280,12 +280,27 @@ a {
   background: #ffffff;
 }
 
+.icon-button-mobile {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: #eef8f1;
+  background: transparent;
+}
+
 .mobile-only {
   display: none;
 }
 
 .desktop-toggle {
   display: grid;
+}
+
+.mobile-close {
+  display: none;
 }
 
 .content-area {
@@ -680,6 +695,25 @@ label input:focus {
     grid-template-columns: 1fr;
   }
 
+  .app-shell::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+    z-index: 20;
+  }
+
+  .app-shell.sidebar-open::before {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   .sidebar {
     position: fixed;
     z-index: 30;
@@ -698,6 +732,24 @@ label input:focus {
 
   .desktop-toggle {
     display: none;
+  }
+
+  .mobile-close {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #eef8f1;
+    transition: all 200ms ease;
+  }
+
+  .mobile-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
   .metrics-grid,

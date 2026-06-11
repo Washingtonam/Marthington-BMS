@@ -127,18 +127,36 @@ const AppLayout = () => {
   };
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+    <div 
+      className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarOpen ? "sidebar-open" : ""}`}
+      onClick={(e) => {
+        // Close sidebar when clicking backdrop on mobile
+        if (e.target === e.currentTarget && sidebarOpen) {
+          setSidebarOpen(false);
+        }
+      }}
+    >
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "is-collapsed" : ""}`}>
         
-        {/* BRAND */}
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 bg-green-600 text-white flex items-center justify-center rounded-md font-bold text-lg">
-            M
+        {/* BRAND + CLOSE BUTTON (MOBILE) */}
+        <div className="flex items-center justify-between gap-3 px-2">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="w-10 h-10 bg-green-600 text-white flex items-center justify-center rounded-md font-bold text-lg">
+              M
+            </div>
+            <div>
+              <strong className="text-white">Marthington</strong>
+              <span className="text-xs text-gray-400">Business OS</span>
+            </div>
           </div>
-          <div>
-            <strong className="text-white">Marthington</strong>
-            <span className="text-xs text-gray-400">Business OS</span>
-          </div>
+          <button
+            className="icon-button-mobile mobile-close"
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            title="Close sidebar"
+          >
+            <Icon name="x" />
+          </button>
         </div>
 
         {/* NAVIGATION */}
