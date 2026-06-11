@@ -39,12 +39,15 @@ const register = async (req, res) => {
       business: business._id,
 
       permissions: {
-        canCreateProduct: true,
-        canEditProduct: true,
-        canDeleteProduct: true,
+        canViewDashboard: true,
+        canManageProducts: true,
+        canViewProducts: true,
         canMakeSale: true,
+        canViewSales: true,
+        canViewReports: true,
         canOverridePrice: true,
-        canViewReports: true
+        canManageStaff: true,
+        canManageSettings: true
       }
     });
 

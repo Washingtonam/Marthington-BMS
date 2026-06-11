@@ -1,5 +1,44 @@
 import { useState } from "react";
 
+const permissionLabels = {
+  canViewDashboard: {
+    label: "View dashboard",
+    description: "Allow access to the main business dashboard overview."
+  },
+  canManageProducts: {
+    label: "Manage products & services",
+    description: "Create, edit, and delete products or services."
+  },
+  canViewProducts: {
+    label: "View products & services",
+    description: "See products and services inside the POS catalog."
+  },
+  canMakeSale: {
+    label: "Create sales",
+    description: "Process sales and complete checkout in POS."
+  },
+  canViewSales: {
+    label: "View sales records",
+    description: "Access invoices, orders, and sales history."
+  },
+  canViewReports: {
+    label: "View reports",
+    description: "Open analytics, revenue, and profit reports."
+  },
+  canOverridePrice: {
+    label: "Override prices",
+    description: "Allow price adjustments during checkout."
+  },
+  canManageStaff: {
+    label: "Manage staff",
+    description: "Create and edit staff accounts."
+  },
+  canManageSettings: {
+    label: "Manage settings",
+    description: "Change business settings, billing, and integrations."
+  }
+};
+
 const EditStaffModal = ({ staff, onClose, onSave }) => {
   const [permissions, setPermissions] = useState(staff.permissions || {});
 
@@ -27,32 +66,23 @@ const EditStaffModal = ({ staff, onClose, onSave }) => {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
 
-          <label className="flex justify-between bg-gray-50 p-3 rounded-md">
-            <span>Can make sale</span>
-            <input
-              type="checkbox"
-              checked={permissions.canMakeSale}
-              onChange={() => toggle("canMakeSale")}
-            />
-          </label>
+          {Object.keys(permissionLabels).map((permission) => {
+            const meta = permissionLabels[permission];
 
-          <label className="flex justify-between bg-gray-50 p-3 rounded-md">
-            <span>Override price</span>
-            <input
-              type="checkbox"
-              checked={permissions.canOverridePrice}
-              onChange={() => toggle("canOverridePrice")}
-            />
-          </label>
-
-          <label className="flex justify-between bg-gray-50 p-3 rounded-md">
-            <span>View reports</span>
-            <input
-              type="checkbox"
-              checked={permissions.canViewReports}
-              onChange={() => toggle("canViewReports")}
-            />
-          </label>
+            return (
+              <label key={permission} className="flex flex-col gap-2 bg-gray-50 p-3 rounded-md">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-medium text-gray-700">{meta.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(permissions[permission])}
+                    onChange={() => toggle(permission)}
+                  />
+                </div>
+                <small className="text-xs text-gray-500">{meta.description}</small>
+              </label>
+            );
+          })}
 
           <div className="flex justify-end gap-2 mt-4">
             <button type="button" onClick={onClose}>

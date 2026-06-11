@@ -13,6 +13,11 @@ const permissionSchema = new mongoose.Schema(
       default: true
     },
 
+    canViewDashboard: {
+      type: Boolean,
+      default: false
+    },
+
     // SALES
     canMakeSale: {
       type: Boolean,
@@ -91,9 +96,15 @@ const userSchema = new mongoose.Schema(
       type: permissionSchema,
 
       default: () => ({
+        canViewDashboard: false,
+        canManageProducts: false,
         canViewProducts: true,
         canMakeSale: true,
-        canViewSales: true
+        canViewSales: true,
+        canViewReports: false,
+        canOverridePrice: false,
+        canManageStaff: false,
+        canManageSettings: false
       })
     },
 

@@ -7,7 +7,7 @@ const initialForm = {
   password: "",
   role: "staff",
   permissions: {
-    canViewDashboard: false, // 🔥 NEW: Permission to lock/unlock dashboard
+    canViewDashboard: false,
     canManageProducts: false,
     canViewProducts: true,
     canMakeSale: true,
@@ -16,6 +16,45 @@ const initialForm = {
     canOverridePrice: false,
     canManageStaff: false,
     canManageSettings: false
+  }
+};
+
+const permissionLabels = {
+  canViewDashboard: {
+    label: "View dashboard",
+    description: "Allow access to the main business dashboard overview."
+  },
+  canManageProducts: {
+    label: "Manage products & services",
+    description: "Create, edit, and delete products or services."
+  },
+  canViewProducts: {
+    label: "View products & services",
+    description: "See products and services inside the POS catalog."
+  },
+  canMakeSale: {
+    label: "Create sales",
+    description: "Process sales and complete checkout in POS."
+  },
+  canViewSales: {
+    label: "View sales records",
+    description: "Access invoices, orders, and sales history."
+  },
+  canViewReports: {
+    label: "View reports",
+    description: "Open analytics, revenue, and profit reports."
+  },
+  canOverridePrice: {
+    label: "Override prices",
+    description: "Allow price adjustments during checkout."
+  },
+  canManageStaff: {
+    label: "Manage staff",
+    description: "Create, update, and remove staff accounts."
+  },
+  canManageSettings: {
+    label: "Manage settings",
+    description: "Change business settings, billing, and integrations."
   }
 };
 
@@ -209,23 +248,28 @@ const Staff = () => {
             </h3>
 
             <div className="space-y-3">
-              {Object.keys(form.permissions).map((permission) => (
-                <label key={permission} className="flex items-center justify-between group cursor-pointer">
-                  <span className="text-sm text-gray-600 group-hover:text-black transition-colors capitalize">
-                    {permission.replace(/([A-Z])/g, ' $1').trim()}
-                  </span>
-                  
-                  <div className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      checked={form.permissions[permission]} 
-                      onChange={() => togglePermission(permission)} 
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-                  </div>
-                </label>
-              ))}
+              {Object.keys(permissionLabels).map((permission) => {
+                const meta = permissionLabels[permission];
+
+                return (
+                  <label key={permission} className="flex flex-col gap-2 p-3 rounded-2xl border border-gray-200 bg-white">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-sm font-semibold text-gray-800">
+                        {meta.label}
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        checked={form.permissions[permission]}
+                        onChange={() => togglePermission(permission)}
+                      />
+                    </div>
+                    <small className="text-xs text-gray-500">
+                      {meta.description}
+                    </small>
+                  </label>
+                );
+              })}
             </div>
           </div>
 
