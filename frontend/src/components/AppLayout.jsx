@@ -85,6 +85,7 @@ const navItems = [
 
 const AppLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const {
     logout,
@@ -126,8 +127,8 @@ const AppLayout = () => {
   };
 
   return (
-    <div className="app-shell">
-      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+    <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""} ${sidebarCollapsed ? "is-collapsed" : ""}`}>
         
         {/* BRAND */}
         <div className="flex items-center gap-3 px-2">
@@ -194,6 +195,15 @@ const AppLayout = () => {
             onClick={() => setSidebarOpen((v) => !v)}
           >
             <Icon name="menu" />
+          </button>
+
+          <button
+            className="icon-button desktop-toggle"
+            type="button"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <Icon name={sidebarCollapsed ? "chevron-right" : "chevron-left"} />
           </button>
 
           <div className="global-search">

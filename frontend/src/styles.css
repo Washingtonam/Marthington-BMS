@@ -54,6 +54,11 @@ a {
   display: grid;
   grid-template-columns: 280px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 200ms ease;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 70px 1fr;
 }
 
 .sidebar {
@@ -76,6 +81,8 @@ a {
 
   scrollbar-width: thin;
   scrollbar-color: #3d5246 transparent;
+  
+  transition: all 200ms ease;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -93,6 +100,42 @@ a {
 
 .sidebar::-webkit-scrollbar-thumb:hover {
   background: #587263;
+}
+
+.sidebar.is-collapsed {
+  width: 70px;
+  padding: 16px 0;
+  align-items: center;
+}
+
+.sidebar.is-collapsed > div:first-child {
+  display: none;
+}
+
+.sidebar.is-collapsed .sidebar-nav {
+  width: 100%;
+}
+
+.sidebar.is-collapsed .nav-item,
+.sidebar.is-collapsed .quick-create {
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.sidebar.is-collapsed .nav-item span,
+.sidebar.is-collapsed .quick-create span {
+  display: none;
+}
+
+.sidebar.is-collapsed .nav-item .text-icon {
+  margin: 0;
+}
+
+.sidebar.is-collapsed .ml-auto {
+  display: none;
 }
 
 .brand-block {
@@ -239,6 +282,10 @@ a {
 
 .mobile-only {
   display: none;
+}
+
+.desktop-toggle {
+  display: grid;
 }
 
 .content-area {
@@ -647,6 +694,10 @@ label input:focus {
 
   .mobile-only {
     display: grid;
+  }
+
+  .desktop-toggle {
+    display: none;
   }
 
   .metrics-grid,
