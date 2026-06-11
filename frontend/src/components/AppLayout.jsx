@@ -40,6 +40,13 @@ const navItems = [
     isPremium: true // 🔥 PRO FEATURE
   },
   {
+    label: "Expenses",
+    href: "/app/expenses",
+    icon: "wallet",
+    permission: "canViewReports",
+    isPremium: true // 🔥 PRO FEATURE
+  },
+  {
     label: "Staff",
     href: "/app/staff",
     icon: "team",

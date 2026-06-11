@@ -374,6 +374,13 @@ const POS = () => {
                 className="text-xs font-bold border-gray-100 rounded-xl focus:ring-blue-500 bg-gray-50 p-3"
               />
             </div>
+
+            <textarea
+              placeholder="Add notes (optional - will appear on receipt)"
+              value={customer.notes}
+              onChange={e => setCustomer({...customer, notes: e.target.value})}
+              className="w-full text-xs font-semibold border border-gray-100 rounded-xl focus:ring-blue-500 bg-gray-50 p-3 resize-none h-20"
+            />
             
             <div className="flex justify-between items-end py-2">
                 <div className="flex flex-col">

@@ -34,6 +34,7 @@ const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
+const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 
 // Simple loading fallback
 const PageLoader = () => (
@@ -96,6 +97,7 @@ const App = () => {
               <Route path="invoices" element={<Invoices />} />
               <Route path="customers" element={<Customers />} />
               <Route path="services" element={<Services />} />
+              <Route path="expenses" element={<Expenses />} />
             </Route>
 
             {/* ================= ADMIN ================= */}

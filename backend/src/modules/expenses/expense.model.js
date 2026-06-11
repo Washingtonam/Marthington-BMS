@@ -1,0 +1,78 @@
+import mongoose from "mongoose";
+
+const expenseSchema = new mongoose.Schema(
+  {
+    business: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Business",
+      required: true
+    },
+
+    amount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+
+    description: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    category: {
+      type: String,
+      enum: ["inventory", "logistics", "utilities", "salaries", "rent", "marketing", "miscellaneous"],
+      default: "miscellaneous"
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "bank_transfer", "card", "store_credit"],
+      default: "cash"
+    },
+
+    date: {
+      type: Date,
+      required: true,
+      default: () => new Date()
+    },
+
+    receiptUrl: {
+      type: String,
+      default: null
+    },
+
+    notes: {
+      type: String,
+      default: ""
+    },
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending"
+    }
+  },
+  { timestamps: true }
+);
+
+// Index for faster queries
+expenseSchema.index({ business: 1, date: -1 });
+expenseSchema.index({ business: 1, category: 1 });
+expenseSchema.index({ business: 1, createdAt: -1 });
+
+const Expense = mongoose.model("Expense", expenseSchema);
+
+export default Expense;

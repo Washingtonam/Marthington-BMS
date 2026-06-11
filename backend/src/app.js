@@ -17,6 +17,7 @@ import customerRoutes from "./modules/customers/customer.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
+import expenseRoutes from "./modules/expenses/expense.routes.js";
 
 const app = express();
 
@@ -45,6 +46,8 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/invoices", invoiceRoutes);
 // 🔥 CUSTOMER ROUTE
 app.use("/api/customers", customerRoutes);
+// 🔥 EXPENSES ROUTE
+app.use("/api/expenses", expenseRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
