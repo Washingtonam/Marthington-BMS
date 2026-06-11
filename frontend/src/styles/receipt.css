@@ -98,7 +98,7 @@
   margin: 6px 0 0;
 
   font-size: 13px;
-  color: #6b7280;
+  color: #000000;
 }
 
 /* =========================================
@@ -106,9 +106,9 @@
 ========================================= */
 
 .receipt-divider {
-  border-top: 1px dashed #d1d5db;
+  border-top: 2px dashed #000000;
 
-  margin: 18px 0;
+  margin: 14px 0;
 }
 
 /* =========================================
@@ -340,6 +340,34 @@
   .receipt,
   .receipt * {
     visibility: visible !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    background: transparent !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .receipt span,
+  .receipt strong,
+  .receipt h1,
+  .receipt h4,
+  .receipt p {
+    font-weight: 700 !important;
+    color: #000000 !important;
+  }
+
+  .receipt .text-gray-500,
+  .receipt .text-gray-700,
+  .receipt .text-gray-900,
+  .receipt .opacity-80,
+  .receipt .opacity-50 {
+    color: #000000 !important;
+    opacity: 1 !important;
   }
 
   .receipt {

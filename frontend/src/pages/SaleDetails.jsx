@@ -113,11 +113,31 @@ const SaleDetails = () => {
           <style>
             ${styles}
             /* Global Force-Bold for Thermal Hardware Compatibility */
-            * { 
-              font-weight: 900 !important; 
+            .receipt,
+            .receipt *,
+            .receipt span,
+            .receipt strong,
+            .receipt h1,
+            .receipt h4,
+            .receipt p {
+              font-weight: 700 !important;
               color: #000000 !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
+              opacity: 1 !important;
+              text-shadow: none !important;
+              background: transparent !important;
+              -webkit-font-smoothing: antialiased !important;
+              -moz-osx-font-smoothing: grayscale !important;
+              text-rendering: optimizeLegibility !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .receipt .text-gray-500,
+            .receipt .text-gray-700,
+            .receipt .text-gray-900,
+            .receipt .opacity-80,
+            .receipt .opacity-50 {
+              color: #000000 !important;
+              opacity: 1 !important;
             }
             body { background: #f3f4f6; padding: 20px; font-family: system-ui, sans-serif; }
             .print-wrap { display: flex; flex-direction: column; align-items: center; }
@@ -127,7 +147,7 @@ const SaleDetails = () => {
               .receipt { width: 80mm; max-width: 80mm; box-shadow: none; border: none; }
               @page { size: 80mm auto; margin: 0; }
               .no-print { display: none; }
-              .receipt-divider { border-top: 3px dashed #000000 !important; margin: 10px 0 !important; }
+              .receipt-divider { border-top: 2px dashed #000000 !important; margin: 10px 0 !important; }
             }
           </style>
         </head>
