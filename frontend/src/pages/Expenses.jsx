@@ -97,7 +97,7 @@ const Expenses = () => {
 
     return {
       totalCurrentMonth,
-      topCategory: topCategory ? EXPENSE_CATEGORIES.find(c => c.value === topCategory[0])?.label : "N/A" : "N/A",
+      topCategory: topCategory ? EXPENSE_CATEGORIES.find(c => c.value === topCategory[0])?.label : "N/A",
       momChange
     };
   }, [expenses]);
