@@ -221,50 +221,64 @@ const SaleDetails = () => {
 
             <Divider />
 
-            <div className="receipt-meta space-y-1 text-black font-bold">
-              <div className="receipt-row flex justify-between"><span>Receipt ID:</span><strong className="font-black">#{sale.receiptId}</strong></div>
-              <div className="receipt-row flex justify-between"><span>Date:</span><strong className="font-black">{new Date(sale.createdAt).toLocaleString()}</strong></div>
-              <div className="receipt-row flex justify-between"><span>Cashier:</span><strong className="font-black">{sale.createdBy?.name || "Staff"}</strong></div>
-              {sale.customerName && <div className="receipt-row flex justify-between"><span>Customer:</span><strong className="font-black">{sale.customerName}</strong></div>}
+            <div className="receipt-meta text-black">
+              <div className="receipt-row">
+                <span className="receipt-row-label">Receipt ID</span>
+                <strong className="receipt-row-value font-mono text-right">#{sale.receiptId}</strong>
+              </div>
+              <div className="receipt-row">
+                <span className="receipt-row-label">Date</span>
+                <strong className="receipt-row-value font-mono text-right">{new Date(sale.createdAt).toLocaleString()}</strong>
+              </div>
+              <div className="receipt-row">
+                <span className="receipt-row-label">Cashier</span>
+                <strong className="receipt-row-value font-mono text-right">{sale.createdBy?.name || "Staff"}</strong>
+              </div>
+              {sale.customerName && (
+                <div className="receipt-row">
+                  <span className="receipt-row-label">Customer</span>
+                  <strong className="receipt-row-value font-mono text-right">{sale.customerName}</strong>
+                </div>
+              )}
             </div>
 
             <Divider />
 
-            <div className="receipt-items py-2 text-black font-bold">
+            <div className="receipt-items py-2 text-black">
               {sale.items?.map((item, idx) => (
-                <div key={idx} className="receipt-item flex justify-between items-start mb-3 font-bold">
-                  <div className="flex-1">
-                    <h4 className="font-black text-black text-base">{item.name}</h4>
-                    <p className="text-sm font-bold text-black">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
+                <div key={idx} className="receipt-item mb-3">
+                  <div className="receipt-item-details">
+                    <h4 className="text-base font-black text-black">{item.name}</h4>
+                    <p className="receipt-item-meta font-mono text-sm text-black">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
                   </div>
-                  <strong className="text-black font-black text-base">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
+                  <strong className="receipt-item-total text-base font-black text-black">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
                 </div>
               ))}
             </div>
 
             <Divider />
 
-            <div className="receipt-total flex justify-between items-center py-2 text-black font-bold">
-              <span className="text-xl font-black">TOTAL:</span>
-              <strong className="text-2xl font-black text-black">{formatCurrency(sale.totalAmount)}</strong>
+            <div className="receipt-total py-2 my-3 text-black">
+              <span className="total-label text-base font-semibold uppercase tracking-[0.18em]">TOTAL</span>
+              <strong className="total-value text-2xl font-black text-black">{formatCurrency(sale.totalAmount)}</strong>
             </div>
 
             {sale.notes && (
               <>
                 <Divider />
-                <div className="receipt-notes text-sm text-black font-bold">
-                  <h4 className="font-black text-black">Notes:</h4>
-                  <p className="font-bold">{sale.notes}</p>
+                <div className="receipt-notes text-sm text-black">
+                  <h4 className="font-black text-black">Notes</h4>
+                  <p className="font-semibold">{sale.notes}</p>
                 </div>
               </>
             )}
 
             <Divider />
 
-            <div className="receipt-footer text-center space-y-1 text-xs text-black font-bold">
-              <p className="font-black text-sm text-black">Thank you for your patronage!</p>
-              {business.receiptFooter && <p className="font-bold">{business.receiptFooter}</p>}
-              <p className="pt-2 font-black uppercase tracking-widest text-xs">Powered by Marthington</p>
+            <div className="receipt-footer text-center space-y-1 text-black">
+              <p className="receipt-footer-note text-[10px] tracking-widest uppercase font-semibold font-sans">Thank you for your patronage!</p>
+              {business.receiptFooter && <p className="receipt-footer-note text-[10px] tracking-widest uppercase font-semibold font-sans">{business.receiptFooter}</p>}
+              <p className="receipt-footer-signature text-[10px] tracking-widest uppercase font-semibold font-sans">Powered by Marthington BMS</p>
             </div>
           </div>
         </div>
