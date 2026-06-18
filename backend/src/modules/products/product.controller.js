@@ -79,7 +79,8 @@ const bulkImportProducts = async (req, res) => {
 const getProducts = async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
-    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const requestedLimit = Number(req.query.limit) || 20;
+    const limit = Math.min(Math.max(requestedLimit, 1), 5000);
     const skip = (page - 1) * limit;
 
     const filter = applyBusinessFilter(req);

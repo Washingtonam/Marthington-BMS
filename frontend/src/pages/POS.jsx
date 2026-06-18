@@ -104,7 +104,7 @@ const POS = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        const limit = isPro ? 1000 : 20;
+        const limit = 5000;
         const [prodRes, servRes] = await Promise.all([
           request(`/products?limit=${limit}`),
           getServices()
@@ -138,22 +138,15 @@ const POS = () => {
   // SEARCH & FILTER
   // ====================================
   const filteredProducts = useMemo(() => {
-    // Safety check: if products is somehow not an array, return empty
     if (!Array.isArray(products)) return [];
 
     const keyword = search.toLowerCase();
-    const base = products.filter((p) => 
-        p?.name?.toLowerCase().includes(keyword) || 
-        p?.sku?.toLowerCase().includes(keyword) ||
-        p?.category?.toLowerCase().includes(keyword)
+    return products.filter((p) => 
+      p?.name?.toLowerCase().includes(keyword) || 
+      p?.sku?.toLowerCase().includes(keyword) ||
+      p?.category?.toLowerCase().includes(keyword)
     );
-
-    if (isPro) {
-      return base;
-    }
-
-    return base.slice(0, visibleProducts);
-  }, [products, search, visibleProducts, isPro]);
+  }, [products, search]);
 
   const filteredServices = useMemo(() => {
     const keyword = search.toLowerCase();
