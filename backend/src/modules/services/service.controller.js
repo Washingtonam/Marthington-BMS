@@ -117,9 +117,7 @@ const getServices = async (req, res) => {
     }
 
     const services = await Service.find(query)
-      .sort({
-        createdAt: -1
-      })
+      .sort({ createdAt: -1 })
       .lean();
 
     const safeServices = services.map((s) => ({
@@ -129,15 +127,11 @@ const getServices = async (req, res) => {
       costPrice: Number(s.costPrice) || 0
     }));
 
-    return res.status(200).json({
-      success: true,
-      data: safeServices
-    });
+    // Return the array directly so frontend code that maps over the root response works
+    return res.status(200).json(safeServices);
   } catch (err) {
-    return res.status(200).json({
-      success: true,
-      data: []
-    });
+    // On error, return an empty array to avoid frontend map crashes
+    return res.status(200).json([]);
   }
 };
 

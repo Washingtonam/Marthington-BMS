@@ -27,6 +27,11 @@ const Services = () => {
   const [services, setServices] =
     useState([]);
 
+  // Defensive wrapper: ensure services is always an array
+  const servicesList = Array.isArray(services)
+    ? services
+    : (services?.data || []);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -90,7 +95,7 @@ const Services = () => {
   const categories = useMemo(() => {
 
     const all =
-      services.map(
+      servicesList.map(
         (s) => s.category
       );
 
@@ -103,7 +108,7 @@ const Services = () => {
 
   const filteredServices = useMemo(() => {
 
-    return services.filter(
+    return servicesList.filter(
       (service) => {
 
         const matchSearch =
