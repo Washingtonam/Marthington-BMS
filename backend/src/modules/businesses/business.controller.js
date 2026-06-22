@@ -70,8 +70,9 @@ export const getBusiness = async (req, res) => {
         reference: rawBusiness?.subscription?.reference || ""
       },
       isPro:
-        rawBusiness?.subscription?.plan === "pro" &&
-        rawBusiness?.subscription?.status === "active",
+        rawBusiness?.isPro === true ||
+        (rawBusiness?.subscription?.plan === "pro" &&
+          rawBusiness?.subscription?.status === "active"),
       studentCount: rawBusiness?.studentCount || 0,
       activePatientCount: rawBusiness?.activePatientCount || 0
     };

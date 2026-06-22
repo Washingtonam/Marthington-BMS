@@ -1,5 +1,4 @@
 import Service from "./service.model.js";
-import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 
 // ========================================
 // 🔥 CREATE SERVICE
@@ -86,7 +85,7 @@ const getServices = async (req, res) => {
       activeOnly
     } = req.query;
 
-    const currentType = req.user?.industryType || "retail";
+    const currentType = req.user?.industryType?.trim() || "retail";
 
     if (currentType === "school" || currentType === "hospital") {
       return res.status(200).json({
@@ -95,7 +94,9 @@ const getServices = async (req, res) => {
       });
     }
 
-    const query = applyBusinessFilter(req);
+    const query = {
+      business: req.user.businessId
+    };
 
     // 🔥 SEARCH
     if (search) {

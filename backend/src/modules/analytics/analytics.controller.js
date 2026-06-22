@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Business from "../businesses/business.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
@@ -7,8 +8,8 @@ import Student from "../schools/Student.js";
 const getAnalytics = async (req, res) => {
   try {
     // 1. Fetch business and check industry type safely
-    const business = await Business.findById(req.user?.businessId);
-    const industry = business?.industryType || "retail";
+    const business = await Business.findById(req.user?.businessId).lean();
+    const industry = business?.industryType?.trim() || "retail";
 
     if (industry !== "retail") {
       return res.status(200).json({
@@ -20,9 +21,11 @@ const getAnalytics = async (req, res) => {
       });
     }
 
+    const businessObjectId = mongoose.Types.ObjectId(req.user.businessId);
+
     // 2. Original retail metrics calculation logic goes here...
-    const sales = await Sale.find({ business: req.user.businessId }).lean();
-    const products = await Product.find({ business: req.user.businessId }).lean();
+    const sales = await Sale.find({ business: businessObjectId }).lean();
+    const products = await Product.find({ business: businessObjectId }).lean();
 
     const totalSales = sales.length;
     const productsCount = products.length;

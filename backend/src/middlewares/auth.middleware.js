@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../modules/users/user.model.js";
+import Business from "../modules/businesses/business.model.js";
 
 const protect = async (req, res, next) => {
   try {
@@ -81,12 +82,15 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // 🔥 NORMALIZED USER
-    const isProFromToken = decoded.isPro === true;
+    // 🔥 REAL-TIME BUSINESS STATUS
+    const activeBusiness = businessId
+      ? await Business.findById(businessId).lean()
+      : null;
+
     const isProFromBusiness =
-      user.business?.isPro ||
-      (user.business?.subscription?.plan === "pro" &&
-        user.business?.subscription?.status === "active");
+      activeBusiness?.isPro ||
+      activeBusiness?.subscription?.plan === "pro" &&
+        activeBusiness?.subscription?.status === "active";
 
     req.user = {
       id: user._id.toString(),
@@ -95,10 +99,11 @@ const protect = async (req, res, next) => {
       role: user.role,
       businessId,
       industryType:
+        activeBusiness?.industryType ||
         user.business?.industryType ||
         decoded.industryType ||
         "retail",
-      isPro: isProFromToken || isProFromBusiness || false,
+      isPro: isProFromBusiness || false,
       permissions: user.permissions || {},
       isActive: user.isActive
     };
