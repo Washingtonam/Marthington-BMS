@@ -49,11 +49,12 @@ export const usePermissions = (user, business) => {
   const inheritedPlan = businessPlan || user.businessPlan || "free";
 
   const isPro =
-    user.role === "owner"
+    business?.isPro === true ||
+    (user.role === "owner"
       ? inheritedPlan === "pro" && subscriptionStatus === "active"
       :
         (inheritedPlan === "pro" && subscriptionStatus === "active") ||
-        user.isBusinessPremium === true;
+        user.isBusinessPremium === true));
 
   return {
     isPro,

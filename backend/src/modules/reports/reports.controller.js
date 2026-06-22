@@ -1,12 +1,20 @@
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 
+const retailSalesFilter = (businessId) => ({
+  business: businessId,
+  $or: [
+    { industryType: "retail" },
+    { industryType: { $exists: false } }
+  ]
+});
+
 const getReports = async (req, res) => {
   try {
     const businessId = req.user.businessId;
 
     // 1. Load Data
-    const sales = await Sale.find({ business: businessId })
+    const sales = await Sale.find(retailSalesFilter(businessId))
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 

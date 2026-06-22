@@ -37,7 +37,7 @@ export const getBusiness = async (req, res) => {
       });
     }
 
-    const rawBusiness = await Business.findById(req.user.businessId).lean();
+    const rawBusiness = await Business.findById(req.user.businessId);
 
     if (!rawBusiness) {
       return res.status(404).json({
@@ -47,7 +47,7 @@ export const getBusiness = async (req, res) => {
     }
 
     const business = {
-      ...rawBusiness,
+      ...rawBusiness.toObject(),
       industryType: rawBusiness?.industryType || "retail",
       businessType: rawBusiness?.businessType || "general_services",
       name: rawBusiness?.name || "",
@@ -69,10 +69,7 @@ export const getBusiness = async (req, res) => {
         tier: rawBusiness?.subscription?.tier || "",
         reference: rawBusiness?.subscription?.reference || ""
       },
-      isPro:
-        rawBusiness?.isPro === true ||
-        (rawBusiness?.subscription?.plan === "pro" &&
-          rawBusiness?.subscription?.status === "active"),
+      isPro: rawBusiness?.isPro === true,
       studentCount: rawBusiness?.studentCount || 0,
       activePatientCount: rawBusiness?.activePatientCount || 0
     };

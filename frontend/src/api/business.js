@@ -8,7 +8,8 @@ const businessFallback = {
 // 🔥 GET BUSINESS (SAFE + CONSISTENT)
 export const getBusiness = async () => {
   try {
-    return await request("/business");
+    const response = await request("/business");
+    return response?.data ?? response ?? null;
   } catch (err) {
     // 🔥 HANDLE AUTH / EMPTY STATE CLEANLY
     if (

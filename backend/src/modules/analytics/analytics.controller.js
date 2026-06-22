@@ -5,6 +5,14 @@ import Product from "../products/product.model.js";
 import School from "../schools/School.js";
 import Student from "../schools/Student.js";
 
+const retailSalesFilter = (businessId) => ({
+  business: businessId,
+  $or: [
+    { industryType: "retail" },
+    { industryType: { $exists: false } }
+  ]
+});
+
 const getAnalytics = async (req, res) => {
   try {
     // 1. Fetch business and check industry type safely
@@ -24,7 +32,7 @@ const getAnalytics = async (req, res) => {
     const businessObjectId = mongoose.Types.ObjectId(req.user.businessId);
 
     // 2. Original retail metrics calculation logic goes here...
-    const sales = await Sale.find({ business: businessObjectId }).lean();
+    const sales = await Sale.find(retailSalesFilter(businessObjectId)).lean();
     const products = await Product.find({ business: businessObjectId }).lean();
 
     const totalSales = sales.length;
