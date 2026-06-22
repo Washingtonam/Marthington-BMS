@@ -92,6 +92,11 @@ export const AuthProvider = ({ children }) => {
   }, [user]);
 
   // 🔥 LOAD BUSINESS
+  const businessFallback = {
+    name: "Loading Profile...",
+    industryType: "retail"
+  };
+
   useEffect(() => {
     if (!token) {
       setBusiness(null);
@@ -115,7 +120,7 @@ export const AuthProvider = ({ children }) => {
 
         if (!isMounted) return;
 
-        setBusiness(data || null);
+        setBusiness(data || businessFallback);
 
       } catch (err) {
         console.error(
@@ -125,7 +130,7 @@ export const AuthProvider = ({ children }) => {
 
         if (!isMounted) return;
 
-        setBusiness(null);
+        setBusiness(businessFallback);
 
       } finally {
         if (isMounted) {
@@ -210,12 +215,12 @@ export const AuthProvider = ({ children }) => {
 
       const data = await getBusiness();
 
-      setBusiness(data || null);
+      setBusiness(data || businessFallback);
 
     } catch (err) {
       console.error(err);
 
-      setBusiness(null);
+      setBusiness(businessFallback);
 
     } finally {
       setLoadingBusiness(false);

@@ -1,5 +1,10 @@
 import request from "./client.js";
 
+const businessFallback = {
+  name: "Loading Profile...",
+  industryType: "retail"
+};
+
 // 🔥 GET BUSINESS (SAFE + CONSISTENT)
 export const getBusiness = async () => {
   try {
@@ -15,7 +20,8 @@ export const getBusiness = async () => {
       return null;
     }
 
-    throw err;
+    console.error("Business fetch failed:", err.message);
+    return businessFallback;
   }
 };
 

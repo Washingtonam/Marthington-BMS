@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import request from "../api/client.js";
+import { getAnalytics } from "../api/analytics.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import MetricCard from "../components/MetricCard.jsx";
 import SalesChart from "../components/charts/SalesChart.jsx";
@@ -11,7 +11,29 @@ import { formatCurrency } from "../utils/formatters.js";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [analytics, setAnalytics] = useState(null);
+
+  const analyticsFallback = {
+    metrics: {
+      totalRevenue: 0,
+      totalProfit: 0,
+      totalSales: 0,
+      averageOrderValue: 0,
+      inventoryValue: 0,
+      lowStockCount: 0,
+      totalStudents: 0,
+      tuitionCollected: 0,
+      classes: 0,
+      attendanceRate: 0,
+      patientCount: 0,
+      appointmentsToday: 0,
+      bedsAvailable: 0
+    },
+    salesTrend: [],
+    topProducts: [],
+    lowStockProducts: []
+  };
+
+  const [analytics, setAnalytics] = useState(analyticsFallback);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -24,11 +46,11 @@ const Dashboard = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await request("/analytics");
-        if (!data) throw new Error("No data received from server");
-        setAnalytics(data);
+        const data = await getAnalytics();
+        setAnalytics(data || analyticsFallback);
       } catch (err) {
         setError(err.message || "Failed to load analytics");
+        setAnalytics(analyticsFallback);
       } finally {
         setLoading(false);
       }

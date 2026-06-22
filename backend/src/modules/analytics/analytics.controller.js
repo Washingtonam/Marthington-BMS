@@ -1,52 +1,63 @@
+import Business from "../businesses/business.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
+import School from "../schools/School.js";
+import Student from "../schools/Student.js";
 
 const getAnalytics = async (req, res) => {
   try {
-
     const businessId = req.user?.businessId;
-    const industryType = req.user?.industryType || "retail";
+
+    const fallbackMetrics = {
+      totalRevenue: 0,
+      totalProfit: 0,
+      totalSales: 0,
+      averageOrderValue: 0,
+      inventoryValue: 0,
+      lowStockCount: 0,
+      totalStudents: 0,
+      tuitionCollected: 0,
+      classes: 0,
+      attendanceRate: 0,
+      patientCount: 0,
+      appointmentsToday: 0,
+      bedsAvailable: 0
+    };
 
     if (!businessId) {
       return res.json({
-        metrics: {
-          totalRevenue: 0,
-          totalProfit: 0,
-          totalSales: 0,
-          averageOrderValue: 0,
-          inventoryValue: 0,
-          lowStockCount: 0,
-          studentCount: 0,
-          feesCollected: 0,
-          classes: 0,
-          attendanceRate: 0,
-          patientCount: 0,
-          appointmentsToday: 0,
-          bedsAvailable: 0
-        },
+        metrics: fallbackMetrics,
         placeholders: {
           message: "Business information is not available for this account."
         },
-        industryType
+        industryType: "retail"
       });
-    }
+    const business = await Business.findById(businessId);
+    const currentType = business?.industryType || "retail";
 
-    if (industryType === "school") {
+    if (currentType === "school") {
+      const school = await School.findOne({ businessId });
+      const studentCount = await Student.countDocuments({ businessId });
+      const tuitionCollected = await Student.countDocuments({
+        businessId,
+        tuitionStanding: "paid"
+      });
+
       return res.json({
         metrics: {
-          studentCount: 0,
-          feesCollected: 0,
-          classes: 0,
+          totalStudents: studentCount,
+          tuitionCollected,
+          classes: school?.totalClasses?.length ?? 0,
           attendanceRate: 0
         },
         placeholders: {
-          message: "School dashboard metrics are coming soon."
+          message: "School analytics are available for your academic dashboard."
         },
-        industryType
+        industryType: currentType
       });
     }
 
-    if (industryType === "hospital") {
+    if (currentType === "hospital") {
       return res.json({
         metrics: {
           patientCount: 0,
@@ -56,7 +67,7 @@ const getAnalytics = async (req, res) => {
         placeholders: {
           message: "Hospital dashboard metrics are coming soon."
         },
-        industryType
+        industryType: currentType
       });
     }
 
@@ -186,45 +197,48 @@ const getAnalytics = async (req, res) => {
         sale.totalAmount;
     });
 
-    const salesTrend =
-      Object.entries(
-        salesTrendMap
-      ).map(([date, revenue]) => ({
-        date,
-        revenue
-      }));
+    const salesTrend = Object.entries(salesTrendMap).map(([date, revenue]) => ({
+      date,
+      revenue
+    }));
 
-    res.json({
-
+    return res.json({
       metrics: {
-
         totalRevenue,
-
         totalProfit,
-
         totalSales,
-
         averageOrderValue,
-
         inventoryValue,
-
-        lowStockCount:
-          lowStockProducts.length
+        lowStockCount: lowStockProducts.length
       },
-
       topProducts,
-
       lowStockProducts,
-
-      salesTrend
+      salesTrend,
+      industryType: currentType
     });
-
   } catch (err) {
-
-    res.status(500).json({
-      message: err.message
+    return res.json({
+      metrics: {
+        totalRevenue: 0,
+        totalProfit: 0,
+        totalSales: 0,
+        averageOrderValue: 0,
+        inventoryValue: 0,
+        lowStockCount: 0,
+        totalStudents: 0,
+        tuitionCollected: 0,
+        classes: 0,
+        attendanceRate: 0,
+        patientCount: 0,
+        appointmentsToday: 0,
+        bedsAvailable: 0
+      },
+      placeholders: {
+        message: "Unable to compute analytics at this time."
+      },
+      industryType: req.user?.industryType || "retail",
+      error: err.message
     });
-
   }
 };
 

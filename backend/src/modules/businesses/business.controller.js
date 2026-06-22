@@ -30,49 +30,88 @@ const formatBusiness = (business) => {
 // 🔥 GET BUSINESS (HARDENED)
 export const getBusiness = async (req, res) => {
   try {
-    // 🚫 BLOCK INVALID USER STATE
     if (!req.user?.businessId) {
       return res.status(400).json({
+        success: false,
         message: "No business linked to user"
       });
     }
 
-    const business = await Business.findById(req.user.businessId).lean();
+    const rawBusiness = await Business.findById(req.user.businessId).lean();
 
-    if (!business) {
+    if (!rawBusiness) {
       return res.status(404).json({
+        success: false,
         message: "Business not found"
       });
     }
 
-    const industryType = business?.industryType || "retail";
-
-    // ensure we can safely read business fields on older records
-    const normalizedBusiness = {
-      ...business,
-      industryType,
-      businessType: business?.businessType || "general_services",
-      name: business?.name || "",
-      products: business?.products || [],
+    const business = {
+      ...rawBusiness,
+      industryType: rawBusiness?.industryType || "retail",
+      businessType: rawBusiness?.businessType || "general_services",
+      name: rawBusiness?.name || "",
+      address: rawBusiness?.address || "",
+      phone: rawBusiness?.phone || "",
+      email: rawBusiness?.email || "",
+      receiptFooter: rawBusiness?.receiptFooter || "",
+      receiptTheme: rawBusiness?.receiptTheme || "",
+      logo: rawBusiness?.logo || "",
+      products: Array.isArray(rawBusiness?.products) ? rawBusiness.products : [],
       subscription: {
-        ...(business?.subscription || {}),
-        plan: business?.subscription?.plan || "free",
-        status: business?.subscription?.status || "trial",
-        billingCycle: business?.subscription?.billingCycle || null,
-        startedAt: business?.subscription?.startedAt || null,
-        expiresAt: business?.subscription?.expiresAt || null,
-        amount: business?.subscription?.amount || 0,
-        tier: business?.subscription?.tier || "",
-        reference: business?.subscription?.reference || ""
-      }
+        ...(rawBusiness?.subscription || {}),
+        plan: rawBusiness?.subscription?.plan || "free",
+        status: rawBusiness?.subscription?.status || "trial",
+        billingCycle: rawBusiness?.subscription?.billingCycle || null,
+        startedAt: rawBusiness?.subscription?.startedAt || null,
+        expiresAt: rawBusiness?.subscription?.expiresAt || null,
+        amount: rawBusiness?.subscription?.amount || 0,
+        tier: rawBusiness?.subscription?.tier || "",
+        reference: rawBusiness?.subscription?.reference || ""
+      },
+      isPro:
+        rawBusiness?.subscription?.plan === "pro" &&
+        rawBusiness?.subscription?.status === "active",
+      studentCount: rawBusiness?.studentCount || 0,
+      activePatientCount: rawBusiness?.activePatientCount || 0
     };
 
-    res.json(formatBusiness(normalizedBusiness));
-
+    return res.status(200).json({
+      success: true,
+      data: business
+    });
   } catch (err) {
     console.error("❌ GET BUSINESS ERROR:", err);
-    res.status(500).json({
-      message: err.message
+
+    const fallbackBusiness = {
+      industryType: "retail",
+      businessType: "general_services",
+      name: "",
+      address: "",
+      phone: "",
+      email: "",
+      receiptFooter: "",
+      receiptTheme: "",
+      logo: "",
+      products: [],
+      subscription: {
+        plan: "free",
+        status: "trial",
+        billingCycle: null,
+        startedAt: null,
+        expiresAt: null,
+        amount: 0,
+        tier: "",
+        reference: ""
+      },
+      isPro: false,
+      studentCount: 0,
+      activePatientCount: 0
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: fallbackBusiness
     });
   }
 };
