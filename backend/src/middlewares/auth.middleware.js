@@ -24,7 +24,10 @@ const protect = async (req, res, next) => {
     );
 
     // 🔥 FETCH USER
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).populate(
+      "business",
+      "industryType"
+    );
 
     if (!user) {
       return res.status(401).json({
@@ -73,6 +76,8 @@ const protect = async (req, res, next) => {
       name: user.name || "",
       role: user.role,
       businessId,
+      industryType:
+        decoded.industryType || "retail",
       permissions: user.permissions || {},
       isActive: user.isActive
     };

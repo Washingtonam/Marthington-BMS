@@ -3,6 +3,27 @@ import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
+const industryOptions = [
+  {
+    value: "retail",
+    title: "Business / Retail",
+    description: "Manage sales, inventory, and POS",
+    icon: "shopping-bag"
+  },
+  {
+    value: "school",
+    title: "School / Academy",
+    description: "Track enrollment, tuition, and classes",
+    icon: "graduation-cap"
+  },
+  {
+    value: "hospital",
+    title: "Hospital / Clinic",
+    description: "Manage patients, records, and appointments",
+    icon: "stethoscope"
+  }
+];
+
 const Register = () => {
   const [form, setForm] = useState({
     name: "",
@@ -10,7 +31,8 @@ const Register = () => {
     password: "",
     businessName: "",
     address: "",
-    phone: ""
+    phone: "",
+    industryType: "retail"
   });
 
   const [error, setError] = useState("");
@@ -145,6 +167,41 @@ const Register = () => {
               placeholder="Create a password"
             />
           </label>
+
+          <div className="industry-grid">
+            <p className="mb-3 font-semibold text-sm text-slate-600">
+              Select your industry type
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {industryOptions.map((option) => {
+                const isSelected =
+                  form.industryType === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        industryType: option.value
+                      }))
+                    }
+                    className={`industry-card ${
+                      isSelected ? "industry-card-selected" : ""
+                    }`}
+                  >
+                    <div className="industry-card-icon">
+                      <Icon name={option.icon} />
+                    </div>
+                    <div>
+                      <h3>{option.title}</h3>
+                      <p>{option.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <button className="primary-button" type="submit" disabled={loading}>
             <Icon

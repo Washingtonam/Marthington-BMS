@@ -12,7 +12,8 @@ const register = async (req, res) => {
       password,
       businessName,
       address,
-      phone
+      phone,
+      industryType = "retail"
     } = req.body;
 
     // CHECK EXISTING USER
@@ -27,7 +28,8 @@ const register = async (req, res) => {
     const business = await Business.create({
       name: businessName,
       address,
-      phone
+      phone,
+      industryType
     });
 
     // CREATE OWNER (🔥 FULL PERMISSIONS)
@@ -55,9 +57,15 @@ const register = async (req, res) => {
     business.owner = user._id;
     await business.save();
 
-    const token = generateToken(user);
+    const token = generateToken(user, business.industryType);
 
-    res.json({ token, user });
+    res.json({
+      token,
+      user: {
+        ...user.toObject(),
+        industryType: business.industryType
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -69,7 +77,10 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).populate(
+      "business",
+      "industryType"
+    );
 
     if (!user) {
       return res.status(400).json({ message: "User not found" });
@@ -86,9 +97,18 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    const token = generateToken(user);
+    const industryType =
+      user.business?.industryType || "retail";
 
-    res.json({ token, user });
+    const token = generateToken(user, industryType);
+
+    res.json({
+      token,
+      user: {
+        ...user.toObject(),
+        industryType
+      }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

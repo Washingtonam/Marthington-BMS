@@ -90,12 +90,90 @@ const AppLayout = () => {
   const {
     logout,
     user,
+    industryType = "retail",
     isPro, // 🔥 Now using the boolean from your AuthContext
     impersonatedBusiness,
     stopImpersonation
   } = useAuth();
 
   const navigate = useNavigate();
+
+  // =====================================
+  // ACCESS CHECK (Upgraded for Freemium)
+  // =====================================
+  const hasAccess = (item) => {
+    // 1. SUPER ADMIN ALWAYS HAS ACCESS
+    if (user?.role === "super_admin") return true;
+
+    // 2. CHECK PREMIUM LOCK
+    // If the item is premium and the business is NOT Pro, hide it.
+    if (item.isPremium && !isPro) {
+      return false;
+    }
+
+    // 3. OWNER ALWAYS HAS ACCESS TO REMAINING NON-PRO ITEMS
+    if (user?.role === "owner") return true;
+
+    // 4. CHECK SPECIFIC STAFF PERMISSIONS
+    if (item.permission) {
+      return user?.permissions?.[item.permission] || false;
+    }
+
+    return true;
+  };
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.href === "/app/pos" && industryType !== "retail") {
+      return false;
+    }
+
+    return hasAccess(item);
+  });
+
+  const industryNavItems =
+    industryType === "school"
+      ? [
+          {
+            label: "Students List",
+            href: "/app/students",
+            icon: "team",
+            isPremium: false
+          },
+          {
+            label: "Tuition Tracker",
+            href: "/app/tuition",
+            icon: "wallet",
+            isPremium: false
+          },
+          {
+            label: "Class Schedules",
+            href: "/app/classes",
+            icon: "calendar",
+            isPremium: false
+          }
+        ]
+      : industryType === "hospital"
+      ? [
+          {
+            label: "Patient Records",
+            href: "/app/patients",
+            icon: "team",
+            isPremium: false
+          },
+          {
+            label: "Appointment Book",
+            href: "/app/appointments",
+            icon: "calendar",
+            isPremium: false
+          },
+          {
+            label: "Medical Inventory",
+            href: "/app/medical-inventory",
+            icon: "boxes",
+            isPremium: false
+          }
+        ]
+      : [];
 
   const handleLogout = () => {
     logout();
@@ -161,10 +239,8 @@ const AppLayout = () => {
 
         {/* NAVIGATION */}
         <nav className="sidebar-nav mt-6">
-          {navItems
-            .filter((item) => hasAccess(item)) // 🔥 Filters based on Role + Subscription
-            .map((item) => (
-              <NavLink
+          {[...filteredNavItems, ...industryNavItems].map((item) => (
+            <NavLink
                 key={item.label}
                 to={item.href}
                 end={item.href === "/app"}
@@ -193,14 +269,16 @@ const AppLayout = () => {
             <span>New Product</span>
           </button>
 
-          <button
-            className="quick-create bg-blue-600 text-white hover:bg-blue-700"
-            type="button"
-            onClick={() => navigate("/app/pos")}
-          >
-            <Icon name="cart" />
-            <span>New Sale</span>
-          </button>
+          {industryType === "retail" && (
+            <button
+              className="quick-create bg-blue-600 text-white hover:bg-blue-700"
+              type="button"
+              onClick={() => navigate("/app/pos")}
+            >
+              <Icon name="cart" />
+              <span>New Sale</span>
+            </button>
+          )}
         </div>
       </aside>
 

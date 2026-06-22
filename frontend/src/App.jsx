@@ -35,6 +35,62 @@ const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
+const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
+const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
+
+const Students = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Students List</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Track student enrollment, profiles, and class assignments.
+    </p>
+  </div>
+);
+
+const Tuition = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Tuition Tracker</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Monitor tuition payments and billing for your school.
+    </p>
+  </div>
+);
+
+const Classes = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Class Schedules</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Manage class timetables and session schedules.
+    </p>
+  </div>
+);
+
+const Patients = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Patient Records</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Access patient history, charts, and care notes.
+    </p>
+  </div>
+);
+
+const Appointments = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Appointment Book</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Schedule and track appointments for your clinic.
+    </p>
+  </div>
+);
+
+const MedicalInventory = () => (
+  <div className="page-shell">
+    <h1 className="text-3xl font-bold">Medical Inventory</h1>
+    <p className="mt-3 text-sm text-gray-600">
+      Manage medical stock and supplies for your hospital.
+    </p>
+  </div>
+);
 
 // Simple loading fallback
 const PageLoader = () => (
@@ -98,6 +154,28 @@ const App = () => {
               <Route path="customers" element={<Customers />} />
               <Route path="services" element={<Services />} />
               <Route path="expenses" element={<Expenses />} />
+              <Route
+                path="school-dashboard"
+                element={
+                  <ProtectedRoute requiredIndustry="school">
+                    <SchoolDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="hospital-dashboard"
+                element={
+                  <ProtectedRoute requiredIndustry="hospital">
+                    <HospitalDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="students" element={<Students />} />
+              <Route path="tuition" element={<Tuition />} />
+              <Route path="classes" element={<Classes />} />
+              <Route path="patients" element={<Patients />} />
+              <Route path="appointments" element={<Appointments />} />
+              <Route path="medical-inventory" element={<MedicalInventory />} />
             </Route>
 
             {/* ================= ADMIN ================= */}

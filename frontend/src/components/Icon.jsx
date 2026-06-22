@@ -16,7 +16,10 @@ const iconMap = {
   team: "@",
   cart: "$",
   receipt: "R",
-  wallet: "W"
+  wallet: "W",
+  "shopping-bag": "🛍️",
+  "graduation-cap": "🎓",
+  stethoscope: "🩺"
 };
 
 const Icon = ({ name, className = "" }) => {

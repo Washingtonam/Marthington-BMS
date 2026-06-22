@@ -227,6 +227,8 @@ export const AuthProvider = ({ children }) => {
   const isPro = permissions.isPro;
   const subscriptionStatus = business?.subscription?.status;
   const expiresAt = business?.subscription?.expiresAt;
+  const industryType =
+    user?.industryType || business?.industryType || "retail";
 
   const value = useMemo(
     () => ({
@@ -239,6 +241,8 @@ export const AuthProvider = ({ children }) => {
       user,
 
       business,
+
+      industryType,
 
       businessType: business?.businessType || "general_services",
 

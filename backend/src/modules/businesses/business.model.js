@@ -84,6 +84,12 @@ const businessSchema = new mongoose.Schema(
       default: "general_services"
     },
 
+    industryType: {
+      type: String,
+      enum: ["retail", "school", "hospital"],
+      default: "retail"
+    },
+
     // 🔥 SINGLE SOURCE OF TRUTH
     subscription: {
       plan: {
