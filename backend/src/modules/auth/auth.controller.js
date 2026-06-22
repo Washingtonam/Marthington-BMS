@@ -57,13 +57,18 @@ const register = async (req, res) => {
     business.owner = user._id;
     await business.save();
 
-    const token = generateToken(user, business.industryType);
+    const token = generateToken(
+      user,
+      business.industryType,
+      false
+    );
 
     res.json({
       token,
       user: {
         ...user.toObject(),
-        industryType: business.industryType
+        industryType: business.industryType,
+        isPro: false
       }
     });
   } catch (err) {
@@ -78,8 +83,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email }).populate(
-      "business",
-      "industryType"
+      "business"
     );
 
     if (!user) {
@@ -97,16 +101,25 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    const industryType =
-      user.business?.industryType || "retail";
+    const business = user.business || {};
 
-    const token = generateToken(user, industryType);
+    const industryType =
+      business.industryType || "retail";
+
+    const isPro =
+      business.isPro ||
+      (business.subscription?.plan === "pro" &&
+        business.subscription?.status === "active") ||
+      false;
+
+    const token = generateToken(user, industryType, isPro);
 
     res.json({
       token,
       user: {
         ...user.toObject(),
-        industryType
+        industryType,
+        isPro
       }
     });
   } catch (err) {

@@ -70,6 +70,12 @@ const protect = async (req, res, next) => {
     }
 
     // 🔥 NORMALIZED USER
+    const isProFromToken = decoded.isPro === true;
+    const isProFromBusiness =
+      user.business?.isPro ||
+      (user.business?.subscription?.plan === "pro" &&
+        user.business?.subscription?.status === "active");
+
     req.user = {
       id: user._id.toString(),
       email: user.email || "",
@@ -78,6 +84,7 @@ const protect = async (req, res, next) => {
       businessId,
       industryType:
         decoded.industryType || "retail",
+      isPro: isProFromToken || isProFromBusiness || false,
       permissions: user.permissions || {},
       isActive: user.isActive
     };

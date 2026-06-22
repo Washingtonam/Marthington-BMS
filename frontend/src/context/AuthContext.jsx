@@ -17,9 +17,16 @@ import {
 
 const AuthContext = createContext(null);
 
+const normalizeUser = (user) => ({
+  ...user,
+  industryType: user?.industryType || "retail",
+  isPro: user?.isPro === true
+});
+
 const storedUser = () => {
   try {
-    return JSON.parse(localStorage.getItem("bms_user"));
+    const raw = JSON.parse(localStorage.getItem("bms_user"));
+    return raw ? normalizeUser(raw) : null;
   } catch {
     return null;
   }
@@ -157,13 +164,15 @@ export const AuthProvider = ({ children }) => {
       session.token
     );
 
+    const normalizedUser = normalizeUser(session.user || {});
+
     localStorage.setItem(
       "bms_user",
-      JSON.stringify(session.user)
+      JSON.stringify(normalizedUser)
     );
 
     setToken(session.token);
-    setUser(session.user);
+    setUser(normalizedUser);
 
     setImpersonatedBusiness(null);
   };
@@ -235,10 +244,15 @@ export const AuthProvider = ({ children }) => {
   const industryType =
     user?.industryType || business?.industryType || "retail";
 
-  const authUser = useMemo(
-    () => (user ? { ...user, isPro } : null),
-    [user, isPro]
-  );
+  const authUser = useMemo(() => {
+    if (!user) return null;
+
+    return {
+      ...user,
+      industryType,
+      isPro
+    };
+  }, [user, industryType, isPro]);
 
   const value = useMemo(
     () => ({

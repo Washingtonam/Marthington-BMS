@@ -1,6 +1,10 @@
 import jwt from "jsonwebtoken";
 
-const generateToken = (user, industryType = "retail") => {
+const generateToken = (
+  user,
+  industryType = "retail",
+  isPro = false
+) => {
   const businessId =
     user.business && user.business._id
       ? user.business._id
@@ -11,7 +15,8 @@ const generateToken = (user, industryType = "retail") => {
       id: user._id,
       businessId,
       role: user.role,
-      industryType
+      industryType,
+      isPro
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
