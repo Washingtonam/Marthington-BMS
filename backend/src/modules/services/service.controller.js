@@ -80,15 +80,22 @@ const createService = async (req, res) => {
 // ========================================
 const getServices = async (req, res) => {
   try {
-
     const {
       search,
       category,
       activeOnly
     } = req.query;
 
-    const query =
-      applyBusinessFilter(req);
+    const currentType = req.user?.industryType || "retail";
+
+    if (currentType === "school" || currentType === "hospital") {
+      return res.status(200).json({
+        success: true,
+        data: []
+      });
+    }
+
+    const query = applyBusinessFilter(req);
 
     // 🔥 SEARCH
     if (search) {
@@ -108,35 +115,28 @@ const getServices = async (req, res) => {
       query.isActive = true;
     }
 
-    const services =
-      await Service.find(query)
-        .sort({
-          createdAt: -1
-        })
-        .lean();
+    const services = await Service.find(query)
+      .sort({
+        createdAt: -1
+      })
+      .lean();
 
-    const safeServices =
-      services.map((s) => ({
-        ...s,
+    const safeServices = services.map((s) => ({
+      ...s,
+      price: Number(s.price) || 0,
+      sellingPrice: Number(s.price) || 0,
+      costPrice: Number(s.costPrice) || 0
+    }));
 
-        price:
-          Number(s.price) || 0,
-
-        sellingPrice:
-          Number(s.price) || 0,
-
-        costPrice:
-          Number(s.costPrice) || 0
-      }));
-
-    res.json(safeServices);
-
-  } catch (err) {
-
-    res.status(500).json({
-      message: err.message
+    return res.status(200).json({
+      success: true,
+      data: safeServices
     });
-
+  } catch (err) {
+    return res.status(200).json({
+      success: true,
+      data: []
+    });
   }
 };
 
