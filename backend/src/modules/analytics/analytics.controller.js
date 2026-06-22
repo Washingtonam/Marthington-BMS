@@ -6,7 +6,7 @@ import School from "../schools/School.js";
 import Student from "../schools/Student.js";
 
 const retailSalesFilter = (businessId) => ({
-  business: businessId,
+  businessId: businessId,
   $or: [
     { industryType: "retail" },
     { industryType: { $exists: false } }

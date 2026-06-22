@@ -2,7 +2,7 @@ import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 
 const retailSalesFilter = (businessId) => ({
-  business: businessId,
+  businessId: businessId,
   $or: [
     { industryType: "retail" },
     { industryType: { $exists: false } }
