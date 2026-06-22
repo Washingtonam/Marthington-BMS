@@ -45,23 +45,25 @@ export const getBusiness = async (req, res) => {
       });
     }
 
+    const industryType = business?.industryType || "retail";
+
     // ensure we can safely read business fields on older records
     const normalizedBusiness = {
       ...business,
-      industryType: business.industryType || "retail",
-      businessType: business.businessType || "general_services",
-      name: business.name || "",
-      products: business.products || [],
+      industryType,
+      businessType: business?.businessType || "general_services",
+      name: business?.name || "",
+      products: business?.products || [],
       subscription: {
-        ...(business.subscription || {}),
-        plan: business.subscription?.plan || "free",
-        status: business.subscription?.status || "trial",
-        billingCycle: business.subscription?.billingCycle || null,
-        startedAt: business.subscription?.startedAt || null,
-        expiresAt: business.subscription?.expiresAt || null,
-        amount: business.subscription?.amount || 0,
-        tier: business.subscription?.tier || "",
-        reference: business.subscription?.reference || ""
+        ...(business?.subscription || {}),
+        plan: business?.subscription?.plan || "free",
+        status: business?.subscription?.status || "trial",
+        billingCycle: business?.subscription?.billingCycle || null,
+        startedAt: business?.subscription?.startedAt || null,
+        expiresAt: business?.subscription?.expiresAt || null,
+        amount: business?.subscription?.amount || 0,
+        tier: business?.subscription?.tier || "",
+        reference: business?.subscription?.reference || ""
       }
     };
 

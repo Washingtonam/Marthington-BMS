@@ -4,15 +4,40 @@ import Product from "../products/product.model.js";
 const getAnalytics = async (req, res) => {
   try {
 
-    const businessId = req.user.businessId;
-    const industryType = req.user.industryType || "retail";
+    const businessId = req.user?.businessId;
+    const industryType = req.user?.industryType || "retail";
+
+    if (!businessId) {
+      return res.json({
+        metrics: {
+          totalRevenue: 0,
+          totalProfit: 0,
+          totalSales: 0,
+          averageOrderValue: 0,
+          inventoryValue: 0,
+          lowStockCount: 0,
+          studentCount: 0,
+          feesCollected: 0,
+          classes: 0,
+          attendanceRate: 0,
+          patientCount: 0,
+          appointmentsToday: 0,
+          bedsAvailable: 0
+        },
+        placeholders: {
+          message: "Business information is not available for this account."
+        },
+        industryType
+      });
+    }
 
     if (industryType === "school") {
       return res.json({
         metrics: {
           studentCount: 0,
           feesCollected: 0,
-          classes: 0
+          classes: 0,
+          attendanceRate: 0
         },
         placeholders: {
           message: "School dashboard metrics are coming soon."
