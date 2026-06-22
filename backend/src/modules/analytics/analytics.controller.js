@@ -32,6 +32,8 @@ const getAnalytics = async (req, res) => {
         },
         industryType: "retail"
       });
+    }
+
     const business = await Business.findById(businessId);
     const currentType = business?.industryType || "retail";
 
