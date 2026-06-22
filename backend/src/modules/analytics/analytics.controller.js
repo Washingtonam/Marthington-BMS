@@ -29,7 +29,7 @@ const getAnalytics = async (req, res) => {
       });
     }
 
-    const businessObjectId = mongoose.Types.ObjectId(req.user.businessId);
+    const businessObjectId = new mongoose.Types.ObjectId(req.user.businessId);
 
     // 2. Original retail metrics calculation logic goes here...
     const sales = await Sale.find(retailSalesFilter(businessObjectId)).lean();
