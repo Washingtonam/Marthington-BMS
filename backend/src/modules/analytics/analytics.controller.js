@@ -6,240 +6,96 @@ import Student from "../schools/Student.js";
 
 const getAnalytics = async (req, res) => {
   try {
-    const businessId = req.user?.businessId;
+    // 1. Fetch business and check industry type safely
+    const business = await Business.findById(req.user?.businessId);
+    const industry = business?.industryType || "retail";
 
-    const fallbackMetrics = {
-      totalRevenue: 0,
-      totalProfit: 0,
-      totalSales: 0,
-      averageOrderValue: 0,
-      inventoryValue: 0,
-      lowStockCount: 0,
-      totalStudents: 0,
-      tuitionCollected: 0,
-      classes: 0,
-      attendanceRate: 0,
-      patientCount: 0,
-      appointmentsToday: 0,
-      bedsAvailable: 0
-    };
-
-    if (!businessId) {
-      return res.json({
-        metrics: fallbackMetrics,
-        placeholders: {
-          message: "Business information is not available for this account."
-        },
-        industryType: "retail"
+    if (industry !== "retail") {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalSales: 0,
+          productsCount: 0
+        }
       });
     }
 
-    const business = await Business.findById(businessId);
-    const currentType = business?.industryType || "retail";
+    // 2. Original retail metrics calculation logic goes here...
+    const sales = await Sale.find({ business: req.user.businessId }).lean();
+    const products = await Product.find({ business: req.user.businessId }).lean();
 
-    if (currentType === "school") {
-      const school = await School.findOne({ businessId });
-      const studentCount = await Student.countDocuments({ businessId });
-      const tuitionCollected = await Student.countDocuments({
-        businessId,
-        tuitionStanding: "paid"
-      });
+    const totalSales = sales.length;
+    const productsCount = products.length;
 
-      return res.json({
-        metrics: {
-          totalStudents: studentCount,
-          tuitionCollected,
-          classes: school?.totalClasses?.length ?? 0,
-          attendanceRate: 0
-        },
-        placeholders: {
-          message: "School analytics are available for your academic dashboard."
-        },
-        industryType: currentType
-      });
-    }
+    const totalRevenue = sales.reduce(
+      (sum, sale) => sum + (sale.totalAmount || 0),
+      0
+    );
 
-    if (currentType === "hospital") {
-      return res.json({
-        metrics: {
-          patientCount: 0,
-          appointmentsToday: 0,
-          bedsAvailable: 0
-        },
-        placeholders: {
-          message: "Hospital dashboard metrics are coming soon."
-        },
-        industryType: currentType
-      });
-    }
+    const totalProfit = sales.reduce(
+      (sum, sale) => sum + (sale.totalProfit || 0),
+      0
+    );
 
-    // =========================
-    // SALES
-    // =========================
+    const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
 
-    const sales = await Sale.find({
-      business: businessId
-    });
+    const inventoryValue = products.reduce(
+      (sum, product) => sum + (Number(product.price) || 0) * (Number(product.stock) || 0),
+      0
+    );
 
-    const products = await Product.find({
-      business: businessId
-    });
-
-    // =========================
-    // TOTALS
-    // =========================
-
-    const totalRevenue =
-      sales.reduce(
-        (sum, sale) =>
-          sum + sale.totalAmount,
-        0
-      );
-
-    const totalProfit =
-      sales.reduce(
-        (sum, sale) =>
-          sum + (sale.totalProfit || 0),
-        0
-      );
-
-    const totalSales =
-      sales.length;
-
-    const averageOrderValue =
-      totalSales > 0
-        ? totalRevenue / totalSales
-        : 0;
-
-    const inventoryValue =
-      products.reduce(
-        (sum, product) =>
-          sum +
-          (product.price || 0) *
-            (product.stock || 0),
-        0
-      );
-
-    // =========================
-    // LOW STOCK
-    // =========================
-
-    const lowStockProducts =
-      products.filter(
-        (p) => p.stock <= 5
-      );
-
-
-    const criticalStock =
-        products.filter(
-            (p) => p.stock <= 2
-        );
-
-        const warningStock =
-        products.filter(
-            (p) =>
-            p.stock > 2 &&
-            p.stock <= 5
-        );
-
-    // =========================
-    // TOP PRODUCTS
-    // =========================
+    const lowStockCount = products.filter((product) => Number(product.stock) <= 5).length;
 
     const map = {};
-
     sales.forEach((sale) => {
-
-      sale.items.forEach((item) => {
-
+      (sale.items || []).forEach((item) => {
+        if (!item?.name) return;
         if (!map[item.name]) {
-
           map[item.name] = {
             name: item.name,
             quantity: 0,
             revenue: 0
           };
         }
-
-        map[item.name].quantity +=
-          item.quantity;
-
-        map[item.name].revenue +=
-          item.total;
+        map[item.name].quantity += Number(item.quantity) || 0;
+        map[item.name].revenue += Number(item.total) || 0;
       });
     });
 
-    const topProducts =
-      Object.values(map)
-        .sort(
-          (a, b) =>
-            b.quantity -
-            a.quantity
-        )
-        .slice(0, 5);
-
-    // =========================
-    // SALES TREND
-    // =========================
+    const topProducts = Object.values(map)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
 
     const salesTrendMap = {};
-
     sales.forEach((sale) => {
-
-      const date =
-        new Date(
-          sale.createdAt
-        ).toLocaleDateString();
-
-      if (!salesTrendMap[date]) {
-        salesTrendMap[date] = 0;
-      }
-
-      salesTrendMap[date] +=
-        sale.totalAmount;
+      const date = new Date(sale.createdAt).toLocaleDateString();
+      salesTrendMap[date] = (salesTrendMap[date] || 0) + (sale.totalAmount || 0);
     });
 
-    const salesTrend = Object.entries(salesTrendMap).map(([date, revenue]) => ({
-      date,
-      revenue
-    }));
+    const salesTrend = Object.entries(salesTrendMap).map(([date, revenue]) => ({ date, revenue }));
 
-    return res.json({
-      metrics: {
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalSales,
+        productsCount,
         totalRevenue,
         totalProfit,
-        totalSales,
         averageOrderValue,
         inventoryValue,
-        lowStockCount: lowStockProducts.length
-      },
-      topProducts,
-      lowStockProducts,
-      salesTrend,
-      industryType: currentType
+        lowStockCount,
+        topProducts,
+        salesTrend
+      }
     });
   } catch (err) {
-    return res.json({
-      metrics: {
-        totalRevenue: 0,
-        totalProfit: 0,
+    console.error("Restoration analytics block failed:", err);
+    return res.status(200).json({
+      success: true,
+      data: {
         totalSales: 0,
-        averageOrderValue: 0,
-        inventoryValue: 0,
-        lowStockCount: 0,
-        totalStudents: 0,
-        tuitionCollected: 0,
-        classes: 0,
-        attendanceRate: 0,
-        patientCount: 0,
-        appointmentsToday: 0,
-        bedsAvailable: 0
-      },
-      placeholders: {
-        message: "Unable to compute analytics at this time."
-      },
-      industryType: req.user?.industryType || "retail",
-      error: err.message
+        productsCount: 0
+      }
     });
   }
 };
