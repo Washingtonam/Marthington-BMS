@@ -317,7 +317,7 @@ const AppLayout = () => {
 
           {/* USER CHIP */}
           <div className="user-chip">
-            {!isPro && (
+            {!user?.isPro && (
               <button 
                 onClick={() => navigate("/app/billing")}
                 className="mr-4 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded border border-yellow-200 font-bold hover:bg-yellow-200 transition-colors"

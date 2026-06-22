@@ -15,8 +15,10 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const { business } = useAuth();
+  const { business, user, industryType } = useAuth();
   const businessType = business?.businessType || "general_services";
+  const isSchool = industryType === "school";
+  const isHospital = industryType === "hospital";
 
   useEffect(() => {
     const load = async () => {
@@ -49,6 +51,15 @@ const Dashboard = () => {
       kitchenTickets: analytics?.metrics?.kitchenTickets || 0,
       checkInsToday: analytics?.metrics?.checkInsToday || 0,
       auxiliaryServices: analytics?.metrics?.auxiliaryServices || 0,
+      // 🔥 SCHOOL-SPECIFIC METRICS
+      totalStudents: analytics?.metrics?.totalStudents || 0,
+      activeClasses: analytics?.metrics?.activeClasses || 0,
+      pendingInvoices: analytics?.metrics?.pendingInvoices || 0,
+      attendanceRate: analytics?.metrics?.attendanceRate || 0,
+      // 🔥 HOSPITAL-SPECIFIC METRICS
+      activePatients: analytics?.metrics?.activePatients || 0,
+      appointmentsToday: analytics?.metrics?.appointmentsToday || 0,
+      emergencyCases: analytics?.metrics?.emergencyCases || 0,
     },
     salesTrend: analytics?.salesTrend || [], // Extracting the chart array
     topProducts: analytics?.topProducts || [],
@@ -191,7 +202,9 @@ const Dashboard = () => {
             <span className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></span>
             <span className="text-blue-600 font-bold text-[10px] uppercase tracking-widest">Live Business Intelligence</span>
           </div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Executive Overview</h1>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+            {isSchool ? "Academic Overview" : isHospital ? "Clinical Overview" : "Executive Overview"}
+          </h1>
           <p className="text-gray-500 text-sm font-medium">Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
         </div>
 
@@ -203,12 +216,28 @@ const Dashboard = () => {
             >
                 🔄
             </button>
-            <button
+            {isSchool ? (
+              <button
+                onClick={() => navigate("/app/attendance")}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl text-sm font-black transition-all shadow-xl shadow-indigo-200 flex items-center gap-2 active:scale-95"
+              >
+                📋 Record Attendance
+              </button>
+            ) : isHospital ? (
+              <button
+                onClick={() => navigate("/app/appointments")}
+                className="bg-teal-600 hover:bg-teal-700 text-white px-8 py-3.5 rounded-2xl text-sm font-black transition-all shadow-xl shadow-teal-200 flex items-center gap-2 active:scale-95"
+              >
+                📅 Book Appointment
+              </button>
+            ) : (
+              <button
                 onClick={() => navigate("/app/pos")}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-sm font-black transition-all shadow-xl shadow-blue-200 flex items-center gap-2 active:scale-95"
-            >
+              >
                 🛒 Open POS Terminal
-            </button>
+              </button>
+            )}
         </div>
       </div>
 
@@ -220,14 +249,30 @@ const Dashboard = () => {
       )}
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <MetricCard icon="💰" label="Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
-        <MetricCard icon="📈" label="Profit" value={formatCurrency(metrics.totalProfit)} tone="success" />
-        <MetricCard icon="🧾" label="Total Sales" value={metrics.totalSales} tone="neutral" />
-        <MetricCard icon="📦" label="Stock Value" value={formatCurrency(metrics.inventoryValue)} tone="neutral" />
-        <MetricCard icon="🚨" label="Low Stock" value={metrics.lowStockCount} tone={metrics.lowStockCount > 0 ? "warning" : "success"} />
-        <MetricCard icon="💳" label="Avg. Order" value={formatCurrency(metrics.averageOrderValue)} tone="neutral" />
-      </div>
+      {isSchool ? (
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <MetricCard icon="👨‍🎓" label="Total Students" value={metrics.totalStudents} tone="success" />
+          <MetricCard icon="📚" label="Active Classes" value={metrics.activeClasses} tone="neutral" />
+          <MetricCard icon="📋" label="Pending Invoices" value={formatCurrency(metrics.pendingInvoices)} tone="warning" />
+          <MetricCard icon="✅" label="Attendance Rate" value={`${metrics.attendanceRate}%`} tone="neutral" />
+        </div>
+      ) : isHospital ? (
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <MetricCard icon="🏥" label="Active Patients" value={metrics.activePatients} tone="success" />
+          <MetricCard icon="📅" label="Appointments Today" value={metrics.appointmentsToday} tone="neutral" />
+          <MetricCard icon="🚨" label="Emergency Cases" value={metrics.emergencyCases} tone="warning" />
+          <MetricCard icon="💰" label="Daily Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <MetricCard icon="💰" label="Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
+          <MetricCard icon="📈" label="Profit" value={formatCurrency(metrics.totalProfit)} tone="success" />
+          <MetricCard icon="🧾" label="Total Sales" value={metrics.totalSales} tone="neutral" />
+          <MetricCard icon="📦" label="Stock Value" value={formatCurrency(metrics.inventoryValue)} tone="neutral" />
+          <MetricCard icon="🚨" label="Low Stock" value={metrics.lowStockCount} tone={metrics.lowStockCount > 0 ? "warning" : "success"} />
+          <MetricCard icon="💳" label="Avg. Order" value={formatCurrency(metrics.averageOrderValue)} tone="neutral" />
+        </div>
+      )}
 
       {/* CHART SECTION - Fixed Container */}
       <div className="grid grid-cols-1 min-h-0 min-w-0"> 

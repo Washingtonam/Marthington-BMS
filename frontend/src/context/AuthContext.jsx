@@ -230,15 +230,20 @@ export const AuthProvider = ({ children }) => {
   const industryType =
     user?.industryType || business?.industryType || "retail";
 
+  const authUser = useMemo(
+    () => (user ? { ...user, isPro } : null),
+    [user, isPro]
+  );
+
   const value = useMemo(
     () => ({
-      isAuthenticated: Boolean(token && user),
+      isAuthenticated: Boolean(token && authUser),
 
       login,
       logout,
       register,
 
-      user,
+      user: authUser,
 
       business,
 
