@@ -14,6 +14,8 @@ import reportsRoutes from "./modules/reports/reports.routes.js";
 import staffRoutes from "./modules/staff/staff.routes.js";
 import invoiceRoutes from "./modules/invoices/invoice.routes.js";
 import customerRoutes from "./modules/customers/customer.routes.js";
+import schoolRoutes from "./modules/schools/school.routes.js";
+import hospitalRoutes from "./modules/hospitals/hospital.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
@@ -38,6 +40,8 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/subscription", subscriptionRoutes);
 // 🔥 SERVICE ROUTE
 app.use("/api/services", serviceRoutes);
+app.use("/api/schools", schoolRoutes);
+app.use("/api/hospitals", hospitalRoutes);
 // 🔥 ANALYTICS ROUTE
 app.use("/api/analytics", analyticsRoutes);
 // 🔥 REPORTS ROUTE

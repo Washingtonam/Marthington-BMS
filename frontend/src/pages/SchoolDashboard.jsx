@@ -1,4 +1,46 @@
+import { useEffect, useState } from "react";
+import { getSchool, getStudents } from "../api/schools.js";
+
 const SchoolDashboard = () => {
+  const [school, setSchool] = useState(null);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [schoolData, studentsData] = await Promise.all([
+          getSchool(),
+          getStudents()
+        ]);
+
+        setSchool(schoolData);
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
+      } catch (err) {
+        setError(err.message || "Unable to load school data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const totalStudents = students.length;
+  const pendingTuition = school?.pendingTuition ?? 24600;
+  const attendanceRate = school?.attendanceRate ?? 92;
+  const totalClasses = school?.totalClasses?.length ?? 8;
+
+  if (loading) {
+    return (
+      <div className="page-shell p-6 bg-slate-50 min-h-screen flex items-center justify-center">
+        <p className="text-slate-500">Loading school overview…</p>
+      </div>
+    );
+  }
+
   return (
     <div className="page-shell p-6 bg-slate-50 min-h-screen">
       <div className="mb-8">
@@ -6,24 +48,29 @@ const SchoolDashboard = () => {
         <p className="mt-2 text-sm text-slate-500">
           A premium overview for schools, letting you monitor students, tuition, and schedules.
         </p>
+        {error && (
+          <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3 mb-8">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm uppercase text-slate-400 tracking-[0.2em]">Total Students enrolled</p>
-          <p className="mt-4 text-4xl font-bold text-slate-900">1,248</p>
+          <p className="mt-4 text-4xl font-bold text-slate-900">{totalStudents}</p>
           <p className="mt-2 text-sm text-slate-500">Enrolled across all active programs.</p>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-indigo-600 to-sky-500 p-6 text-white shadow-lg">
           <p className="text-sm uppercase tracking-[0.2em] opacity-80">Pending Tuition fees</p>
-          <p className="mt-4 text-4xl font-semibold">$24,600</p>
+          <p className="mt-4 text-4xl font-semibold">${pendingTuition.toLocaleString()}</p>
           <p className="mt-2 text-sm opacity-90">Payments awaiting collection this month.</p>
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm uppercase text-slate-400 tracking-[0.2em]">Attendance</p>
-          <p className="mt-4 text-4xl font-bold text-slate-900">92%</p>
+          <p className="mt-4 text-4xl font-bold text-slate-900">{attendanceRate}%</p>
           <p className="mt-2 text-sm text-slate-500">Today's average student attendance rate.</p>
         </div>
       </div>
@@ -35,7 +82,7 @@ const SchoolDashboard = () => {
             <p className="text-sm text-slate-500">A clean placeholder for the schedule of classes.</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-600">
-            8 classes
+            {totalClasses} classes
           </span>
         </div>
 
