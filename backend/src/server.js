@@ -3,7 +3,7 @@ import "dotenv/config";
 import app from "./app.js";
 import connectDB from "./config/db.js";
 
-
+import runBusinessIndustryMigration from "./jobs/migrateBusinessIndustryType.job.js";
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
 
@@ -15,7 +15,11 @@ const startServer = async () => {
     await connectDB();
     console.log("✅ Database connected");
 
-    
+    // 🔥 RUN MIGRATION IF ENABLED
+    if (process.env.RUN_BUSINESS_MIGRATION === "true") {
+      console.log("🔄 Business industryType migration enabled");
+      await runBusinessIndustryMigration();
+    }
 
     // 🔥 SAFE JOB WRAPPER
     const safeRunSubscriptionCheck = async (source = "manual") => {
