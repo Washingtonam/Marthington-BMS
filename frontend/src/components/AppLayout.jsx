@@ -180,30 +180,6 @@ const AppLayout = () => {
     navigate("/login");
   };
 
-  // =====================================
-  // ACCESS CHECK (Upgraded for Freemium)
-  // =====================================
-  const hasAccess = (item) => {
-    // 1. SUPER ADMIN ALWAYS HAS ACCESS
-    if (user?.role === "super_admin") return true;
-
-    // 2. CHECK PREMIUM LOCK
-    // If the item is premium and the business is NOT Pro, hide it.
-    if (item.isPremium && !isPro) {
-      return false;
-    }
-
-    // 3. OWNER ALWAYS HAS ACCESS TO REMAINING NON-PRO ITEMS
-    if (user?.role === "owner") return true;
-
-    // 4. CHECK SPECIFIC STAFF PERMISSIONS
-    if (item.permission) {
-      return user?.permissions?.[item.permission] || false;
-    }
-
-    return true;
-  };
-
   return (
     <div 
       className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarOpen ? "sidebar-open" : ""}`}
