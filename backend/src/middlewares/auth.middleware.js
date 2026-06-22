@@ -25,8 +25,7 @@ const protect = async (req, res, next) => {
 
     // 🔥 FETCH USER
     const user = await User.findById(decoded.id).populate(
-      "business",
-      "industryType"
+      "business"
     );
 
     if (!user) {
@@ -43,10 +42,23 @@ const protect = async (req, res, next) => {
     }
 
     // 🔥 BUSINESS ID FALLBACK SYSTEM
-    let businessId =
-      user.business?.toString() ||
-      decoded.businessId?.toString() ||
-      null;
+    let businessId = null;
+
+    if (user.business) {
+      if (typeof user.business === "string") {
+        businessId = user.business;
+      } else if (user.business._id) {
+        businessId = user.business._id.toString();
+      } else {
+        businessId = user.business.toString();
+      }
+    }
+
+    if (!businessId && decoded.businessId) {
+      businessId =
+        decoded.businessId._id?.toString?.() ||
+        decoded.businessId.toString();
+    }
 
     // 🔥 SUPER ADMIN IMPERSONATION
     const impersonatedBusiness =
@@ -83,7 +95,9 @@ const protect = async (req, res, next) => {
       role: user.role,
       businessId,
       industryType:
-        decoded.industryType || "retail",
+        user.business?.industryType ||
+        decoded.industryType ||
+        "retail",
       isPro: isProFromToken || isProFromBusiness || false,
       permissions: user.permissions || {},
       isActive: user.isActive
