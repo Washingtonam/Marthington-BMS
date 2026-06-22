@@ -3,83 +3,148 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import Icon from "./Icon.jsx";
 
-const navItems = [
+const navItemsByIndustry = {
+  retail: [
+    {
+      label: "Dashboard",
+      href: "/app",
+      icon: "chart",
+      permission: "canViewDashboard",
+      isPremium: false
+    },
+    {
+      label: "Products",
+      href: "/app/products",
+      icon: "boxes",
+      permission: "canViewProducts",
+      isPremium: false
+    },
+    {
+      label: "Services",
+      href: "/app/services",
+      icon: "package",
+      permission: "canViewProducts",
+      isPremium: false
+    },
+    {
+      label: "Sales",
+      href: "/app/pos",
+      icon: "cart",
+      permission: "canMakeSale",
+      isPremium: false
+    },
+    {
+      label: "Reports",
+      href: "/app/reports",
+      icon: "chart",
+      permission: "canViewReports",
+      isPremium: true
+    },
+    {
+      label: "Staff",
+      href: "/app/staff",
+      icon: "team",
+      permission: "canManageStaff",
+      isPremium: true
+    },
+    {
+      label: "Customers",
+      href: "/app/customers",
+      icon: "team",
+      permission: "canViewSales",
+      isPremium: false
+    }
+  ],
+  school: [
+    {
+      label: "School Overview",
+      href: "/app",
+      icon: "chart",
+      permission: "canViewDashboard",
+      isPremium: false
+    },
+    {
+      label: "Academic Classes",
+      href: "/app/classes",
+      icon: "package",
+      permission: "canViewProducts",
+      isPremium: false
+    },
+    {
+      label: "Students & Staff",
+      href: "/app/students",
+      icon: "team",
+      permission: "canViewSales",
+      isPremium: false
+    },
+    {
+      label: "Tuition & Fees",
+      href: "/app/tuition",
+      icon: "wallet",
+      permission: "canViewSales",
+      isPremium: false
+    }
+  ],
+  hospital: [
+    {
+      label: "Clinic Overview",
+      href: "/app",
+      icon: "chart",
+      permission: "canViewDashboard",
+      isPremium: false
+    },
+    {
+      label: "Patient Records",
+      href: "/app/patients",
+      icon: "team",
+      permission: "canViewSales",
+      isPremium: false
+    },
+    {
+      label: "Appointment Book",
+      href: "/app/appointments",
+      icon: "calendar",
+      permission: "canViewSales",
+      isPremium: false
+    },
+    {
+      label: "Medical Inventory",
+      href: "/app/medical-inventory",
+      icon: "boxes",
+      permission: "canViewProducts",
+      isPremium: false
+    }
+  ]
+};
+
+const sharedNavItems = [
   {
-    label: "Dashboard",
-    href: "/app",
-    icon: "chart",
-    permission: "canViewDashboard",
-    isPremium: false // Standard feature
-  },
-  {
-    label: "Products",
-    href: "/app/products",
-    icon: "boxes",
-    permission: "canViewProducts",
-    isPremium: false // Standard feature
-  },
-  {
-    label: "Services",
-    href: "/app/services",
-    icon: "package",
-    permission: "canViewProducts",
-    isPremium: false // Standard feature
-  },
-  {
-    label: "Sales",
-    href: "/app/pos",
-    icon: "cart",
-    permission: "canMakeSale",
-    isPremium: false // Standard feature
-  },
-  {
-    label: "Reports",
-    href: "/app/reports",
-    icon: "chart",
-    permission: "canViewReports",
-    isPremium: true // 🔥 PRO FEATURE
+    label: "Invoices",
+    href: "/app/invoices",
+    icon: "receipt",
+    permission: "canViewSales",
+    isPremium: false
   },
   {
     label: "Expenses",
     href: "/app/expenses",
     icon: "wallet",
     permission: "canViewReports",
-    isPremium: true // 🔥 PRO FEATURE
-  },
-  {
-    label: "Staff",
-    href: "/app/staff",
-    icon: "team",
-    permission: "canManageStaff",
-    isPremium: true // 🔥 PRO FEATURE
-  },
-  {
-    label: "Invoices",
-    href: "/app/invoices",
-    icon: "receipt",
-    permission: "canViewSales",
-    isPremium: false // Standard feature
-  },
-  {
-    label: "Customers",
-    href: "/app/customers",
-    icon: "team",
-    permission: "canViewSales",
-    isPremium: false // Standard feature
+    isPremium: true
   },
   {
     label: "Billing",
     href: "/app/billing",
     icon: "wallet",
     permission: "canManageSettings",
-    isPremium: false // Keep accessible so they can upgrade
+    isPremium: false
   },
   {
     label: "Settings",
     href: "/app/settings",
     icon: "settings",
     permission: "canManageSettings",
-    isPremium: false 
+    isPremium: false
   }
 ];
 
@@ -122,58 +187,10 @@ const AppLayout = () => {
     return true;
   };
 
-  const filteredNavItems = navItems.filter((item) => {
-    if (item.href === "/app/pos" && industryType !== "retail") {
-      return false;
-    }
-
-    return hasAccess(item);
-  });
-
-  const industryNavItems =
-    industryType === "school"
-      ? [
-          {
-            label: "Students List",
-            href: "/app/students",
-            icon: "team",
-            isPremium: false
-          },
-          {
-            label: "Tuition Tracker",
-            href: "/app/tuition",
-            icon: "wallet",
-            isPremium: false
-          },
-          {
-            label: "Class Schedules",
-            href: "/app/classes",
-            icon: "calendar",
-            isPremium: false
-          }
-        ]
-      : industryType === "hospital"
-      ? [
-          {
-            label: "Patient Records",
-            href: "/app/patients",
-            icon: "team",
-            isPremium: false
-          },
-          {
-            label: "Appointment Book",
-            href: "/app/appointments",
-            icon: "calendar",
-            isPremium: false
-          },
-          {
-            label: "Medical Inventory",
-            href: "/app/medical-inventory",
-            icon: "boxes",
-            isPremium: false
-          }
-        ]
-      : [];
+  const selectedNavItems = navItemsByIndustry[industryType] || navItemsByIndustry.retail;
+  const filteredNavItems = [...selectedNavItems, ...sharedNavItems].filter(
+    (item) => hasAccess(item)
+  );
 
   const handleLogout = () => {
     logout();
@@ -215,7 +232,7 @@ const AppLayout = () => {
 
         {/* NAVIGATION */}
         <nav className="sidebar-nav mt-6">
-          {[...filteredNavItems, ...industryNavItems].map((item) => (
+          {filteredNavItems.map((item) => (
             <NavLink
                 key={item.label}
                 to={item.href}
