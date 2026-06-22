@@ -125,6 +125,11 @@ const businessSchema = new mongoose.Schema(
         default: 0
       },
 
+      tier: {
+        type: String,
+        default: ""
+      },
+
       reference: {
         type: String,
         default: ""

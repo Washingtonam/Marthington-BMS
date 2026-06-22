@@ -24,16 +24,79 @@ const formatBusiness = (business) => {
 // 🔥 OVERVIEW (DASHBOARD)
 const getOverview = async (req, res) => {
   try {
-    const businesses = await Business.countDocuments();
-    const users = await User.countDocuments();
-    const sales = await Sale.countDocuments();
+    const businessesCount = await Business.countDocuments();
+    const usersCount = await User.countDocuments();
+    const salesRecords = await Sale.find();
+
+    const totalRevenue = salesRecords.reduce(
+      (sum, sale) => sum + (sale.totalAmount || 0),
+      0
+    );
+
+    const activeSubscriptions = await Business.countDocuments({
+      "subscription.status": "active"
+    });
+
+    const industryCounts = {
+      retail: 0,
+      school: 0,
+      hospital: 0
+    };
+
+    const salesSummary = await Sale.aggregate([
+      {
+        $group: {
+          _id: "$business",
+          totalSales: { $sum: "$totalAmount" },
+          saleCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const salesMap = salesSummary.reduce((map, item) => {
+      map[item._id?.toString()] = {
+        totalSales: item.totalSales,
+        saleCount: item.saleCount
+      };
+      return map;
+    }, {});
 
     const businessList = await Business.find()
+      .populate("owner", "name email")
       .sort({ createdAt: -1 });
 
+    const formattedBusinesses = businessList.map((business) => {
+      const obj = formatBusiness(business);
+
+      const industry = obj.industryType || "retail";
+      if (industryCounts[industry] !== undefined) {
+        industryCounts[industry] += 1;
+      }
+
+      const summary = salesMap[business._id.toString()] || {
+        totalSales: 0,
+        saleCount: 0
+      };
+
+      return {
+        ...obj,
+        ownerEmail: business.owner?.email || "",
+        totalSalesRecord: summary.totalSales,
+        saleCount: summary.saleCount,
+        studentCount: obj.studentCount || 0,
+        activePatientCount: obj.activePatientCount || 0
+      };
+    });
+
     res.json({
-      stats: { businesses, users, sales },
-      businesses: businessList.map(formatBusiness)
+      stats: {
+        totalRevenue,
+        totalUsers: usersCount,
+        activeSubscriptions,
+        industryCounts,
+        totalBusinesses: businessesCount
+      },
+      businesses: formattedBusinesses
     });
 
   } catch (err) {
@@ -44,7 +107,13 @@ const getOverview = async (req, res) => {
 // 🔥 ADMIN CONTROL (FULL FIX)
 const updateSubscription = async (req, res) => {
   try {
-    const { plan, billingCycle, duration } = req.body;
+    const {
+      plan,
+      billingCycle,
+      duration,
+      industryType,
+      tier
+    } = req.body;
 
     if (!["free", "pro"].includes(plan)) {
       return res.status(400).json({ message: "Invalid plan" });
@@ -58,18 +127,21 @@ const updateSubscription = async (req, res) => {
 
     let update = {};
 
+    if (industryType && ["retail", "school", "hospital"].includes(industryType)) {
+      update.industryType = industryType;
+    }
+
     if (plan === "free") {
-      update = {
+      update.plan = "free";
+      update.subscription = {
         plan: "free",
-        subscription: {
-          plan: "free",
-          billingCycle: null,
-          status: "expired",
-          startedAt: null,
-          expiresAt: null,
-          amount: 0,
-          reference: "admin_downgrade"
-        }
+        billingCycle: null,
+        status: "expired",
+        startedAt: null,
+        expiresAt: null,
+        amount: 0,
+        tier: tier || "",
+        reference: "admin_downgrade"
       };
     } else {
       const now = new Date();
@@ -89,17 +161,16 @@ const updateSubscription = async (req, res) => {
         baseDate.setMonth(baseDate.getMonth() + dur);
       }
 
-      update = {
+      update.plan = "pro";
+      update.subscription = {
         plan: "pro",
-        subscription: {
-          plan: "pro",
-          billingCycle: cycle,
-          status: "active",
-          startedAt: business.subscription?.startedAt || now,
-          expiresAt: baseDate,
-          amount: 0,
-          reference: "admin_override"
-        }
+        billingCycle: cycle,
+        status: "active",
+        startedAt: business.subscription?.startedAt || now,
+        expiresAt: baseDate,
+        amount: 0,
+        tier: tier || business.subscription?.tier || "Premium Plan",
+        reference: "admin_override"
       };
     }
 
