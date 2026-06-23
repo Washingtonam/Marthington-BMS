@@ -92,6 +92,53 @@ const MedicalInventory = () => (
   </div>
 );
 
+const AdminBusinesses = AdminDashboard;
+const AdminRevenue = () => (
+  <section className="page-stack">
+    <div className="page-heading">
+      <div>
+        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
+        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Revenue</h1>
+      </div>
+      <p className="max-w-2xl text-sm text-slate-500">
+        Review global revenue and high-level income trends.
+      </p>
+    </div>
+  </section>
+);
+
+const AdminSubscriptions = () => (
+  <section className="page-stack">
+    <div className="page-heading">
+      <div>
+        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
+        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Subscriptions</h1>
+      </div>
+      <p className="max-w-2xl text-sm text-slate-500">
+        Manage tenant subscriptions, billing cycles, and plan states.
+      </p>
+    </div>
+  </section>
+);
+
+const AdminBillingSettings = Billing;
+const AdminUsers = () => (
+  <section className="page-stack">
+    <div className="page-heading">
+      <div>
+        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
+        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Users</h1>
+      </div>
+      <p className="max-w-2xl text-sm text-slate-500">
+        Manage platform users, roles, and access across all tenants.
+      </p>
+    </div>
+  </section>
+);
+
+const AdminAnalytics = Reports;
+const AdminSettings = Settings;
+
 // Simple loading fallback
 const PageLoader = () => (
   <div className="h-screen w-screen flex items-center justify-center bg-gray-50">
@@ -188,7 +235,13 @@ const App = () => {
               }
             >
               <Route index element={<AdminDashboard />} />
-              <Route path="billing-config" element={<Billing />} />
+              <Route path="businesses" element={<AdminBusinesses />} />
+              <Route path="revenue" element={<AdminRevenue />} />
+              <Route path="subscriptions" element={<AdminSubscriptions />} />
+              <Route path="billing-settings" element={<AdminBillingSettings />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="settings" element={<AdminSettings />} />
               <Route path="business/:id" element={<AdminBusinessView />} />
             </Route>
 

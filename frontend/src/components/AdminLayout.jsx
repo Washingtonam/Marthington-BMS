@@ -25,7 +25,7 @@ const AdminLayout = () => {
               Dashboard
             </NavLink>
 
-            <NavLink to="/admin" className={navItem}>
+            <NavLink to="/admin/businesses" className={navItem}>
               Businesses
             </NavLink>
 
@@ -38,10 +38,9 @@ const AdminLayout = () => {
               Subscriptions
             </NavLink>
 
-            <NavLink to="/admin/billing-config" className={navItem}>
+            <NavLink to="/admin/billing-settings" className={navItem}>
               Billing Settings 💳
             </NavLink>
-
             <NavLink to="/admin/users" className={navItem}>
               Users
             </NavLink>
