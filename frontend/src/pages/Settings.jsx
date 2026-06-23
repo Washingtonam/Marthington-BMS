@@ -32,6 +32,10 @@ const Settings = () => {
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [pricing, setPricing] = useState({
+    monthly: { ngn: 15000, usd: 10 },
+    yearly: { ngn: 150000, usd: 100 }
+  });
 
   // 🔥 SYNC FORM (Preserved)
   useEffect(() => {
@@ -48,6 +52,21 @@ const Settings = () => {
       logo: ""
     });
   }, [business]);
+
+  // 🔥 FETCH DYNAMIC PRICING (NEW)
+  useEffect(() => {
+    const loadPricing = async () => {
+      try {
+        const data = await request("/billing/pricing");
+        if (data?.data) {
+          setPricing(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to load pricing:", err);
+      }
+    };
+    loadPricing();
+  }, []);
 
   // 🔥 UPDATED VERIFY PAYMENT: Handled callback and instant UI refresh
   useEffect(() => {
@@ -320,7 +339,7 @@ const Settings = () => {
               {/* MONTHLY PRO */}
               <div className={`border-2 rounded-2xl p-5 transition ${isPro ? 'border-gray-200 opacity-60' : 'border-black shadow-md'}`}>
                 <h3 className="font-bold text-lg">Pro Monthly</h3>
-                <p className="text-2xl font-bold mt-2">₦15,000</p>
+                <p className="text-2xl font-bold mt-2">₦{pricing.monthly?.ngn?.toLocaleString()}</p>
                 <ul className="mt-4 text-xs space-y-2">
                   <li>✔ Unlimited Products</li>
                   <li>✔ WhatsApp Receipts</li>
@@ -341,11 +360,11 @@ const Settings = () => {
               {/* YEARLY PRO */}
               <div className={`border-2 rounded-2xl p-5 relative transition ${isPro ? 'border-gray-200 opacity-60' : 'border-green-600 shadow-lg'}`}>
                 <span className="absolute -top-3 right-4 bg-green-600 text-white text-[10px] px-3 py-1 rounded-full font-black">
-                  SAVE ₦30,000
+                  SAVE ₦{Math.max(0, pricing.monthly?.ngn * 12 - pricing.yearly?.ngn).toLocaleString()}
                 </span>
                 <h3 className="font-bold text-lg">Pro Yearly</h3>
-                <p className="text-2xl font-bold mt-2 text-green-700">₦150,000</p>
-                <p className="text-[10px] text-gray-500 font-medium">Equiv. to ₦12,500 / month</p>
+                <p className="text-2xl font-bold mt-2 text-green-700">₦{pricing.yearly?.ngn?.toLocaleString()}</p>
+                <p className="text-[10px] text-gray-500 font-medium">Equiv. to ₦{(pricing.yearly?.ngn / 12).toLocaleString(undefined, { maximumFractionDigits: 0 })} / month</p>
                 <ul className="mt-4 text-xs space-y-2">
                   <li>✔ Everything in Monthly</li>
                   <li>✔ 2 Months FREE</li>
