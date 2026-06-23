@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import request from "../api/client.js";
+import { formatCurrency } from "../utils/formatters.js";
 
 const features = [
   {
@@ -34,6 +37,27 @@ const features = [
 ];
 
 const Landing = () => {
+  const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
+
+  useEffect(() => {
+    const loadPricing = async () => {
+      try {
+        const data = await request("/billing/pricing");
+        const pricingData = data?.data;
+
+        if (pricingData?.monthly?.ngn && pricingData?.yearly?.ngn) {
+          setPricing({ monthly: pricingData.monthly.ngn, yearly: pricingData.yearly.ngn });
+        }
+      } catch (err) {
+        console.warn("Failed to load billing pricing", err);
+      }
+    };
+
+    loadPricing();
+  }, []);
+
+  const yearlySavings = Math.max(0, pricing.monthly * 12 - pricing.yearly);
+
   return (
     <div className="gradient-bg min-h-screen overflow-hidden">
 
@@ -411,7 +435,7 @@ const Landing = () => {
               <div className="mt-6">
 
                 <p className="text-5xl font-extrabold">
-                  ₦15,000
+                  {formatCurrency(pricing.monthly)}
                 </p>
 
                 <span className="text-gray-500">
@@ -423,11 +447,11 @@ const Landing = () => {
               <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl p-4">
 
                 <p className="text-sm text-green-700 font-semibold">
-                  Save ₦30,000 yearly
+                  Save {yearlySavings > 0 ? formatCurrency(yearlySavings) : "more"} yearly
                 </p>
 
                 <p className="text-2xl font-bold text-slate-900 mt-1">
-                  ₦150,000 / year
+                  {formatCurrency(pricing.yearly)} / year
                 </p>
 
               </div>

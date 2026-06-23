@@ -4,11 +4,15 @@ import {
 } from "react";
 
 import request from "../api/client.js";
+import { formatCurrency } from "../utils/formatters.js";
 
 const Billing = () => {
 
   const [billing, setBilling] =
     useState(null);
+
+  const [pricing, setPricing] =
+    useState({ monthly: 15000, yearly: 150000 });
 
   const [loading, setLoading] =
     useState(true);
@@ -29,12 +33,21 @@ const Billing = () => {
 
       try {
 
-        const data =
-          await request(
-            "/payments/status"
-          );
+        const [billingData, pricingData] = await Promise.all([
+          request("/payments/status"),
+          request("/billing/pricing")
+        ]);
 
-        setBilling(data);
+        setBilling(billingData);
+
+        const pricingPayload = pricingData?.data;
+
+        if (pricingPayload?.monthly?.ngn && pricingPayload?.yearly?.ngn) {
+          setPricing({
+            monthly: pricingPayload.monthly.ngn,
+            yearly: pricingPayload.yearly.ngn
+          });
+        }
 
       } catch (err) {
 
@@ -214,7 +227,7 @@ const Billing = () => {
             <div className="mt-6 flex items-end gap-2">
 
               <span className="text-6xl font-black">
-                ₦15,000
+                {formatCurrency(pricing.monthly)}
               </span>
 
               <span className="text-gray-500 mb-2">
@@ -299,7 +312,7 @@ const Billing = () => {
         <div className="bg-gradient-to-br from-green-600 to-green-700 text-white rounded-[32px] shadow-xl p-8 relative overflow-hidden">
 
           <div className="absolute top-5 right-5 bg-white text-green-700 text-xs px-4 py-2 rounded-full font-bold">
-            SAVE ₦30,000
+            SAVE {formatCurrency(Math.max(0, pricing.monthly * 12 - pricing.yearly))}
           </div>
 
           <div className="mb-8">
@@ -311,7 +324,7 @@ const Billing = () => {
             <div className="mt-6 flex items-end gap-2">
 
               <span className="text-6xl font-black">
-                ₦150,000
+                {formatCurrency(pricing.yearly)}
               </span>
 
               <span className="text-green-100 mb-2">

@@ -16,6 +16,7 @@ import invoiceRoutes from "./modules/invoices/invoice.routes.js";
 import customerRoutes from "./modules/customers/customer.routes.js";
 import schoolRoutes from "./modules/schools/school.routes.js";
 import hospitalRoutes from "./modules/hospitals/hospital.routes.js";
+import billingRoutes from "./modules/billing/billing.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
@@ -46,6 +47,8 @@ app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/analytics", analyticsRoutes);
 // 🔥 REPORTS ROUTE
 app.use("/api/reports", reportsRoutes);
+// 🔥 BILLING ROUTE
+app.use("/api/billing", billingRoutes);
 // 🔥 INVOICE ROUTE
 app.use("/api/invoices", invoiceRoutes);
 // 🔥 CUSTOMER ROUTE
