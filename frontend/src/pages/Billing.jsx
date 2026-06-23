@@ -11,28 +11,24 @@ const Billing = () => {
   const [billing, setBilling] =
     useState(null);
 
-  const [pricing, setPricing] =
-    useState({ monthly: 15000, yearly: 150000 });
+  const [pricing, setPricing] = useState({
+    monthly: { ngn: 15000, usd: 10 },
+    yearly: { ngn: 150000, usd: 100 }
+  });
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [processing, setProcessing] =
-    useState("");
+  const [processing, setProcessing] = useState("");
 
-  const [error, setError] =
-    useState("");
+  const [error, setError] = useState("");
 
   // =====================================
   // LOAD
   // =====================================
 
   useEffect(() => {
-
     const load = async () => {
-
       try {
-
         const [billingData, pricingData] = await Promise.all([
           request("/payments/status"),
           request("/billing/pricing")
@@ -41,69 +37,51 @@ const Billing = () => {
         setBilling(billingData);
 
         const pricingPayload = pricingData?.data;
-
-        if (pricingPayload?.monthly?.ngn && pricingPayload?.yearly?.ngn) {
-          setPricing({
-            monthly: pricingPayload.monthly.ngn,
-            yearly: pricingPayload.yearly.ngn
-          });
+        if (pricingPayload?.monthly && pricingPayload?.yearly) {
+          setPricing((current) => ({
+            monthly: {
+              ngn: pricingPayload.monthly.ngn ?? current.monthly.ngn,
+              usd: pricingPayload.monthly.usd ?? current.monthly.usd
+            },
+            yearly: {
+              ngn: pricingPayload.yearly.ngn ?? current.yearly.ngn,
+              usd: pricingPayload.yearly.usd ?? current.yearly.usd
+            }
+          }));
         }
-
       } catch (err) {
-
-        setError(
-          err.message
-        );
-
+        setError(err?.message || "Failed to load billing details.");
       } finally {
-
         setLoading(false);
-
       }
     };
 
     load();
-
   }, []);
 
   // =====================================
   // UPGRADE
   // =====================================
 
-  const upgrade = async (
-    billingCycle
-  ) => {
-
+  const handlePayment = async (planType, currency = "NGN") => {
     try {
+      setProcessing(planType);
+      setError("");
 
-      setProcessing(
-        billingCycle
-      );
+      const data = await request("/billing/initialize", {
+        method: "POST",
+        body: JSON.stringify({ planType, currency })
+      });
 
-      const data =
-        await request(
-          "/payments/initialize",
-          {
-            method: "POST",
+      const url = data?.url || data?.link;
+      if (!url) {
+        throw new Error("Could not get the checkout URL from the server.");
+      }
 
-            body:
-              JSON.stringify({
-                billingCycle
-              })
-          }
-        );
-
-      window.location.href =
-        data.authorizationUrl;
-
+      window.location.href = url;
     } catch (err) {
-
-      alert(
-        err.message
-      );
-
+      setError(err?.message || "Payment initialization failed.");
     } finally {
-
       setProcessing("");
     }
   };
@@ -214,185 +192,81 @@ const Billing = () => {
 
       <div className="grid lg:grid-cols-2 gap-8">
 
-        {/* MONTHLY */}
-
-        <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm p-8 relative overflow-hidden">
-
+        <div className="bg-white rounded-[32px] border border-gray-200 shadow-sm p-8">
           <div className="mb-8">
-
-            <h2 className="text-3xl font-extrabold">
-              Pro Monthly
-            </h2>
-
+            <h2 className="text-3xl font-extrabold">Pro Monthly</h2>
             <div className="mt-6 flex items-end gap-2">
-
-              <span className="text-6xl font-black">
-                {formatCurrency(pricing.monthly)}
-              </span>
-
-              <span className="text-gray-500 mb-2">
-                / month
-              </span>
-
+              <span className="text-6xl font-black">{formatCurrency(pricing.monthly.ngn)}</span>
+              <span className="text-gray-500 mb-2">/ month</span>
             </div>
-
             <p className="text-gray-500 mt-4 leading-7">
-              Perfect for growing businesses that want
-              modern receipts, reports, staff controls
-              and unlimited products.
+              Perfect for growing businesses that want modern receipts, reports, staff controls and unlimited products.
             </p>
-
+            <p className="text-sm text-slate-500 mt-3">Also available in USD: {formatCurrency(pricing.monthly.usd, "USD")}</p>
           </div>
 
-          <div className="space-y-4 text-sm">
+          <div className="space-y-4 text-sm text-slate-600">
+            <div className="flex items-center gap-3"><span>✅</span><span>Unlimited products</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Unlimited staff accounts</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>WhatsApp receipts</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Premium receipt templates</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>PDF exports</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Analytics dashboard</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Business reports</span></div>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Unlimited products</span>
+          <div className="mt-8 rounded-3xl border border-dashed border-gray-200 p-5 bg-gray-50">
+            <p className="text-sm font-semibold text-gray-700">Payment methods supported</p>
+            <div className="mt-4 grid gap-3 text-sm text-gray-600">
+              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">C</span><span>Card</span></div>
+              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">U</span><span>USSD</span></div>
+              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">B</span><span>Bank Transfer</span></div>
             </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Unlimited staff accounts</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>WhatsApp receipts</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Premium receipt templates</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>PDF exports</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Analytics dashboard</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Business reports</span>
-            </div>
-
           </div>
 
           <button
-            onClick={() =>
-              upgrade(
-                "monthly"
-              )
-            }
-
-            disabled={
-              processing ===
-              "monthly"
-            }
-
-            className="mt-10 w-full bg-black hover:bg-gray-900 text-white p-4 rounded-2xl font-bold transition"
+            type="button"
+            onClick={() => handlePayment("monthly", "NGN")}
+            disabled={processing === "monthly"}
+            className="mt-10 w-full bg-slate-900 text-white py-4 rounded-2xl font-bold transition hover:bg-slate-800 disabled:opacity-50"
           >
-
-            {processing ===
-            "monthly"
-              ? "Processing..."
-              : "Upgrade Monthly"}
-
+            {processing === "monthly" ? "Processing..." : "Upgrade Monthly"}
           </button>
-
         </div>
 
-        {/* YEARLY */}
-
-        <div className="bg-gradient-to-br from-green-600 to-green-700 text-white rounded-[32px] shadow-xl p-8 relative overflow-hidden">
-
-          <div className="absolute top-5 right-5 bg-white text-green-700 text-xs px-4 py-2 rounded-full font-bold">
-            SAVE {formatCurrency(Math.max(0, pricing.monthly * 12 - pricing.yearly))}
+        <div className="bg-gradient-to-br from-emerald-700 to-emerald-600 text-white rounded-[32px] shadow-xl p-8 relative overflow-hidden">
+          <div className="absolute -top-3 right-5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white">
+            SAVE {formatCurrency(Math.max(0, pricing.monthly.ngn * 12 - pricing.yearly.ngn))}
           </div>
-
           <div className="mb-8">
-
-            <h2 className="text-3xl font-extrabold">
-              Pro Yearly
-            </h2>
-
+            <h2 className="text-3xl font-extrabold">Pro Yearly</h2>
             <div className="mt-6 flex items-end gap-2">
-
-              <span className="text-6xl font-black">
-                {formatCurrency(pricing.yearly)}
-              </span>
-
-              <span className="text-green-100 mb-2">
-                / year
-              </span>
-
+              <span className="text-6xl font-black">{formatCurrency(pricing.yearly.ngn)}</span>
+              <span className="text-emerald-100 mb-2">/ year</span>
             </div>
-
-            <p className="text-green-100 mt-4 leading-7">
-              Best for serious businesses that want long-term
-              growth with maximum savings and future upgrades.
+            <p className="text-emerald-100 mt-4 leading-7">
+              Best for serious businesses that want long-term growth with maximum savings and future upgrades.
             </p>
-
+            <p className="text-sm text-emerald-100 mt-3">Also available in USD: {formatCurrency(pricing.yearly.usd, "USD")}</p>
           </div>
 
-          <div className="space-y-4 text-sm">
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Everything in Monthly</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Priority support</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Early access to AI tools</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Multi-location ready</span>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span>✅</span>
-              <span>Future enterprise features</span>
-            </div>
-
+          <div className="space-y-4 text-sm text-emerald-100">
+            <div className="flex items-center gap-3"><span>✅</span><span>Everything in Monthly</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Priority support</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Early access to AI tools</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Multi-location ready</span></div>
+            <div className="flex items-center gap-3"><span>✅</span><span>Future enterprise features</span></div>
           </div>
 
           <button
-            onClick={() =>
-              upgrade(
-                "yearly"
-              )
-            }
-
-            disabled={
-              processing ===
-              "yearly"
-            }
-
-            className="mt-10 w-full bg-white text-green-700 hover:bg-gray-100 p-4 rounded-2xl font-bold transition"
+            type="button"
+            onClick={() => handlePayment("yearly", "NGN")}
+            disabled={processing === "yearly"}
+            className="mt-10 w-full bg-white text-emerald-700 py-4 rounded-2xl font-bold transition hover:bg-emerald-100 disabled:opacity-50"
           >
-
-            {processing ===
-            "yearly"
-              ? "Processing..."
-              : "Upgrade Yearly"}
-
+            {processing === "yearly" ? "Processing..." : "Upgrade Yearly"}
           </button>
-
         </div>
-
       </div>
 
       {/* TRUST */}
