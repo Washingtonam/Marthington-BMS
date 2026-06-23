@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom"; // 🔥 Added useNavigate for cleaner URL handling
-import axios from "axios";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
@@ -174,12 +173,15 @@ const Settings = () => {
       setIsSubscribing(true);
       setUpgradeMsg("");
 
-      const response = await axios.post("/api/billing/initialize", {
-        planType,
-        currency
+      const response = await request("/billing/initialize", {
+        method: "POST",
+        body: JSON.stringify({
+          planType,
+          currency
+        })
       });
 
-      const url = response?.data?.url || response?.data?.link;
+      const url = response?.url || response?.link;
 
       if (!url) {
         throw new Error("Could not get the checkout url from the server.");
@@ -187,7 +189,7 @@ const Settings = () => {
 
       window.location.href = url;
     } catch (err) {
-      setUpgradeMsg(err.response?.data?.message || err.message || "Payment failed. Try again.");
+      setUpgradeMsg(err.message || "Payment failed. Try again.");
     } finally {
       setIsSubscribing(false);
     }
