@@ -94,28 +94,39 @@ const getAnalytics = async (req, res) => {
 
     const salesTrend = Object.entries(salesTrendMap).map(([date, revenue]) => ({ date, revenue }));
 
+    const metrics = {
+      totalSales,
+      productsCount,
+      totalRevenue,
+      totalProfit,
+      averageOrderValue,
+      inventoryValue,
+      lowStockCount
+    };
+
     return res.status(200).json({
       success: true,
-      data: {
-        totalSales,
-        productsCount,
-        totalRevenue,
-        totalProfit,
-        averageOrderValue,
-        inventoryValue,
-        lowStockCount,
-        topProducts,
-        salesTrend
-      }
+      metrics,
+      salesTrend,
+      topProducts,
+      lowStockProducts: []
     });
   } catch (err) {
     console.error("Restoration analytics block failed:", err);
     return res.status(200).json({
       success: true,
-      data: {
+      metrics: {
         totalSales: 0,
-        productsCount: 0
-      }
+        productsCount: 0,
+        totalRevenue: 0,
+        totalProfit: 0,
+        averageOrderValue: 0,
+        inventoryValue: 0,
+        lowStockCount: 0
+      },
+      salesTrend: [],
+      topProducts: [],
+      lowStockProducts: []
     });
   }
 };

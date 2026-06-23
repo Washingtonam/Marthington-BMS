@@ -24,7 +24,7 @@ const analyticsFallback = {
 export const getAnalytics = async () => {
   try {
     const data = await request("/analytics");
-    return data || analyticsFallback;
+    return data?.data ?? data ?? analyticsFallback;
   } catch (err) {
     console.error("Analytics load failed:", err.message);
     return analyticsFallback;
