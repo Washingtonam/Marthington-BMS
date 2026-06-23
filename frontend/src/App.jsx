@@ -188,6 +188,7 @@ const App = () => {
               }
             >
               <Route index element={<AdminDashboard />} />
+              <Route path="billing-config" element={<Billing />} />
               <Route path="business/:id" element={<AdminBusinessView />} />
             </Route>
 
