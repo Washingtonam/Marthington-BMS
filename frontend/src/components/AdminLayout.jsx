@@ -38,6 +38,10 @@ const AdminLayout = () => {
               Subscriptions
             </NavLink>
 
+            <NavLink to="/admin/billing-config" className={navItem}>
+              Billing Settings 💳
+            </NavLink>
+
             <NavLink to="/admin/users" className={navItem}>
               Users
             </NavLink>
