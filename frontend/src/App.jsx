@@ -34,6 +34,7 @@ const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
+const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
@@ -121,7 +122,6 @@ const AdminSubscriptions = () => (
   </section>
 );
 
-const AdminBillingSettings = Billing;
 const AdminUsers = () => (
   <section className="page-stack">
     <div className="page-heading">
