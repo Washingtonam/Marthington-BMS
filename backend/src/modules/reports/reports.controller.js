@@ -2,10 +2,19 @@ import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 
 const retailSalesFilter = (businessId) => ({
-  businessId: businessId,
-  $or: [
-    { industryType: "retail" },
-    { industryType: { $exists: false } }
+  $and: [
+    {
+      $or: [
+        { business: businessId },
+        { businessId: businessId }
+      ]
+    },
+    {
+      $or: [
+        { industryType: "retail" },
+        { industryType: { $exists: false } }
+      ]
+    }
   ]
 });
 
