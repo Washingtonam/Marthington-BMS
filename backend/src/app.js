@@ -17,6 +17,7 @@ import customerRoutes from "./modules/customers/customer.routes.js";
 import schoolRoutes from "./modules/schools/school.routes.js";
 import hospitalRoutes from "./modules/hospitals/hospital.routes.js";
 import billingRoutes from "./modules/billing/billing.routes.js";
+import flutterwaveRoutes from "./modules/payments/flutterwave.routes.js";
 
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
@@ -37,6 +38,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/staff", staffRoutes);
 // 🔥 PAYMENT ROUTE (VERY IMPORTANT)
 app.use("/api/payments", paymentRoutes);
+app.use("/api/flutterwave", flutterwaveRoutes);
 // 🔥 SUBSCRIPTION ROUTE
 app.use("/api/subscription", subscriptionRoutes);
 // 🔥 SERVICE ROUTE

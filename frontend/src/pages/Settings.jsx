@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom"; // 🔥 Added useNavigate for cleaner URL handling
+import axios from "axios";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
@@ -31,6 +32,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [pricing, setPricing] = useState({
     monthly: { ngn: 15000, usd: 10 },
@@ -167,26 +169,27 @@ const Settings = () => {
     setLoading(false);
   };
 
-  const handleUpgrade = async (cycle) => {
+  const handleSubscribe = async (planType, currency) => {
     try {
-      setProcessingPayment(cycle); // Pass the specific cycle to show loader on correct button
-      setUpgradeMsg(""); 
+      setIsSubscribing(true);
+      setUpgradeMsg("");
 
-      const data = await request("/payments/initialize", {
-        method: "POST",
-        body: JSON.stringify({ billingCycle: cycle })
+      const response = await axios.post("/api/billing/initialize", {
+        planType,
+        currency
       });
 
-      if (!data.authorizationUrl) {
-        throw new Error("Payment initialization failed");
+      const url = response?.data?.url || response?.data?.link;
+
+      if (!url) {
+        throw new Error("Could not get the checkout url from the server.");
       }
 
-      // Redirect user to Paystack
-      window.location.href = data.authorizationUrl;
-
+      window.location.href = url;
     } catch (err) {
-      setUpgradeMsg(err.message || "Payment failed. Try again.");
-      setProcessingPayment(false);
+      setUpgradeMsg(err.response?.data?.message || err.message || "Payment failed. Try again.");
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -348,11 +351,11 @@ const Settings = () => {
                 {!isPro && (
                   <button
                     type="button"
-                    onClick={() => handleUpgrade("monthly")}
-                    disabled={processingPayment}
-                    className="mt-5 w-full bg-black text-white py-2.5 rounded-xl font-bold hover:scale-[1.02] transition active:scale-[0.98]"
+                    onClick={() => handleSubscribe("monthly", "NGN")}
+                    disabled={isSubscribing}
+                    className="mt-5 w-full bg-black text-white py-2.5 rounded-xl font-bold hover:scale-[1.02] transition active:scale-[0.98] disabled:opacity-50"
                   >
-                    {processingPayment === "monthly" ? "Redirecting..." : "Upgrade Monthly"}
+                    {isSubscribing ? "Redirecting..." : "Upgrade Monthly"}
                   </button>
                 )}
               </div>
@@ -373,11 +376,11 @@ const Settings = () => {
                 {!isPro && (
                   <button
                     type="button"
-                    onClick={() => handleUpgrade("yearly")}
-                    disabled={processingPayment}
-                    className="mt-5 w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 hover:scale-[1.02] transition active:scale-[0.98]"
+                    onClick={() => handleSubscribe("yearly", "NGN")}
+                    disabled={isSubscribing}
+                    className="mt-5 w-full bg-green-600 text-white py-2.5 rounded-xl font-bold hover:bg-green-700 hover:scale-[1.02] transition active:scale-[0.98] disabled:opacity-50"
                   >
-                    {processingPayment === "yearly" ? "Redirecting..." : "Upgrade Yearly 🚀"}
+                    {isSubscribing ? "Redirecting..." : "Upgrade Yearly 🚀"}
                   </button>
                 )}
               </div>
