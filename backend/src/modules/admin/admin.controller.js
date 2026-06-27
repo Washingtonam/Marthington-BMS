@@ -5,7 +5,6 @@ import Product from "../products/product.model.js";
 import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
-import User from "../users/user.model.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
