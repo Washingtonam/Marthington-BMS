@@ -81,7 +81,8 @@ const userSchema = new mongoose.Schema(
         "owner",
         "manager",
         "cashier",
-        "staff"
+        "staff",
+        "affiliate"
       ],
       default: "staff"
     },
@@ -111,6 +112,39 @@ const userSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+
+    affiliateCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+      default: null
+    },
+
+    walletBalance: {
+      type: Number,
+      default: 0
+    },
+
+    totalEarned: {
+      type: Number,
+      default: 0
+    },
+
+    paymentDetails: {
+      bankName: {
+        type: String,
+        default: ""
+      },
+      accountNumber: {
+        type: String,
+        default: ""
+      },
+      accountName: {
+        type: String,
+        default: ""
+      }
     }
   },
   {

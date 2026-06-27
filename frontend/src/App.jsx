@@ -38,6 +38,7 @@ const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
+const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
 
 const Students = () => (
   <div className="page-shell">
@@ -165,6 +166,16 @@ const App = () => {
 
             {/* PUBLIC RECEIPT */}
             <Route path="/r/:id" element={<PublicReceipt />} />
+
+            {/* PARTNER DASHBOARD (STANDALONE) */}
+            <Route
+              path="/partners/dashboard"
+              element={
+                <ProtectedRoute>
+                  <PartnersDashboard />
+                </ProtectedRoute>
+              }
+            />
 
             {/* CUSTOMER VIEW (STANDALONE) */}
             <Route 

@@ -2,6 +2,7 @@ import Business from "../businesses/business.model.js";
 import User from "../users/user.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
+import SystemSettings from "./systemSettings.model.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -190,6 +191,49 @@ const updateSubscription = async (req, res) => {
   }
 };
 
+const getAffiliateSettings = async (req, res) => {
+  try {
+    let settings = await SystemSettings.findOne();
+
+    if (!settings) {
+      settings = await SystemSettings.create({ globalAffiliateRate: 20 });
+    }
+
+    res.json({
+      message: "Affiliate settings fetched successfully",
+      settings
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateAffiliateSettings = async (req, res) => {
+  try {
+    const { globalAffiliateRate } = req.body;
+
+    if (typeof globalAffiliateRate !== "number" || globalAffiliateRate < 0 || globalAffiliateRate > 100) {
+      return res.status(400).json({ message: "globalAffiliateRate must be a number between 0 and 100" });
+    }
+
+    let settings = await SystemSettings.findOne();
+
+    if (!settings) {
+      settings = await SystemSettings.create({ globalAffiliateRate });
+    } else {
+      settings.globalAffiliateRate = globalAffiliateRate;
+      await settings.save();
+    }
+
+    res.json({
+      message: "Affiliate settings updated successfully",
+      settings
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // 🔥 BUSINESS DETAILS (FINAL FIX — NO MORE 500)
 const getBusinessDetails = async (req, res) => {
   try {
@@ -233,5 +277,7 @@ const getBusinessDetails = async (req, res) => {
 export default {
   getOverview,
   updateSubscription,
-  getBusinessDetails
+  getBusinessDetails,
+  getAffiliateSettings,
+  updateAffiliateSettings
 };

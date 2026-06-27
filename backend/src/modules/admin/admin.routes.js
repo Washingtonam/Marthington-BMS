@@ -38,4 +38,19 @@ router.put(
   adminController.updateSubscription
 );
 
+// ================= AFFILIATE SETTINGS =================
+router.get(
+  "/affiliate-settings",
+  protect,
+  onlyAdmin,
+  adminController.getAffiliateSettings
+);
+
+router.put(
+  "/affiliate-settings",
+  protect,
+  onlyAdmin,
+  adminController.updateAffiliateSettings
+);
+
 export default router;

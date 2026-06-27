@@ -13,7 +13,8 @@ const register = async (req, res) => {
       businessName,
       address,
       phone,
-      industryType = "retail"
+      industryType = "retail",
+      referredBy = null
     } = req.body;
 
     // CHECK EXISTING USER
@@ -29,7 +30,8 @@ const register = async (req, res) => {
       name: businessName,
       address,
       phone,
-      industryType
+      industryType,
+      referredBy: referredBy || null
     });
 
     // CREATE OWNER (🔥 FULL PERMISSIONS)

@@ -73,6 +73,12 @@ const businessSchema = new mongoose.Schema(
       ref: "User"
     },
 
+    referredBy: {
+      type: String,
+      default: null,
+      index: true
+    },
+
     businessType: {
       type: String,
       enum: [

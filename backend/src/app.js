@@ -22,6 +22,7 @@ import flutterwaveRoutes from "./modules/payments/flutterwave.routes.js";
 // 🔥 ADD THIS
 import paymentRoutes from "./modules/payments/payment.routes.js";
 import expenseRoutes from "./modules/expenses/expense.routes.js";
+import affiliateRoutes from "./modules/affiliates/affiliate.routes.js";
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use("/api/invoices", invoiceRoutes);
 app.use("/api/customers", customerRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
+app.use("/api/affiliates", affiliateRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

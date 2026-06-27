@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -37,9 +37,23 @@ const Register = () => {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refCode, setRefCode] = useState("");
 
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const referral = params.get("ref") || "";
+
+    if (referral) {
+      localStorage.setItem("bms_referral", referral);
+      setRefCode(referral);
+    } else {
+      const savedReferral = localStorage.getItem("bms_referral") || "";
+      setRefCode(savedReferral);
+    }
+  }, []);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -66,7 +80,12 @@ const Register = () => {
     setLoading(true);
 
     try {
-      await register(form);
+      const payload = {
+        ...form,
+        referredBy: refCode || localStorage.getItem("bms_referral") || null
+      };
+
+      await register(payload);
       navigate("/");
     } catch (requestError) {
       setError(requestError.message || "Registration failed.");
