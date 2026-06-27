@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import authRoutes from "./modules/auth/auth.routes.js";
+import affiliateAuthRoutes from "./modules/auth/affiliate.routes.js";
 import productRoutes from "./modules/products/product.routes.js";
 import salesRoutes from "./modules/sales/sales.routes.js";
 import userRoutes from "./modules/users/users.routes.js";
@@ -23,6 +24,7 @@ import flutterwaveRoutes from "./modules/payments/flutterwave.routes.js";
 import paymentRoutes from "./modules/payments/payment.routes.js";
 import expenseRoutes from "./modules/expenses/expense.routes.js";
 import affiliateRoutes from "./modules/affiliates/affiliate.routes.js";
+import payoutRoutes from "./modules/affiliates/payout.routes.js";
 
 const app = express();
 
@@ -31,6 +33,7 @@ app.use(express.json());
 
 // 🔥 ROUTES
 app.use("/api/auth", authRoutes);
+app.use("/api/affiliate-auth", affiliateAuthRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/users", userRoutes);
@@ -59,6 +62,7 @@ app.use("/api/customers", customerRoutes);
 // 🔥 EXPENSES ROUTE
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/affiliates", affiliateRoutes);
+app.use("/api/affiliates/payouts", payoutRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

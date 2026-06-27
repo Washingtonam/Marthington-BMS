@@ -136,6 +136,13 @@ const Landing = () => {
               </Link>
 
               <Link
+                to="/affiliate-register"
+                className="secondary-btn"
+              >
+                Become a Partner
+              </Link>
+
+              <Link
                 to="/login"
                 className="secondary-btn"
               >
@@ -372,6 +379,62 @@ const Landing = () => {
 
         </div>
 
+      </section>
+
+      {/* PARTNER PROGRAM */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="section-title">Partner with Marthington</h2>
+            <p className="section-subtitle">Earn recurring commissions and help businesses grow with a trusted BMS.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+              <h3 className="font-bold text-lg">Recurring Revenue</h3>
+              <p className="mt-3 text-sm text-gray-600">Earn a percentage of every subscription sold through your referrals.</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+              <h3 className="font-bold text-lg">Easy Tracking</h3>
+              <p className="mt-3 text-sm text-gray-600">View conversions, commissions and request payouts from your partner dashboard.</p>
+            </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
+              <h3 className="font-bold text-lg">Fast Payouts</h3>
+              <p className="mt-3 text-sm text-gray-600">Request payouts directly to your bank account with transparent history and receipts.</p>
+            </div>
+          </div>
+
+          <div className="max-w-4xl mx-auto mb-12">
+            <h3 className="text-2xl font-extrabold text-center mb-6">Partner Success Stories</h3>
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <p className="text-gray-700">"Our affiliate earnings paid for our first year of coffee shop supplies — the partnership really scales."</p>
+                <p className="mt-4 font-semibold">— Aisha, Retail Partner</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <p className="text-gray-700">"Signups through my link convert well — dashboard makes tracking effortless."</p>
+                <p className="mt-4 font-semibold">— Emeka, Channel Partner</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm">
+                <p className="text-gray-700">"Payout requests are simple and fast. Great for side income."</p>
+                <p className="mt-4 font-semibold">— Kemi, Affiliate</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-3xl mx-auto bg-white rounded-2xl p-6 shadow-sm">
+            <h3 className="text-xl font-bold mb-4">Partner Onboarding Checklist</h3>
+            <ol className="list-decimal list-inside space-y-2 text-gray-700">
+              <li>Create your affiliate account (Become a Partner).</li>
+              <li>Get your unique referral link from the dashboard.</li>
+              <li>Share the link on social and with business owners.</li>
+              <li>Track signups and conversions in real time.</li>
+              <li>Request payouts when your wallet balance is ready.</li>
+            </ol>
+          </div>
+        </div>
       </section>
 
       {/* PRICING */}

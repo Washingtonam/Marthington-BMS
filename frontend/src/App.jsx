@@ -15,6 +15,7 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 const Landing = lazy(() => import("./pages/Landing.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
+const AffiliateRegister = lazy(() => import("./pages/AffiliateRegister.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Products = lazy(() => import("./pages/Products.jsx"));
 const POS = lazy(() => import("./pages/POS.jsx"));
@@ -39,6 +40,7 @@ const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
 const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
+const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 
 const Students = () => (
   <div className="page-shell">
@@ -163,6 +165,7 @@ const App = () => {
             {/* AUTH */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/affiliate-register" element={<AffiliateRegister />} />
 
             {/* PUBLIC RECEIPT */}
             <Route path="/r/:id" element={<PublicReceipt />} />
@@ -171,8 +174,18 @@ const App = () => {
             <Route
               path="/partners/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute requiredRole="affiliate">
                   <PartnersDashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ADMIN PAYOUTS */}
+            <Route
+              path="/admin/payouts"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <AdminPayouts />
                 </ProtectedRoute>
               }
             />

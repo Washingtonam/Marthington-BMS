@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
-import { getAffiliateDashboard } from "../api/affiliates.js";
+import { getAffiliateDashboard, requestPayout } from "../api/affiliates.js";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-NG", {
@@ -73,6 +73,11 @@ const PartnerDashboard = () => {
     }
   ];
 
+  const [payoutModalOpen, setPayoutModalOpen] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState("");
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [payoutMessage, setPayoutMessage] = useState("");
+
   const conversions = (dashboardData.conversions || []).map((entry) => ({
     businessName: entry.businessName,
     industry: entry.industry,
@@ -143,6 +148,11 @@ const PartnerDashboard = () => {
                     ? "bg-emerald-500 text-white hover:bg-emerald-400"
                     : "bg-white/10 text-slate-200 hover:bg-white/20"
                 }`}
+                onClick={() => {
+                  if (index === 0) {
+                    setPayoutModalOpen(true);
+                  }
+                }}
               >
                 {metric.action}
               </button>
@@ -229,6 +239,72 @@ const PartnerDashboard = () => {
           </div>
         </section>
       </div>
+
+      {/* Payout Modal */}
+      {payoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPayoutModalOpen(false)} />
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 text-slate-900">
+            <h3 className="text-lg font-semibold">Request Payout</h3>
+            <p className="text-sm text-slate-500 mt-1">Enter the amount you want to withdraw from your wallet.</p>
+
+            <div className="mt-4">
+              <label className="block text-sm text-slate-700">Amount (NGN)</label>
+              <input
+                type="number"
+                value={payoutAmount}
+                onChange={(e) => setPayoutAmount(e.target.value)}
+                className="mt-2 w-full rounded-lg border p-3"
+                placeholder="e.g. 5000"
+              />
+            </div>
+
+            {payoutMessage && <div className="mt-3 text-sm text-rose-600">{payoutMessage}</div>}
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                className="rounded-full px-4 py-2 text-sm"
+                onClick={() => setPayoutModalOpen(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={payoutLoading}
+                onClick={async () => {
+                  setPayoutLoading(true);
+                  setPayoutMessage("");
+                  try {
+                    const amt = Number(payoutAmount);
+                    if (!amt || amt <= 0) {
+                      setPayoutMessage("Enter a valid amount.");
+                      setPayoutLoading(false);
+                      return;
+                    }
+
+                    const resp = await requestPayout({ amount: amt });
+                    setPayoutMessage(resp.message || "Payout requested.");
+                    setPayoutModalOpen(false);
+                    // Refresh dashboard
+                    setLoading(true);
+                    const data = await getAffiliateDashboard();
+                    setDashboardData(data || dashboardData);
+                    setLoading(false);
+                  } catch (err) {
+                    setPayoutMessage(err.message || "Failed to request payout.");
+                    setPayoutLoading(false);
+                  }
+                }}
+                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60"
+              >
+                {payoutLoading ? "Requesting..." : "Request Payout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import {
   loginUser,
   registerUser
 } from "../api/auth.js";
+import { registerAffiliateUser } from "../api/affiliateAuth.js";
 
 import {
   getBusiness
@@ -196,6 +197,14 @@ export const AuthProvider = ({ children }) => {
     return session;
   };
 
+  const registerAffiliate = async (payload) => {
+    const session = await registerAffiliateUser(payload);
+
+    persistSession(session);
+
+    return session;
+  };
+
   // 🔥 LOGOUT
   const logout = () => {
     localStorage.removeItem("bms_token");
@@ -262,6 +271,7 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       register,
+      registerAffiliate,
 
       user: authUser,
 

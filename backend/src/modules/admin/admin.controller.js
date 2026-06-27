@@ -3,6 +3,9 @@ import User from "../users/user.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 import SystemSettings from "./systemSettings.model.js";
+import PayoutRequest from "../affiliates/payoutRequest.model.js";
+import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
+import User from "../users/user.model.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -232,6 +235,98 @@ const updateAffiliateSettings = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+};
+
+// ================= PAYOUT REQUESTS =================
+const listPayoutRequests = async (req, res) => {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const q = {};
+    if (status) q.status = status;
+
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const total = await PayoutRequest.countDocuments(q);
+    const requests = await PayoutRequest.find(q)
+      .populate("affiliate", "name email affiliateCode")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean();
+
+    res.json({ total, page: Number(page), limit: Number(limit), requests });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const approvePayoutRequest = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const payout = await PayoutRequest.findById(id);
+    if (!payout) return res.status(404).json({ message: "Payout request not found" });
+    if (payout.status !== "pending") return res.status(400).json({ message: "Request already processed" });
+
+    // mark paid
+    payout.status = "paid";
+    payout.processedAt = new Date();
+    payout.adminNote = req.body.note || "";
+    await payout.save();
+
+    // create affiliate payout record for history
+    const affiliate = await User.findById(payout.affiliate);
+
+    await AffiliatePayout.create({
+      affiliate: payout.affiliate,
+      affiliateCode: payout.affiliateCode || affiliate?.affiliateCode || "",
+      business: null,
+      businessName: affiliate?.name || "",
+      amountPaid: payout.amountRequested,
+      commissionEarned: payout.amountRequested,
+      rateApplied: 0,
+      status: "credited",
+      transactionDate: new Date()
+    });
+
+    res.json({ message: "Payout approved" , payout });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const rejectPayoutRequest = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const payout = await PayoutRequest.findById(id);
+    if (!payout) return res.status(404).json({ message: "Payout request not found" });
+    if (payout.status !== "pending") return res.status(400).json({ message: "Request already processed" });
+
+    payout.status = "rejected";
+    payout.processedAt = new Date();
+    payout.adminNote = req.body.note || "Rejected by admin";
+    await payout.save();
+
+    // refund wallet
+    if (payout.affiliate) {
+      await User.findByIdAndUpdate(payout.affiliate, { $inc: { walletBalance: payout.amountRequested } });
+    }
+
+    res.json({ message: "Payout rejected", payout });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export default {
+  getOverview,
+  updateSubscription,
+  getBusinessDetails,
+  getAffiliateSettings,
+  updateAffiliateSettings,
+  // payouts
+  listPayoutRequests,
+  approvePayoutRequest,
+  rejectPayoutRequest
 };
 
 // 🔥 BUSINESS DETAILS (FINAL FIX — NO MORE 500)

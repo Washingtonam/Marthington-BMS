@@ -53,4 +53,26 @@ router.put(
   adminController.updateAffiliateSettings
 );
 
+// =============== PAYOUTS ================
+router.get(
+  "/payout-requests",
+  protect,
+  onlyAdmin,
+  adminController.listPayoutRequests
+);
+
+router.put(
+  "/payout-requests/:id/approve",
+  protect,
+  onlyAdmin,
+  adminController.approvePayoutRequest
+);
+
+router.put(
+  "/payout-requests/:id/reject",
+  protect,
+  onlyAdmin,
+  adminController.rejectPayoutRequest
+);
+
 export default router;
