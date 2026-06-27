@@ -316,18 +316,6 @@ const rejectPayoutRequest = async (req, res) => {
   }
 };
 
-export default {
-  getOverview,
-  updateSubscription,
-  getBusinessDetails,
-  getAffiliateSettings,
-  updateAffiliateSettings,
-  // payouts
-  listPayoutRequests,
-  approvePayoutRequest,
-  rejectPayoutRequest
-};
-
 // 🔥 BUSINESS DETAILS (FINAL FIX — NO MORE 500)
 const getBusinessDetails = async (req, res) => {
   try {
@@ -374,4 +362,9 @@ export default {
   getBusinessDetails,
   getAffiliateSettings,
   updateAffiliateSettings
+  ,
+  // payouts
+  listPayoutRequests,
+  approvePayoutRequest,
+  rejectPayoutRequest
 };
