@@ -305,6 +305,138 @@ const updateInvoicePayment = async (req, res) => {
   }
 };
 
+const updateInvoice = async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, business: req.user.businessId });
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    const allowedFields = [
+      "customerName",
+      "customerPhone",
+      "customerEmail",
+      "dueDate",
+      "notes",
+      "status",
+      "invoiceType",
+      "tax",
+      "discount",
+      "items"
+    ];
+
+    const originalBalanceDue = invoice.balanceDue;
+    const updates = {};
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    });
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No valid invoice fields provided" });
+    }
+
+    Object.assign(invoice, updates);
+
+    const subtotal = Array.isArray(invoice.items)
+      ? invoice.items.reduce((sum, item) => sum + Number(item.total || 0), 0)
+      : invoice.subtotal;
+
+    invoice.subtotal = subtotal;
+    invoice.totalAmount = subtotal + Number(invoice.tax || 0) - Number(invoice.discount || 0);
+    invoice.balanceDue = Math.max(0, invoice.totalAmount - Number(invoice.amountPaid || 0) - Number(invoice.returnedAmount || 0));
+    invoice.balance = invoice.balanceDue;
+    invoice.paymentStatus = calculatePaymentStatus({
+      totalAmount: invoice.totalAmount,
+      amountPaid: invoice.amountPaid,
+      returnedAmount: invoice.returnedAmount
+    });
+
+    await invoice.save();
+
+    const balanceDiff = invoice.balanceDue - originalBalanceDue;
+    if (invoice.transactionType === "outgoing" && invoice.customer && balanceDiff !== 0) {
+      await Customer.findOneAndUpdate(
+        { _id: invoice.customer, business: req.user.businessId },
+        { $inc: { outstandingBalance: balanceDiff } },
+        { new: true }
+      );
+    }
+
+    const populatedInvoice = await Invoice.findById(invoice._id)
+      .populate("customer", "name phone email outstandingBalance")
+      .populate("supplier", "name phone email isActive");
+
+    res.json(populatedInvoice);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteInvoice = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.id, business: req.user.businessId }).session(session);
+    if (!invoice) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    if (invoice.transactionType === "outgoing" && invoice.customer) {
+      await Customer.findOneAndUpdate(
+        { _id: invoice.customer, business: req.user.businessId },
+        { $inc: { outstandingBalance: -invoice.balanceDue } },
+        { new: true, session }
+      );
+    }
+
+    if (invoice.transactionType === "incoming") {
+      for (const item of invoice.items) {
+        if (item.product && Number(item.receivedQuantity || 0) > 0) {
+          const product = await Product.findById(item.product).session(session);
+          if (product) {
+            const previousStock = product.stock;
+            product.stock = Math.max(0, product.stock - Number(item.receivedQuantity || 0));
+            await product.save({ session });
+
+            await InventoryMovement.create(
+              [
+                {
+                  business: req.user.businessId,
+                  product: product._id,
+                  type: "purchase_reversal",
+                  quantity: Number(item.receivedQuantity || 0),
+                  previousStock,
+                  newStock: product.stock,
+                  note: `Reversed supplier invoice ${invoice._id}`,
+                  createdBy: req.user.id
+                }
+              ],
+              { session }
+            );
+          }
+        }
+      }
+    }
+
+    await Invoice.deleteOne({ _id: invoice._id, business: req.user.businessId }).session(session);
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ success: true, id: invoice._id });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getInvoices = async (req, res) => {
   try {
     const query = { business: req.user.businessId };
@@ -376,6 +508,8 @@ const getInvoiceById =
 export default {
   createInvoice,
   updateInvoicePayment,
+  updateInvoice,
+  deleteInvoice,
   returnInvoiceItem,
   getInvoices,
   getInvoiceById

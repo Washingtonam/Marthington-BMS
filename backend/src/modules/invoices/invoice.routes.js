@@ -22,6 +22,18 @@ router.put(
 );
 
 router.put(
+  "/:id",
+  protect,
+  invoiceController.updateInvoice
+);
+
+router.delete(
+  "/:id",
+  protect,
+  invoiceController.deleteInvoice
+);
+
+router.put(
   "/:invoiceId/return-item",
   protect,
   invoiceController.returnInvoiceItem

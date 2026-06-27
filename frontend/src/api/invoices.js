@@ -23,3 +23,14 @@ export const updateInvoicePayment = (invoiceId, paymentAmount) =>
     method: "PUT",
     body: JSON.stringify({ paymentAmount })
   });
+
+export const updateInvoice = (invoiceId, data) =>
+  request(`/invoices/${invoiceId}`, {
+    method: "PUT",
+    body: JSON.stringify(data)
+  });
+
+export const deleteInvoice = (invoiceId) =>
+  request(`/invoices/${invoiceId}`, {
+    method: "DELETE"
+  });
