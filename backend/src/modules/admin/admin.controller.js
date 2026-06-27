@@ -12,7 +12,7 @@ const formatBusiness = (business) => {
   return {
     ...obj,
     plan: subPlan || "free",
-    isPro: subPlan === "pro",
+    isPro: obj.isPro === true || subPlan === "pro",
     subscription: {
       ...obj.subscription,
       plan: subPlan || "free",

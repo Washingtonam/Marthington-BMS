@@ -1,6 +1,7 @@
 import express from "express";
 
 import protect from "../../middlewares/auth.middleware.js";
+import checkSubscription from "../../middlewares/subscription.middleware.js";
 
 import invoiceController from "./invoice.controller.js";
 
@@ -10,7 +11,20 @@ const router =
 router.post(
   "/",
   protect,
+  checkSubscription,
   invoiceController.createInvoice
+);
+
+router.put(
+  "/:invoiceId/payment",
+  protect,
+  invoiceController.updateInvoicePayment
+);
+
+router.put(
+  "/:invoiceId/return-item",
+  protect,
+  invoiceController.returnInvoiceItem
 );
 
 router.get(

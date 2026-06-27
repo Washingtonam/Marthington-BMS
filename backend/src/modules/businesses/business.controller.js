@@ -22,7 +22,9 @@ const formatBusiness = (business) => {
     industryType,
     businessType,
     plan: subscription.plan,
-    isPro: subscription.plan === "pro" && subscription.status === "active",
+    isPro:
+      obj.isPro === true ||
+      (subscription.plan === "pro" && subscription.status === "active"),
     subscription
   };
 };
@@ -69,7 +71,10 @@ export const getBusiness = async (req, res) => {
         tier: rawBusiness?.subscription?.tier || "",
         reference: rawBusiness?.subscription?.reference || ""
       },
-      isPro: rawBusiness?.isPro === true,
+      isPro:
+        rawBusiness?.isPro === true ||
+        (rawBusiness?.subscription?.plan === "pro" &&
+          rawBusiness?.subscription?.status === "active"),
       studentCount: rawBusiness?.studentCount || 0,
       activePatientCount: rawBusiness?.activePatientCount || 0
     };

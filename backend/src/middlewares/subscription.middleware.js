@@ -40,12 +40,13 @@ const checkSubscription = async (req, res, next) => {
     ) {
       const owner = await User.findById(business.owner);
       if (owner) {
-        // The business subscription is the authoritative premium source.
-        // Staff accounts should inherit the owner's business/subscription state.
+        const isPro =
+          business.isPro === true ||
+          (business.plan === "pro" &&
+            business.subscription?.status === "active");
+
         req.subscription = {
-          active:
-            business.plan === "pro" &&
-            business.subscription?.status === "active",
+          active: isPro,
           plan: business.plan,
           expiresAt: business.subscription?.expiresAt || null,
           ownerId: owner._id.toString()
@@ -56,16 +57,17 @@ const checkSubscription = async (req, res, next) => {
     }
 
     // 🔥 FINAL STATE
-    const isActive =
-      business.plan === "pro" &&
-      business.subscription?.status === "active";
+    const isPro =
+      business.isPro === true ||
+      (business.plan === "pro" &&
+        business.subscription?.status === "active");
 
     req.subscription = {
-      active: isActive,
+      active: isPro,
       plan: business.plan,
       expiresAt: business.subscription?.expiresAt || null
     };
-    req.isPremiumBusiness = isActive;
+    req.isPremiumBusiness = isPro;
 
     next();
 

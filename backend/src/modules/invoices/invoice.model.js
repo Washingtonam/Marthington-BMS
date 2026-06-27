@@ -3,6 +3,12 @@ import mongoose from "mongoose";
 const invoiceItemSchema =
   new mongoose.Schema({
 
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      default: null
+    },
+
     name: {
       type: String,
       required: true
@@ -21,6 +27,42 @@ const invoiceItemSchema =
     total: {
       type: Number,
       default: 0
+    },
+
+    returned: {
+      type: Boolean,
+      default: false
+    },
+
+    returnQuantity: {
+      type: Number,
+      default: 0
+    },
+
+    returnAmount: {
+      type: Number,
+      default: 0
+    },
+
+    receivedQuantity: {
+      type: Number,
+      default: 0
+    },
+
+    soldQuantity: {
+      type: Number,
+      default: 0
+    },
+
+    supplierCreditStatus: {
+      type: String,
+      enum: ["Unpaid", "Partially Paid", "Fully Paid", "Returned", null],
+      default: null
+    },
+
+    supplierBatchLabel: {
+      type: String,
+      default: ""
     }
 
   }, { _id: false });
@@ -37,6 +79,24 @@ const invoiceSchema =
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"
+    },
+
+    transactionType: {
+      type: String,
+      enum: ["outgoing", "incoming"],
+      default: "outgoing"
+    },
+
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Customer",
+      default: null
+    },
+
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null
     },
 
     customerName: {
@@ -84,6 +144,22 @@ const invoiceSchema =
     balance: {
       type: Number,
       default: 0
+    },
+
+    balanceDue: {
+      type: Number,
+      default: 0
+    },
+
+    returnedAmount: {
+      type: Number,
+      default: 0
+    },
+
+    paymentStatus: {
+      type: String,
+      enum: ["Unpaid", "Partially Paid", "Fully Paid", "Returned"],
+      default: "Unpaid"
     },
 
     status: {
