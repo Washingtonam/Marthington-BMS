@@ -16,6 +16,9 @@ const Login = () => {
     if (user?.role === "super_admin") {
       return <Navigate to="/admin" replace />;
     }
+    if (user?.role === "affiliate") {
+      return <Navigate to="/partners/dashboard" replace />;
+    }
     return <Navigate to="/app" replace />;
   }
 
@@ -35,6 +38,8 @@ const Login = () => {
       // 🔥 ROLE-BASED REDIRECT (THIS IS THE FIX)
       if (session.user.role === "super_admin") {
         navigate("/admin", { replace: true });
+      } else if (session.user.role === "affiliate") {
+        navigate("/partners/dashboard", { replace: true });
       } else {
         navigate("/app", { replace: true });
       }

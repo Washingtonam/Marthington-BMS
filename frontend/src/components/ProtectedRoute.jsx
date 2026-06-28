@@ -8,6 +8,10 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry }) => {
     return <Navigate to="/login" replace />;
   }
 
+  if (user?.role === "affiliate" && requiredRole !== "affiliate") {
+    return <Navigate to="/partners/dashboard" replace />;
+  }
+
   if (requiredRole && user?.role !== requiredRole) {
     return <Navigate to="/app" replace />;
   }
