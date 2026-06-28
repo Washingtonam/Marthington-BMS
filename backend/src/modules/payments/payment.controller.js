@@ -3,6 +3,7 @@ import {
   initializePayment,
   verifyPayment
 } from "./paystack.service.js";
+import { creditAffiliate } from "../affiliates/affiliate.utils.js";
 
 // ======================================
 // GET SUBSCRIPTION STATUS
@@ -149,6 +150,8 @@ const verifySubscription = async (req, res) => {
     business.plan = "pro"; 
 
     await business.save();
+
+    await creditAffiliate(business._id, payment.amount / 100);
 
     res.json({
       message: "Subscription activated successfully!",

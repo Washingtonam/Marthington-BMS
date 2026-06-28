@@ -1,9 +1,7 @@
 import axios from "axios";
 import Business from "../businesses/business.model.js";
 import Pricing from "../subscriptions/Pricing.js";
-import User from "../users/user.model.js";
-import SystemSettings from "../admin/systemSettings.model.js";
-import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
+import { creditAffiliate } from "../affiliates/affiliate.utils.js";
 
 const FLW_API_URL = "https://api.flutterwave.com/v3/payments";
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://marthington.onrender.com";
@@ -175,42 +173,7 @@ const flutterwaveWebhook = async (req, res) => {
 
     await business.save();
 
-    if (business.referredBy) {
-      const settings = await SystemSettings.findOne();
-      const affiliateRate = settings?.globalAffiliateRate ?? 20;
-      const commissionAmount = (amount * affiliateRate) / 100;
-
-      if (commissionAmount > 0) {
-        const affiliate = await User.findOne({
-          affiliateCode: business.referredBy,
-          role: "affiliate"
-        });
-
-        if (affiliate) {
-          await User.updateOne(
-            { _id: affiliate._id },
-            {
-              $inc: {
-                walletBalance: commissionAmount,
-                totalEarned: commissionAmount
-              }
-            }
-          );
-
-          await AffiliatePayout.create({
-            affiliateCode: affiliate.affiliateCode,
-            affiliate: affiliate._id,
-            business: business._id,
-            businessName: business.name,
-            amountPaid: amount,
-            commissionEarned: commissionAmount,
-            rateApplied: affiliateRate,
-            status: "credited",
-            transactionDate: now
-          });
-        }
-      }
-    }
+    await creditAffiliate(business._id, amount);
 
     return res.status(200).json({
       message: "Webhook processed successfully.",
