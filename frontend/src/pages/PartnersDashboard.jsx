@@ -17,7 +17,7 @@ const statusClasses = {
 
 const PartnerDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
@@ -140,11 +140,22 @@ const PartnerDashboard = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">
-                Partner Code
-              </p>
-              <p className="mt-1 text-lg font-semibold text-white">{affiliateCode}</p>
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-slate-400">
+                  Partner Code
+                </p>
+                <p className="mt-1 text-lg font-semibold text-white">{affiliateCode}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="rounded-full border border-white/10 bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500 transition"
+                aria-label="Logout"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </header>
