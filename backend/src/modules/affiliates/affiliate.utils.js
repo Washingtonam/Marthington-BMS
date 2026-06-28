@@ -50,6 +50,7 @@ export const creditAffiliate = async (businessId, paymentAmount) => {
     affiliate: affiliate._id,
     business: business._id,
     businessName: business.name || "Unknown Business",
+    industry: business.industryType || "N/A",
     amountPaid: amount,
     commissionEarned: commissionAmount,
     rateApplied: affiliateRate,

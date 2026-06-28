@@ -27,6 +27,11 @@ const affiliatePayoutSchema = new mongoose.Schema(
       default: ""
     },
 
+    industry: {
+      type: String,
+      default: ""
+    },
+
     amountPaid: {
       type: Number,
       default: 0

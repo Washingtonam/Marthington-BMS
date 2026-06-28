@@ -40,6 +40,7 @@ const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
 const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
+const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 
 const Students = () => (
@@ -171,11 +172,20 @@ const App = () => {
             <Route path="/r/:id" element={<PublicReceipt />} />
 
             {/* PARTNER DASHBOARD (STANDALONE) */}
+            <Route path="/partners" element={<Navigate to="/partners/dashboard" replace />} />
             <Route
               path="/partners/dashboard"
               element={
                 <ProtectedRoute requiredRole="affiliate">
                   <PartnersDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/partners/referrals"
+              element={
+                <ProtectedRoute requiredRole="affiliate">
+                  <PartnersReferrals />
                 </ProtectedRoute>
               }
             />

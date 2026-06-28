@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getAffiliateDashboard, requestPayout } from "../api/affiliates.js";
 
@@ -15,6 +16,7 @@ const statusClasses = {
 };
 
 const PartnerDashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,8 +25,11 @@ const PartnerDashboard = () => {
       affiliateCode: user?.affiliateCode || "",
       walletBalance: 0,
       totalEarned: 0,
-      totalConversions: 0
+      totalConversions: 0,
+      totalReferrals: 0,
+      totalLifetimeEarnings: 0
     },
+    referrals: [],
     conversions: []
   });
 
@@ -38,8 +43,11 @@ const PartnerDashboard = () => {
             affiliateCode: user?.affiliateCode || "",
             walletBalance: 0,
             totalEarned: 0,
-            totalConversions: 0
+            totalConversions: 0,
+            totalReferrals: 0,
+            totalLifetimeEarnings: 0
           },
+          referrals: [],
           conversions: []
         });
       } catch (error) {
@@ -63,13 +71,13 @@ const PartnerDashboard = () => {
     },
     {
       label: "Total Lifetime Earnings",
-      value: formatCurrency(dashboardData.affiliate?.totalEarned || 0),
+      value: formatCurrency(dashboardData.affiliate?.totalLifetimeEarnings || dashboardData.affiliate?.totalEarned || 0),
       action: "View History"
     },
     {
-      label: "Successful Business Conversions",
-      value: String(dashboardData.affiliate?.totalConversions || 0),
-      action: "Track Referrals"
+      label: "Total Referrals Registered",
+      value: String(dashboardData.affiliate?.totalReferrals || 0),
+      action: "See Referrals"
     }
   ];
 
@@ -83,7 +91,23 @@ const PartnerDashboard = () => {
     industry: entry.industry,
     joinedAt: entry.joinedAt,
     status: entry.status,
-    commission: formatCurrency(entry.commission || 0)
+    commission: formatCurrency(entry.commission || 0),
+    amountPaid: formatCurrency(entry.amountPaid || 0),
+    rateApplied: `${entry.rateApplied || 0}%`
+  }));
+
+  const referrals = (dashboardData.referrals || []).map((entry) => ({
+    businessName: entry.businessName,
+    ownerName: entry.ownerName,
+    ownerEmail: entry.ownerEmail,
+    industry: entry.industry,
+    plan: entry.plan,
+    subscriptionStatus: entry.subscriptionStatus,
+    isPro: entry.isPro,
+    converted: entry.converted,
+    commissionEarned: formatCurrency(entry.commissionEarned || 0),
+    referredAt: entry.referredAt,
+    transactionDate: entry.transactionDate
   }));
 
   const handleCopy = async () => {
@@ -151,6 +175,8 @@ const PartnerDashboard = () => {
                 onClick={() => {
                   if (index === 0) {
                     setPayoutModalOpen(true);
+                  } else if (index === 2) {
+                    navigate("/partners/referrals");
                   }
                 }}
               >
@@ -200,36 +226,103 @@ const PartnerDashboard = () => {
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
                 Loading affiliate activity...
               </div>
-            ) : conversions.length === 0 ? (
+            ) : referrals.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
-                No conversions yet. Share your partner link to start earning.
+                No referrals yet. Share your partner link to start earning.
               </div>
             ) : (
               <table className="min-w-full divide-y divide-white/10 text-left text-sm">
                 <thead>
                   <tr className="text-slate-400">
                     <th className="px-3 py-3 font-medium">Business Name</th>
-                    <th className="px-3 py-3 font-medium">Industry Sector</th>
-                    <th className="px-3 py-3 font-medium">Date Joined</th>
-                    <th className="px-3 py-3 font-medium">Subscription Status</th>
-                    <th className="px-3 py-3 font-medium">Commission Earned</th>
+                    <th className="px-3 py-3 font-medium">Owner</th>
+                    <th className="px-3 py-3 font-medium">Industry</th>
+                    <th className="px-3 py-3 font-medium">Plan</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="px-3 py-3 font-medium">Converted</th>
+                    <th className="px-3 py-3 font-medium">Commission</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {referrals.map((entry) => (
+                    <tr key={`${entry.businessName}-${entry.referredAt}`} className="text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 font-medium text-white">
+                        {entry.businessName}
+                      </td>
+                      <td className="px-3 py-4">
+                        <div>{entry.ownerName}</div>
+                        <div className="text-xs text-slate-400">{entry.ownerEmail}</div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4">{entry.industry}</td>
+                      <td className="whitespace-nowrap px-3 py-4">{entry.plan || "free"}</td>
+                      <td className="whitespace-nowrap px-3 py-4">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${entry.isPro ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/20" : "bg-slate-500/15 text-slate-300"}`}>
+                          {entry.isPro ? "Pro" : "Free"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${entry.converted ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
+                          {entry.converted ? "Yes" : "No"}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 font-semibold text-emerald-300">
+                        {entry.commissionEarned}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-white/10 bg-slate-900/70 p-5 shadow-xl shadow-black/20 backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-400">Earnings History</p>
+              <h2 className="mt-1 text-xl font-semibold text-white">Commission payouts and conversion details</h2>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Latest first
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
+                Loading earnings history...
+              </div>
+            ) : conversions.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
+                No credited commissions yet. Once referrals convert, the activity will appear here.
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+                <thead>
+                  <tr className="text-slate-400">
+                    <th className="px-3 py-3 font-medium">Business</th>
+                    <th className="px-3 py-3 font-medium">Industry</th>
+                    <th className="px-3 py-3 font-medium">Amount Paid</th>
+                    <th className="px-3 py-3 font-medium">Commission</th>
+                    <th className="px-3 py-3 font-medium">Rate</th>
+                    <th className="px-3 py-3 font-medium">Date</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {conversions.map((entry) => (
-                    <tr key={entry.businessName} className="text-slate-200">
-                      <td className="whitespace-nowrap px-3 py-4 font-medium text-white">
-                        {entry.businessName}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4">{entry.industry}</td>
-                      <td className="whitespace-nowrap px-3 py-4">{entry.joinedAt}</td>
-                      <td className="whitespace-nowrap px-3 py-4">
+                    <tr key={`${entry.businessName}-${entry.joinedAt}-${entry.commission}`} className="text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 font-medium text-white">{entry.businessName}</td>
+                      <td className="px-3 py-4">{entry.industry}</td>
+                      <td className="px-3 py-4">{entry.amountPaid}</td>
+                      <td className="px-3 py-4">{entry.commission}</td>
+                      <td className="px-3 py-4">{entry.rateApplied}</td>
+                      <td className="px-3 py-4">{entry.joinedAt}</td>
+                      <td className="px-3 py-4">
                         <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClasses[entry.status] || "bg-slate-500/15 text-slate-300"}`}>
                           {entry.status}
                         </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 font-semibold text-emerald-300">
-                        {entry.commission}
                       </td>
                     </tr>
                   ))}

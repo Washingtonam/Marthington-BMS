@@ -18,7 +18,52 @@ const getAffiliateDashboard = async (req, res) => {
       .sort({ transactionDate: -1 })
       .lean();
 
+    const referredBusinesses = await Business.find({ referredBy: affiliate.affiliateCode })
+      .populate("owner", "name email")
+      .lean();
+
+    const businessConversionMap = new Map(
+      conversions.map((item) => [item.business?.toString(), item])
+    );
+
+    const referralDetails = referredBusinesses.map((business) => {
+      const payout = businessConversionMap.get(business._id?.toString());
+      const plan = business.subscription?.plan || "free";
+      const status = business.subscription?.status || "trial";
+      const isPro = business.isPro === true || (plan === "pro" && status === "active");
+
+      const referredAt = business._id?.getTimestamp
+        ? new Date(business._id.getTimestamp()).toLocaleDateString("en-NG", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+          })
+        : "N/A";
+
+      return {
+        businessId: business._id?.toString() || "",
+        businessName: business.name || "Unknown Business",
+        ownerName: business.owner?.name || "Unknown Owner",
+        ownerEmail: business.owner?.email || "",
+        industry: business.industryType || "N/A",
+        plan,
+        subscriptionStatus: status,
+        isPro,
+        referredAt,
+        converted: Boolean(payout),
+        commissionEarned: Number(payout?.commissionEarned || 0),
+        transactionDate: payout?.transactionDate
+          ? new Date(payout.transactionDate).toLocaleDateString("en-NG", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric"
+            })
+          : "N/A"
+      };
+    });
+
     const totalConversions = conversions.length;
+    const totalReferrals = referredBusinesses.length;
     const totalLifetimeEarnings = conversions.reduce(
       (sum, item) => sum + Number(item.commissionEarned || 0),
       0
@@ -37,7 +82,9 @@ const getAffiliateDashboard = async (req, res) => {
           })
         : "N/A",
       status: item.status === "credited" ? "Paid" : "Pending",
-      commission: Number(item.commissionEarned || 0)
+      commission: Number(item.commissionEarned || 0),
+      amountPaid: Number(item.amountPaid || 0),
+      rateApplied: Number(item.rateApplied || 0)
     }));
 
     res.json({
@@ -45,8 +92,11 @@ const getAffiliateDashboard = async (req, res) => {
         affiliateCode: affiliate.affiliateCode,
         walletBalance,
         totalEarned: Number(affiliate.totalEarned || 0),
-        totalConversions
+        totalConversions,
+        totalReferrals,
+        totalLifetimeEarnings
       },
+      referrals: referralDetails,
       conversions: formattedConversions
     });
   } catch (err) {

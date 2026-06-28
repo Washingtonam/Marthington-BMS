@@ -224,7 +224,7 @@ export const AuthProvider = ({ children }) => {
     setImpersonatedBusiness(null);
 
     // 🔥 HARD RESET
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   // 🔥 MANUAL REFRESH
