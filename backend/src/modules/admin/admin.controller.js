@@ -236,6 +236,73 @@ const updateAffiliateSettings = async (req, res) => {
   }
 };
 
+// ================= AFFILIATE ADMIN ACTIONS =================
+const listAffiliates = async (req, res) => {
+  try {
+    const affiliates = await User.find({ role: "affiliate" })
+      .select("name email affiliateCode walletBalance totalEarned createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const settings = await SystemSettings.findOne();
+    const globalRate = Number(settings?.globalAffiliateRate ?? 20);
+
+    const totalPaid = await AffiliatePayout.aggregate([
+      { $group: { _id: null, total: { $sum: "$commissionEarned" } } }
+    ]);
+
+    const stats = {
+      totalPartners: affiliates.length,
+      pendingPayouts: await PayoutRequest.countDocuments({ status: "pending" }),
+      totalPaidCommissions: (totalPaid[0] && totalPaid[0].total) || 0
+    };
+
+    res.json({ affiliates, globalRate, stats });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const processAffiliatePayout = async (req, res) => {
+  try {
+    const affiliateId = req.params.id;
+    const affiliate = await User.findById(affiliateId);
+    if (!affiliate) return res.status(404).json({ message: "Affiliate not found" });
+
+    const amount = Number(affiliate.walletBalance || 0);
+    if (amount <= 0) return res.status(400).json({ message: "No balance to payout" });
+
+    // Create payout request record marked as paid and create an affiliate payout history
+    const payout = await PayoutRequest.create({
+      affiliate: affiliate._id,
+      affiliateCode: affiliate.affiliateCode || "",
+      amountRequested: amount,
+      status: "paid",
+      processedAt: new Date()
+    });
+
+    await AffiliatePayout.create({
+      affiliate: affiliate._id,
+      affiliateCode: affiliate.affiliateCode || "",
+      business: null,
+      businessName: affiliate.name || "",
+      amountPaid: amount,
+      commissionEarned: amount,
+      rateApplied: 0,
+      status: "credited",
+      transactionDate: new Date()
+    });
+
+    // Zero out wallet
+    affiliate.walletBalance = 0;
+    await affiliate.save();
+
+    res.json({ message: "Payout cleared", amount, payoutId: payout._id });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ================= PAYOUT REQUESTS =================
 const listPayoutRequests = async (req, res) => {
   try {
@@ -363,6 +430,9 @@ export default {
   getAffiliateSettings,
   updateAffiliateSettings
   ,
+  // affiliates
+  listAffiliates,
+  processAffiliatePayout,
   // payouts
   listPayoutRequests,
   approvePayoutRequest,

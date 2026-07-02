@@ -53,6 +53,21 @@ router.put(
   adminController.updateAffiliateSettings
 );
 
+// ================= AFFILIATE MANAGEMENT =================
+router.get(
+  "/affiliates",
+  protect,
+  onlyAdmin,
+  adminController.listAffiliates
+);
+
+router.post(
+  "/affiliates/:id/payout",
+  protect,
+  onlyAdmin,
+  adminController.processAffiliatePayout
+);
+
 // =============== PAYOUTS ================
 router.get(
   "/payout-requests",
