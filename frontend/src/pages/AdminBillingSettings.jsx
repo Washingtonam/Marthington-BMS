@@ -18,7 +18,7 @@ const AdminBillingSettings = () => {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState("");
   const [notificationType, setNotificationType] = useState("success");
-  const [adminContact, setAdminContact] = useState({ name: "Support", email: "support@example.com", phone: "" });
+  const [adminContact, setAdminContact] = useState({ name: "Support", email: "support@marthington.com", phone: "" });
   const [savingContact, setSavingContact] = useState(false);
 
   // Load current pricing

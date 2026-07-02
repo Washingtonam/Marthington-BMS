@@ -11,7 +11,7 @@ const systemSettingsSchema = new mongoose.Schema(
     ,
     adminContact: {
       name: { type: String, default: "Support" },
-      email: { type: String, default: "support@example.com" },
+      email: { type: String, default: "support@marthington.com" },
       phone: { type: String, default: "" }
     }
   },

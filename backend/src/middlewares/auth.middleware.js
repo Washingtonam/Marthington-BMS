@@ -101,7 +101,7 @@ const protect = async (req, res, next) => {
       const settings = await SystemSettings.findOne().lean();
       return res.status(403).json({
         message: activeBusiness.status === "deleted" ? "Organization removed - contact admin" : (activeBusiness.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
-        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+        adminContact: settings?.adminContact || { name: "Support", email: "support@marthington.com", phone: "" }
       });
     }
 

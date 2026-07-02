@@ -365,7 +365,7 @@ const updateAdminContact = async (req, res) => {
     if (!settings) {
       settings = await SystemSettings.create({ adminContact: { name, email, phone } });
     } else {
-      settings.adminContact = { name: name || settings.adminContact?.name || "Support", email: email || settings.adminContact?.email || "support@example.com", phone: phone || settings.adminContact?.phone || "" };
+      settings.adminContact = { name: name || settings.adminContact?.name || "Support", email: email || settings.adminContact?.email || "support@marthington.com", phone: phone || settings.adminContact?.phone || "" };
       await settings.save();
     }
     res.json({ message: "Admin contact updated", adminContact: settings.adminContact });

@@ -122,7 +122,7 @@ const login = async (req, res) => {
       const settings = await SystemSettings.findOne().lean();
       return res.status(403).json({
         message: business.status === "deleted" ? "Organization removed - contact admin" : (business.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
-        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+        adminContact: settings?.adminContact || { name: "Support", email: "support@marthington.com", phone: "" }
       });
     }
 
@@ -191,7 +191,7 @@ const refresh = async (req, res) => {
       const settings = await SystemSettings.findOne().lean();
       return res.status(403).json({
         message: business.status === "deleted" ? "Organization removed - contact admin" : (business.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
-        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+        adminContact: settings?.adminContact || { name: "Support", email: "support@marthington.com", phone: "" }
       });
     }
 
