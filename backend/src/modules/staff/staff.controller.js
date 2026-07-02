@@ -93,7 +93,7 @@ const createStaff = async (
       });
 
     if (existing) {
-      return res.status(400).json({
+      return res.status(409).json({
         message:
           "Email already exists"
       });
@@ -125,13 +125,22 @@ const createStaff = async (
       });
 
     res.json({
-      message:
-        "Staff created",
-
+      message: "Staff created",
       user
     });
 
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({
+        message: "Email already exists"
+      });
+    }
+
+    if (err.name === "ValidationError") {
+      return res.status(400).json({
+        message: err.message
+      });
+    }
 
     res.status(500).json({
       message: err.message

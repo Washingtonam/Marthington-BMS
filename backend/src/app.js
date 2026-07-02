@@ -74,4 +74,11 @@ app.use((req, res) => {
   res.status(404).json({ message: "Route not found." });
 });
 
+// GLOBAL ERROR HANDLER
+app.use((err, req, res, next) => {
+  console.error('GLOBAL ERROR:', err && err.stack ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
+});
+
 export default app;
