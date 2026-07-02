@@ -122,10 +122,7 @@ const userSchema = new mongoose.Schema(
     },
 
     affiliateCode: {
-      type: String,
-      unique: true,
-      sparse: true,
-      index: true
+      type: String
     },
 
     walletBalance: {
@@ -176,6 +173,9 @@ userSchema.pre('insertMany', function (next, docs) {
   }
   next();
 });
+
+// Partial unique index for affiliateCode: enforce uniqueness only when the field exists and is not null
+userSchema.index({ affiliateCode: 1 }, { unique: true, partialFilterExpression: { affiliateCode: { $exists: true, $ne: null } } });
 
 export default mongoose.model(
   "User",

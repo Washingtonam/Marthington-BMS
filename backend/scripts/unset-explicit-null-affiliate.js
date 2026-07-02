@@ -12,8 +12,8 @@ const run = async () => {
   } catch (err) {
     console.log('Drop index error (may not exist):', err.message);
   }
-  await User.collection.createIndex({ affiliateCode: 1 }, { unique: true, sparse: true });
-  console.log('Recreated sparse unique index');
+  await User.collection.createIndex({ affiliateCode: 1 }, { unique: true, partialFilterExpression: { affiliateCode: { $type: 'string' } } });
+  console.log('Recreated partial unique index for affiliateCode (string type)');
   process.exit(0);
 };
 
