@@ -125,8 +125,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       unique: true,
       sparse: true,
-      index: true,
-      default: null
+      index: true
     },
 
     walletBalance: {
@@ -158,6 +157,25 @@ const userSchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+// Ensure affiliateCode is not stored as explicit null (which breaks unique sparse index)
+userSchema.pre('save', function (next) {
+  if (this.isModified('affiliateCode') && this.affiliateCode === null) {
+    this.affiliateCode = undefined;
+  }
+  next();
+});
+
+userSchema.pre('insertMany', function (next, docs) {
+  if (Array.isArray(docs)) {
+    for (const doc of docs) {
+      if (doc && doc.affiliateCode === null) {
+        delete doc.affiliateCode;
+      }
+    }
+  }
+  next();
+});
 
 export default mongoose.model(
   "User",
