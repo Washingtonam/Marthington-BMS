@@ -33,9 +33,35 @@ const formatBusiness = (business) => {
 export const getBusiness = async (req, res) => {
   try {
     if (!req.user?.businessId) {
-      return res.status(400).json({
-        success: false,
-        message: "No business linked to user"
+      const fallbackBusiness = {
+        industryType: "retail",
+        businessType: "general_services",
+        name: "",
+        address: "",
+        phone: "",
+        email: "",
+        receiptFooter: "",
+        receiptTheme: "",
+        logo: "",
+        products: [],
+        subscription: {
+          plan: "free",
+          status: "trial",
+          billingCycle: null,
+          startedAt: null,
+          expiresAt: null,
+          amount: 0,
+          tier: "",
+          reference: ""
+        },
+        isPro: false,
+        studentCount: 0,
+        activePatientCount: 0
+      };
+
+      return res.status(200).json({
+        success: true,
+        data: fallbackBusiness
       });
     }
 

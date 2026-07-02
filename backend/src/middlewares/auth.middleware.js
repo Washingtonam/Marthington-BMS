@@ -72,11 +72,10 @@ const protect = async (req, res, next) => {
       businessId = impersonatedBusiness;
     }
 
+    const allowsNoBusiness = ["super_admin", "affiliate"].includes(user.role);
+
     // 🚫 BLOCK NORMAL USERS WITH NO BUSINESS
-    if (
-      !businessId &&
-      user.role !== "super_admin"
-    ) {
+    if (!businessId && !allowsNoBusiness) {
       return res.status(400).json({
         message: "No business linked to user"
       });
