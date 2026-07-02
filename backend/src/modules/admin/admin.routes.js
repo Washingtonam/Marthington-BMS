@@ -38,6 +38,42 @@ router.put(
   adminController.updateSubscription
 );
 
+// ================= BUSINESS CONTROL =================
+router.put(
+  "/business/:id/suspend",
+  protect,
+  onlyAdmin,
+  adminController.suspendBusiness
+);
+
+router.put(
+  "/business/:id/unsuspend",
+  protect,
+  onlyAdmin,
+  adminController.unsuspendBusiness
+);
+
+router.delete(
+  "/business/:id",
+  protect,
+  onlyAdmin,
+  adminController.deleteBusiness
+);
+
+router.put(
+  "/business/:id/archive",
+  protect,
+  onlyAdmin,
+  adminController.archiveBusiness
+);
+
+router.put(
+  "/business/:id/unarchive",
+  protect,
+  onlyAdmin,
+  adminController.unarchiveBusiness
+);
+
 // ================= AFFILIATE SETTINGS =================
 router.get(
   "/affiliate-settings",
@@ -51,6 +87,13 @@ router.put(
   protect,
   onlyAdmin,
   adminController.updateAffiliateSettings
+);
+
+router.put(
+  "/settings/admin-contact",
+  protect,
+  onlyAdmin,
+  adminController.updateAdminContact
 );
 
 // ================= AFFILIATE MANAGEMENT =================

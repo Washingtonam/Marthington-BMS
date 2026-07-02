@@ -8,6 +8,12 @@ const systemSettingsSchema = new mongoose.Schema(
       min: 0,
       max: 100
     }
+    ,
+    adminContact: {
+      name: { type: String, default: "Support" },
+      email: { type: String, default: "support@example.com" },
+      phone: { type: String, default: "" }
+    }
   },
   {
     timestamps: true

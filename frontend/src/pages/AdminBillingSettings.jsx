@@ -18,6 +18,8 @@ const AdminBillingSettings = () => {
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState("");
   const [notificationType, setNotificationType] = useState("success");
+  const [adminContact, setAdminContact] = useState({ name: "Support", email: "support@example.com", phone: "" });
+  const [savingContact, setSavingContact] = useState(false);
 
   // Load current pricing
   useEffect(() => {
@@ -46,6 +48,17 @@ const AdminBillingSettings = () => {
     };
 
     loadPricing();
+
+    // load admin contact
+    (async () => {
+      try {
+        const settingsRes = await request("/admin/affiliate-settings");
+        const settings = settingsRes?.settings || {};
+        if (settings.adminContact) setAdminContact(settings.adminContact);
+      } catch (err) {
+        // ignore
+      }
+    })();
   }, []);
 
   const handleInputChange = (e) => {
@@ -83,6 +96,30 @@ const AdminBillingSettings = () => {
       setNotification(`❌ Error updating prices: ${err.message}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleContactChange = (e) => {
+    const { name, value } = e.target;
+    setAdminContact((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleContactSave = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingContact(true);
+      await request("/admin/settings/admin-contact", {
+        method: "PUT",
+        body: JSON.stringify(adminContact)
+      });
+      setNotificationType("success");
+      setNotification("Admin contact updated");
+      setTimeout(() => setNotification(""), 4000);
+    } catch (err) {
+      setNotificationType("error");
+      setNotification(err.message || "Failed to update admin contact");
+    } finally {
+      setSavingContact(false);
     }
   };
 
@@ -242,6 +279,49 @@ const AdminBillingSettings = () => {
               ${form.yearlyUsd?.toLocaleString()}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* ADMIN CONTACT */}
+      <div className="mt-8 rounded-3xl bg-white p-8 shadow-xl border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-900 mb-4">System Admin Contact</h3>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Name</label>
+            <input
+              name="name"
+              value={adminContact.name}
+              onChange={handleContactChange}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+            <input
+              name="email"
+              value={adminContact.email}
+              onChange={handleContactChange}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Phone</label>
+            <input
+              name="phone"
+              value={adminContact.phone}
+              onChange={handleContactChange}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <button onClick={handleContactSave} disabled={savingContact} className="primary-button">
+            {savingContact ? "Saving..." : "Update Admin Contact"}
+          </button>
         </div>
       </div>
 

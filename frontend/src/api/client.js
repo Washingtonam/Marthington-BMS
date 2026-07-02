@@ -102,7 +102,11 @@ const request = async (path, options = {}) => {
               window.location.replace("/login");
               return;
             }
-            if (!retryRes.ok) throw new Error(retryData.message || "Request failed.");
+            if (!retryRes.ok) {
+              const e = new Error(retryData.message || "Request failed.");
+              e.body = retryData;
+              throw e;
+            }
             return retryData;
           });
         }
@@ -133,7 +137,11 @@ const request = async (path, options = {}) => {
             window.location.replace("/login");
             return;
           }
-          if (!retryRes.ok) throw new Error(retryData.message || "Request failed.");
+          if (!retryRes.ok) {
+            const e = new Error(retryData.message || "Request failed.");
+            e.body = retryData;
+            throw e;
+          }
           return retryData;
         } catch (err) {
           processQueue(err, null);
@@ -151,7 +159,11 @@ const request = async (path, options = {}) => {
       return;
     }
 
-    if (!response.ok) throw new Error(data.message || "Request failed.");
+    if (!response.ok) {
+      const e = new Error(data.message || "Request failed.");
+      e.body = data;
+      throw e;
+    }
 
     // SUCCESS: If we are fetching products, save them to IndexedDB for next time
     if (path.includes("/products") && (!options.method || options.method === "GET")) {

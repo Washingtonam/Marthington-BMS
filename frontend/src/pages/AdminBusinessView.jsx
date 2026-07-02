@@ -57,6 +57,74 @@ const AdminBusinessView = () => {
     }
   };
 
+  const handleSuspend = async () => {
+    if (!window.confirm("Suspend this business? Users will be blocked from logging in.")) return;
+    try {
+      setProcessing(true);
+      await request(`/admin/business/${id}/suspend`, { method: "PUT" });
+      await loadBusiness();
+    } catch (err) {
+      alert(err.message || "Failed to suspend business");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleUnsuspend = async () => {
+    try {
+      setProcessing(true);
+      await request(`/admin/business/${id}/unsuspend`, { method: "PUT" });
+      await loadBusiness();
+    } catch (err) {
+      alert(err.message || "Failed to unsuspend business");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!window.confirm("Archive this business? Users will be blocked but data kept.")) return;
+    try {
+      setProcessing(true);
+      await request(`/admin/business/${id}/archive`, { method: "PUT" });
+      await loadBusiness();
+    } catch (err) {
+      alert(err.message || "Failed to archive business");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    try {
+      setProcessing(true);
+      await request(`/admin/business/${id}/unarchive`, { method: "PUT" });
+      await loadBusiness();
+    } catch (err) {
+      alert(err.message || "Failed to unarchive business");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Permanently delete this business and ALL its data? This is irreversible and frees emails.")) return;
+    const reason = window.prompt("Reason for permanent deletion (required):");
+    if (!reason || !reason.trim()) {
+      alert("Deletion reason is required");
+      return;
+    }
+    try {
+      setProcessing(true);
+      await request(`/admin/business/${id}?permanent=true`, { method: "DELETE", body: JSON.stringify({ reason }) });
+      await loadBusiness();
+    } catch (err) {
+      alert(err.message || "Failed to delete business");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-6">Loading business...</div>;
   }
@@ -135,6 +203,54 @@ const AdminBusinessView = () => {
             className="bg-red-600 text-white px-3 py-2 rounded-md text-sm"
           >
             Downgrade
+          </button>
+
+          {business?.status !== "suspended" && business?.status !== "deleted" && (
+            <button
+              disabled={processing}
+              onClick={handleSuspend}
+              className="bg-yellow-500 text-white px-3 py-2 rounded-md text-sm"
+            >
+              Suspend
+            </button>
+          )}
+
+          {business?.status === "suspended" && (
+            <button
+              disabled={processing}
+              onClick={handleUnsuspend}
+              className="bg-green-500 text-white px-3 py-2 rounded-md text-sm"
+            >
+              Unsuspend
+            </button>
+          )}
+
+          {business?.status !== "archived" && (
+            <button
+              disabled={processing}
+              onClick={handleArchive}
+              className="bg-gray-500 text-white px-3 py-2 rounded-md text-sm"
+            >
+              Archive
+            </button>
+          )}
+
+          {business?.status === "archived" && (
+            <button
+              disabled={processing}
+              onClick={handleUnarchive}
+              className="bg-blue-500 text-white px-3 py-2 rounded-md text-sm"
+            >
+              Unarchive
+            </button>
+          )}
+
+          <button
+            disabled={processing}
+            onClick={handleDelete}
+            className="bg-gray-800 text-white px-3 py-2 rounded-md text-sm"
+          >
+            Delete (Permanent)
           </button>
 
         </div>

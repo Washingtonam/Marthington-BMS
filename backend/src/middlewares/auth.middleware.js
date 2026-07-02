@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import User from "../modules/users/user.model.js";
 import Business from "../modules/businesses/business.model.js";
+import SystemSettings from "../modules/admin/systemSettings.model.js";
 
 const protect = async (req, res, next) => {
   try {
@@ -90,6 +91,19 @@ const protect = async (req, res, next) => {
       activeBusiness?.isPro ||
       activeBusiness?.subscription?.plan === "pro" &&
         activeBusiness?.subscription?.status === "active";
+
+    // 🚫 BLOCK ACCESS IF BUSINESS SUSPENDED/ARCHIVED/DELETED (unless super_admin)
+    if (
+      activeBusiness &&
+      (activeBusiness.status === "suspended" || activeBusiness.status === "deleted" || activeBusiness.status === "archived") &&
+      user.role !== "super_admin"
+    ) {
+      const settings = await SystemSettings.findOne().lean();
+      return res.status(403).json({
+        message: activeBusiness.status === "deleted" ? "Organization removed - contact admin" : (activeBusiness.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
+        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+      });
+    }
 
     req.user = {
       id: user._id.toString(),

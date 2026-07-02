@@ -1,5 +1,6 @@
 import User from "../users/user.model.js";
 import Business from "../businesses/business.model.js";
+import SystemSettings from "../admin/systemSettings.model.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
 import jwt from "jsonwebtoken";
@@ -116,6 +117,15 @@ const login = async (req, res) => {
 
     const business = user.business || {};
 
+    // Block login if business suspended, archived or deleted
+    if (business.status === "suspended" || business.status === "deleted" || business.status === "archived") {
+      const settings = await SystemSettings.findOne().lean();
+      return res.status(403).json({
+        message: business.status === "deleted" ? "Organization removed - contact admin" : (business.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
+        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+      });
+    }
+
     const industryType =
       business.industryType || "retail";
 
@@ -175,6 +185,15 @@ const refresh = async (req, res) => {
     }
 
     const business = user.business || {};
+
+    // Block refresh if business suspended, archived or deleted
+    if (business.status === "suspended" || business.status === "deleted" || business.status === "archived") {
+      const settings = await SystemSettings.findOne().lean();
+      return res.status(403).json({
+        message: business.status === "deleted" ? "Organization removed - contact admin" : (business.status === "suspended" ? "Organization suspended - contact admin" : "Organization archived - contact admin"),
+        adminContact: settings?.adminContact || { name: "Support", email: "support@example.com", phone: "" }
+      });
+    }
 
     const industryType = business.industryType || "retail";
 

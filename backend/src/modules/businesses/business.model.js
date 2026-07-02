@@ -152,6 +152,15 @@ const businessSchema = new mongoose.Schema(
         return now;
       }
     }
+
+    ,
+    // 🔥 SOFT STATUS: active | suspended | archived | deleted
+    status: {
+      type: String,
+      enum: ["active", "suspended", "archived", "deleted"],
+      default: "active",
+      index: true
+    }
   },
   {
     timestamps: true

@@ -5,6 +5,8 @@ import Product from "../products/product.model.js";
 import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
+import mongoose from "mongoose";
+import Audit from "./audit.model.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -193,6 +195,126 @@ const updateSubscription = async (req, res) => {
   }
 };
 
+// ================= BUSINESS STATUS CONTROLS =================
+const suspendBusiness = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const reason = req.body.reason || "";
+    const business = await Business.findById(id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    business.status = "suspended";
+    await business.save();
+    // audit
+    await Audit.create({ operatorId: req.user.id, operatorEmail: req.user.email, action: "suspend", targetEntity: business._id, reason: reason || "suspended by admin" });
+    res.json({ message: "Business suspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const unsuspendBusiness = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const reason = req.body.reason || "";
+    const business = await Business.findById(id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    business.status = "active";
+    await business.save();
+    await Audit.create({ operatorId: req.user.id, operatorEmail: req.user.email, action: "unsuspend", targetEntity: business._id, reason: reason || "unsuspended by admin" });
+    res.json({ message: "Business unsuspended" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const deleteBusiness = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const permanent = req.query.permanent === "true";
+    const reason = (req.body && req.body.reason) || "";
+
+    if (permanent && !reason) {
+      return res.status(400).json({ message: "Reason is required for permanent deletion" });
+    }
+
+    const business = await Business.findById(id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+
+    // soft-delete by default
+    if (!permanent) {
+      business.status = "deleted";
+      await business.save();
+      await Audit.create({ operatorId: req.user.id, operatorEmail: req.user.email, action: "soft-delete", targetEntity: business._id, reason: reason || "soft deleted by admin" });
+      return res.json({ message: "Business marked as deleted (soft)" });
+    }
+
+    // Permanently remove business and related data within a transaction
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const Invoice = (await import("../invoices/invoice.model.js")).default;
+        const Customer = (await import("../customers/customer.model.js")).default;
+        const Expense = (await import("../expenses/expense.model.js")).default;
+        const PurchaseOrder = (await import("../purchaseOrders/purchaseOrder.model.js")).default;
+        const Supplier = (await import("../suppliers/supplier.model.js")).default;
+
+        await Product.deleteMany({ business: business._id }).session(session);
+        await Invoice.deleteMany({ business: business._id }).session(session);
+        await Sale.deleteMany({ business: business._id }).session(session);
+        await Customer.deleteMany({ business: business._id }).session(session);
+        await Expense.deleteMany({ business: business._id }).session(session);
+        await PurchaseOrder.deleteMany({ business: business._id }).session(session);
+        await Supplier.deleteMany({ business: business._id }).session(session);
+
+        // Remove users belonging to this business
+        await User.deleteMany({ business: business._id }).session(session);
+
+        // Finally remove the business document
+        await Business.deleteOne({ _id: business._id }).session(session);
+
+        // create audit within transaction
+        await Audit.create([{ operatorId: req.user.id, operatorEmail: req.user.email, action: "permanent-delete", targetEntity: business._id, reason }], { session });
+      });
+
+      res.json({ message: "Business permanently deleted" });
+    } finally {
+      session.endSession();
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const archiveBusiness = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const reason = req.body.reason || "";
+    const business = await Business.findById(id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    business.status = "archived";
+    await business.save();
+    await Audit.create({ operatorId: req.user.id, operatorEmail: req.user.email, action: "archive", targetEntity: business._id, reason: reason || "archived by admin" });
+    res.json({ message: "Business archived" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const unarchiveBusiness = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const reason = req.body.reason || "";
+    const business = await Business.findById(id);
+    if (!business) return res.status(404).json({ message: "Business not found" });
+    business.status = "active";
+    await business.save();
+    await Audit.create({ operatorId: req.user.id, operatorEmail: req.user.email, action: "unarchive", targetEntity: business._id, reason: reason || "unarchived by admin" });
+    res.json({ message: "Business unarchived" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getAffiliateSettings = async (req, res) => {
   try {
     let settings = await SystemSettings.findOne();
@@ -231,6 +353,22 @@ const updateAffiliateSettings = async (req, res) => {
       message: "Affiliate settings updated successfully",
       settings
     });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateAdminContact = async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    let settings = await SystemSettings.findOne();
+    if (!settings) {
+      settings = await SystemSettings.create({ adminContact: { name, email, phone } });
+    } else {
+      settings.adminContact = { name: name || settings.adminContact?.name || "Support", email: email || settings.adminContact?.email || "support@example.com", phone: phone || settings.adminContact?.phone || "" };
+      await settings.save();
+    }
+    res.json({ message: "Admin contact updated", adminContact: settings.adminContact });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -430,6 +568,13 @@ export default {
   getAffiliateSettings,
   updateAffiliateSettings
   ,
+  // business controls
+  suspendBusiness,
+  unsuspendBusiness,
+  deleteBusiness,
+  archiveBusiness,
+  unarchiveBusiness,
+  updateAdminContact,
   // affiliates
   listAffiliates,
   processAffiliatePayout,
