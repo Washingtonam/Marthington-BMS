@@ -7,7 +7,7 @@ import { formatCurrency } from "../utils/formatters.js";
 const AdminBusinessView = () => {
   const { id } = useParams();
   const { startImpersonation, refreshBusiness } = useAuth();
-
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
   const [processing, setProcessing] = useState(false);
@@ -60,8 +60,6 @@ const AdminBusinessView = () => {
   if (loading) {
     return <div className="p-6">Loading business...</div>;
   }
-
-  const navigate = useNavigate();
   const { business, products, sales, users } = data;
 
   return (
