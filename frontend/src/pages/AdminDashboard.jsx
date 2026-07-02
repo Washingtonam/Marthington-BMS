@@ -4,6 +4,7 @@ import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
+
 const tabs = [
   { id: "all", label: "All Businesses" },
   { id: "school", label: "Schools" },
