@@ -54,9 +54,22 @@ const request = async (path, options = {}) => {
 
   try {
     const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-    
-    // If the server is down or returns a 5xx error, jump to catch block to try offline
-    if (response.status >= 500) throw new Error("Server Error");
+
+    // If the server returns a 5xx, try to read its body to surface message, then jump to catch
+    if (response.status >= 500) {
+      let body = null;
+      try {
+        body = await response.json();
+      } catch (e) {
+        try {
+          body = await response.text();
+        } catch (ee) {
+          body = null;
+        }
+      }
+      const msg = (body && (body.message || body.error)) || body || "Server Error";
+      throw new Error(msg);
+    }
 
     const data = await response.json().catch(() => ({}));
 
@@ -77,7 +90,12 @@ const request = async (path, options = {}) => {
             };
 
             const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
-            if (retryRes.status >= 500) throw new Error("Server Error");
+            if (retryRes.status >= 500) {
+              let body = null;
+              try { body = await retryRes.json(); } catch (e) { try { body = await retryRes.text(); } catch (ee) { body = null; } }
+              const msg = (body && (body.message || body.error)) || body || "Server Error";
+              throw new Error(msg);
+            }
             const retryData = await retryRes.json().catch(() => ({}));
             if (retryRes.status === 401) {
               localStorage.clear();
@@ -103,7 +121,12 @@ const request = async (path, options = {}) => {
           };
 
           const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
-          if (retryRes.status >= 500) throw new Error("Server Error");
+          if (retryRes.status >= 500) {
+            let body = null;
+            try { body = await retryRes.json(); } catch (e) { try { body = await retryRes.text(); } catch (ee) { body = null; } }
+            const msg = (body && (body.message || body.error)) || body || "Server Error";
+            throw new Error(msg);
+          }
           const retryData = await retryRes.json().catch(() => ({}));
           if (retryRes.status === 401) {
             localStorage.clear();
