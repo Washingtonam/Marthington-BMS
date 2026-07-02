@@ -19,7 +19,7 @@ const register = async (req, res) => {
     } = req.body;
 
     // CHECK EXISTING USER
-    const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ email: (email || "").toLowerCase().trim() });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
@@ -36,9 +36,9 @@ const register = async (req, res) => {
     });
 
     // CREATE OWNER (🔥 FULL PERMISSIONS)
-    const user = await User.create({
-      name,
-      email,
+      const user = await User.create({
+        name,
+        email: (email || "").toLowerCase().trim(),
       password: hashedPassword,
       role: "owner",
       business: business._id,
@@ -95,7 +95,7 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).populate(
+      const user = await User.findOne({ email: (email || "").toLowerCase().trim() }).populate(
       "business"
     );
 

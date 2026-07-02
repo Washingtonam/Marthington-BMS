@@ -81,16 +81,14 @@ const createStaff = async (
 
     const {
       name,
-      email,
+      email: rawEmail,
       password,
       role,
       permissions
     } = req.body;
+    const email = (rawEmail || "").toLowerCase().trim();
 
-    const existing =
-      await User.findOne({
-        email
-      });
+    const existing = await User.findOne({ email });
 
     if (existing) {
       return res.status(409).json({
@@ -105,24 +103,14 @@ const createStaff = async (
         10
       );
 
-    const user =
-      await User.create({
-
-        name,
-
-        email,
-
-        password: hashed,
-
-        role:
-          role || "staff",
-
-        permissions:
-          permissions || {},
-
-        business:
-          req.user.businessId
-      });
+    const user = await User.create({
+      name,
+      email,
+      password: hashed,
+      role: role || "staff",
+      permissions: permissions || {},
+      business: req.user.businessId
+    });
 
     res.json({
       message: "Staff created",
