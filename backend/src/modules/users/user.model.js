@@ -93,6 +93,11 @@ const userSchema = new mongoose.Schema(
       default: null
     },
 
+    refreshToken: {
+      type: String,
+      default: null
+    },
+
     permissions: {
       type: permissionSchema,
 

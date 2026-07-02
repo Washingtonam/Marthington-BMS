@@ -2,6 +2,44 @@ import { db } from "./offlineDb";
 
 const API_URL = "https://marthington.onrender.com/api";
 
+let isRefreshing = false;
+let refreshQueue = [];
+
+const processQueue = (error, token = null) => {
+  refreshQueue.forEach(p => {
+    if (error) p.reject(error);
+    else p.resolve(token);
+  });
+  refreshQueue = [];
+};
+
+const doRefresh = async () => {
+  const refresh = localStorage.getItem("bms_refresh");
+  if (!refresh) throw new Error("No refresh token");
+
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken: refresh })
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Refresh failed");
+  }
+
+  const data = await res.json().catch(() => ({}));
+
+  if (data.token) {
+    localStorage.setItem("bms_token", data.token);
+  }
+  if (data.refreshToken) {
+    localStorage.setItem("bms_refresh", data.refreshToken);
+  }
+
+  return data.token;
+};
+
 const request = async (path, options = {}) => {
   const token = localStorage.getItem("bms_token");
   const impersonation = localStorage.getItem("bms_impersonation");
@@ -23,6 +61,68 @@ const request = async (path, options = {}) => {
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
+      // If token expired, try to refresh and retry once
+      if (data && data.message === "Token expired") {
+        if (isRefreshing) {
+          // Queue this request until refresh completes
+          return new Promise((resolve, reject) => {
+            refreshQueue.push({ resolve, reject });
+          }).then(async (token) => {
+            const tokenHeader = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers = {
+              ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+              ...(tokenHeader || {}),
+              ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+              ...options.headers
+            };
+
+            const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
+            if (retryRes.status >= 500) throw new Error("Server Error");
+            const retryData = await retryRes.json().catch(() => ({}));
+            if (retryRes.status === 401) {
+              localStorage.clear();
+              window.location.replace("/login");
+              return;
+            }
+            if (!retryRes.ok) throw new Error(retryData.message || "Request failed.");
+            return retryData;
+          });
+        }
+
+        isRefreshing = true;
+        try {
+          const newToken = await doRefresh();
+          processQueue(null, newToken);
+
+          const tokenHeader = newToken ? { Authorization: `Bearer ${newToken}` } : {};
+          const headers = {
+            ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+            ...(tokenHeader || {}),
+            ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+            ...options.headers
+          };
+
+          const retryRes = await fetch(`${API_URL}${path}`, { ...options, headers });
+          if (retryRes.status >= 500) throw new Error("Server Error");
+          const retryData = await retryRes.json().catch(() => ({}));
+          if (retryRes.status === 401) {
+            localStorage.clear();
+            window.location.replace("/login");
+            return;
+          }
+          if (!retryRes.ok) throw new Error(retryData.message || "Request failed.");
+          return retryData;
+        } catch (err) {
+          processQueue(err, null);
+          localStorage.clear();
+          window.location.replace("/login");
+          return;
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      // Other 401 -> force logout
       localStorage.clear();
       window.location.replace("/login");
       return;

@@ -2,6 +2,7 @@ import User from "../users/user.model.js";
 import Business from "../businesses/business.model.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
+import jwt from "jsonwebtoken";
 
 // 🔥 REGISTER (FULL BUSINESS ONBOARDING)
 const register = async (req, res) => {
@@ -65,8 +66,18 @@ const register = async (req, res) => {
       false
     );
 
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
     res.json({
       token,
+      refreshToken,
       user: {
         ...user.toObject(),
         industryType: business.industryType,
@@ -116,8 +127,77 @@ const login = async (req, res) => {
 
     const token = generateToken(user, industryType, isPro);
 
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    user.refreshToken = refreshToken;
+    await user.save();
+
     res.json({
       token,
+      refreshToken,
+      user: {
+        ...user.toObject(),
+        industryType,
+        isPro
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔁 REFRESH ACCESS TOKEN
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: "No refresh token provided" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(
+        refreshToken,
+        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
+      );
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired refresh token" });
+    }
+
+    const user = await User.findById(decoded.id).populate("business");
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({ message: "Invalid refresh token" });
+    }
+
+    const business = user.business || {};
+
+    const industryType = business.industryType || "retail";
+
+    const isPro =
+      business.isPro ||
+      (business.subscription?.plan === "pro" &&
+        business.subscription?.status === "active") ||
+      false;
+
+    const token = generateToken(user, industryType, isPro);
+
+    const newRefresh = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    user.refreshToken = newRefresh;
+    await user.save();
+
+    res.json({
+      token,
+      refreshToken: newRefresh,
       user: {
         ...user.toObject(),
         industryType,
@@ -131,5 +211,6 @@ const login = async (req, res) => {
 
 export default {
   register,
-  login
+  login,
+  refresh
 };
