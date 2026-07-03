@@ -107,6 +107,7 @@ const protect = async (req, res, next) => {
 
     req.user = {
       id: user._id.toString(),
+      _id: user._id.toString(),
       email: user.email || "",
       name: user.name || "",
       role: user.role,
