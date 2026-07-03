@@ -68,12 +68,12 @@ const Billing = () => {
       setProcessing(planType);
       setError("");
 
-      const data = await request("/billing/initialize", {
+      const data = await request("/payments/initialize", {
         method: "POST",
-        body: JSON.stringify({ planType, currency })
+        body: JSON.stringify({ billingCycle: planType, currency })
       });
 
-      const url = data?.url || data?.link;
+      const url = data?.authorizationUrl || data?.url || data?.link;
       if (!url) {
         throw new Error("Could not get the checkout URL from the server.");
       }

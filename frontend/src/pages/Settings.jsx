@@ -173,15 +173,15 @@ const Settings = () => {
       setIsSubscribing(true);
       setUpgradeMsg("");
 
-      const response = await request("/billing/initialize", {
+      const response = await request("/payments/initialize", {
         method: "POST",
         body: JSON.stringify({
-          planType,
+          billingCycle: planType,
           currency
         })
       });
 
-      const url = response?.url || response?.link;
+      const url = response?.authorizationUrl || response?.url || response?.link;
 
       if (!url) {
         throw new Error("Could not get the checkout url from the server.");

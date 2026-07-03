@@ -69,9 +69,10 @@ const initializeSubscription = async (req, res) => {
     // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
       email: business.email,
-      amount: amountInNaira * 100, 
-      // 🔥 ADDED: This ensures Paystack redirects back to Marthington
-      callback_url: "https://marthington.onrender.com/settings", 
+      amount: amountInNaira * 100,
+      callback_url: process.env.FRONTEND_URL
+        ? `${process.env.FRONTEND_URL}/settings`
+        : "https://marthington.onrender.com/settings",
       metadata: {
         businessId: business._id.toString(),
         billingCycle
