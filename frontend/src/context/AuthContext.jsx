@@ -166,6 +166,13 @@ export const AuthProvider = ({ children }) => {
       session.token
     );
 
+    if (session.refreshToken) {
+      localStorage.setItem(
+        "bms_refresh",
+        session.refreshToken
+      );
+    }
+
     const normalizedUser = normalizeUser(session.user || {});
 
     localStorage.setItem(
@@ -208,6 +215,8 @@ export const AuthProvider = ({ children }) => {
   // 🔥 LOGOUT
   const logout = () => {
     localStorage.removeItem("bms_token");
+
+    localStorage.removeItem("bms_refresh");
 
     localStorage.removeItem("bms_user");
 

@@ -1,5 +1,6 @@
 import User from "../users/user.model.js";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import generateToken from "../../utils/generateToken.js";
 
 const registerAffiliate = async (req, res) => {
@@ -42,9 +43,18 @@ const registerAffiliate = async (req, res) => {
     });
 
     const token = generateToken(user, "retail", false);
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+
+    user.refreshToken = refreshToken;
+    await user.save();
 
     res.json({
       token,
+      refreshToken,
       user: {
         ...user.toObject(),
         industryType: "retail",
