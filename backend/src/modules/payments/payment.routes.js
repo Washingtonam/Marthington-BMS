@@ -7,6 +7,22 @@ import paymentController from "./payment.controller.js";
 const router = express.Router();
 
 // ======================================
+// PAYSTACK WEBHOOK (PUBLIC - NO AUTH)
+// ======================================
+// Must be defined FIRST and with express.raw() to capture raw body
+router.post(
+  "/paystack/webhook",
+  express.raw({ type: "application/json" }),
+  // Custom middleware to parse raw body and attach it
+  (req, res, next) => {
+    req.rawBody = req.body;
+    req.body = JSON.parse(req.body.toString());
+    next();
+  },
+  paymentController.handlePaystackWebhook
+);
+
+// ======================================
 // STATUS
 // ======================================
 
