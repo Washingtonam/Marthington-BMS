@@ -57,7 +57,8 @@ const initializeSubscription = async (req, res) => {
 
     const billingCycle = req.body.billingCycle || req.query.cycle;
     const currency = (req.body.currency || "NGN").toUpperCase();
-    const requestedAmount = Number(req.body.amount);
+    const requestedAmountRaw = req.body.amount;
+    const requestedAmount = requestedAmountRaw != null ? Number(requestedAmountRaw) : null;
 
     if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
       return res.status(400).json({
@@ -71,13 +72,19 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    if (!requestedAmount || Number.isNaN(requestedAmount) || requestedAmount <= 0) {
+    if (requestedAmountRaw != null && (Number.isNaN(requestedAmount) || requestedAmount <= 0)) {
       return res.status(400).json({
         message: "Please provide a valid amount for the selected billing cycle."
       });
     }
 
     const business = await Business.findById(req.user.businessId);
+    console.log("[payments.initialize] business lookup result:", {
+      businessId: req.user.businessId,
+      found: Boolean(business),
+      email: business?.email,
+      status: business?.status
+    });
 
     if (!business || !business.email) {
       return res.status(400).json({
@@ -88,9 +95,12 @@ const initializeSubscription = async (req, res) => {
     const amountInNaira = billingCycle === "yearly" ? 150000 : 15000;
     const expectedAmount = currency === "USD" ? (billingCycle === "yearly" ? 100 : 10) * 100 : amountInNaira * 100;
 
-    if (requestedAmount !== expectedAmount) {
-      return res.status(400).json({
-        message: "The requested amount does not match the selected plan and currency."
+    if (requestedAmountRaw != null && requestedAmount !== expectedAmount) {
+      console.warn("[payments.initialize] amount mismatch, using expected amount", {
+        requestedAmount,
+        expectedAmount,
+        billingCycle,
+        currency
       });
     }
 
