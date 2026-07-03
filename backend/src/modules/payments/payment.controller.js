@@ -64,7 +64,6 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    const requestedAmount = Number(req.body.amount);
     if (!requestedAmount || Number.isNaN(requestedAmount) || requestedAmount <= 0) {
       return res.status(400).json({
         message: "Please provide a valid amount for the selected billing cycle."
