@@ -96,6 +96,8 @@ const initializeSubscription = async (req, res) => {
       ? business.email.toString().trim()
       : req.user.email;
 
+    console.log("[payments.initialize] customerEmail:", customerEmail);
+
     if (!customerEmail) {
       console.warn("[payments.initialize] missing email on business and user", {
         businessId: req.user.businessId,
