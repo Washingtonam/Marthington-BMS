@@ -124,7 +124,20 @@ const initializeSubscription = async (req, res) => {
 
     const amount = expectedAmount;
 
-    // Initialize Paystack with subunit conversion
+    // ✅ STEP 1: PREPARE METADATA FOR PAYSTACK 🔒
+    const paymentMetadata = {
+      businessId: business._id.toString(),
+      billingCycle
+    };
+
+    console.log("[payments.initialize] 🔒 Prepared metadata for Paystack", {
+      businessId: paymentMetadata.businessId,
+      billingCycle: paymentMetadata.billingCycle
+    });
+
+    // ✅ STEP 2: INITIALIZE PAYSTACK WITH EXPLICIT METADATA
+    console.log("[payments.initialize] 📤 Calling Paystack API with metadata...");
+
     const payment = await initializePayment({
       email: customerEmail,
       amount,
@@ -132,18 +145,23 @@ const initializeSubscription = async (req, res) => {
       callback_url: process.env.FRONTEND_URL
         ? `${process.env.FRONTEND_URL}/settings`
         : "https://marthington.onrender.com/settings",
-      metadata: {
-        businessId: business._id.toString(),
-        billingCycle
-      }
+      metadata: paymentMetadata
     });
 
     if (!payment || !payment.authorization_url) {
+      console.error("[payments.initialize] ❌ Paystack response missing authorization_url", { payment });
       return res.status(502).json({
         message: "Failed to communicate with payment gateway. Please try again."
       });
     }
 
+    console.log("[payments.initialize] ✅ Paystack initialization successful", {
+      reference: payment.reference,
+      authorizationUrl: payment.authorization_url ? "✅ Generated" : "❌ Missing",
+      metadataPreserved: payment.metadata ? "✅ Preserved in response" : "⚠️  Check Paystack dashboard"
+    });
+
+    // ✅ STEP 3: RETURN AUTHORIZATION URL TO FRONTEND
     res.json({
       authorizationUrl: payment.authorization_url,
       reference: payment.reference
@@ -182,20 +200,45 @@ const verifySubscription = async (req, res) => {
       return res.status(400).json({ message: "Payment was not successful or is still pending." });
     }
 
+    // ✅ STEP 1: EXTRACT METADATA EXPLICITLY FROM PAYSTACK RESPONSE
+    // Paystack structure: response.data.data.metadata = { businessId, billingCycle }
     const metadata = payment.metadata || {};
-    if (!metadata.businessId) {
-      console.error("[payments.verify] Missing payment metadata", { reference, metadata });
-      return res.status(400).json({ message: "Payment metadata is missing business context." });
-    }
+    const { businessId, billingCycle } = metadata;
 
-    console.log("[payments.verify] Payment verified ✅", {
+    console.log("[payments.verify] 🔒 Metadata extracted from Paystack response", {
       reference,
-      businessId: metadata.businessId,
-      billingCycle: metadata.billingCycle,
-      amountNaira: payment.amount
+      businessId: businessId || "❌ MISSING",
+      billingCycle: billingCycle || "❌ MISSING",
+      allMetadata: metadata
     });
 
-    // ✅ STEP 1: INITIALIZE TRANSACTION (FOR ATOMICITY)
+    if (!businessId) {
+      console.error("[payments.verify] ❌ CRITICAL: businessId missing from payment metadata", {
+        reference,
+        metadata
+      });
+      return res.status(400).json({
+        message: "Payment metadata is missing business context. Please try again or contact support."
+      });
+    }
+
+    if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
+      console.error("[payments.verify] ❌ CRITICAL: Invalid or missing billingCycle", {
+        reference,
+        billingCycle
+      });
+      return res.status(400).json({
+        message: "Payment metadata has invalid billing cycle. Please try again."
+      });
+    }
+
+    console.log("[payments.verify] ✅ Metadata validation complete", {
+      reference,
+      businessId,
+      billingCycle
+    });
+
+    // ✅ STEP 2: INITIALIZE TRANSACTION (FOR ATOMICITY)
     try {
       await session.startTransaction();
       transactionStarted = true;
@@ -205,39 +248,40 @@ const verifySubscription = async (req, res) => {
       transactionStarted = false;
     }
 
-    // ✅ STEP 2: FETCH BUSINESS (LOAD CURRENT STATE)
+    // ✅ STEP 3: FETCH BUSINESS DOCUMENT (CURRENT STATE)
     const business = transactionStarted
-      ? await Business.findById(metadata.businessId).session(session)
-      : await Business.findById(metadata.businessId);
+      ? await Business.findById(businessId).session(session)
+      : await Business.findById(businessId);
 
     if (!business) {
       if (transactionStarted) await session.abortTransaction();
-      console.error("[payments.verify] Business not found", { businessId: metadata.businessId });
+      console.error("[payments.verify] Business not found", { businessId });
       return res.status(404).json({ message: "Business not found" });
     }
 
-    console.log("[payments.verify] Business loaded ✅", {
+    console.log("[payments.verify] ✅ Business loaded", {
       businessId: business._id,
       currentPlan: business.subscription?.plan,
-      industryType: business.industryType
+      industryType: business.industryType,
+      referredBy: business.referredBy || "No affiliate"
     });
 
-    // ✅ STEP 3: CALCULATE EXPIRATION DATE
+    // ✅ STEP 4: CALCULATE SUBSCRIPTION EXPIRATION
     const now = new Date();
     const expiresAt = new Date();
-    if (metadata.billingCycle === "yearly") {
+    if (billingCycle === "yearly") {
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     } else {
       expiresAt.setMonth(expiresAt.getMonth() + 1);
     }
 
-    console.log("[payments.verify] Expiration calculated ✅", {
+    console.log("[payments.verify] ✅ Expiration calculated", {
       startedAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      billingCycle: metadata.billingCycle
+      billingCycle
     });
 
-    // ✅ STEP 4: DETERMINE TIER
+    // ✅ STEP 5: DETERMINE TIER BASED ON INDUSTRY TYPE
     const tierMap = {
       retail: "Retail Pro Plan",
       school: "Premium Academic Plan",
@@ -247,56 +291,53 @@ const verifySubscription = async (req, res) => {
     const industryType = business.industryType || "retail";
     const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
 
-    // ✅ STEP 5: UPDATE BUSINESS DOCUMENT (THE SINGLE SOURCE OF TRUTH) 🔥
     const paymentAmountConverted = payment.amount / 100;
 
-    const update = {
-      plan: "pro",
-      isPro: true,
-      industryType,
-      subscription: {
-        plan: "pro",
-        billingCycle: metadata.billingCycle,
-        status: "active",
-        startedAt: now,
-        expiresAt,
-        amount: paymentAmountConverted,
-        reference,
-        tier
-      }
-    };
-
-    console.log("[payments.verify] Executing UPDATE on Business document", {
-      businessId: metadata.businessId,
-      update: JSON.stringify(update, null, 2)
-    });
+    // ✅ STEP 6: EXECUTE findByIdAndUpdate (SINGLE SOURCE OF TRUTH) 🔥
+    console.log("[payments.verify] 🔥 Executing Business document UPDATE (Single Source of Truth)");
 
     const updateOptions = { new: true };
     if (transactionStarted) updateOptions.session = session;
 
     const updatedBusiness = await Business.findByIdAndUpdate(
-      metadata.businessId,
-      update,
+      businessId,
+      {
+        plan: "pro",
+        isPro: true,
+        industryType,
+        subscription: {
+          plan: "pro",
+          billingCycle,
+          status: "active",
+          startedAt: now,
+          expiresAt,
+          amount: paymentAmountConverted,
+          reference,
+          tier
+        }
+      },
       updateOptions
     );
 
     if (!updatedBusiness) {
       if (transactionStarted) await session.abortTransaction();
-      console.error("[payments.verify] Business update failed (no document returned)", { businessId: metadata.businessId });
+      console.error("[payments.verify] ❌ Business update failed (no document returned)", { businessId });
       return res.status(500).json({ message: "Failed to update business subscription status." });
     }
 
-    console.log("[payments.verify] Business document updated ✅", {
+    console.log("[payments.verify] ✅ Business document updated (Single Source of Truth)", {
       businessId: updatedBusiness._id,
       plan: updatedBusiness.subscription.plan,
       status: updatedBusiness.subscription.status,
       expiresAt: updatedBusiness.subscription.expiresAt
     });
 
-    // ✅ STEP 6: EXECUTE AFFILIATE REVENUE SHARE RULE 🤝
+    // ✅ STEP 7: EXECUTE AFFILIATE REVENUE SHARE 🤝
     let affiliateCredit = null;
     if (updatedBusiness.referredBy) {
-      console.log("[payments.verify] Affiliate detected ✅", { referredBy: updatedBusiness.referredBy });
+      console.log("[payments.verify] 🤝 Processing affiliate commission...", {
+        referredBy: updatedBusiness.referredBy
+      });
 
       affiliateCredit = await creditAffiliate(
         updatedBusiness._id,
@@ -305,38 +346,43 @@ const verifySubscription = async (req, res) => {
       );
 
       if (affiliateCredit) {
-        console.log("[payments.verify] Affiliate commission credited ✅", {
+        console.log("[payments.verify] ✅ Affiliate commission credited", {
           affiliateId: affiliateCredit.affiliateId,
           affiliateCode: affiliateCredit.affiliateCode,
           commissionAmount: affiliateCredit.commissionAmount,
-          rateApplied: affiliateCredit.affiliateRate
+          rateApplied: `${affiliateCredit.affiliateRate}%`
         });
       } else {
-        console.warn("[payments.verify] Affiliate credit returned null (possibly invalid rate or amount)", { businessId: metadata.businessId });
+        console.warn("[payments.verify] ⚠️  Affiliate credit returned null (no valid affiliate or rate)", {
+          businessId,
+          referredBy: updatedBusiness.referredBy
+        });
       }
     } else {
-      console.log("[payments.verify] No affiliate for this business (no referredBy)", { businessId: metadata.businessId });
+      console.log("[payments.verify] ℹ️  No affiliate for this business (no referredBy)", { businessId });
     }
 
-    // ✅ STEP 7: COMMIT TRANSACTION
+    // ✅ STEP 8: COMMIT ATOMIC TRANSACTION
     if (transactionStarted) {
       await session.commitTransaction();
-      console.log("[payments.verify] Transaction committed ✅");
+      console.log("[payments.verify] ✅ Transaction committed");
     }
 
     console.log("[payments.verify] 🎉 PAYMENT SYNCHRONIZATION COMPLETE", {
+      reference,
       businessId: updatedBusiness._id,
-      steps: [
-        "✅ Payment verified with gateway",
-        "✅ Business document updated (single source of truth)",
-        "✅ Affiliate revenue share processed",
+      completedSteps: [
+        "✅ Payment verified with Paystack",
+        "✅ Metadata extracted (businessId, billingCycle)",
+        "✅ Business document updated to PRO",
+        "✅ Affiliate commission processed",
         "✅ Transaction committed atomically"
       ]
     });
 
-    // ✅ STEP 8: RETURN SUCCESS RESPONSE
+    // ✅ STEP 9: RETURN SUCCESS RESPONSE
     return res.json({
-      message: "Subscription activated successfully! Full chain reaction executed.",
+      message: "Subscription activated successfully! Full synchronization chain executed.",
       subscription: {
         plan: updatedBusiness.subscription.plan,
         billingCycle: updatedBusiness.subscription.billingCycle,
