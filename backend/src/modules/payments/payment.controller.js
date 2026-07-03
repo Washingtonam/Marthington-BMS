@@ -49,10 +49,17 @@ const getSubscriptionStatus = async (req, res) => {
 const initializeSubscription = async (req, res) => {
   try {
     const billingCycle = req.body.billingCycle || req.query.cycle;
+  const currency = (req.body.currency || "NGN").toUpperCase();
 
     if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
       return res.status(400).json({
         message: "Please provide a valid billing cycle (monthly or yearly)."
+      });
+    }
+
+    if (!['NGN', 'USD'].includes(currency)) {
+      return res.status(400).json({
+        message: "Please provide a valid currency (NGN or USD)."
       });
     }
 
@@ -65,11 +72,13 @@ const initializeSubscription = async (req, res) => {
     }
 
     const amountInNaira = billingCycle === "yearly" ? 150000 : 15000;
+    const amount = currency === "USD" ? (billingCycle === "yearly" ? 100 : 10) * 100 : amountInNaira * 100;
 
     // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
       email: business.email,
-      amount: amountInNaira * 100,
+      amount,
+      currency,
       callback_url: process.env.FRONTEND_URL
         ? `${process.env.FRONTEND_URL}/settings`
         : "https://marthington.onrender.com/settings",

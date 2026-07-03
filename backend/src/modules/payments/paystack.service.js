@@ -13,7 +13,7 @@ const validateConfig = () => {
 // ======================================
 // INITIALIZE PAYMENT
 // ======================================
-export const initializePayment = async ({ email, amount, metadata }) => {
+export const initializePayment = async ({ email, amount, metadata, callback_url, currency = "NGN" }) => {
   try {
     validateConfig();
 
@@ -22,6 +22,8 @@ export const initializePayment = async ({ email, amount, metadata }) => {
       {
         email,
         amount, // Ensure this is already multiplied by 100 in the controller
+        currency,
+        callback_url,
         metadata,
       },
       {
