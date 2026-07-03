@@ -156,32 +156,46 @@ const initializeSubscription = async (req, res) => {
 const verifySubscription = async (req, res) => {
   const session = await Business.startSession();
 
+  let transactionStarted = false;
+
   try {
     const { reference } = req.query;
 
     if (!reference) {
-      return res.status(400).json({
-        message: "Reference missing"
-      });
+      return res.status(400).json({ message: "Reference missing" });
     }
 
     const payment = await verifyPayment(reference);
 
     if (!payment || payment.status !== "success") {
-      return res.status(400).json({
-        message: "Payment was not successful or is still pending."
-      });
+      return res.status(400).json({ message: "Payment was not successful or is still pending." });
     }
 
     const metadata = payment.metadata || {};
     if (!metadata.businessId) {
-      return res.status(400).json({
-        message: "Payment metadata is missing business context."
-      });
+      return res.status(400).json({ message: "Payment metadata is missing business context." });
     }
 
     console.log("[payments.verify] Upgrading Business ID:", metadata.businessId);
-    await session.startTransaction();
+
+    // attempt to start transaction; if it fails (standalone MongoDB), we'll continue without a session
+    try {
+      await session.startTransaction();
+      transactionStarted = true;
+    } catch (txErr) {
+      console.warn("[payments.verify] transactions not available, continuing without transaction:", txErr.message);
+      transactionStarted = false;
+    }
+
+    // load business (attach session only if transactions started)
+    const business = transactionStarted
+      ? await Business.findById(metadata.businessId).session(session)
+      : await Business.findById(metadata.businessId);
+
+    if (!business) {
+      if (transactionStarted) await session.abortTransaction();
+      return res.status(404).json({ message: "Business not found" });
+    }
 
     const now = new Date();
     const expiresAt = new Date();
@@ -196,14 +210,6 @@ const verifySubscription = async (req, res) => {
       school: "Premium Academic Plan",
       hospital: "Premium Health Plan"
     };
-
-    const business = await Business.findById(metadata.businessId).session(session);
-    if (!business) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        message: "Business not found"
-      });
-    }
 
     const industryType = business.industryType || "retail";
     const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
@@ -225,47 +231,42 @@ const verifySubscription = async (req, res) => {
       }
     };
 
-    console.log("[payments.verify] update payload:", {
-      businessId: metadata.businessId,
-      update
-    });
+    console.log("[payments.verify] update payload:", { businessId: metadata.businessId, update });
 
-    const updatedBusiness = await Business.findByIdAndUpdate(
-      metadata.businessId,
-      update,
-      { new: true, session }
-    );
+    const updateOptions = { new: true };
+    if (transactionStarted) updateOptions.session = session;
+
+    const updatedBusiness = await Business.findByIdAndUpdate(metadata.businessId, update, updateOptions);
 
     if (!updatedBusiness) {
-      await session.abortTransaction();
+      if (transactionStarted) await session.abortTransaction();
       console.error("[payments.verify] Business update returned no document", { businessId: metadata.businessId });
-      return res.status(500).json({
-        message: "Failed to update business subscription status."
-      });
+      return res.status(500).json({ message: "Failed to update business subscription status." });
     }
 
-    const affiliateCredit = await creditAffiliate(updatedBusiness._id, payment.amount / 100, session);
+    const affiliateCredit = await creditAffiliate(updatedBusiness._id, payment.amount / 100, transactionStarted ? session : null);
 
-    await session.commitTransaction();
+    if (transactionStarted) {
+      await session.commitTransaction();
+    }
 
     console.log("[payments.verify] affiliate credit result:", affiliateCredit);
 
-    res.json({
-      message: "Subscription activated successfully!",
-      subscription: updatedBusiness.subscription,
-      affiliateCredit: affiliateCredit || null
-    });
-
+    return res.json({ message: "Subscription activated successfully!", subscription: updatedBusiness.subscription, affiliateCredit: affiliateCredit || null });
   } catch (err) {
     console.error("❌ Payment Verification Error:", err);
-    if (session.inTransaction()) {
-      await session.abortTransaction();
+    try {
+      if (transactionStarted && session.inTransaction()) await session.abortTransaction();
+    } catch (e) {
+      console.error("[payments.verify] abortTransaction failed:", e);
     }
-    return res.status(500).json({
-      message: err.message || "An error occurred while verifying your subscription."
-    });
+    return res.status(500).json({ message: err.message || "An error occurred while verifying your subscription." });
   } finally {
-    session.endSession();
+    try {
+      session.endSession();
+    } catch (e) {
+      // ignore
+    }
   }
 };
 
