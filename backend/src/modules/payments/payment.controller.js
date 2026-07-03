@@ -48,6 +48,13 @@ const getSubscriptionStatus = async (req, res) => {
 // ======================================
 const initializeSubscription = async (req, res) => {
   try {
+    console.log("[payments.initialize] request body:", req.body);
+    console.log("[payments.initialize] auth user:", {
+      id: req.user?.id,
+      businessId: req.user?.businessId,
+      email: req.user?.email
+    });
+
     const billingCycle = req.body.billingCycle || req.query.cycle;
     const currency = (req.body.currency || "NGN").toUpperCase();
     const requestedAmount = Number(req.body.amount);
