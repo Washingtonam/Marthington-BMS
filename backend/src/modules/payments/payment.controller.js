@@ -86,9 +86,20 @@ const initializeSubscription = async (req, res) => {
       status: business?.status
     });
 
-    if (!business || !business.email) {
+    if (!business) {
       return res.status(400).json({
-        message: "Business account or email not found."
+        message: "Business account not found."
+      });
+    }
+
+    const emailForPayment = business.email || req.user.email;
+    if (!emailForPayment) {
+      console.warn("[payments.initialize] missing email on business and user", {
+        businessId: req.user.businessId,
+        userId: req.user.id
+      });
+      return res.status(400).json({
+        message: "Business email not found. Please add an email to your business profile."
       });
     }
 
@@ -108,7 +119,7 @@ const initializeSubscription = async (req, res) => {
 
     // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
-      email: business.email,
+      email: emailForPayment,
       amount,
       currency,
       callback_url: process.env.FRONTEND_URL
