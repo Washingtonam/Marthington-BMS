@@ -173,11 +173,16 @@ const Settings = () => {
       setIsSubscribing(true);
       setUpgradeMsg("");
 
+      const amount = currency === "USD"
+        ? (planType === "yearly" ? 100 : 10) * 100
+        : (planType === "yearly" ? 150000 : 15000) * 100;
+
       const response = await request("/payments/initialize", {
         method: "POST",
         body: JSON.stringify({
           billingCycle: planType,
-          currency
+          currency,
+          amount
         })
       });
 

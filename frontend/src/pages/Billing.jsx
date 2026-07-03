@@ -68,9 +68,13 @@ const Billing = () => {
       setProcessing(planType);
       setError("");
 
+      const amount = currency === "USD"
+        ? (planType === "yearly" ? pricing.yearly.usd : pricing.monthly.usd) * 100
+        : (planType === "yearly" ? pricing.yearly.ngn : pricing.monthly.ngn) * 100;
+
       const data = await request("/payments/initialize", {
         method: "POST",
-        body: JSON.stringify({ billingCycle: planType, currency })
+        body: JSON.stringify({ billingCycle: planType, currency, amount })
       });
 
       const url = data?.authorizationUrl || data?.url || data?.link;

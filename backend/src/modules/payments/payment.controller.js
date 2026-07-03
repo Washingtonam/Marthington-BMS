@@ -50,6 +50,7 @@ const initializeSubscription = async (req, res) => {
   try {
     const billingCycle = req.body.billingCycle || req.query.cycle;
   const currency = (req.body.currency || "NGN").toUpperCase();
+  const requestedAmount = req.body.amount;
 
     if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
       return res.status(400).json({
@@ -63,6 +64,13 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
+    const requestedAmount = Number(req.body.amount);
+    if (!requestedAmount || Number.isNaN(requestedAmount) || requestedAmount <= 0) {
+      return res.status(400).json({
+        message: "Please provide a valid amount for the selected billing cycle."
+      });
+    }
+
     const business = await Business.findById(req.user.businessId);
 
     if (!business || !business.email) {
@@ -72,7 +80,15 @@ const initializeSubscription = async (req, res) => {
     }
 
     const amountInNaira = billingCycle === "yearly" ? 150000 : 15000;
-    const amount = currency === "USD" ? (billingCycle === "yearly" ? 100 : 10) * 100 : amountInNaira * 100;
+    const expectedAmount = currency === "USD" ? (billingCycle === "yearly" ? 100 : 10) * 100 : amountInNaira * 100;
+
+    if (requestedAmount !== expectedAmount) {
+      return res.status(400).json({
+        message: "The requested amount does not match the selected plan and currency."
+      });
+    }
+
+    const amount = expectedAmount;
 
     // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
