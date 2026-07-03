@@ -180,15 +180,8 @@ const verifySubscription = async (req, res) => {
       });
     }
 
+    console.log("[payments.verify] Upgrading Business ID:", metadata.businessId);
     await session.startTransaction();
-
-    const business = await Business.findById(metadata.businessId).session(session);
-    if (!business) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        message: "Business not found"
-      });
-    }
 
     const now = new Date();
     const expiresAt = new Date();
@@ -204,44 +197,75 @@ const verifySubscription = async (req, res) => {
       hospital: "Premium Health Plan"
     };
 
+    const business = await Business.findById(metadata.businessId).session(session);
+    if (!business) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        message: "Business not found"
+      });
+    }
+
     const industryType = business.industryType || "retail";
     const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
 
-    business.subscription = {
-      ...business.subscription?.toObject?.(),
+    const update = {
       plan: "pro",
-      billingCycle: metadata.billingCycle,
-      status: "active",
-      startedAt: now,
-      expiresAt,
-      amount: payment.amount / 100,
-      reference,
-      tier
+      isPro: true,
+      industryType,
+      subscription: {
+        ...business.subscription?.toObject?.(),
+        plan: "pro",
+        billingCycle: metadata.billingCycle,
+        status: "active",
+        startedAt: now,
+        expiresAt,
+        amount: payment.amount / 100,
+        reference,
+        tier
+      }
     };
-    business.plan = "pro";
-    business.isPro = true;
-    business.industryType = industryType;
 
-    await business.save({ session });
+    console.log("[payments.verify] update payload:", {
+      businessId: metadata.businessId,
+      update
+    });
 
-    const affiliateCredit = await creditAffiliate(business._id, payment.amount / 100, session);
+    const updatedBusiness = await Business.findByIdAndUpdate(
+      metadata.businessId,
+      update,
+      { new: true, session }
+    );
+
+    if (!updatedBusiness) {
+      await session.abortTransaction();
+      console.error("[payments.verify] Business update returned no document", { businessId: metadata.businessId });
+      return res.status(500).json({
+        message: "Failed to update business subscription status."
+      });
+    }
+
+    const affiliateCredit = await creditAffiliate(updatedBusiness._id, payment.amount / 100, session);
 
     await session.commitTransaction();
-    session.endSession();
 
     console.log("[payments.verify] affiliate credit result:", affiliateCredit);
 
     res.json({
       message: "Subscription activated successfully!",
-      subscription: business.subscription,
+      subscription: updatedBusiness.subscription,
       affiliateCredit: affiliateCredit || null
     });
 
   } catch (err) {
-    console.error("❌ Payment Verification Error:", err.message);
-    res.status(500).json({
+    console.error("❌ Payment Verification Error:", err);
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    return res.status(500).json({
       message: err.message || "An error occurred while verifying your subscription."
     });
+  } finally {
+    session.endSession();
   }
 };
 
