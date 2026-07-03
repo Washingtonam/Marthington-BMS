@@ -92,11 +92,16 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    const emailForPayment = business.email || req.user.email;
-    if (!emailForPayment) {
+    const customerEmail = (business.email && business.email.toString().trim().length)
+      ? business.email.toString().trim()
+      : req.user.email;
+
+    if (!customerEmail) {
       console.warn("[payments.initialize] missing email on business and user", {
         businessId: req.user.businessId,
-        userId: req.user.id
+        businessEmail: business.email,
+        userId: req.user.id,
+        userEmail: req.user.email
       });
       return res.status(400).json({
         message: "Business email not found. Please add an email to your business profile."
@@ -119,7 +124,7 @@ const initializeSubscription = async (req, res) => {
 
     // Initialize Paystack with subunit conversion
     const payment = await initializePayment({
-      email: emailForPayment,
+      email: customerEmail,
       amount,
       currency,
       callback_url: process.env.FRONTEND_URL
