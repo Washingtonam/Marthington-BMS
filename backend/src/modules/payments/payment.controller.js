@@ -49,8 +49,8 @@ const getSubscriptionStatus = async (req, res) => {
 const initializeSubscription = async (req, res) => {
   try {
     const billingCycle = req.body.billingCycle || req.query.cycle;
-  const currency = (req.body.currency || "NGN").toUpperCase();
-  const requestedAmount = req.body.amount;
+    const currency = (req.body.currency || "NGN").toUpperCase();
+    const requestedAmount = Number(req.body.amount);
 
     if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
       return res.status(400).json({
