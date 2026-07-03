@@ -3,7 +3,7 @@ import Business from "../businesses/business.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
 
-export const creditAffiliate = async (businessId, paymentAmount) => {
+export const creditAffiliate = async (businessId, paymentAmount, session = null) => {
   if (!businessId) {
     throw new Error("businessId is required to credit affiliate commission.");
   }
@@ -13,7 +13,7 @@ export const creditAffiliate = async (businessId, paymentAmount) => {
     return null;
   }
 
-  const business = await Business.findById(businessId).lean();
+  const business = await Business.findById(businessId).session(session).lean();
   if (!business || !business.referredBy) {
     return null;
   }
@@ -21,13 +21,13 @@ export const creditAffiliate = async (businessId, paymentAmount) => {
   const affiliate = await User.findOne({
     affiliateCode: business.referredBy,
     role: "affiliate"
-  }).lean();
+  }).session(session).lean();
 
   if (!affiliate) {
     return null;
   }
 
-  const settings = await SystemSettings.findOne().lean();
+  const settings = await SystemSettings.findOne().session(session).lean();
   const affiliateRate = Number(settings?.globalAffiliateRate ?? 20);
   const commissionAmount = Number((amount * affiliateRate) / 100);
 
@@ -42,21 +42,27 @@ export const creditAffiliate = async (businessId, paymentAmount) => {
         walletBalance: commissionAmount,
         totalEarned: commissionAmount
       }
-    }
+    },
+    { session }
   );
 
-  await AffiliatePayout.create({
-    affiliateCode: affiliate.affiliateCode,
-    affiliate: affiliate._id,
-    business: business._id,
-    businessName: business.name || "Unknown Business",
-    industry: business.industryType || "N/A",
-    amountPaid: amount,
-    commissionEarned: commissionAmount,
-    rateApplied: affiliateRate,
-    status: "credited",
-    transactionDate: new Date()
-  });
+  await AffiliatePayout.create(
+    [
+      {
+        affiliateCode: affiliate.affiliateCode,
+        affiliate: affiliate._id,
+        business: business._id,
+        businessName: business.name || "Unknown Business",
+        industry: business.industryType || "N/A",
+        amountPaid: amount,
+        commissionEarned: commissionAmount,
+        rateApplied: affiliateRate,
+        status: "credited",
+        transactionDate: new Date()
+      }
+    ],
+    { session }
+  );
 
   return {
     affiliateId: affiliate._id,

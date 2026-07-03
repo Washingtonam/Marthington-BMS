@@ -154,6 +154,8 @@ const initializeSubscription = async (req, res) => {
 // VERIFY PAYMENT
 // ======================================
 const verifySubscription = async (req, res) => {
+  const session = await Business.startSession();
+
   try {
     const { reference } = req.query;
 
@@ -171,10 +173,18 @@ const verifySubscription = async (req, res) => {
       });
     }
 
-    const metadata = payment.metadata;
-    const business = await Business.findById(metadata.businessId);
+    const metadata = payment.metadata || {};
+    if (!metadata.businessId) {
+      return res.status(400).json({
+        message: "Payment metadata is missing business context."
+      });
+    }
 
+    await session.startTransaction();
+
+    const business = await Business.findById(metadata.businessId).session(session);
     if (!business) {
+      await session.abortTransaction();
       return res.status(404).json({
         message: "Business not found"
       });
@@ -182,33 +192,49 @@ const verifySubscription = async (req, res) => {
 
     const now = new Date();
     const expiresAt = new Date();
-
     if (metadata.billingCycle === "yearly") {
       expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     } else {
       expiresAt.setMonth(expiresAt.getMonth() + 1);
     }
 
-    // 🔥 Syncing both the subscription object and top-level plan field
+    const tierMap = {
+      retail: "Retail Pro Plan",
+      school: "Premium Academic Plan",
+      hospital: "Premium Health Plan"
+    };
+
+    const industryType = business.industryType || "retail";
+    const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
+
     business.subscription = {
+      ...business.subscription?.toObject?.(),
       plan: "pro",
       billingCycle: metadata.billingCycle,
       status: "active",
       startedAt: now,
       expiresAt,
-      amount: payment.amount / 100, 
-      reference
+      amount: payment.amount / 100,
+      reference,
+      tier
     };
+    business.plan = "pro";
+    business.isPro = true;
+    business.industryType = industryType;
 
-    business.plan = "pro"; 
+    await business.save({ session });
 
-    await business.save();
+    const affiliateCredit = await creditAffiliate(business._id, payment.amount / 100, session);
 
-    await creditAffiliate(business._id, payment.amount / 100);
+    await session.commitTransaction();
+    session.endSession();
+
+    console.log("[payments.verify] affiliate credit result:", affiliateCredit);
 
     res.json({
       message: "Subscription activated successfully!",
-      subscription: business.subscription
+      subscription: business.subscription,
+      affiliateCredit: affiliateCredit || null
     });
 
   } catch (err) {
