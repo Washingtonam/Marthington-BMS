@@ -9,15 +9,18 @@ export const buildSalesQuery = ({ businessId, isSuperAdmin = false, includeDelet
   const query = {};
 
   if (!isSuperAdmin) {
-    query.business = businessId;
+    query.$or = [
+      { business: businessId },
+      { businessId: businessId }
+    ];
   }
 
   if (includeDeleted) {
     if (!canAccessDeleted) {
-      return { ...query, isDeleted: false };
+      return { ...query, isDeleted: { $ne: true } };
     }
     return { ...query, isDeleted: true };
   }
 
-  return { ...query, isDeleted: false };
+  return { ...query, isDeleted: { $ne: true } };
 };
