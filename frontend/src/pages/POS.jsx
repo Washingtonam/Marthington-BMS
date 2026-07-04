@@ -5,6 +5,25 @@ import { getServices } from "../api/services.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+const formatDisplayText = (value = "") => {
+  const raw = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!raw) return "";
+
+  const normalized = raw.toLowerCase();
+  if (normalized === "b luethoot") return "Bluetooth Mouse";
+
+  return raw
+    .split(" ")
+    .map((word) => {
+      const lowered = word.toLowerCase();
+      if (["of", "and", "for", "the", "in", "to", "a", "an", "on", "at", "by"].includes(lowered)) {
+        return lowered;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
+};
+
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
@@ -27,7 +46,8 @@ const POS = () => {
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("products");
-  const [visibleProducts, setVisibleProducts] = useState(20);
+  const [pulseId, setPulseId] = useState(null);
+  const [pulseType, setPulseType] = useState("product");
 
   const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
   const [autoSend, setAutoSend] = useState(false);
@@ -186,6 +206,11 @@ const POS = () => {
         ...(isProduct && { maxStock: item.stock })
       }];
     });
+
+    const pulseKey = type === "product" ? item._id : `service-${item._id}`;
+    setPulseType(type);
+    setPulseId(pulseKey);
+    window.setTimeout(() => setPulseId(null), 220);
   }, []);
 
   const updateQty = (id, newQty) => {
@@ -245,29 +270,44 @@ const POS = () => {
     <div className="flex flex-col xl:flex-row gap-6 p-2 lg:p-4 bg-gray-50 min-h-screen">
       {/* LEFT COLUMN: INVENTORY */}
       <div className="flex-1 space-y-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border flex flex-wrap gap-4 items-center">
-          <input
-            type="text"
-            placeholder="Search products or services..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-[200px] bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-blue-500"
-          />
+        <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <label className="relative flex-1 min-w-[220px]">
+            <input
+              type="text"
+              placeholder="Search products or services..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-2xl border-none bg-slate-50 py-3 pl-4 pr-16 text-sm text-slate-700 focus:ring-2 focus:ring-slate-900"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              /
+            </span>
+          </label>
           <button 
             onClick={openCustomerDisplay}
-            className="px-4 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl text-xs font-bold text-white transition-all shadow-lg shadow-blue-100 flex items-center gap-2"
+            className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
+            aria-label="Open external display"
+            title="External Display"
           >
-            🖥️ External Display
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+              <rect x="3" y="5" width="18" height="12" rx="2"></rect>
+              <path d="M9 19h6"></path>
+              <path d="M12 17v2"></path>
+            </svg>
           </button>
         </div>
 
-        <div className="flex bg-gray-200 p-1 rounded-xl w-fit">
-          {["products", "services"].map(tab => (
+        <div className="relative flex w-fit rounded-2xl bg-slate-100 p-1">
+          <span
+            className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white shadow-sm transition-transform duration-200"
+            style={{ transform: activeTab === "products" ? "translateX(0%)" : "translateX(100%)" }}
+          />
+          {['products', 'services'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-8 py-2 rounded-lg capitalize transition-all ${
-                activeTab === tab ? "bg-white shadow-sm font-bold text-blue-600" : "text-gray-500"
+              className={`relative z-10 rounded-xl px-8 py-2 text-sm font-semibold capitalize transition-colors ${
+                activeTab === tab ? "text-slate-900" : "text-slate-500"
               }`}
             >
               {tab}
@@ -275,64 +315,83 @@ const POS = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
+        <div className="grid grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar md:grid-cols-2 2xl:grid-cols-3 max-h-[70vh]">
           {activeTab === "products" ? (
-            filteredProducts.map(p => (
-              <div 
-                key={p._id} 
-                onClick={() => addToCart(p, "product")}
-                className="bg-white p-4 rounded-xl border border-transparent hover:border-blue-500 hover:shadow-md cursor-pointer transition-all flex justify-between items-center group"
-              >
-                <div className="flex-1">
-                  <h3 className="font-bold text-sm text-gray-800 group-hover:text-blue-600 truncate max-w-[150px]">{p.name}</h3>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">{p.category || "General"} • {p.stock} Left</p>
+            filteredProducts.map(p => {
+              const pulseActive = pulseId === p._id && pulseType === "product";
+              return (
+                <div 
+                  key={p._id} 
+                  onClick={() => addToCart(p, "product")}
+                  className={`pos-card ${pulseActive ? "card-pulse" : ""}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold text-slate-800">{formatDisplayText(p.name)}</h3>
+                      <span className={`stock-badge ${Number(p.stock) < 5 ? "stock-warning" : ""}`}>
+                        {Number(p.stock) < 5 ? `${p.stock} left` : `${p.stock} left`}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      {formatDisplayText(p.category || "General")}
+                    </p>
+                  </div>
+                  <span className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm">
+                    {formatCurrency(p.sellingPrice || p.price)}
+                  </span>
                 </div>
-                <span className="font-black text-blue-700 bg-blue-50 px-2 py-1 rounded-lg">{formatCurrency(p.sellingPrice || p.price)}</span>
-              </div>
-            ))
+              );
+            })
           ) : (
-            filteredServices.map(s => (
-              <div 
-                key={s._id} 
-                onClick={() => addToCart(s, "service")}
-                className="bg-white p-4 rounded-xl border border-transparent hover:border-green-500 hover:shadow-md cursor-pointer transition-all flex justify-between items-center group"
-              >
-                <div>
-                  <h3 className="font-bold text-sm group-hover:text-green-600">{s.name}</h3>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase">Service</p>
+            filteredServices.map(s => {
+              const pulseActive = pulseId === `service-${s._id}` && pulseType === "service";
+              return (
+                <div 
+                  key={s._id} 
+                  onClick={() => addToCart(s, "service")}
+                  className={`pos-card pos-card-service ${pulseActive ? "card-pulse" : ""}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-slate-800">{formatDisplayText(s.name)}</h3>
+                    <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      {formatDisplayText(s.category || "General")}
+                    </p>
+                  </div>
+                  <span className="rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm">
+                    {formatCurrency(s.price)}
+                  </span>
                 </div>
-                <span className="font-black text-green-700 bg-green-50 px-2 py-1 rounded-lg">{formatCurrency(s.price)}</span>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
       {/* RIGHT COLUMN: CART */}
       <div className="xl:w-[400px]">
-        <div className="bg-white p-5 rounded-3xl shadow-xl border border-gray-100 sticky top-4">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-gray-800">Cart</h2>
-            <button onClick={() => setCart([])} className="text-[10px] font-black text-red-500 bg-red-50 px-3 py-1 rounded-full uppercase tracking-tighter">Clear</button>
+        <div className="sticky top-4 rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)]">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-black text-slate-900">Cart</h2>
+            <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Clear</button>
           </div>
 
-          <div className="space-y-3 max-h-[35vh] overflow-y-auto mb-6 pr-2 custom-scrollbar">
+          <div className="mb-6 max-h-[35vh] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
             {cart.length === 0 ? (
-              <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-2xl">
-                <p className="text-gray-300 text-xs font-bold uppercase tracking-widest">Cart is empty</p>
+              <div className="rounded-2xl border-2 border-dashed border-slate-100 py-10 text-center">
+                <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-300">Cart is empty</p>
               </div>
             ) : (
               cart.map(item => (
-                <div key={item._id} className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-xs text-gray-700 line-clamp-1 flex-1">{item.name}</span>
-                    <span className="text-sm font-black text-blue-600 ml-2">{formatCurrency(item.quantity * item.sellingPrice)}</span>
+                <div key={item._id} className="cart-item rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <span className="flex-1 text-xs font-semibold text-slate-700">{formatDisplayText(item.name)}</span>
+                    <span className="ml-2 text-sm font-black text-slate-900">{formatCurrency(item.quantity * item.sellingPrice)}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3 bg-white border rounded-xl px-2 py-1 shadow-sm">
-                      <button onClick={() => updateQty(item._id, item.quantity - 1)} className="w-6 h-6 flex items-center justify-center font-black hover:text-red-500">-</button>
-                      <span className="text-xs font-black w-4 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQty(item._id, item.quantity + 1)} className="w-6 h-6 flex items-center justify-center font-black hover:text-blue-500">+</button>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="cart-stepper flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+                      <button onClick={() => updateQty(item._id, item.quantity - 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900">-</button>
+                      <span className="w-4 text-center text-xs font-black text-slate-700">{item.quantity}</span>
+                      <button onClick={() => updateQty(item._id, item.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900">+</button>
                     </div>
                     
                     {canOverride && (
@@ -343,7 +402,7 @@ const POS = () => {
                           const newPrice = Number(e.target.value);
                           setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: newPrice} : i));
                         }}
-                        className="w-20 text-right text-xs border border-gray-200 rounded-lg p-1 bg-white font-black text-blue-600"
+                        className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700"
                       />
                     )}
                   </div>
@@ -352,19 +411,19 @@ const POS = () => {
             )}
           </div>
 
-          <div className="pt-4 border-t border-dashed space-y-3">
+          <div className="space-y-3 border-t border-dashed border-slate-200 pt-4">
             <div className="grid grid-cols-2 gap-2">
               <input 
                 placeholder="Client Name"
                 value={customer.name}
                 onChange={e => setCustomer({...customer, name: e.target.value})}
-                className="text-xs font-bold border-gray-100 rounded-xl focus:ring-blue-500 bg-gray-50 p-3"
+                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
               />
               <input 
                 placeholder="WhatsApp"
                 value={customer.phone}
                 onChange={e => setCustomer({...customer, phone: e.target.value})}
-                className="text-xs font-bold border-gray-100 rounded-xl focus:ring-blue-500 bg-gray-50 p-3"
+                className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
               />
             </div>
 
@@ -372,32 +431,33 @@ const POS = () => {
               placeholder="Add notes (optional - will appear on receipt)"
               value={customer.notes}
               onChange={e => setCustomer({...customer, notes: e.target.value})}
-              className="w-full text-xs font-semibold border border-gray-100 rounded-xl focus:ring-blue-500 bg-gray-50 p-3 resize-none h-20"
+              className="h-20 w-full resize-none rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0"
             />
             
-            <div className="flex justify-between items-end py-2">
-                <div className="flex flex-col">
-                    <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Total Amount</span>
-                    <span className="text-3xl font-black text-gray-900">{formatCurrency(total)}</span>
-                </div>
-                <div className="flex items-center gap-2 mb-1">
-                    <input 
-                        type="checkbox" 
-                        checked={autoSend} 
-                        onChange={e => setAutoSend(e.target.checked)}
-                        className="rounded-full text-blue-600"
-                    />
-                    <span className="text-[10px] font-black text-gray-400 uppercase">WhatsApp</span>
-                </div>
+            <div className="flex flex-col items-center justify-center gap-2 py-3 text-center">
+                <span className="text-[10px] font-black uppercase tracking-[0.35em] text-slate-400">Total Amount</span>
+                <span className="text-3xl font-black tracking-tight text-slate-900">{formatCurrency(total)}</span>
             </div>
 
-            {upgradeMsg && <p className="text-center text-[10px] font-black text-red-500 bg-red-50 p-2 rounded-xl uppercase">{upgradeMsg}</p>}
+            <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setAutoSend(prev => !prev)}
+                  className={`flex h-6 w-12 items-center rounded-full border border-slate-200 p-1 transition-all ${autoSend ? "justify-end bg-slate-900" : "justify-start bg-slate-200"}`}
+                  aria-label="Toggle WhatsApp receipt"
+                >
+                  <span className="h-4 w-4 rounded-full bg-white shadow-sm"></span>
+                </button>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">WhatsApp</span>
+            </div>
+
+            {upgradeMsg && <p className="rounded-2xl bg-rose-50 p-2 text-center text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">{upgradeMsg}</p>}
 
             <button
               onClick={checkout}
               disabled={!cart.length || processing}
-              className={`w-full py-4 rounded-2xl font-black text-white transition-all transform active:scale-95 ${
-                processing ? "bg-gray-300" : "bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-200"
+              className={`w-full rounded-2xl py-4 text-sm font-black uppercase tracking-[0.2em] text-white transition-all active:translate-y-[1px] ${
+                processing ? "bg-slate-300" : "bg-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.16)] hover:bg-slate-800"
               }`}
             >
               {processing ? "PROCESSING..." : "CONFIRM & PRINT"}

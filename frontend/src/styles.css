@@ -30,6 +30,94 @@ button {
   cursor: pointer;
 }
 
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 7px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+}
+
+.pos-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 88px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 22px;
+  padding: 14px 16px;
+  background: #ffffff;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.pos-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 22px 40px rgba(15, 23, 42, 0.08);
+}
+
+.pos-card-service {
+  border-color: rgba(16, 185, 129, 0.16);
+}
+
+.card-pulse {
+  animation: cardPulse 220ms ease;
+}
+
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stock-badge.stock-warning {
+  color: #b45309;
+  background: #fff7ed;
+}
+
+.cart-item {
+  animation: slideUp 170ms ease;
+}
+
+.cart-stepper button {
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.cart-stepper button:hover {
+  transform: scale(1.04);
+}
+
+@keyframes cardPulse {
+  0% { transform: scale(0.98); background: #f5fbf5; }
+  100% { transform: scale(1); background: #ffffff; }
+}
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 .text-icon {
   display: inline-grid;
   width: 20px;
