@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom"; // 🔥 Added useNavigate for cleaner URL handling
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { startPaystackPayment } from "../utils/paystackPaymentHandler.js";
 
 const Settings = () => {
   const location = useLocation();
@@ -70,50 +69,44 @@ const Settings = () => {
     loadPricing();
   }, []);
 
-  // 🔥 UPDATED VERIFY PAYMENT: Post-redirect verification with instant UI refresh
+  // 🔥 UPDATED VERIFY PAYMENT: Handle Paystack redirect immediately and refresh UI
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const reference = params.get("reference");
 
-    if (reference) {
-      verifyPaymentRedirect(reference);
-    }
-  }, [location, refreshBusiness, navigate]);
+    if (!reference) return;
 
-  // 🔥 NEW: Payment callback handler (works with POST verify-redirect endpoint)
-  const verifyPaymentRedirect = async (reference) => {
-    try {
+    const verifyPaymentRedirect = async () => {
       setVerifying(true);
       setUpgradeMsg("Verifying your transaction with Paystack...");
 
-      console.log("[Settings] Verifying payment redirect with reference:", reference);
+      try {
+        const response = await request("/payments/verify-redirect", {
+          method: "POST",
+          body: JSON.stringify({ reference })
+        });
 
-      // Make POST request to the new endpoint with reference
-      const response = await request("/payments/verify-redirect", {
-        method: "POST",
-        body: JSON.stringify({ reference })
-      });
+        if (!response?.subscription) {
+          throw new Error("Payment verification completed but no subscription data was returned.");
+        }
 
-      console.log("[Settings] Verification response:", response);
+        // 🔥 Critical: refresh the auth context immediately so UI flips to Pro
+        await refreshBusiness();
 
-      // ✅ CRITICAL: Refresh AuthContext immediately
-      // This flips the UI from "Free" to "Pro" instantly without page reload
-      await refreshBusiness();
+        setUpgradeMsg("🎉 Upgrade successful! Your Pro features are now active.");
+        setVerifying(false);
 
-      setUpgradeMsg("🎉 Upgrade successful! Your Pro features are now active.");
-      setVerifying(false);
-
-      // ✅ Clean the URL: Removes the reference param so it doesn't re-verify on refresh
-      setTimeout(() => {
+        // Clean the URL so the verification does not run again on refresh
         navigate("/settings", { replace: true });
-      }, 1500);
+      } catch (err) {
+        console.error("Paystack redirect verification failed:", err);
+        setUpgradeMsg(err.message || "Payment verification failed. Please contact support.");
+        setVerifying(false);
+      }
+    };
 
-    } catch (err) {
-      console.error("[Settings] Verification failed:", err);
-      setUpgradeMsg(`❌ ${err.message || "Payment verification failed. Please contact support."}`);
-      setVerifying(false);
-    }
-  };
+    verifyPaymentRedirect();
+  }, [location.search, refreshBusiness, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -192,17 +185,31 @@ const Settings = () => {
       setIsSubscribing(true);
       setUpgradeMsg("");
 
-      // ✅ Use new payment handler utility
-      // This initializes payment and redirects to Paystack checkout
-      // After payment, user will be redirected back with ?reference=xxx
-      await startPaystackPayment(planType, { currency });
+      const amount = currency === "USD"
+        ? (planType === "yearly" ? 100 : 10) * 100
+        : (planType === "yearly" ? 150000 : 15000) * 100;
 
+      const response = await request("/payments/initialize", {
+        method: "POST",
+        body: JSON.stringify({
+          billingCycle: planType,
+          currency,
+          amount
+        })
+      });
+
+      const url = response?.authorizationUrl || response?.url || response?.link;
+
+      if (!url) {
+        throw new Error("Could not get the checkout url from the server.");
+      }
+
+      window.location.href = url;
     } catch (err) {
-      console.error("[Settings] Payment initiation failed:", err);
-      setUpgradeMsg(`❌ ${err.message || "Payment failed. Try again."}`);
+      setUpgradeMsg(err.message || "Payment failed. Try again.");
+    } finally {
       setIsSubscribing(false);
     }
-    // Note: setIsSubscribing(false) NOT called here because user is redirected to Paystack
   };
 
   if (loadingBusiness) {
@@ -239,28 +246,15 @@ const Settings = () => {
       {/* MAIN FORM (Preserved) */}
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* ✅ ENHANCED: Payment verification status with spinner */}
-        {verifying && (
-          <div className="flex items-center gap-3 bg-blue-50 text-blue-700 px-4 py-3 rounded-xl border border-blue-200 shadow-md">
-            <div className="inline-flex items-center justify-center w-5 h-5">
-              <div className="w-4 h-4 border-2 border-blue-400 border-t-blue-700 rounded-full animate-spin"></div>
-            </div>
-            <span className="text-sm font-medium">
-              {upgradeMsg || "Processing your payment verification..."}
-            </span>
+        {upgradeMsg && (
+          <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm border border-blue-100 animate-pulse">
+            {upgradeMsg}
           </div>
         )}
 
-        {/* ✅ ENHANCED: General upgrade message with proper styling */}
-        {upgradeMsg && !verifying && (
-          <div className={`px-4 py-3 rounded-xl text-sm border ${
-            upgradeMsg.includes("successful") || upgradeMsg.includes("🎉")
-              ? "bg-green-50 text-green-700 border-green-200"
-              : upgradeMsg.includes("❌")
-              ? "bg-red-50 text-red-700 border-red-200"
-              : "bg-blue-50 text-blue-700 border-blue-200"
-          } animate-pulse`}>
-            {upgradeMsg}
+        {verifying && (
+          <div className="bg-yellow-50 text-yellow-700 px-4 py-3 rounded-xl text-sm border border-yellow-100">
+            Verifying payment with Paystack...
           </div>
         )}
 
