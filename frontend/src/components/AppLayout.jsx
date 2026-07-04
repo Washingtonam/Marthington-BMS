@@ -211,13 +211,11 @@ const AppLayout = () => {
         
         {/* BRAND + CLOSE BUTTON (MOBILE) */}
         <div className="flex items-center justify-between gap-3 px-2">
-          <div className="flex items-center gap-3 flex-1">
-            <div className="w-10 h-10 bg-green-600 text-white flex items-center justify-center rounded-md font-bold text-lg">
-              M
-            </div>
+          <div className="brand-block flex-1">
+            <div className="brand-mark">M</div>
             <div>
               <strong className="text-white">Marthington</strong>
-              <span className="text-xs text-gray-400">Business OS</span>
+              <span>Business OS</span>
             </div>
           </div>
           <button
@@ -258,7 +256,9 @@ const AppLayout = () => {
             type="button"
             onClick={() => navigate("/app/products")}
           >
-            <Icon name="add" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
             <span>New Product</span>
           </button>
 
@@ -298,6 +298,7 @@ const AppLayout = () => {
           <div className="global-search">
             <Icon name="search" />
             <input placeholder="Search products, sales..." />
+            <span className="search-hint">⌘K</span>
           </div>
 
           {/* IMPERSONATION */}

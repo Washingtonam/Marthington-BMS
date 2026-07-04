@@ -27,11 +27,25 @@ const Reports = () => {
 
   const overview = reports?.overview || {};
 
+  const renderMetricValue = (value) => {
+    const numericValue = Number(value || 0);
+
+    return (
+      <div className="metric-value-row">
+        <h2 className="metric-value">{formatCurrency(value)}</h2>
+        {numericValue === 0 && <span className="metric-badge">0.0%</span>}
+      </div>
+    );
+  };
+
   return (
     <section className="page-stack">
       <div className="page-heading">
         <div>
-          <span>Business Intelligence</span>
+          <span className="section-eyebrow">
+            <span className="status-dot" />
+            Business Intelligence
+          </span>
           <h1>Reports Hub</h1>
         </div>
       </div>
@@ -39,22 +53,54 @@ const Reports = () => {
       {error && <div className="form-error">{error}</div>}
 
       <div className="metrics-grid">
-        <div className="tool-panel">
-          <strong>Today's Revenue</strong>
-          <h2>{formatCurrency(overview.todayRevenue)}</h2>
+        <div className="tool-panel metric-card revenue">
+          <div className="metric-icon">↗</div>
+          <div>
+            <span className="metric-label">Today's Revenue</span>
+            {renderMetricValue(overview.todayRevenue)}
+            <span className="metric-caption">Live performance snapshot</span>
+          </div>
         </div>
-        <div className="tool-panel">
-          <strong>Monthly Revenue</strong>
-          <h2>{formatCurrency(overview.monthlyRevenue)}</h2>
+        <div className="tool-panel metric-card success">
+          <div className="metric-icon">◔</div>
+          <div>
+            <span className="metric-label">Monthly Revenue</span>
+            {renderMetricValue(overview.monthlyRevenue)}
+            <span className="metric-caption">Rolling monthly trend</span>
+          </div>
         </div>
-        <div className="tool-panel">
-          <strong>Monthly Profit</strong>
-          <h2>{formatCurrency(overview.monthlyProfit)}</h2>
+        <div className="tool-panel metric-card warning">
+          <div className="metric-icon">◎</div>
+          <div>
+            <span className="metric-label">Monthly Profit</span>
+            {renderMetricValue(overview.monthlyProfit)}
+            <span className="metric-caption">Net after costs</span>
+          </div>
         </div>
-        <div className="tool-panel">
-          <strong>Inventory Value</strong>
-          <h2>{formatCurrency(overview.inventoryValue)}</h2>
+        <div className="tool-panel metric-card">
+          <div className="metric-icon">▣</div>
+          <div>
+            <span className="metric-label">Inventory Value</span>
+            {renderMetricValue(overview.inventoryValue)}
+            <span className="metric-caption">Current stock position</span>
+          </div>
         </div>
+      </div>
+
+      <div className="analytics-ghost-card">
+        <div className="panel-heading">
+          <div>
+            <h2>Growth snapshot</h2>
+            <p>Charts and trend views will appear here as your business starts tracking sales.</p>
+          </div>
+        </div>
+        <div className="ghost-bars">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <span key={index} style={{ height: `${34 + index * 8}%` }} />
+          ))}
+        </div>
+        <div className="ghost-line" />
+        <div className="ghost-line short" />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -78,7 +124,7 @@ const Reports = () => {
             ))}
           </div>
           {/* 🔥 FIXED PATH */}
-          <button onClick={() => navigate("/app/staff-reports")} className="primary-button mt-4 w-full">
+          <button onClick={() => navigate("/app/staff-reports")} className="ghost-button mt-4 w-full">
             View Staff Analytics
           </button>
         </div>
@@ -103,7 +149,7 @@ const Reports = () => {
             ))}
           </div>
           {/* 🔥 FIXED PATH */}
-          <button onClick={() => navigate("/app/inventory-reports")} className="primary-button mt-4 w-full">
+          <button onClick={() => navigate("/app/inventory-reports")} className="ghost-button mt-4 w-full">
             Open Inventory Alerts
           </button>
         </div>
@@ -127,7 +173,7 @@ const Reports = () => {
               </div>
             ))}
           </div>
-          <button onClick={() => navigate("/app/sales")} className="primary-button mt-4 w-full">
+          <button onClick={() => navigate("/app/sales")} className="ghost-button mt-4 w-full">
             Open Sales Center
           </button>
         </div>
