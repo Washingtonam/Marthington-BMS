@@ -23,6 +23,16 @@ router.post(
 );
 
 // ======================================
+// VERIFY REDIRECT (PROTECTED - FRONTEND CALLBACK)
+// ======================================
+// User authenticated - frontend calls this after Paystack redirects
+router.post(
+  "/verify-redirect",
+  protect,
+  paymentController.verifyRedirect
+);
+
+// ======================================
 // STATUS
 // ======================================
 
@@ -43,7 +53,7 @@ router.post(
 );
 
 // ======================================
-// VERIFY
+// VERIFY (LEGACY - QUERY PARAM)
 // ======================================
 
 router.get(

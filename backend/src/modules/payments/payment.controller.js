@@ -439,131 +439,34 @@ const verifySubscription = async (req, res) => {
 };
 
 // ======================================
-// PAYSTACK WEBHOOK - REAL-TIME AUTOMATION
+// SINGLE SOURCE OF TRUTH UPGRADE HELPER
 // ======================================
-const handlePaystackWebhook = async (req, res) => {
-  const session = await Business.startSession();
-  let transactionStarted = false;
-
+// Reusable function for both webhook and redirect verification paths
+const executeProUpgrade = async (businessId, billingCycle, amountPaid, session = null) => {
   try {
-    // ✅ STEP 1: EXTRACT & VERIFY SIGNATURE
-    const signature = req.headers["x-paystack-signature"];
-
-    if (!signature) {
-      console.warn("[webhook] ⚠️  Missing x-paystack-signature header - rejecting request");
-      return res.status(401).json({ message: "Unauthorized webhook call." });
-    }
-
-    const secret = process.env.PAYSTACK_SECRET_KEY;
-    if (!secret) {
-      console.error("[webhook] ❌ PAYSTACK_SECRET_KEY not configured in environment");
-      return res.status(500).json({ message: "Server misconfiguration." });
-    }
-
-    // ✅ STEP 2: COMPUTE SIGNATURE CRYPTOGRAPHICALLY
-    // Paystack sends raw body - we must hash it with our secret key
-    const hash = crypto
-      .createHmac("sha512", secret)
-      .update(req.rawBody) // rawBody from express.raw() middleware
-      .digest("hex");
-
-    console.log("[webhook] 🔒 Signature verification", {
-      expectedSignature: hash,
-      receivedSignature: signature,
-      match: hash === signature ? "✅ YES" : "❌ NO"
-    });
-
-    if (hash !== signature) {
-      console.error("[webhook] ❌ CRITICAL: Signature mismatch - possible spoofing attempt", {
-        expectedHash: hash,
-        receivedSignature: signature
-      });
-      return res.status(401).json({ message: "Unauthorized webhook call." });
-    }
-
-    console.log("[webhook] ✅ Signature verified");
-
-    // ✅ STEP 3: PARSE EVENT PAYLOAD
-    const event = req.body;
-
-    console.log("[webhook] 📨 Webhook event received", {
-      event: event.event,
-      reference: event.data?.reference,
-      status: event.data?.status
-    });
-
-    // ✅ STEP 4: CHECK IF EVENT IS CHARGE.SUCCESS
-    if (event.event !== "charge.success") {
-      console.log("[webhook] ℹ️  Event is not charge.success - ignoring", { event: event.event });
-      return res.status(200).json({
-        message: "Webhook received but charge.success not triggered."
-      });
-    }
-
-    if (event.data.status !== "success") {
-      console.warn("[webhook] ⚠️  Charge status is not success - ignoring", {
-        status: event.data.status
-      });
-      return res.status(200).json({
-        message: "Webhook received but payment is not successful."
-      });
-    }
-
-    // ✅ STEP 5: EXTRACT METADATA
-    const metadata = event.data.metadata || {};
-    const { businessId, billingCycle } = metadata;
-
-    console.log("[webhook] 🔒 Metadata extracted from charge.success event", {
-      businessId: businessId || "❌ MISSING",
-      billingCycle: billingCycle || "❌ MISSING",
-      allMetadata: metadata
-    });
-
-    if (!businessId || !billingCycle) {
-      console.error("[webhook] ❌ CRITICAL: Missing metadata fields", {
-        reference: event.data.reference,
-        metadata
-      });
-      return res.status(400).json({
-        message: "Webhook data incomplete - missing businessId or billingCycle."
-      });
-    }
-
-    console.log("[webhook] ✅ Metadata validation complete", {
+    console.log("[executeProUpgrade] Starting PRO upgrade", {
       businessId,
-      billingCycle
+      billingCycle,
+      amountPaid,
+      hasSession: !!session
     });
 
-    // ✅ STEP 6: INITIALIZE TRANSACTION (ATOMIC)
-    try {
-      await session.startTransaction();
-      transactionStarted = true;
-      console.log("[webhook] Transaction started ✅");
-    } catch (txErr) {
-      console.warn("[webhook] Transactions unavailable, continuing without transaction", {
-        error: txErr.message
-      });
-      transactionStarted = false;
-    }
-
-    // ✅ STEP 7: FETCH BUSINESS DOCUMENT
-    const business = transactionStarted
+    // ✅ STEP 1: LOAD BUSINESS DOCUMENT
+    const business = session
       ? await Business.findById(businessId).session(session)
       : await Business.findById(businessId);
 
     if (!business) {
-      if (transactionStarted) await session.abortTransaction();
-      console.error("[webhook] ❌ Business not found", { businessId });
-      return res.status(404).json({ message: "Business not found." });
+      throw new Error(`Business not found: ${businessId}`);
     }
 
-    console.log("[webhook] ✅ Business loaded", {
+    console.log("[executeProUpgrade] Business loaded", {
       businessId: business._id,
       currentPlan: business.subscription?.plan,
       industryType: business.industryType
     });
 
-    // ✅ STEP 8: CALCULATE SUBSCRIPTION DETAILS
+    // ✅ STEP 2: CALCULATE SUBSCRIPTION DETAILS
     const now = new Date();
     const expiresAt = new Date();
     if (billingCycle === "yearly") {
@@ -572,13 +475,7 @@ const handlePaystackWebhook = async (req, res) => {
       expiresAt.setMonth(expiresAt.getMonth() + 1);
     }
 
-    console.log("[webhook] ✅ Expiration calculated", {
-      startedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      billingCycle
-    });
-
-    // ✅ STEP 9: DETERMINE TIER
+    // ✅ STEP 3: DETERMINE TIER
     const tierMap = {
       retail: "Retail Pro Plan",
       school: "Premium Academic Plan",
@@ -588,13 +485,11 @@ const handlePaystackWebhook = async (req, res) => {
     const industryType = business.industryType || "retail";
     const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
 
-    const paymentAmount = event.data.amount / 100; // Paystack uses subunits
-
-    // ✅ STEP 10: UPDATE SINGLE SOURCE OF TRUTH 🔥
-    console.log("[webhook] 🔥 Executing Business document UPDATE (Single Source of Truth)");
+    // ✅ STEP 4: UPDATE BUSINESS DOCUMENT (SINGLE SOURCE OF TRUTH)
+    console.log("[executeProUpgrade] 🔥 Updating Business document to PRO");
 
     const updateOptions = { new: true };
-    if (transactionStarted) updateOptions.session = session;
+    if (session) updateOptions.session = session;
 
     const updatedBusiness = await Business.findByIdAndUpdate(
       businessId,
@@ -608,8 +503,7 @@ const handlePaystackWebhook = async (req, res) => {
           status: "active",
           startedAt: now,
           expiresAt,
-          amount: paymentAmount,
-          reference: event.data.reference,
+          amount: amountPaid,
           tier
         }
       },
@@ -617,94 +511,345 @@ const handlePaystackWebhook = async (req, res) => {
     );
 
     if (!updatedBusiness) {
-      if (transactionStarted) await session.abortTransaction();
-      console.error("[webhook] ❌ Business update failed", { businessId });
-      return res.status(500).json({ message: "Failed to update business." });
+      throw new Error("Business update failed - no document returned");
     }
 
-    console.log("[webhook] ✅ Business document updated (Single Source of Truth)", {
+    console.log("[executeProUpgrade] ✅ Business document updated", {
       businessId: updatedBusiness._id,
       plan: updatedBusiness.subscription.plan,
-      status: updatedBusiness.subscription.status,
       expiresAt: updatedBusiness.subscription.expiresAt
     });
 
-    // ✅ STEP 11: PROCESS AFFILIATE COMMISSION
-    let affiliateCredit = null;
+    // ✅ STEP 5: PROCESS AFFILIATE COMMISSION
+    let affiliateResult = null;
     if (updatedBusiness.referredBy) {
-      console.log("[webhook] 🤝 Processing affiliate commission...", {
+      console.log("[executeProUpgrade] 🤝 Processing affiliate commission...", {
         referredBy: updatedBusiness.referredBy
       });
 
-      affiliateCredit = await creditAffiliate(
+      affiliateResult = await creditAffiliate(
         updatedBusiness._id,
-        paymentAmount,
-        transactionStarted ? session : null
+        amountPaid,
+        session
       );
 
-      if (affiliateCredit) {
-        console.log("[webhook] ✅ Affiliate commission credited", {
-          affiliateId: affiliateCredit.affiliateId,
-          affiliateCode: affiliateCredit.affiliateCode,
-          commissionAmount: affiliateCredit.commissionAmount,
-          rateApplied: `${affiliateCredit.affiliateRate}%`
+      if (affiliateResult) {
+        console.log("[executeProUpgrade] ✅ Affiliate commission credited", {
+          affiliateCode: affiliateResult.affiliateCode,
+          commissionAmount: affiliateResult.commissionAmount
         });
       } else {
-        console.warn("[webhook] ⚠️  Affiliate credit returned null", {
+        console.warn("[executeProUpgrade] ⚠️  Affiliate credit returned null", {
           businessId,
           referredBy: updatedBusiness.referredBy
         });
       }
     } else {
-      console.log("[webhook] ℹ️  No affiliate for this business", { businessId });
+      console.log("[executeProUpgrade] ℹ️  No affiliate for this business", { businessId });
     }
 
-    // ✅ STEP 12: COMMIT TRANSACTION ATOMICALLY
-    if (transactionStarted) {
-      await session.commitTransaction();
-      console.log("[webhook] ✅ Transaction committed");
-    }
-
-    console.log("[webhook] 🎉 WEBHOOK PROCESSING COMPLETE", {
-      reference: event.data.reference,
+    console.log("[executeProUpgrade] 🎉 PRO UPGRADE COMPLETE", {
       businessId: updatedBusiness._id,
-      completedSteps: [
-        "✅ Signature verified",
-        "✅ Event validated (charge.success)",
-        "✅ Metadata extracted",
-        "✅ Business document updated to PRO",
-        "✅ Affiliate commission processed",
-        "✅ Transaction committed atomically"
-      ]
+      plan: "pro",
+      billingCycle,
+      expiresAt: updatedBusiness.subscription.expiresAt,
+      affiliateProcessed: !!affiliateResult
     });
 
-    // ✅ STEP 13: RESPOND TO PAYSTACK
-    return res.status(200).json({
-      message: "Webhook processed successfully.",
-      reference: event.data.reference,
-      businessId: updatedBusiness._id,
-      subscriptionStatus: updatedBusiness.subscription.status,
-      affiliateProcessed: !!affiliateCredit
+    return {
+      success: true,
+      business: updatedBusiness,
+      affiliateCredit: affiliateResult
+    };
+
+  } catch (err) {
+    console.error("[executeProUpgrade] ❌ Error", {
+      error: err.message,
+      businessId
+    });
+    throw err;
+  }
+};
+
+// ======================================
+// VERIFY REDIRECT (FRONTEND CALLBACK)
+// ======================================
+// User authenticated, frontend calls this after Paystack redirects
+const verifyRedirect = async (req, res) => {
+  const session = await Business.startSession();
+  let transactionStarted = false;
+
+  try {
+    const { reference } = req.body;
+
+    if (!reference) {
+      return res.status(400).json({ message: "Reference missing from redirect" });
+    }
+
+    console.log("[verifyRedirect] User verification initiated", {
+      userId: req.user?.id,
+      businessId: req.user?.businessId,
+      reference
+    });
+
+    // ✅ STEP 1: VERIFY WITH PAYSTACK
+    console.log("[verifyRedirect] 🔍 Verifying transaction with Paystack...");
+
+    const payment = await verifyPayment(reference);
+
+    if (!payment || payment.status !== "success") {
+      console.warn("[verifyRedirect] ❌ Payment not successful", {
+        reference,
+        status: payment?.status
+      });
+      return res.status(400).json({
+        message: "Payment was not successful or is still pending."
+      });
+    }
+
+    console.log("[verifyRedirect] ✅ Payment verified with Paystack", {
+      reference,
+      amount: payment.amount,
+      status: payment.status
+    });
+
+    // ✅ STEP 2: EXTRACT METADATA
+    const metadata = payment.metadata || {};
+    const { businessId, billingCycle } = metadata;
+
+    console.log("[verifyRedirect] 🔒 Metadata extracted", {
+      businessId: businessId || "❌ MISSING",
+      billingCycle: billingCycle || "❌ MISSING"
+    });
+
+    if (!businessId || !billingCycle) {
+      console.error("[verifyRedirect] ❌ Missing metadata", {
+        reference,
+        metadata
+      });
+      return res.status(400).json({
+        message: "Payment metadata incomplete. Please try again."
+      });
+    }
+
+    // ✅ STEP 3: VERIFY BUSINESS OWNERSHIP
+    if (businessId !== req.user.businessId.toString()) {
+      console.error("[verifyRedirect] ❌ Business mismatch", {
+        userBusiness: req.user.businessId,
+        paymentBusiness: businessId
+      });
+      return res.status(403).json({
+        message: "Payment does not match your business."
+      });
+    }
+
+    // ✅ STEP 4: INITIALIZE TRANSACTION
+    try {
+      await session.startTransaction();
+      transactionStarted = true;
+      console.log("[verifyRedirect] Transaction started ✅");
+    } catch (txErr) {
+      console.warn("[verifyRedirect] Transactions unavailable", { error: txErr.message });
+      transactionStarted = false;
+    }
+
+    // ✅ STEP 5: EXECUTE PRO UPGRADE
+    const paymentAmount = payment.amount / 100;
+    const upgradeResult = await executeProUpgrade(
+      businessId,
+      billingCycle,
+      paymentAmount,
+      transactionStarted ? session : null
+    );
+
+    // ✅ STEP 6: COMMIT TRANSACTION
+    if (transactionStarted) {
+      await session.commitTransaction();
+      console.log("[verifyRedirect] Transaction committed ✅");
+    }
+
+    console.log("[verifyRedirect] 🎉 REDIRECT VERIFICATION COMPLETE", {
+      reference,
+      businessId,
+      result: upgradeResult.success
+    });
+
+    // ✅ STEP 7: RETURN SUCCESS
+    return res.json({
+      message: "Payment verified successfully! Your subscription is now active.",
+      subscription: {
+        plan: upgradeResult.business.subscription.plan,
+        billingCycle: upgradeResult.business.subscription.billingCycle,
+        status: upgradeResult.business.subscription.status,
+        expiresAt: upgradeResult.business.subscription.expiresAt
+      },
+      payment: {
+        reference,
+        amount: paymentAmount,
+        status: "success"
+      },
+      affiliateCredit: upgradeResult.affiliateCredit ? {
+        affiliateCode: upgradeResult.affiliateCredit.affiliateCode,
+        commissionEarned: upgradeResult.affiliateCredit.commissionAmount
+      } : null
     });
 
   } catch (err) {
-    console.error("❌ PAYSTACK WEBHOOK ERROR", {
+    console.error("❌ REDIRECT VERIFICATION FAILED", {
       error: err.message,
-      stack: err.stack,
-      transactionStarted
+      reference: req.body?.reference
     });
 
     try {
       if (transactionStarted && session.inTransaction()) {
         await session.abortTransaction();
-        console.log("[webhook] Transaction aborted due to error");
+        console.log("[verifyRedirect] Transaction aborted due to error");
       }
     } catch (abortErr) {
-      console.error("[webhook] Failed to abort transaction:", abortErr.message);
+      console.error("[verifyRedirect] Failed to abort transaction:", abortErr.message);
     }
 
-    // ✅ Return 200 to Paystack even on error (so it doesn't retry)
-    // But log the error for investigation
+    return res.status(500).json({
+      message: "Verification failed. Please contact support.",
+      error: err.message
+    });
+
+  } finally {
+    try {
+      session.endSession();
+    } catch (sessionErr) {
+      console.error("[verifyRedirect] Failed to end session:", sessionErr.message);
+    }
+  }
+};
+
+// ======================================
+// PAYSTACK WEBHOOK (REAL-TIME)
+// ======================================
+const handlePaystackWebhook = async (req, res) => {
+  const session = await Business.startSession();
+  let transactionStarted = false;
+
+  try {
+    // ✅ STEP 1: VERIFY SIGNATURE
+    const signature = req.headers["x-paystack-signature"];
+
+    if (!signature) {
+      console.warn("[webhook] ⚠️  Missing x-paystack-signature header");
+      return res.status(401).json({ message: "Unauthorized webhook call." });
+    }
+
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret) {
+      console.error("[webhook] ❌ PAYSTACK_SECRET_KEY not configured");
+      return res.status(500).json({ message: "Server misconfiguration." });
+    }
+
+    const hash = crypto
+      .createHmac("sha512", secret)
+      .update(req.rawBody)
+      .digest("hex");
+
+    console.log("[webhook] 🔒 Signature verification", {
+      match: hash === signature ? "✅ YES" : "❌ NO"
+    });
+
+    if (hash !== signature) {
+      console.error("[webhook] ❌ Signature mismatch - spoofing attempt");
+      return res.status(401).json({ message: "Unauthorized webhook call." });
+    }
+
+    console.log("[webhook] ✅ Signature verified");
+
+    // ✅ STEP 2: PARSE EVENT
+    const event = req.body;
+
+    console.log("[webhook] 📨 Event received", {
+      event: event.event,
+      status: event.data?.status
+    });
+
+    if (event.event !== "charge.success") {
+      console.log("[webhook] ℹ️  Event is not charge.success - ignoring", { event: event.event });
+      return res.status(200).json({
+        message: "Webhook received but charge.success not triggered."
+      });
+    }
+
+    if (event.data.status !== "success") {
+      console.warn("[webhook] ⚠️  Charge status not success");
+      return res.status(200).json({
+        message: "Webhook received but payment is not successful."
+      });
+    }
+
+    // ✅ STEP 3: EXTRACT METADATA
+    const metadata = event.data.metadata || {};
+    const { businessId, billingCycle } = metadata;
+
+    console.log("[webhook] 🔒 Metadata extracted", {
+      businessId: businessId || "❌ MISSING",
+      billingCycle: billingCycle || "❌ MISSING"
+    });
+
+    if (!businessId || !billingCycle) {
+      console.error("[webhook] ❌ Missing metadata", { metadata });
+      return res.status(200).json({
+        message: "Webhook received but metadata incomplete."
+      });
+    }
+
+    // ✅ STEP 4: INITIALIZE TRANSACTION
+    try {
+      await session.startTransaction();
+      transactionStarted = true;
+      console.log("[webhook] Transaction started ✅");
+    } catch (txErr) {
+      console.warn("[webhook] Transactions unavailable", { error: txErr.message });
+      transactionStarted = false;
+    }
+
+    // ✅ STEP 5: EXECUTE PRO UPGRADE
+    const paymentAmount = event.data.amount / 100;
+    const upgradeResult = await executeProUpgrade(
+      businessId,
+      billingCycle,
+      paymentAmount,
+      transactionStarted ? session : null
+    );
+
+    // ✅ STEP 6: COMMIT TRANSACTION
+    if (transactionStarted) {
+      await session.commitTransaction();
+      console.log("[webhook] Transaction committed ✅");
+    }
+
+    console.log("[webhook] 🎉 WEBHOOK PROCESSING COMPLETE", {
+      reference: event.data.reference,
+      businessId
+    });
+
+    return res.status(200).json({
+      message: "Webhook processed successfully.",
+      reference: event.data.reference,
+      businessId
+    });
+
+  } catch (err) {
+    console.error("❌ WEBHOOK ERROR", {
+      error: err.message
+    });
+
+    try {
+      if (transactionStarted && session.inTransaction()) {
+        await session.abortTransaction();
+        console.log("[webhook] Transaction aborted");
+      }
+    } catch (abortErr) {
+      console.error("[webhook] Failed to abort:", abortErr.message);
+    }
+
+    // Return 200 to Paystack even on error (so it doesn't retry infinitely)
     return res.status(200).json({
       message: "Webhook received but processing encountered an error.",
       error: err.message
@@ -713,7 +858,6 @@ const handlePaystackWebhook = async (req, res) => {
   } finally {
     try {
       session.endSession();
-      console.log("[webhook] Session ended");
     } catch (sessionErr) {
       console.error("[webhook] Failed to end session:", sessionErr.message);
     }
@@ -724,5 +868,7 @@ export default {
   getSubscriptionStatus,
   initializeSubscription,
   verifySubscription,
-  handlePaystackWebhook
+  verifyRedirect,
+  handlePaystackWebhook,
+  executeProUpgrade
 };

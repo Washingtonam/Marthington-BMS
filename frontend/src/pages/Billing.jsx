@@ -5,6 +5,7 @@ import {
 
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { startPaystackPayment } from "../utils/paystackPaymentHandler.js";
 
 const Billing = () => {
 
@@ -60,7 +61,7 @@ const Billing = () => {
   }, []);
 
   // =====================================
-  // UPGRADE
+  // UPGRADE - 🔥 UPDATED WITH CLEAN HANDLER
   // =====================================
 
   const handlePayment = async (planType, currency = "NGN") => {
@@ -68,26 +69,18 @@ const Billing = () => {
       setProcessing(planType);
       setError("");
 
-      const amount = currency === "USD"
-        ? (planType === "yearly" ? pricing.yearly.usd : pricing.monthly.usd) * 100
-        : (planType === "yearly" ? pricing.yearly.ngn : pricing.monthly.ngn) * 100;
+      // ✅ Use new payment handler utility
+      // This initializes payment and redirects to Paystack checkout
+      // After payment, user will be redirected back to /settings?reference=xxx
+      // Settings page will automatically verify and refresh
+      await startPaystackPayment(planType, { currency });
 
-      const data = await request("/payments/initialize", {
-        method: "POST",
-        body: JSON.stringify({ billingCycle: planType, currency, amount })
-      });
-
-      const url = data?.authorizationUrl || data?.url || data?.link;
-      if (!url) {
-        throw new Error("Could not get the checkout URL from the server.");
-      }
-
-      window.location.href = url;
     } catch (err) {
-      setError(err?.message || "Payment initialization failed.");
-    } finally {
+      console.error("[Billing] Payment initiation failed:", err);
+      setError(`❌ ${err?.message || "Payment initialization failed."}`);
       setProcessing("");
     }
+    // Note: setProcessing("") NOT called here because user is redirected to Paystack
   };
 
   if (loading) {
