@@ -29,10 +29,16 @@ const Reports = () => {
 
   const renderMetricValue = (value) => {
     const numericValue = Number(value || 0);
+    const formattedValue = formatCurrency(value);
+    const currencySymbol = formattedValue.startsWith("₦") ? "₦" : "";
+    const numericPortion = formattedValue.replace(/^₦/, "");
 
     return (
       <div className="metric-value-row">
-        <h2 className="metric-value">{formatCurrency(value)}</h2>
+        <h2 className="metric-value">
+          <span className="metric-currency">{currencySymbol}</span>
+          <span className="metric-number">{numericPortion}</span>
+        </h2>
         {numericValue === 0 && <span className="metric-badge">0.0%</span>}
       </div>
     );
