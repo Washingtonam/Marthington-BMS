@@ -92,110 +92,79 @@ const Dashboard = () => {
     switch (businessType) {
       case "restaurant_hospitality":
         return (
-          <div className="grid gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard icon="🍽️" label="Open Table Sessions" value={metrics.activeSessions || "--"} tone="success" />
-              <MetricCard icon="🥘" label="Kitchen Tickets" value={metrics.kitchenTickets || "--"} tone="neutral" />
-              <MetricCard icon="🔥" label="Top Dish Category" value={topProducts[0]?.category || "Mains"} tone="revenue" />
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-gray-900">Top Selling Dishes</h2>
+              <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Kitchen focus</span>
             </div>
-
-            <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-black text-gray-900">Top Selling Dishes</h2>
-                <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Kitchen focus</span>
-              </div>
-              <div className="grid gap-3">
-                {(topProducts.length ? topProducts.slice(0, 5) : []).map((product) => (
-                  <div key={product._id} className="flex items-center justify-between p-4 rounded-3xl bg-slate-50">
-                    <div>
-                      <p className="font-semibold text-gray-900">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.category || "Main Course"}</p>
-                    </div>
-                    <span className="text-sm font-black text-blue-600">{product.quantitySold ?? product.sales ?? "--"}</span>
+            <div className="grid gap-3">
+              {(topProducts.length ? topProducts.slice(0, 5) : []).map((product) => (
+                <div key={product._id} className="flex items-center justify-between p-4 rounded-3xl bg-slate-50">
+                  <div>
+                    <p className="font-semibold text-gray-900">{product.name}</p>
+                    <p className="text-xs text-gray-500">{product.category || "Main Course"}</p>
                   </div>
-                ))}
-              </div>
+                  <span className="text-sm font-black text-blue-600">{product.quantitySold ?? product.sales ?? "--"}</span>
+                </div>
+              ))}
             </div>
           </div>
         );
 
       case "retail_hardware":
         return (
-          <div className="grid gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard icon="🏷️" label="Tracked SKUs" value={topProducts.length} tone="success" />
-              <MetricCard icon="📦" label="Stock Value" value={formatCurrency(metrics.inventoryValue)} tone="neutral" />
-              <MetricCard icon="⚠️" label="Supplier Alerts" value={metrics.supplierAlerts || lowStockProducts.length} tone={metrics.supplierAlerts > 0 || lowStockProducts.length > 0 ? "warning" : "success"} />
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-gray-900">Low Stock SKUs</h2>
+              <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Reorder priority</span>
             </div>
-
-            <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-black text-gray-900">Low Stock SKUs</h2>
-                <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Reorder priority</span>
-              </div>
-              <div className="space-y-3">
-                {lowStockProducts.length === 0 ? (
-                  <p className="text-sm text-gray-500">No urgent low stock alerts for hardware inventory.</p>
-                ) : (
-                  lowStockProducts.slice(0, 5).map((item) => (
-                    <div key={item._id} className="flex items-center justify-between rounded-3xl bg-slate-50 p-4">
-                      <div>
-                        <p className="font-semibold text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-500">SKU: {item.sku || "N/A"}</p>
-                      </div>
-                      <span className="font-black text-red-600">{item.stock}</span>
+            <div className="space-y-3">
+              {lowStockProducts.length === 0 ? (
+                <p className="text-sm text-gray-500">No urgent low stock alerts for hardware inventory.</p>
+              ) : (
+                lowStockProducts.slice(0, 5).map((item) => (
+                  <div key={item._id} className="flex items-center justify-between rounded-3xl bg-slate-50 p-4">
+                    <div>
+                      <p className="font-semibold text-gray-900">{item.name}</p>
+                      <p className="text-xs text-gray-500">SKU: {item.sku || "N/A"}</p>
                     </div>
-                  ))
-                )}
-              </div>
+                    <span className="font-black text-red-600">{item.stock}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         );
 
       case "hotel_lodging":
         return (
-          <div className="grid gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard icon="🛏️" label="Occupancy Rate" value={`${metrics.occupancyRate}%`} tone="success" />
-              <MetricCard icon="🕒" label="Today Check-ins" value={metrics.checkInsToday || "--"} tone="neutral" />
-              <MetricCard icon="💼" label="Auxiliary Services" value={metrics.auxiliaryServices || "--"} tone="neutral" />
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-gray-900">Upcoming Room Status</h2>
+              <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Stay lifecycle</span>
             </div>
-
-            <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-black text-gray-900">Upcoming Room Status</h2>
-                <span className="text-xs uppercase tracking-[0.3em] text-gray-400">Stay lifecycle</span>
-              </div>
-              <div className="grid gap-3">
-                {(analytics?.hotel?.upcomingCheckIns || []).slice(0, 4).map((room, index) => (
-                  <div key={index} className="rounded-3xl bg-slate-50 p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">Room {room.roomNumber}</p>
-                      <p className="text-xs text-gray-500">{room.guestName || "Reserved"}</p>
-                    </div>
-                    <span className="text-sm font-black text-blue-600">{room.checkInTime || "TBD"}</span>
+            <div className="grid gap-3">
+              {(analytics?.hotel?.upcomingCheckIns || []).slice(0, 4).map((room, index) => (
+                <div key={index} className="rounded-3xl bg-slate-50 p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-900">Room {room.roomNumber}</p>
+                    <p className="text-xs text-gray-500">{room.guestName || "Reserved"}</p>
                   </div>
-                ))}
-                {!analytics?.hotel?.upcomingCheckIns?.length && (
-                  <p className="text-sm text-gray-500">No scheduled check-ins available yet.</p>
-                )}
-              </div>
+                  <span className="text-sm font-black text-blue-600">{room.checkInTime || "TBD"}</span>
+                </div>
+              ))}
+              {!analytics?.hotel?.upcomingCheckIns?.length && (
+                <p className="text-sm text-gray-500">No scheduled check-ins available yet.</p>
+              )}
             </div>
           </div>
         );
 
       default:
         return (
-          <div className="grid gap-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <MetricCard icon="💰" label="Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
-              <MetricCard icon="📈" label="Profit" value={formatCurrency(metrics.totalProfit)} tone="success" />
-              <MetricCard icon="🧾" label="Sales" value={metrics.totalSales} tone="neutral" />
-            </div>
-            <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
-              <h2 className="text-lg font-black text-gray-900 mb-4">Service Overview</h2>
-              <p className="text-sm text-gray-500">Your general services dashboard continues to highlight revenue, profit, and current itemized performance.</p>
-            </div>
+          <div className="bg-white rounded-[2.5rem] border border-gray-100 p-6 shadow-sm">
+            <h2 className="text-lg font-black text-gray-900 mb-4">Service Overview</h2>
+            <p className="text-sm text-gray-500">Your general services dashboard continues to highlight revenue, profit, and current itemized performance.</p>
           </div>
         );
     }
@@ -286,13 +255,11 @@ const Dashboard = () => {
           <MetricCard icon="💰" label="Daily Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <MetricCard icon="💰" label="Revenue" value={formatCurrency(metrics.totalRevenue)} tone="revenue" />
           <MetricCard icon="📈" label="Profit" value={formatCurrency(metrics.totalProfit)} tone="success" />
           <MetricCard icon="🧾" label="Total Sales" value={metrics.totalSales} tone="neutral" />
           <MetricCard icon="📦" label="Stock Value" value={formatCurrency(metrics.inventoryValue)} tone="neutral" />
-          <MetricCard icon="🚨" label="Low Stock" value={metrics.lowStockCount} tone={metrics.lowStockCount > 0 ? "warning" : "success"} />
-          <MetricCard icon="💳" label="Avg. Order" value={formatCurrency(metrics.averageOrderValue)} tone="neutral" />
         </div>
       )}
 
@@ -309,7 +276,7 @@ const Dashboard = () => {
       {/* BOTTOM SECTION */}
       <div className="grid lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">
-            <TopProducts products={topProducts} />
+            <TopProducts products={topProducts} averageOrderValue={metrics.averageOrderValue} />
         </div>
 
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
@@ -318,6 +285,16 @@ const Dashboard = () => {
             {lowStockProducts.length > 0 && (
               <span className="bg-red-50 text-red-600 text-[10px] font-black px-3 py-1 rounded-full uppercase animate-pulse">Action Required</span>
             )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Low Stock</p>
+              <p className="mt-2 text-lg font-black text-slate-900">{lowStockProducts.length}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-400">Avg. Order</p>
+              <p className="mt-2 text-lg font-black text-slate-900">{formatCurrency(metrics.averageOrderValue)}</p>
+            </div>
           </div>
 
           <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">

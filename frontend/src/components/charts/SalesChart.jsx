@@ -35,7 +35,7 @@ const SalesChartContent = ({ data = [] }) => {
   return (
     <div style={{ width: "100%", height: "350px", minHeight: "350px" }}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
           {/* 2. Using standard lowercase SVG tags for gradients */}
           <defs>
             <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -48,21 +48,29 @@ const SalesChartContent = ({ data = [] }) => {
             </linearGradient>
           </defs>
 
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+          <CartesianGrid strokeDasharray="0" vertical={false} stroke="rgba(148, 163, 184, 0.16)" />
           
           <XAxis 
             dataKey="date" 
-            tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }} 
+            tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700 }} 
             axisLine={false}
             tickLine={false}
             dy={10}
+            interval="preserveStartEnd"
+            minTickGap={24}
+            tickFormatter={(value) => {
+              const date = new Date(value);
+              if (Number.isNaN(date.getTime())) return value;
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }}
           />
           
           <YAxis 
             tickFormatter={(v) => `₦${v >= 1000 ? v/1000 + 'k' : v}`}
-            tick={{ fill: '#9ca3af', fontSize: 11, fontWeight: 700 }}
+            tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 700 }}
             axisLine={false}
             tickLine={false}
+            width={54}
           />
           
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e5e7eb', strokeWidth: 2 }} />
