@@ -1,12 +1,15 @@
 import {
+  useCallback,
   useEffect,
   useState
 } from "react";
 
 import request from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
 const Billing = () => {
+  const { refreshBusiness } = useAuth();
 
   const [billing, setBilling] =
     useState(null);
@@ -19,6 +22,8 @@ const Billing = () => {
   const [loading, setLoading] = useState(true);
 
   const [processing, setProcessing] = useState("");
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [paymentMessage, setPaymentMessage] = useState("");
 
   const [error, setError] = useState("");
 
@@ -59,6 +64,37 @@ const Billing = () => {
     load();
   }, []);
 
+  const handlePaymentCallback = useCallback(async (reference) => {
+    if (!reference) return;
+
+    setVerifyingPayment(true);
+    setPaymentMessage("Finalizing your payment and updating your plan...");
+
+    try {
+      const result = await request("/payments/verify-redirect", {
+        method: "POST",
+        body: JSON.stringify({ reference })
+      });
+
+      await refreshBusiness();
+
+      setBilling((current) => current ? {
+        ...current,
+        plan: result?.subscription?.plan || "pro",
+        status: result?.subscription?.status || "active",
+        billingCycle: result?.subscription?.billingCycle || current.billingCycle,
+        expiresAt: result?.subscription?.expiresAt || current.expiresAt,
+        isPro: true
+      } : current);
+
+      setPaymentMessage(result?.message || "Payment verified successfully. Your Pro features are now active.");
+    } catch (err) {
+      setPaymentMessage(err?.message || "Payment verification failed. Please try again.");
+    } finally {
+      setVerifyingPayment(false);
+    }
+  }, [refreshBusiness]);
+
   // =====================================
   // UPGRADE
   // =====================================
@@ -67,6 +103,7 @@ const Billing = () => {
     try {
       setProcessing(planType);
       setError("");
+      setPaymentMessage("");
 
       const amount = currency === "USD"
         ? (planType === "yearly" ? pricing.yearly.usd : pricing.monthly.usd) * 100
@@ -82,7 +119,29 @@ const Billing = () => {
         throw new Error("Could not get the checkout URL from the server.");
       }
 
-      window.location.href = url;
+      const popup = window.open(url, "_blank", "width=720,height=760,top=80,left=80");
+      if (!popup) {
+        throw new Error("Please allow popups to complete your checkout.");
+      }
+
+      let popupTimer = window.setInterval(() => {
+        try {
+          const popupUrl = popup.location.href;
+          const popupReference = new URL(popupUrl).searchParams.get("reference");
+
+          if (popupUrl.startsWith(window.location.origin) && popupReference) {
+            window.clearInterval(popupTimer);
+            popup.close();
+            void handlePaymentCallback(popupReference);
+          }
+        } catch {
+          // Ignore cross-origin transitions until the redirect reaches the app.
+        }
+
+        if (popup.closed) {
+          window.clearInterval(popupTimer);
+        }
+      }, 800);
     } catch (err) {
       setError(err?.message || "Payment initialization failed.");
     } finally {
@@ -129,6 +188,19 @@ const Billing = () => {
       {error && (
         <div className="form-error">
           {error}
+        </div>
+      )}
+
+      {verifyingPayment && (
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-amber-600 border-t-transparent" />
+          <span>{paymentMessage || "Finalizing your payment..."}</span>
+        </div>
+      )}
+
+      {!verifyingPayment && paymentMessage && (
+        <div className={`rounded-2xl border p-4 text-sm ${paymentMessage.toLowerCase().includes("success") ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+          {paymentMessage}
         </div>
       )}
 

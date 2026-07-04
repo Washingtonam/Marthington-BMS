@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom"; // 🔥 Added useNavigate for cleaner URL handling
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
@@ -69,44 +69,38 @@ const Settings = () => {
     loadPricing();
   }, []);
 
-  // 🔥 UPDATED VERIFY PAYMENT: Handle Paystack redirect immediately and refresh UI
+  const verifyPaystackRedirect = useCallback(async (reference) => {
+    if (!reference) return;
+
+    setVerifying(true);
+    setUpgradeMsg("Verifying your transaction with Paystack...");
+
+    try {
+      const result = await request("/payments/verify-redirect", {
+        method: "POST",
+        body: JSON.stringify({ reference })
+      });
+
+      await refreshBusiness();
+
+      setUpgradeMsg(result?.message || "🎉 Upgrade successful! Your Pro features are now active.");
+      setVerifying(false);
+
+      navigate("/settings", { replace: true });
+    } catch (err) {
+      setUpgradeMsg(err.message || "Payment verification failed. Please contact support.");
+      setVerifying(false);
+    }
+  }, [navigate, refreshBusiness]);
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const reference = params.get("reference");
 
-    if (!reference) return;
-
-    const verifyPaymentRedirect = async () => {
-      setVerifying(true);
-      setUpgradeMsg("Verifying your transaction with Paystack...");
-
-      try {
-        const response = await request("/payments/verify-redirect", {
-          method: "POST",
-          body: JSON.stringify({ reference })
-        });
-
-        if (!response?.subscription) {
-          throw new Error("Payment verification completed but no subscription data was returned.");
-        }
-
-        // 🔥 Critical: refresh the auth context immediately so UI flips to Pro
-        await refreshBusiness();
-
-        setUpgradeMsg("🎉 Upgrade successful! Your Pro features are now active.");
-        setVerifying(false);
-
-        // Clean the URL so the verification does not run again on refresh
-        navigate("/settings", { replace: true });
-      } catch (err) {
-        console.error("Paystack redirect verification failed:", err);
-        setUpgradeMsg(err.message || "Payment verification failed. Please contact support.");
-        setVerifying(false);
-      }
-    };
-
-    verifyPaymentRedirect();
-  }, [location.search, refreshBusiness, navigate]);
+    if (reference) {
+      verifyPaystackRedirect(reference);
+    }
+  }, [location.search, verifyPaystackRedirect]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
