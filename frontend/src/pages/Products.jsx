@@ -40,6 +40,7 @@ const Products = () => {
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // ====================================
   // LOAD PRODUCTS
@@ -110,6 +111,7 @@ const Products = () => {
       setSuccess(`Product ${editingId ? "updated" : "added"} successfully`);
       setForm(initialForm);
       setEditingId(null);
+      setDrawerOpen(false);
       loadProducts();
     } catch (err) {
       setError(err.message);
@@ -128,7 +130,19 @@ const Products = () => {
       category: product.category || "",
       sku: product.sku || ""
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setDrawerOpen(true);
+  };
+
+  const openNewProductDrawer = () => {
+    setEditingId(null);
+    setForm(initialForm);
+    setDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setEditingId(null);
+    setForm(initialForm);
   };
 
   const handleDelete = async (id) => {
@@ -212,46 +226,57 @@ const Products = () => {
   };
 
   return (
-    <section className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-8 items-start">
-      <div>
-        <div className="page-heading table-heading mb-6">
+    <section className="space-y-6">
+      <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="text-slate-500 text-sm uppercase tracking-[0.35em]">Inventory</span>
-            <h1 className="text-slate-900 font-bold tracking-tight text-3xl mt-2">Products</h1>
-            <p className="text-slate-500 text-sm mt-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Inventory</span>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">Products</h1>
+            <p className="mt-2 text-sm text-slate-500">
               {pagination.totalProducts || 0} total products
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 items-center">
-            <label className="primary-button cursor-pointer">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 cursor-pointer">
               {uploading ? "Uploading..." : "Upload Excel"}
               <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileUpload} />
             </label>
-            <a href="/templates/products-template.xlsx" download className="border px-4 py-3 rounded-md text-sm font-medium hover:bg-gray-100 transition">
+            <a href="/templates/products-template.xlsx" download className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
               Download Template
             </a>
+            <button
+              type="button"
+              onClick={openNewProductDrawer}
+              className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-100 transition hover:bg-emerald-700"
+            >
+              + Add Product
+            </button>
           </div>
         </div>
 
-        {/* SEARCH & FILTERS */}
-        <div className="flex flex-col lg:flex-row gap-4 mb-6 mt-5 items-start">
-          <input
-            type="text"
-            placeholder="Search by name or SKU..."
-            value={search}
-            onChange={(e) => { setPage(1); setSearch(e.target.value); }}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-          />
-          <select
-            value={categoryFilter}
-            onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }}
-            className="min-w-[220px] rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+        <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
+            <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100">
+              <span className="text-slate-400">🔎</span>
+              <input
+                type="text"
+                placeholder="Search by name or SKU..."
+                value={search}
+                onChange={(e) => { setPage(1); setSearch(e.target.value); }}
+                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+              />
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }}
+              className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {selectedProductIds.length > 0 && (
@@ -271,11 +296,10 @@ const Products = () => {
           </div>
         )}
 
-        {/* TABLE */}
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full table-auto text-left border-collapse">
+        <div className="mt-6 overflow-x-auto rounded-[1.75rem] border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-full table-auto border-collapse text-left">
             <thead className="bg-slate-50">
-              <tr className="text-sm uppercase tracking-[0.18em] text-slate-500">
+              <tr className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
                 <th className="w-12 px-6 py-4">
                   <input
                     type="checkbox"
@@ -293,47 +317,46 @@ const Products = () => {
               </tr>
             </thead>
             <tbody>
-
-          {loading ? (
-            <tr>
-              <td colSpan={7} className="text-center py-10 text-slate-400">Loading products...</td>
-            </tr>
-          ) : products.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="text-center py-10 text-slate-400">No products found</td>
-            </tr>
-          ) : (
-            products.map((p) => (
-              <tr key={p._id} className="border-b border-slate-100 bg-white transition-all duration-150 hover:bg-slate-50/80">
-                <td className="px-6 py-4 align-top">
-                  <input
-                    type="checkbox"
-                    checked={selectedProductIds.includes(p._id)}
-                    onChange={() => toggleProductSelection(p._id)}
-                    className="h-4 w-4 rounded border-slate-300 text-slate-900 transition-all duration-200 ease-in-out focus:ring-0"
-                  />
-                </td>
-                <td className="px-6 py-4 align-top">
-                  <div className="font-semibold text-slate-900">{p.name}</div>
-                  <div className="text-xs text-slate-500">SKU: {p.sku || "N/A"}</div>
-                </td>
-                <td className="px-6 py-4 align-top max-w-[200px] truncate text-slate-700">{p.category || "-"}</td>
-                <td className="px-6 py-4 align-top text-slate-900">{formatCurrency(p.sellingPrice || p.price || 0)}</td>
-                <td className="px-6 py-4 align-top text-slate-700">{p.stock}</td>
-                <td className="px-6 py-4 align-top">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                    {p.stock <= 5 ? "Low Stock" : "In Stock"}
-                  </span>
-                </td>
-                <td className="px-6 py-4 align-top">
-                  <div className="flex flex-wrap gap-3">
-                    <button onClick={() => handleEdit(p)} className="text-blue-600 text-sm font-semibold">Edit</button>
-                    <button onClick={() => handleDelete(p._id)} className="text-red-500 text-sm font-semibold">Delete</button>
-                  </div>
-                </td>
-              </tr>
-            ))
-          )}
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400">Loading products...</td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400">No products found</td>
+                </tr>
+              ) : (
+                products.map((p) => (
+                  <tr key={p._id} className="border-b border-slate-100 bg-white transition-all duration-150 hover:bg-slate-50/80">
+                    <td className="px-6 py-4 align-top">
+                      <input
+                        type="checkbox"
+                        checked={selectedProductIds.includes(p._id)}
+                        onChange={() => toggleProductSelection(p._id)}
+                        className="h-4 w-4 rounded border-slate-300 text-slate-900 transition-all duration-200 ease-in-out focus:ring-0"
+                      />
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <div className="font-semibold capitalize text-slate-900">{p.name}</div>
+                      <div className="mt-1 text-xs text-slate-500">SKU: {p.sku || "N/A"}</div>
+                    </td>
+                    <td className="px-6 py-4 align-top max-w-[200px] truncate text-slate-700">{p.category || "-"}</td>
+                    <td className="px-6 py-4 align-top text-slate-900">{formatCurrency(p.sellingPrice || p.price || 0)}</td>
+                    <td className="px-6 py-4 align-top text-slate-700">{p.stock}</td>
+                    <td className="px-6 py-4 align-top">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${p.stock <= 5 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+                        {p.stock <= 5 ? "Low Stock" : "In Stock"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 align-top">
+                      <div className="flex flex-wrap gap-3">
+                        <button onClick={() => handleEdit(p)} className="text-sm font-semibold text-blue-600">Edit</button>
+                        <button onClick={() => handleDelete(p._id)} className="text-sm font-semibold text-red-500">Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -360,104 +383,119 @@ const Products = () => {
         )}
       </div>
 
-      {/* RIGHT PANEL - FORM */}
-      <div className="product-form tool-panel sticky top-6 bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
-        <h2 className="text-slate-900 font-bold text-xl mb-4">{editingId ? "Edit Product" : "Add Product"}</h2>
-        {success && <div className="bg-emerald-50 text-emerald-700 p-3 rounded-2xl text-sm mb-3 border border-emerald-100">{success}</div>}
-        {error && <div className="bg-red-50 text-red-700 p-3 rounded-2xl text-sm mb-3 border border-red-100">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="grid gap-4">
-          <label className="block text-sm font-medium text-slate-700">Product Name</label>
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="e.g. HP EliteBook 840"
-            required
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-          />
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Category</label>
-              <input
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-                placeholder="Laptops"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-              />
+      {drawerOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]" onClick={closeDrawer} />
+          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">{editingId ? "Edit Product" : "Add Product"}</h2>
+                <p className="mt-1 text-sm text-slate-500">{editingId ? "Update the product details below." : "Create a new inventory item in seconds."}</p>
+              </div>
+              <button type="button" onClick={closeDrawer} className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50">✕</button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">SKU</label>
-              <input
-                name="sku"
-                value={form.sku}
-                onChange={handleChange}
-                placeholder="HP-001"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-              />
+
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</div>}
+              {error && <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+              <form onSubmit={handleSubmit} className="grid gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Product Name</label>
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="e.g. HP EliteBook 840"
+                    required
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">Category</label>
+                    <input
+                      name="category"
+                      value={form.category}
+                      onChange={handleChange}
+                      placeholder="Laptops"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">SKU</label>
+                    <input
+                      name="sku"
+                      value={form.sku}
+                      onChange={handleChange}
+                      placeholder="HP-001"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">Cost Price</label>
+                    <input
+                      type="number"
+                      name="costPrice"
+                      value={form.costPrice}
+                      onChange={handleChange}
+                      placeholder="0"
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">Selling Price</label>
+                    <input
+                      type="number"
+                      name="sellingPrice"
+                      value={form.sellingPrice}
+                      onChange={handleChange}
+                      placeholder="0"
+                      required
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Stock Quantity</label>
+                  <input
+                    type="number"
+                    name="stock"
+                    value={form.stock}
+                    onChange={handleChange}
+                    placeholder="0"
+                    required
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-100 transition hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {saving ? "Saving..." : editingId ? "Update Product" : "Add Product"}
+                </button>
+
+                {editingId && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingId(null); setForm(initialForm); }}
+                    className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </form>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Cost Price</label>
-              <input
-                type="number"
-                name="costPrice"
-                value={form.costPrice}
-                onChange={handleChange}
-                placeholder="0"
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700">Selling Price</label>
-              <input
-                type="number"
-                name="sellingPrice"
-                value={form.sellingPrice}
-                onChange={handleChange}
-                placeholder="0"
-                required
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Stock Quantity</label>
-            <input
-              type="number"
-              name="stock"
-              value={form.stock}
-              onChange={handleChange}
-              placeholder="0"
-              required
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-100 transition-all hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {saving ? "Saving..." : editingId ? "Update Product" : "Add Product"}
-          </button>
-
-          {editingId && (
-            <button
-              type="button"
-              onClick={() => { setEditingId(null); setForm(initialForm); }}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50"
-            >
-              Cancel Edit
-            </button>
-          )}
-        </form>
-      </div>
+        </>
+      )}
     </section>
   );
 };
