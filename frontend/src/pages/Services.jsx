@@ -53,6 +53,24 @@ const Services = () => {
   const [form, setForm] =
     useState(defaultForm);
 
+  const [isDrawerOpen, setIsDrawerOpen] =
+    useState(false);
+
+  const [openMenuId, setOpenMenuId] =
+    useState(null);
+
+  const formatDisplayText = (value = "") => {
+    return String(value)
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) =>
+        word.charAt(0).toUpperCase() + word.slice(1)
+      )
+      .join(" ");
+  };
+
   // =====================================
   // LOAD SERVICES
   // =====================================
@@ -154,6 +172,18 @@ const Services = () => {
     }));
   };
 
+  const handleCreateNew = () => {
+    setEditingId(null);
+    setForm(defaultForm);
+    setIsDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setIsDrawerOpen(false);
+    setEditingId(null);
+    setForm(defaultForm);
+  };
+
   // =====================================
   // SAVE
   // =====================================
@@ -217,6 +247,7 @@ const Services = () => {
       setForm(defaultForm);
 
       setEditingId(null);
+      setIsDrawerOpen(false);
 
       await loadServices();
 
@@ -274,10 +305,7 @@ const Services = () => {
         ""
     });
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
+    setIsDrawerOpen(true);
   };
 
   // =====================================
@@ -354,25 +382,14 @@ const Services = () => {
 
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-
-          <input
-            type="text"
-
-            placeholder="Search services..."
-
-            value={search}
-
-            onChange={(e) =>
-              setSearch(
-                e.target.value
-              )
-            }
-
-            className="border rounded-md px-3 py-2"
-          />
-
-        </div>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={handleCreateNew}
+        >
+          <span className="text-lg leading-none">+</span>
+          Create Service
+        </button>
 
       </div>
 
@@ -388,51 +405,44 @@ const Services = () => {
 
       )}
 
-      {/* MAIN GRID */}
+      <div className="tool-panel">
 
-      <div className="products-layout">
+        <div className="panel-heading">
 
-        {/* LEFT */}
+          <div>
 
-        <div className="tool-panel">
+            <h2>
+              Service Catalog
+            </h2>
 
-          <div className="panel-heading">
-
-            <div>
-
-              <h2>
-                Service Catalog
-              </h2>
-
-              <p>
-                Manage reusable business services
-              </p>
-
-            </div>
+            <p>
+              Manage reusable business services
+            </p>
 
           </div>
 
-          {/* FILTERS */}
+        </div>
 
-          <div className="flex gap-2 flex-wrap mb-4">
+        <div className="service-filter-bar">
+
+          <div className="service-filter-pills">
 
             {categories.map(
               (category) => (
 
                 <button
                   key={category}
-
+                  type="button"
                   onClick={() =>
                     setSelectedCategory(
                       category
                     )
                   }
-
-                  className={`px-3 py-1 rounded-full text-sm border ${
+                  className={`service-filter-pill ${
                     selectedCategory ===
                     category
-                      ? "bg-black text-white"
-                      : "bg-white"
+                      ? "active"
+                      : ""
                   }`}
                 >
 
@@ -444,184 +454,203 @@ const Services = () => {
 
           </div>
 
-          {/* TABLE */}
+          <label className="service-search-field">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+              <circle cx="11" cy="11" r="6"></circle>
+              <path d="M20 20L16.5 16.5"></path>
+            </svg>
+            <input
+              type="text"
+              placeholder="Search services"
+              value={search}
+              onChange={(e) =>
+                setSearch(
+                  e.target.value
+                )
+              }
+            />
+          </label>
 
-          <div className="product-table">
+        </div>
 
-            <div className="product-row product-row-head">
+        <div className="product-table">
 
-              <span>
-                Service
-              </span>
+          <div className="product-row product-row-head">
 
-              <span>
-                Price
-              </span>
+            <span>
+              Service
+            </span>
 
-              <span>
-                Status
-              </span>
+            <span>
+              Price
+            </span>
 
-              <span>
-                Actions
-              </span>
+            <span>
+              Status
+            </span>
 
+            <span>
+              Actions
+            </span>
+
+          </div>
+
+          {loading && (
+
+            <div className="empty-state">
+              Loading services...
             </div>
 
-            {loading && (
+          )}
 
-              <div className="empty-state">
-                Loading services...
-              </div>
+          {!loading &&
+            !filteredServices.length && (
 
-            )}
+            <div className="empty-state">
+              No services found
+            </div>
 
-            {!loading &&
-              !filteredServices.length && (
+          )}
 
-              <div className="empty-state">
-                No services found
-              </div>
+          {filteredServices.map(
+            (service) => (
 
-            )}
+              <div
+                key={service._id}
+                className="product-row"
+              >
 
-            {filteredServices.map(
-              (service) => (
+                <div className="service-name-cell">
 
-                <div
-                  key={service._id}
-                  className="product-row"
-                >
+                  <strong>
+                    {formatDisplayText(service.name)}
+                  </strong>
 
-                  <div>
+                  <div className="service-meta">
 
-                    <strong>
-                      {service.name}
-                    </strong>
-
-                    <div className="text-xs text-gray-500">
-
-                      {service.category}
-
-                    </div>
-
-                  </div>
-
-                  <span>
-
-                    {
-                      formatCurrency(
-                        service.price
-                      )
-                    }
-
-                  </span>
-
-                  <span>
-
-                    <span
-                      className={`status-pill ${
-                        service.isActive
-                          ? "success"
-                          : "danger"
-                      }`}
-                    >
-
-                      {service.isActive
-                        ? "Active"
-                        : "Inactive"}
-
-                    </span>
-
-                  </span>
-
-                  <div className="flex gap-2 flex-wrap">
-
-                    <button
-                      className="text-blue-600 text-sm"
-
-                      onClick={() =>
-                        handleEdit(
-                          service
-                        )
-                      }
-                    >
-
-                      Edit
-
-                    </button>
-
-                    <button
-                      className="text-yellow-600 text-sm"
-
-                      onClick={() =>
-                        handleToggle(
-                          service._id
-                        )
-                      }
-                    >
-
-                      {service.isActive
-                        ? "Disable"
-                        : "Enable"}
-
-                    </button>
-
-                    <button
-                      className="text-red-600 text-sm"
-
-                      onClick={() =>
-                        handleDelete(
-                          service._id
-                        )
-                      }
-                    >
-
-                      Delete
-
-                    </button>
+                    {formatDisplayText(
+                      service.category || "General"
+                    )}
 
                   </div>
 
                 </div>
-              )
-            )}
 
-          </div>
+                <span>
+
+                  {
+                    formatCurrency(
+                      service.price
+                    )
+                  }
+
+                </span>
+
+                <span>
+
+                  <span
+                    className={`status-pill ${
+                      service.isActive
+                        ? "success"
+                        : "danger"
+                    }`}
+                  >
+
+                    {service.isActive
+                      ? "Active"
+                      : "Inactive"}
+
+                  </span>
+
+                </span>
+
+                <div className="service-actions">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="service-menu-button"
+                      onClick={() =>
+                        setOpenMenuId(
+                          openMenuId === service._id
+                            ? null
+                            : service._id
+                        )
+                      }
+                    >
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                        <circle cx="5" cy="12" r="1.5"></circle>
+                        <circle cx="12" cy="12" r="1.5"></circle>
+                        <circle cx="19" cy="12" r="1.5"></circle>
+                      </svg>
+                    </button>
+
+                    {openMenuId === service._id && (
+                      <div className="service-menu">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleEdit(service);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleToggle(service._id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          {service.isActive
+                            ? "Disable"
+                            : "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleDelete(service._id);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            )
+          )}
 
         </div>
 
-        {/* RIGHT */}
+      </div>
 
-        <form
-          onSubmit={
-            handleSubmit
-          }
+      <div
+        className={`service-drawer-overlay ${isDrawerOpen ? "open" : ""}`}
+        onClick={closeDrawer}
+      />
 
-          className="tool-panel product-form"
-        >
-
-          <div className="panel-heading">
-
-            <div>
-
-              <h2>
-
-                {editingId
-                  ? "Edit Service"
-                  : "Create Service"}
-
-              </h2>
-
-              <p>
-                Build reusable services for POS
-              </p>
-
-            </div>
-
+      <aside className={`service-drawer ${isDrawerOpen ? "open" : ""}`}>
+        <div className="service-drawer-header">
+          <div>
+            <p>Service Builder</p>
+            <h3>
+              {editingId ? "Edit Service" : "Create Service"}
+            </h3>
           </div>
+          <button
+            type="button"
+            className="service-drawer-close"
+            onClick={closeDrawer}
+          >
+            ×
+          </button>
+        </div>
 
-          {/* FORM */}
+        <form onSubmit={handleSubmit} className="service-drawer-form">
 
           <label>
 
@@ -781,9 +810,7 @@ const Services = () => {
 
           <button
             type="submit"
-
             disabled={saving}
-
             className="primary-button"
           >
 
@@ -799,30 +826,17 @@ const Services = () => {
 
             <button
               type="button"
-
-              onClick={() => {
-
-                setEditingId(
-                  null
-                );
-
-                setForm(
-                  defaultForm
-                );
-              }}
-
-              className="border rounded-md p-3"
+              onClick={closeDrawer}
+              className="ghost-button"
             >
-
               Cancel Editing
-
             </button>
 
           )}
 
         </form>
 
-      </div>
+      </aside>
 
     </section>
   );
