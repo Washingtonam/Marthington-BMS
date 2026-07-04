@@ -34,7 +34,11 @@ const Sales = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [viewMode, setViewMode] = useState("active");
+  const [deletedRecords, setDeletedRecords] = useState([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
   const { user } = useAuth();
+  const isOwner = user?.role === "owner";
 
   // =====================================
   // LOAD SALES
@@ -56,18 +60,42 @@ const Sales = () => {
     loadSales();
   }, []);
 
+  useEffect(() => {
+    if (isOwner && viewMode === "archived") {
+      loadDeletedRecords();
+    }
+  }, [isOwner, viewMode]);
+
+  const loadDeletedRecords = async () => {
+    if (!isOwner) return;
+
+    try {
+      setArchiveLoading(true);
+      const data = await request("/transactions/deleted-records");
+      setDeletedRecords(data);
+    } catch (err) {
+      console.error(err);
+      setDeletedRecords([]);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
 
     try {
       setDeleting(true);
-      await request(`/sales/${deleteTarget._id}`, { method: "DELETE" });
-      setStatusMessage(`Archived receipt #${deleteTarget.receiptId}`);
+      await request(`/transactions/${deleteTarget._id}`, { method: "DELETE" });
+      setStatusMessage(`Deleted transaction #${deleteTarget.receiptId}`);
       setDeleteTarget(null);
       notifySalesUpdated();
       await loadSales();
+      if (viewMode === "archived") {
+        await loadDeletedRecords();
+      }
     } catch (err) {
-      setStatusMessage(err.message || "Unable to delete sale");
+      setStatusMessage(err.message || "Unable to delete transaction");
     } finally {
       setDeleting(false);
     }
@@ -156,7 +184,7 @@ const Sales = () => {
 
       <div className="tool-panel">
 
-        <div className="panel-heading">
+        <div className="panel-heading justify-between">
 
           <div>
 
@@ -169,6 +197,25 @@ const Sales = () => {
             </p>
 
           </div>
+
+          {isOwner && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewMode("active")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "active" ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-200"}`}
+              >
+                Active Transactions
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("archived")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${viewMode === "archived" ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-200"}`}
+              >
+                Deleted Records Archive
+              </button>
+            </div>
+          )}
 
         </div>
 
@@ -195,17 +242,21 @@ const Sales = () => {
           <div>
 
             <h2>
-              All Transactions
+              {viewMode === "archived" ? "Deleted Records Archive" : "All Transactions"}
             </h2>
 
             <p className="text-sm text-gray-500 mt-1">
-              Click any transaction to view full receipt
+              {viewMode === "archived"
+                ? "Read-only audit log of deleted transactions."
+                : "Click any transaction to view full receipt."}
             </p>
 
           </div>
 
           <div className="text-sm text-gray-500">
-            {filteredSales.length} Transactions
+            {viewMode === "archived"
+              ? `${deletedRecords.length} archived records`
+              : `${filteredSales.length} transactions`}
           </div>
 
         </div>
@@ -221,7 +272,7 @@ const Sales = () => {
             </span>
 
             <span>
-              Items Sold
+              {viewMode === "archived" ? "Deleted At" : "Items Sold"}
             </span>
 
             <span>
@@ -229,120 +280,131 @@ const Sales = () => {
             </span>
 
             <span>
-              Staff
+              {viewMode === "archived" ? "Deleted By" : "Staff"}
             </span>
 
             <span>
-              Action
+              {viewMode === "archived" ? "Status" : "Action"}
             </span>
 
           </div>
 
           {/* EMPTY */}
 
-          {!filteredSales.length && (
-
-            <div className="empty-state">
-              No transactions found
-            </div>
-
-          )}
-
-          {/* ROWS */}
-
-          {filteredSales.map((sale) => (
-
-            <div
-              key={sale._id}
-              className="product-row text-left hover:bg-gray-50 transition"
-            >
-
-              {/* RECEIPT */}
-
-              <button
-                type="button"
-                onClick={() => navigate(`/app/sales/${sale._id}`)}
-                className="text-left"
-              >
-                <div className="font-semibold text-blue-600">
-                  #{sale.receiptId}
+          {viewMode === "active" ? (
+            <>
+              {!filteredSales.length && (
+                <div className="empty-state">
+                  No transactions found
                 </div>
-
-                <div className="text-xs text-gray-500 mt-1">
-                  {new Date(sale.createdAt).toLocaleString()}
-                </div>
-              </button>
-
-              {/* ITEMS */}
-
-              <span>
-
-                <div className="font-medium">
-
-                  {sale.items
-                    ?.slice(0, 2)
-                    .map((item) => item.name)
-                    .join(", ")}
-
-                  {sale.items?.length > 2 &&
-                    " ..."}
-
-                </div>
-
-                <div className="text-xs text-gray-500 mt-1">
-
-                  {sale.items?.length}
-                  {" "}
-                  item(s)
-
-                </div>
-
-              </span>
-
-              {/* TOTAL */}
-
-              <span className="font-semibold">
-
-                {formatCurrency(
-                  sale.totalAmount
-                )}
-
-              </span>
-
-              {/* STAFF */}
-
-              <span>
-
-                {sale.createdBy?.name ||
-                  "Unknown"}
-
-              </span>
-
-              {/* ACTION */}
-
-              <span className="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/app/sales/${sale._id}`)}
-                  className="text-blue-600 font-medium"
+              )}
+              {filteredSales.map((sale) => (
+                <div
+                  key={sale._id}
+                  className="product-row text-left hover:bg-gray-50 transition"
                 >
-                  View Receipt
-                </button>
-                {(user?.role === "owner" || user?.role === "super_admin") && (
+                  {/* RECEIPT */}
                   <button
                     type="button"
-                    onClick={() => setDeleteTarget(sale)}
-                    className="rounded-full border border-rose-200 p-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                    aria-label={`Archive receipt ${sale.receiptId}`}
+                    onClick={() => navigate(`/app/sales/${sale._id}`)}
+                    className="text-left"
                   >
-                    🗑️
+                    <div className="font-semibold text-blue-600">
+                      #{sale.receiptId}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(sale.createdAt).toLocaleString()}
+                    </div>
                   </button>
-                )}
-              </span>
 
-            </div>
+                  {/* ITEMS */}
+                  <span>
+                    <div className="font-medium">
+                      {sale.items
+                        ?.slice(0, 2)
+                        .map((item) => item.name)
+                        .join(", ")}
+                      {sale.items?.length > 2 && " ..."}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {sale.items?.length}
+                      {" "}
+                      item(s)
+                    </div>
+                  </span>
 
-          ))}
+                  {/* TOTAL */}
+                  <span className="font-semibold">
+                    {formatCurrency(sale.totalAmount)}
+                  </span>
+
+                  {/* STAFF */}
+                  <span>
+                    {sale.createdBy?.name || "Unknown"}
+                  </span>
+
+                  {/* ACTION */}
+                  <span className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/app/sales/${sale._id}`)}
+                      className="text-blue-600 font-medium"
+                    >
+                      View Receipt
+                    </button>
+                    {user?.role === "owner" && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(sale)}
+                        className="rounded-full border border-rose-200 p-2 text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                        aria-label={`Delete transaction ${sale.receiptId}`}
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {archiveLoading ? (
+                <div className="p-6">Loading deleted records...</div>
+              ) : !deletedRecords.length ? (
+                <div className="empty-state">No deleted records yet.</div>
+              ) : (
+                deletedRecords.map((sale) => (
+                  <div
+                    key={sale._id}
+                    className="product-row text-left hover:bg-gray-50 transition"
+                  >
+                    <span>
+                      <div className="font-semibold text-slate-800">
+                        #{sale.receiptId || sale._id}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {sale.customerName || "Walk-in"}
+                      </div>
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {sale.deletedAt ? new Date(sale.deletedAt).toLocaleString() : "—"}
+                    </span>
+                    <span className="font-semibold">
+                      {formatCurrency(sale.totalAmount)}
+                    </span>
+                    <span className="text-slate-700 text-sm">
+                      {sale.deletedBy || "Owner"}
+                    </span>
+                    <span>
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-slate-600">
+                        Deleted
+                      </span>
+                    </span>
+                  </div>
+                ))
+              )}
+            </>
+          )}
 
         </div>
 

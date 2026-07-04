@@ -14,6 +14,7 @@ import analyticsRoutes from "./modules/analytics/analytics.routes.js";
 import reportsRoutes from "./modules/reports/reports.routes.js";
 import staffRoutes from "./modules/staff/staff.routes.js";
 import invoiceRoutes from "./modules/invoices/invoice.routes.js";
+import transactionRoutes from "./modules/transactions/transaction.routes.js";
 import customerRoutes from "./modules/customers/customer.routes.js";
 import schoolRoutes from "./modules/schools/school.routes.js";
 import hospitalRoutes from "./modules/hospitals/hospital.routes.js";
@@ -63,6 +64,8 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/billing", billingRoutes);
 // 🔥 INVOICE ROUTE
 app.use("/api/invoices", invoiceRoutes);
+// 🔥 TRANSACTION ROUTE
+app.use("/api/transactions", transactionRoutes);
 // 🔥 CUSTOMER ROUTE
 app.use("/api/customers", customerRoutes);
 // 🔥 EXPENSES ROUTE

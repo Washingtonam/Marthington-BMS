@@ -1,0 +1,64 @@
+import mongoose from "mongoose";
+
+const transactionSchema = new mongoose.Schema(
+  {
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Business",
+      required: true,
+      index: true
+    },
+    transactionType: {
+      type: String,
+      enum: ["income", "expense", "transfer", "adjustment"],
+      default: "income"
+    },
+    category: {
+      type: String,
+      default: "general"
+    },
+    description: {
+      type: String,
+      default: ""
+    },
+    amount: {
+      type: Number,
+      required: true,
+      default: 0
+    },
+    profit: {
+      type: Number,
+      default: 0
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
+    deletedAt: {
+      type: Date,
+      default: null
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    }
+  },
+  { timestamps: true }
+);
+
+transactionSchema.set("toJSON", {
+  virtuals: true
+});
+
+transactionSchema.set("toObject", {
+  virtuals: true
+});
+
+export default mongoose.model("Transaction", transactionSchema);
