@@ -4,6 +4,7 @@ import Business from "../businesses/business.model.js";
 import Customer from "../customers/customer.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import mongoose from "mongoose";
+import { canDeleteSale, buildSalesQuery } from "./sales.utils.js";
 
 // 🔥 GENERATE RECEIPT ID
 const generateReceiptId = () => {
@@ -164,13 +165,38 @@ const createSale = async (req, res) => {
 // 🔥 GET ALL SALES
 const getSales = async (req, res) => {
   try {
-    let query = {};
-    if (req.user.role !== "super_admin") {
-      query.business = req.user.businessId;
-    }
+    const query = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin"
+    });
 
     const sales = await Sale.find(query)
       .sort({ createdAt: -1 })
+      .populate("createdBy", "name")
+      .populate("items.product", "name price")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+
+    res.json(sales);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getDeletedSales = async (req, res) => {
+  try {
+    if (!canDeleteSale(req.user)) {
+      return res.status(403).json({ message: "Only owners can view archived sales" });
+    }
+
+    const query = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin",
+      includeDeleted: true,
+      canAccessDeleted: true
+    });
+
+    const sales = await Sale.find(query)
+      .sort({ deletedAt: -1, createdAt: -1 })
       .populate("createdBy", "name")
       .populate("items.product", "name price")
       .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
@@ -201,6 +227,58 @@ const getSaleById = async (req, res) => {
   }
 };
 
+const deleteSale = async (req, res) => {
+  try {
+    if (!canDeleteSale(req.user)) {
+      return res.status(403).json({ message: "Only owners can delete sales" });
+    }
+
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    sale.isDeleted = true;
+    sale.deletedAt = new Date();
+    sale.deletedBy = req.user.id;
+    await sale.save();
+
+    res.json({ message: "Sale archived", sale });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const restoreSale = async (req, res) => {
+  try {
+    if (!canDeleteSale(req.user)) {
+      return res.status(403).json({ message: "Only owners can restore sales" });
+    }
+
+    const sale = await Sale.findById(req.params.id);
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    sale.isDeleted = false;
+    sale.deletedAt = null;
+    sale.deletedBy = null;
+    await sale.save();
+
+    res.json({ message: "Sale restored", sale });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // 🔥 PUBLIC RECEIPT
 const getPublicSale = async (req, res) => {
   try {
@@ -216,4 +294,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getSaleById, getPublicSale };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale };

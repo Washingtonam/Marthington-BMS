@@ -6,6 +6,7 @@ import MetricCard from "../components/MetricCard.jsx";
 import SalesChart from "../components/charts/SalesChart.jsx";
 import TopProducts from "../components/TopProducts.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
 
 // ... (keep existing imports)
 
@@ -56,6 +57,12 @@ const Dashboard = () => {
       }
     };
     load();
+
+    const unsubscribe = subscribeToSalesUpdates(() => {
+      setRefreshKey((prev) => prev + 1);
+    });
+
+    return unsubscribe;
   }, [refreshKey]);
 
   // 1. EXTRACT CHART DATA HERE

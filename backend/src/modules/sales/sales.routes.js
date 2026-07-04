@@ -22,17 +22,38 @@ router.get(
   salesController.getSales
 );
 
-// 🔥 GET SINGLE SALE (PRIVATE)
-router.get(
+// 🔥 DELETE SALE (OWNER ONLY)
+router.delete(
   "/:id",
   protect,
-  salesController.getSaleById
+  salesController.deleteSale
 );
 
 // 🔥 PUBLIC RECEIPT (NO AUTH — GROWTH ENGINE)
 router.get(
   "/public/:id",
   salesController.getPublicSale
+);
+
+// 🔥 RESTORE SALE (OWNER ONLY)
+router.post(
+  "/:id/restore",
+  protect,
+  salesController.restoreSale
+);
+
+// 🔥 GET DELETED SALES (OWNER ONLY)
+router.get(
+  "/archive",
+  protect,
+  salesController.getDeletedSales
+);
+
+// 🔥 GET SINGLE SALE (PRIVATE)
+router.get(
+  "/:id",
+  protect,
+  salesController.getSaleById
 );
 
 export default router;

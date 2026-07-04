@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
 
 const Reports = () => {
   const navigate = useNavigate();
@@ -9,18 +10,25 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const loadReports = async () => {
+    try {
+      const data = await request("/reports");
+      setReports(data);
+    } catch (err) {
+      setError(err.message || "Failed to load reports");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await request("/reports");
-        setReports(data);
-      } catch (err) {
-        setError(err.message || "Failed to load reports");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadReports();
+
+    const unsubscribe = subscribeToSalesUpdates(() => {
+      loadReports();
+    });
+
+    return unsubscribe;
   }, []);
 
   if (loading) return <div className="p-6">Loading reports...</div>;
@@ -182,6 +190,11 @@ const Reports = () => {
           <button onClick={() => navigate("/app/sales")} className="ghost-button mt-4 w-full">
             Open Sales Center
           </button>
+          {(JSON.parse(localStorage.getItem("bms_user") || "null")?.role === "owner" || JSON.parse(localStorage.getItem("bms_user") || "null")?.role === "super_admin") && (
+            <button onClick={() => navigate("/app/deleted-sales")} className="ghost-button mt-2 w-full">
+              View Archived Sales
+            </button>
+          )}
         </div>
       </div>
     </section>

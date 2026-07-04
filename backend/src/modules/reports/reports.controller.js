@@ -23,7 +23,7 @@ const getReports = async (req, res) => {
     const businessId = req.user.businessId;
 
     // 1. Load Data
-    const sales = await Sale.find(retailSalesFilter(businessId))
+    const sales = await Sale.find({ ...retailSalesFilter(businessId), isDeleted: false })
       .populate("createdBy", "name email")
       .sort({ createdAt: -1 });
 
