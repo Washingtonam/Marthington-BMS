@@ -127,7 +127,7 @@ const Reports = () => {
             </div>
           </div>
           <div className="compact-list">
-            {reports?.staffPerformance?.slice(0, 3).map((staff, index) => (
+            {(reports?.staffPerformance || []).slice(0, 3).map((staff, index) => (
               <div key={index} className="compact-row">
                 <div>
                   <strong>{staff.name}</strong>
@@ -152,7 +152,7 @@ const Reports = () => {
             </div>
           </div>
           <div className="compact-list">
-            {reports?.lowStockProducts?.slice(0, 3).map((product) => (
+            {(reports?.lowStockProducts || []).slice(0, 3).map((product) => (
               <div key={product._id} className="compact-row">
                 <div>
                   <strong>{product.name}</strong>
@@ -177,7 +177,7 @@ const Reports = () => {
             </div>
           </div>
           <div className="compact-list">
-            {reports?.recentSales?.slice(0, 3).map((sale) => (
+            {(reports?.recentSales || []).slice(0, 3).map((sale) => (
               <div key={sale._id} className="compact-row">
                 <div>
                   <strong>#{sale.receiptId}</strong>
