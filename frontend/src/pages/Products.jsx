@@ -406,7 +406,7 @@ const Products = () => {
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="e.g. HP EliteBook 840"
+                    placeholder="Enter product name..."
                     required
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                   />
@@ -419,7 +419,7 @@ const Products = () => {
                       name="category"
                       value={form.category}
                       onChange={handleChange}
-                      placeholder="Laptops"
+                      placeholder="Select or type a category..."
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                     />
                   </div>
@@ -429,7 +429,7 @@ const Products = () => {
                       name="sku"
                       value={form.sku}
                       onChange={handleChange}
-                      placeholder="HP-001"
+                      placeholder="Leave blank to auto-generate"
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                     />
                   </div>
@@ -438,26 +438,32 @@ const Products = () => {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700">Cost Price</label>
-                    <input
-                      type="number"
-                      name="costPrice"
-                      value={form.costPrice}
-                      onChange={handleChange}
-                      placeholder="0"
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
-                    />
+                    <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
+                      <span className="mr-2 text-slate-500">₦</span>
+                      <input
+                        type="number"
+                        name="costPrice"
+                        value={form.costPrice}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700">Selling Price</label>
-                    <input
-                      type="number"
-                      name="sellingPrice"
-                      value={form.sellingPrice}
-                      onChange={handleChange}
-                      placeholder="0"
-                      required
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
-                    />
+                    <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
+                      <span className="mr-2 text-slate-500">₦</span>
+                      <input
+                        type="number"
+                        name="sellingPrice"
+                        value={form.sellingPrice}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        required
+                        className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -468,7 +474,7 @@ const Products = () => {
                     name="stock"
                     value={form.stock}
                     onChange={handleChange}
-                    placeholder="0"
+                    placeholder="Quantity"
                     required
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                   />

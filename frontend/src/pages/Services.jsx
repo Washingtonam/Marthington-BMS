@@ -14,7 +14,7 @@ import {
 
 const defaultForm = {
   name: "",
-  category: "General",
+  category: "",
   price: "",
   costPrice: "",
   duration: "",
@@ -636,7 +636,7 @@ const Services = () => {
                 handleChange
               }
 
-              placeholder="Service Name"
+              placeholder="Enter service name..."
             />
 
           </label>
@@ -658,7 +658,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="Services Type"
+                placeholder="Select or type a category..."
               />
 
             </label>
@@ -676,7 +676,7 @@ const Services = () => {
                   handleChange
                 }
 
-                placeholder="Service Code (Optional)"
+                placeholder="Leave blank to auto-generate"
               />
 
             </label>
@@ -689,19 +689,23 @@ const Services = () => {
 
               Selling Price
 
-              <input
-                type="number"
+              <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm">
+                <span className="mr-2 text-slate-500">₦</span>
+                <input
+                  type="number"
 
-                name="price"
+                  name="price"
 
-                value={form.price}
+                  value={form.price}
 
-                onChange={
-                  handleChange
-                }
+                  onChange={
+                    handleChange
+                  }
 
-                placeholder="Service Price"
-              />
+                  placeholder="0.00"
+                  className="w-full border-0 bg-transparent outline-none"
+                />
+              </div>
 
             </label>
 
@@ -709,21 +713,25 @@ const Services = () => {
 
               Cost Price
 
-              <input
-                type="number"
+              <div className="flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm">
+                <span className="mr-2 text-slate-500">₦</span>
+                <input
+                  type="number"
 
-                name="costPrice"
+                  name="costPrice"
 
-                value={
-                  form.costPrice
-                }
+                  value={
+                    form.costPrice
+                  }
 
-                onChange={
-                  handleChange
-                }
+                  onChange={
+                    handleChange
+                  }
 
-                placeholder="Service Cost"
-              />
+                  placeholder="0.00"
+                  className="w-full border-0 bg-transparent outline-none"
+                />
+              </div>
 
             </label>
 
@@ -746,7 +754,7 @@ const Services = () => {
                 handleChange
               }
 
-              placeholder="30"
+              placeholder="Duration in minutes"
             />
 
           </label>
@@ -766,7 +774,7 @@ const Services = () => {
                 handleChange
               }
 
-              placeholder="Description..."
+              placeholder="Add a short description..."
             />
 
           </label>
