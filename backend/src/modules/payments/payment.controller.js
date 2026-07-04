@@ -442,20 +442,23 @@ const verifySubscription = async (req, res) => {
 // SINGLE SOURCE OF TRUTH UPGRADE HELPER
 // ======================================
 // Reusable function for both webhook and redirect verification paths
-const executeProUpgrade = async (businessId, billingCycle, amountPaid, session = null) => {
+const executeProUpgrade = async (businessId, billingCycle, amountPaid) => {
+  const session = await Business.startSession();
+  let transactionStarted = false;
+
   try {
     console.log("[executeProUpgrade] Starting PRO upgrade", {
       businessId,
       billingCycle,
-      amountPaid,
-      hasSession: !!session
+      amountPaid
     });
 
-    // ✅ STEP 1: LOAD BUSINESS DOCUMENT
-    const business = session
-      ? await Business.findById(businessId).session(session)
-      : await Business.findById(businessId);
+    await session.startTransaction();
+    transactionStarted = true;
+    console.log("[executeProUpgrade] Transaction started ✅");
 
+    // ✅ STEP 1: LOAD BUSINESS DOCUMENT
+    const business = await Business.findById(businessId).session(session);
     if (!business) {
       throw new Error(`Business not found: ${businessId}`);
     }
@@ -488,9 +491,6 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, session =
     // ✅ STEP 4: UPDATE BUSINESS DOCUMENT (SINGLE SOURCE OF TRUTH)
     console.log("[executeProUpgrade] 🔥 Updating Business document to PRO");
 
-    const updateOptions = { new: true };
-    if (session) updateOptions.session = session;
-
     const updatedBusiness = await Business.findByIdAndUpdate(
       businessId,
       {
@@ -507,7 +507,10 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, session =
           tier
         }
       },
-      updateOptions
+      {
+        new: true,
+        session
+      }
     );
 
     if (!updatedBusiness) {
@@ -548,6 +551,9 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, session =
       console.log("[executeProUpgrade] ℹ️  No affiliate for this business", { businessId });
     }
 
+    await session.commitTransaction();
+    console.log("[executeProUpgrade] ✅ Transaction committed");
+
     console.log("[executeProUpgrade] 🎉 PRO UPGRADE COMPLETE", {
       businessId: updatedBusiness._id,
       plan: "pro",
@@ -561,13 +567,29 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, session =
       business: updatedBusiness,
       affiliateCredit: affiliateResult
     };
-
   } catch (err) {
     console.error("[executeProUpgrade] ❌ Error", {
       error: err.message,
       businessId
     });
+
+    if (transactionStarted) {
+      try {
+        await session.abortTransaction();
+        console.log("[executeProUpgrade] Transaction aborted due to error");
+      } catch (abortErr) {
+        console.error("[executeProUpgrade] Failed to abort transaction:", abortErr.message);
+      }
+    }
+
     throw err;
+  } finally {
+    try {
+      await session.endSession();
+      console.log("[executeProUpgrade] Session ended");
+    } catch (sessionErr) {
+      console.error("[executeProUpgrade] Failed to end session:", sessionErr.message);
+    }
   }
 };
 
@@ -576,9 +598,6 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, session =
 // ======================================
 // User authenticated, frontend calls this after Paystack redirects
 const verifyRedirect = async (req, res) => {
-  const session = await Business.startSession();
-  let transactionStarted = false;
-
   try {
     const { reference } = req.body;
 
@@ -643,30 +662,13 @@ const verifyRedirect = async (req, res) => {
       });
     }
 
-    // ✅ STEP 4: INITIALIZE TRANSACTION
-    try {
-      await session.startTransaction();
-      transactionStarted = true;
-      console.log("[verifyRedirect] Transaction started ✅");
-    } catch (txErr) {
-      console.warn("[verifyRedirect] Transactions unavailable", { error: txErr.message });
-      transactionStarted = false;
-    }
-
-    // ✅ STEP 5: EXECUTE PRO UPGRADE
+    // ✅ STEP 4: EXECUTE PRO UPGRADE
     const paymentAmount = payment.amount / 100;
     const upgradeResult = await executeProUpgrade(
       businessId,
       billingCycle,
-      paymentAmount,
-      transactionStarted ? session : null
+      paymentAmount
     );
-
-    // ✅ STEP 6: COMMIT TRANSACTION
-    if (transactionStarted) {
-      await session.commitTransaction();
-      console.log("[verifyRedirect] Transaction committed ✅");
-    }
 
     console.log("[verifyRedirect] 🎉 REDIRECT VERIFICATION COMPLETE", {
       reference,
@@ -700,26 +702,11 @@ const verifyRedirect = async (req, res) => {
       reference: req.body?.reference
     });
 
-    try {
-      if (transactionStarted && session.inTransaction()) {
-        await session.abortTransaction();
-        console.log("[verifyRedirect] Transaction aborted due to error");
-      }
-    } catch (abortErr) {
-      console.error("[verifyRedirect] Failed to abort transaction:", abortErr.message);
-    }
-
     return res.status(500).json({
       message: "Verification failed. Please contact support.",
       error: err.message
     });
 
-  } finally {
-    try {
-      session.endSession();
-    } catch (sessionErr) {
-      console.error("[verifyRedirect] Failed to end session:", sessionErr.message);
-    }
   }
 };
 
@@ -727,9 +714,6 @@ const verifyRedirect = async (req, res) => {
 // PAYSTACK WEBHOOK (REAL-TIME)
 // ======================================
 const handlePaystackWebhook = async (req, res) => {
-  const session = await Business.startSession();
-  let transactionStarted = false;
-
   try {
     // ✅ STEP 1: VERIFY SIGNATURE
     const signature = req.headers["x-paystack-signature"];
@@ -799,34 +783,18 @@ const handlePaystackWebhook = async (req, res) => {
       });
     }
 
-    // ✅ STEP 4: INITIALIZE TRANSACTION
-    try {
-      await session.startTransaction();
-      transactionStarted = true;
-      console.log("[webhook] Transaction started ✅");
-    } catch (txErr) {
-      console.warn("[webhook] Transactions unavailable", { error: txErr.message });
-      transactionStarted = false;
-    }
-
-    // ✅ STEP 5: EXECUTE PRO UPGRADE
+    // ✅ STEP 4: EXECUTE PRO UPGRADE
     const paymentAmount = event.data.amount / 100;
     const upgradeResult = await executeProUpgrade(
       businessId,
       billingCycle,
-      paymentAmount,
-      transactionStarted ? session : null
+      paymentAmount
     );
-
-    // ✅ STEP 6: COMMIT TRANSACTION
-    if (transactionStarted) {
-      await session.commitTransaction();
-      console.log("[webhook] Transaction committed ✅");
-    }
 
     console.log("[webhook] 🎉 WEBHOOK PROCESSING COMPLETE", {
       reference: event.data.reference,
-      businessId
+      businessId,
+      result: upgradeResult.success
     });
 
     return res.status(200).json({
@@ -840,27 +808,11 @@ const handlePaystackWebhook = async (req, res) => {
       error: err.message
     });
 
-    try {
-      if (transactionStarted && session.inTransaction()) {
-        await session.abortTransaction();
-        console.log("[webhook] Transaction aborted");
-      }
-    } catch (abortErr) {
-      console.error("[webhook] Failed to abort:", abortErr.message);
-    }
-
     // Return 200 to Paystack even on error (so it doesn't retry infinitely)
     return res.status(200).json({
       message: "Webhook received but processing encountered an error.",
       error: err.message
     });
-
-  } finally {
-    try {
-      session.endSession();
-    } catch (sessionErr) {
-      console.error("[webhook] Failed to end session:", sessionErr.message);
-    }
   }
 };
 

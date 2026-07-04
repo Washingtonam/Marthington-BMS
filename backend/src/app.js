@@ -29,7 +29,13 @@ import payoutRoutes from "./modules/affiliates/payout.routes.js";
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf, encoding) => {
+    if (req.originalUrl && req.originalUrl.startsWith("/api/payments/paystack/webhook")) {
+      req.rawBody = buf.toString(encoding || "utf8");
+    }
+  }
+}));
 
 // 🔥 ROUTES
 app.use("/api/auth", authRoutes);
