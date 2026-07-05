@@ -37,6 +37,17 @@ const Icon = ({ name, className = "" }) => {
     );
   }
 
+  if (name === 'arrow') {
+    return (
+      <span aria-hidden="true" className={baseClass}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+
   // Fallback small glyphs for other icons
   const glyphs = {
     add: '+',
