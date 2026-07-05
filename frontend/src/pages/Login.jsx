@@ -45,12 +45,7 @@ const Login = () => {
       }
 
     } catch (requestError) {
-      const contact = requestError?.body?.adminContact;
-      if (contact) {
-        setError(`${requestError.message} — Contact ${contact.name}: ${contact.email}${contact.phone ? ` (${contact.phone})` : ""}`);
-      } else {
-        setError(requestError.message || "Login failed.");
-      }
+      setError(requestError.message || "Login failed.");
     } finally {
       setLoading(false);
     }
