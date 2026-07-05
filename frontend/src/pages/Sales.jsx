@@ -295,7 +295,20 @@ const Sales = () => {
             <>
               {!filteredSales.length && (
                 <div className="empty-state">
-                  No transactions found
+                  {sales.length === 0 ? (
+                    <div className="text-center">
+                      <p className="mb-3">No transactions yet. Create your first sale in the POS.</p>
+                      <div>
+                        <button onClick={() => navigate('/app/pos')} className="ghost-button">
+                          Open POS
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p>No transactions match your search. Clear filters or adjust search terms.</p>
+                    </div>
+                  )}
                 </div>
               )}
               {filteredSales.map((sale) => (

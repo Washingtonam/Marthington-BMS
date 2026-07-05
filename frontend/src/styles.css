@@ -118,6 +118,32 @@ button {
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* Drawer animations */
+@keyframes slideInFromRight {
+  0% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.drawer-slide-in {
+  animation: slideInFromRight 220ms cubic-bezier(.2,.9,.3,1) both;
+}
+
+.permission-tooltip {
+  font-size: 0.82rem;
+  color: #334155;
+  box-shadow: 0 10px 24px rgba(2,6,23,0.12);
+}
+
+.permission-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #ffffff;
+}
+
 .text-icon {
   display: inline-grid;
   width: 20px;

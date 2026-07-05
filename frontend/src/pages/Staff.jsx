@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import request from "../api/client.js";
+import { Eye, EyeOff } from "lucide-react";
+import "../styles.css";
 
 const initialForm = {
   name: "",
@@ -58,6 +60,12 @@ const permissionLabels = {
   }
 };
 
+const permissionGroups = {
+  inventory: ["canManageProducts", "canViewProducts"],
+  financials: ["canMakeSale", "canViewSales", "canOverridePrice"],
+  administration: ["canViewDashboard", "canViewReports", "canManageStaff", "canManageSettings"]
+};
+
 const Staff = () => {
   const [staff, setStaff] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -65,6 +73,11 @@ const Staff = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [openGroup, setOpenGroup] = useState("inventory");
+  const [showDetails, setShowDetails] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const drawerRef = useRef(null);
 
   // =====================================
   // LOAD STAFF
@@ -102,6 +115,10 @@ const Staff = () => {
         [permission]: !prev.permissions[permission]
       }
     }));
+  };
+
+  const toggleShowDetail = (permission) => {
+    setShowDetails((prev) => ({ ...prev, [permission]: !prev[permission] }));
   };
 
   // =====================================
@@ -146,7 +163,7 @@ const Staff = () => {
       role: user.role || "staff",
       permissions: user.permissions || initialForm.permissions
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setShowDrawer(true);
   };
 
   // =====================================
@@ -166,15 +183,18 @@ const Staff = () => {
   return (
     <section className="products-layout">
       {/* STAFF LIST */}
-      <div>
-        <div className="page-heading">
+      <div className="w-full">
+        <div className="page-heading flex items-start justify-between">
           <div>
             <span>Team Management</span>
             <h1>Staff Workspace</h1>
           </div>
+          <div>
+            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="bg-slate-900 text-white px-4 py-2 rounded-full font-semibold">+ Add Team Member</button>
+          </div>
         </div>
 
-        <div className="product-table mt-4">
+        <div className="product-table mt-4 w-full">
           <div className="product-row product-row-head">
             <span>Staff Member</span>
             <span>Role</span>
@@ -188,16 +208,22 @@ const Staff = () => {
           {staff.map((user) => (
             <div key={user._id} className="product-row">
               <span>
-                <div className="font-semibold">{user.name}</div>
-                <div className="text-xs text-gray-400">{user.email}</div>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-slate-700">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
+                  <div>
+                    <div className="font-semibold">{user.name}</div>
+                    <div className="text-xs text-gray-400">{user.email}</div>
+                  </div>
+                </div>
               </span>
-              <span className="capitalize">{user.role}</span>
               <span>
-                {user.isActive !== false ? (
-                  <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Active</span>
-                ) : (
-                  <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Disabled</span>
-                )}
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-800'}`}>{user.role}</span>
+              </span>
+              <span>
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${user.isActive !== false ? 'bg-green-500' : 'bg-amber-400'}`} />
+                  <span className="text-sm text-slate-700">{user.isActive !== false ? 'Active' : 'Pending'}</span>
+                </div>
               </span>
               <span className="flex gap-4">
                 <button onClick={() => handleEdit(user)} className="text-blue-600 hover:underline font-medium">Edit</button>
@@ -208,76 +234,96 @@ const Staff = () => {
         </div>
       </div>
 
-      {/* FORM */}
-      <div className="tool-panel bg-white border border-gray-100 rounded-3xl p-6 shadow-sm h-fit">
-        <h2 className="font-extrabold text-2xl mb-6">{editingId ? "Modify Staff" : "New Staff Account"}</h2>
-
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100">{error}</div>}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Full Name</label>
-            <input className="input-field" name="name" value={form.name} onChange={handleChange} placeholder="John Doe" required />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Email Address</label>
-            <input className="input-field" name="email" type="email" value={form.email} onChange={handleChange} required disabled={editingId} />
-          </div>
-
-          {!editingId && (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Default Password</label>
-              <input className="input-field" name="password" type="password" value={form.password} onChange={handleChange} required />
+      {/* DRAWER: form slides in from right */}
+      {showDrawer && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDrawer(false)} />
+          <div ref={drawerRef} className="ml-auto w-full max-w-md bg-white h-full shadow-2xl p-6 transform transition-transform">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
+              <button onClick={() => setShowDrawer(false)} className="text-gray-500">✕</button>
             </div>
-          )}
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Designated Role</label>
-            <select className="input-field capitalize" name="role" value={form.role} onChange={handleChange}>
-              <option value="staff">Staff</option>
-              <option value="cashier">Cashier</option>
-              <option value="manager">Manager</option>
-            </select>
+            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100">{error}</div>}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Full name</label>
+                <input className="input-field" name="name" value={form.name} onChange={handleChange} placeholder="John Doe" required />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Email address</label>
+                <input className="input-field" name="email" type="email" value={form.email} onChange={handleChange} required disabled={editingId} />
+              </div>
+
+              {!editingId && (
+                <div className="space-y-1 relative">
+                  <label className="text-sm font-semibold text-slate-700">Default password</label>
+                  <div className="relative">
+                    <input className="input-field pr-10" name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={handleChange} required />
+                    <button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? '🙈' : '👁️'}</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Designated role</label>
+                <select className="input-field capitalize" name="role" value={form.role} onChange={handleChange}>
+                  <option value="staff">Staff</option>
+                  <option value="cashier">Cashier</option>
+                  <option value="manager">Manager</option>
+                </select>
+              </div>
+
+              {/* Permissions grouped into accordions */}
+              <div className="border border-gray-100 rounded-2xl p-4 bg-gray-50">
+                <h3 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">🛡️ Security & Permissions</h3>
+
+                {Object.keys(permissionGroups).map((groupKey) => (
+                  <div key={groupKey} className="mb-3">
+                    <button type="button" onClick={() => setOpenGroup(openGroup === groupKey ? '' : groupKey)} className="w-full flex items-center justify-between p-3 bg-white rounded-xl border">
+                      <div className="text-sm font-semibold capitalize">{groupKey === 'inventory' ? 'Inventory Management' : groupKey === 'financials' ? 'Financials & POS' : 'Administration'}</div>
+                      <div className="text-xs text-gray-400">{openGroup === groupKey ? '−' : '+'}</div>
+                    </button>
+
+                    {openGroup === groupKey && (
+                      <div className="mt-2 space-y-2">
+                        {permissionGroups[groupKey].map((permission) => {
+                          const meta = permissionLabels[permission];
+                          return (
+                            <div key={permission} className="flex items-start justify-between p-3 bg-white rounded-xl border">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-semibold text-slate-800">{meta.label}</div>
+                                  <div className="relative group">
+                                    <button type="button" onClick={() => toggleShowDetail(permission)} className="text-xs text-gray-400">i</button>
+                                    <div className="permission-tooltip hidden group-hover:block absolute right-0 top-6 w-64 z-50 p-2 bg-white border rounded shadow">{meta.description}</div>
+                                  </div>
+                                </div>
+                                {showDetails[permission] && <div className="text-xs text-gray-500 mt-1">{meta.description}</div>}
+                              </div>
+                              <div>
+                                <button type="button" onClick={() => togglePermission(permission)} className={`w-12 h-6 rounded-full p-1 ${form.permissions[permission] ? 'bg-slate-900' : 'bg-gray-200'}`}>
+                                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${form.permissions[permission] ? 'translate-x-6' : ''}`} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button type="submit" disabled={saving} className="w-full bg-black text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition-all shadow-lg active:scale-95 disabled:bg-gray-400">
+                {saving ? "Saving..." : editingId ? "Update Account" : "Create Account"}
+              </button>
+            </form>
           </div>
-
-          {/* PREMIUM PERMISSIONS TOGGLES */}
-          <div className="border border-gray-100 rounded-2xl p-5 bg-gray-50/50">
-            <h3 className="font-bold text-sm text-gray-700 mb-4 flex items-center gap-2">
-              <span>🛡️</span> Security & Permissions
-            </h3>
-
-            <div className="space-y-3">
-              {Object.keys(permissionLabels).map((permission) => {
-                const meta = permissionLabels[permission];
-
-                return (
-                  <label key={permission} className="flex flex-col gap-2 p-3 rounded-2xl border border-gray-200 bg-white">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-sm font-semibold text-gray-800">
-                        {meta.label}
-                      </span>
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                        checked={form.permissions[permission]}
-                        onChange={() => togglePermission(permission)}
-                      />
-                    </div>
-                    <small className="text-xs text-gray-500">
-                      {meta.description}
-                    </small>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <button type="submit" disabled={saving} className="w-full bg-black text-white py-4 rounded-2xl font-bold hover:bg-gray-800 transition-all shadow-lg active:scale-95 disabled:bg-gray-400">
-            {saving ? "Saving..." : editingId ? "Update Account" : "Create Account"}
-          </button>
-        </form>
-      </div>
+        </div>
+      )}
     </section>
   );
 };
