@@ -117,7 +117,12 @@ const Login = () => {
               </svg>
               <span className="btn-label">{loading ? "Logging in..." : "Log in"}</span>
             </span>
-            {loading && <span className="btn-loader" aria-hidden="true" />}
+            {loading && (
+              <svg className="btn-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.18)" strokeWidth="3" />
+                <path d="M22 12a10 10 0 0 1-10 10" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            )}
           </button>
 
           <p className="auth-switch">
