@@ -1426,6 +1426,40 @@ label input:focus {
 /* Active press feedback */
 .industry-card:active { transform: translateY(-2px) scale(0.995); }
 
+/* Dropdown styles for industry select */
+.industry-select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-size: 1rem;
+  color: #0f172a;
+  margin-top: 8px;
+}
+
+.industry-select:focus {
+  outline: none;
+  box-shadow: 0 6px 22px rgba(5,102,70,0.08);
+  border-color: #059669;
+}
+
+.industry-description {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+/* Add a chevron indicator on the right using a background svg */
+.industry-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'><path d='M6 9l6 6 6-6' stroke='%23747b7b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
 /* When selected, color the icon to emerald and give a faint icon background */
 .industry-card-selected .text-icon { color: #059669; background: rgba(16,185,129,0.06); }
 .primary-button { border-radius: 12px; }

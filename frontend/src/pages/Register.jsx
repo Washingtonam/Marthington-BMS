@@ -190,38 +190,25 @@ const Register = () => {
           </label>
 
           <div className="industry-grid">
-            <p className="mb-3 font-semibold text-sm text-slate-600">
+            <label>
               Select your industry type
+              <select
+                name="industryType"
+                value={form.industryType}
+                onChange={handleChange}
+                className="input-field industry-select"
+              >
+                {industryOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <p className="industry-description">
+              {industryOptions.find((o) => o.value === form.industryType)?.description}
             </p>
-              <div className="industry-options grid-3">
-              {industryOptions.map((option) => {
-                const isSelected =
-                  form.industryType === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        industryType: option.value
-                      }))
-                    }
-                    aria-pressed={isSelected}
-                    className={`industry-card ${isSelected ? "industry-card-selected" : ""}`}
-                  >
-                    <div className="text-icon">
-                      <Icon name={option.icon} />
-                    </div>
-                    <div>
-                      <h3>{option.title}</h3>
-                      <p>{option.description}</p>
-                    </div>
-                    {/* No overlapping check badge — selected state shown via border, shadow, and icon color */}
-                  </button>
-                );
-              })}
-              </div>
           </div>
 
           <button className="primary-button" type="submit" disabled={loading}>
