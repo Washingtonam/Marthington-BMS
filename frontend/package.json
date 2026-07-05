@@ -10,8 +10,8 @@
     "test": "vitest"
   },
   "dependencies": {
-    "lucide-react": "^0.257.0",
     "dexie": "^4.4.2",
+    "react-icons": "^4.11.0",
     "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import request from "../api/client.js";
-import { Eye, EyeOff } from "lucide-react";
 import "../styles.css";
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const initialForm = {
   name: "",
@@ -260,9 +260,9 @@ const Staff = () => {
               {!editingId && (
                 <div className="space-y-1 relative">
                   <label className="text-sm font-semibold text-slate-700">Default password</label>
-                  <div className="relative">
+                    <div className="relative">
                     <input className="input-field pr-10" name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={handleChange} required />
-                    <button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? '🙈' : '👁️'}</button>
+                    <button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <FiEyeOff /> : <FiEye />}</button>
                   </div>
                 </div>
               )}
