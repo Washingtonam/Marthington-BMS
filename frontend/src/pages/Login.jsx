@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
-import Icon from "../components/Icon.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -45,7 +45,12 @@ const Login = () => {
       }
 
     } catch (requestError) {
-      setError(requestError.message || "Login failed.");
+      const contact = requestError?.body?.adminContact;
+      if (contact) {
+        setError(`${requestError.message} — Contact ${contact.name}: ${contact.email}${contact.phone ? ` (${contact.phone})` : ""}`);
+      } else {
+        setError(requestError.message || "Login failed.");
+      }
     } finally {
       setLoading(false);
     }
@@ -53,13 +58,12 @@ const Login = () => {
 
   return (
     <main className="auth-page">
-      <section className="auth-art">
-
-        <div className="mb-6">
-          <img src="/logo-full.png" className="h-10" />
+      <section className="auth-art hero-graphic">
+        <div className="hero-top">
+          <img src="/logo-full.png" className="h-10 logo-badge" />
         </div>
 
-        <div>
+        <div className="hero-content">
           <h1>Run inventory, sales, and teams from one calm workspace.</h1>
           <p>Sign in to continue managing your business operations.</p>
         </div>
@@ -67,16 +71,16 @@ const Login = () => {
 
       <section className="auth-panel">
         <form className="auth-form" onSubmit={handleSubmit}>
-          <Icon className="auth-icon" name="building" />
+          <img src="/logo-icon.png" className="auth-icon logo-small" />
 
           <div>
-            <h2>Welcome back</h2>
-            <p>Use your owner or staff account.</p>
+            <h2 className="welcome">Welcome back</h2>
+            <p className="welcome-sub">Use your owner or staff account.</p>
           </div>
 
           {error ? <div className="form-error">{error}</div> : null}
 
-          <label>
+          <label className="field">
             Email
             <input
               name="email"
@@ -84,26 +88,36 @@ const Login = () => {
               value={form.email}
               onChange={handleChange}
               placeholder="you@business.com"
+              className="input-field"
             />
           </label>
 
-          <label>
+          <label className="field relative">
             Password
-            <input
-              name="password"
-              type="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder="Your password"
-            />
+            <div className="input-with-icon">
+              <input
+                name="password"
+                type={form.showPassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={handleChange}
+                placeholder="Your password"
+                className="input-field pr-10"
+              />
+              <button type="button" className="password-toggle" onClick={() => setForm(f => ({ ...f, showPassword: !f.showPassword }))} aria-label="Toggle password visibility">
+                {form.showPassword ? <FiEyeOff /> : <FiEye />}
+              </button>
+            </div>
           </label>
 
-          <button className="primary-button" type="submit" disabled={loading}>
-            <Icon
-              className={loading ? "spin" : ""}
-              name={loading ? "loader" : "arrow"}
-            />
-            <span>{loading ? "Logging in..." : "Log in"}</span>
+          <button className={`primary-button ${loading ? 'loading' : ''}`} type="submit" disabled={loading}>
+            <span className="btn-content">
+              <svg className="btn-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span className="btn-label">{loading ? "Logging in..." : "Log in"}</span>
+            </span>
+            {loading && <span className="btn-loader" aria-hidden="true" />}
           </button>
 
           <p className="auth-switch">
