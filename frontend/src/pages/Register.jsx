@@ -98,22 +98,18 @@ const Register = () => {
     <main className="auth-page">
       <section className="auth-art register-art">
         <div className="mb-6">
-          <img
-            src="/logo-full.png"
-            alt="Marthington"
-            className="h-10"
-          />
+          <img src="/logo-full.png" alt="Marthington" className="h-10 logo-badge" />
         </div>
 
-        <div>
+        <div className="hero-content">
           <h1>Create the workspace your business will actually use.</h1>
-          <p>Your account becomes the owner account for this business.</p>
+          <p className="hero-sub">Your account becomes the owner account for this business.</p>
         </div>
       </section>
 
       <section className="auth-panel">
         <form className="auth-form" onSubmit={handleSubmit}>
-          <Icon className="auth-icon" name="building" />
+          <img src="/logo-icon.png" className="auth-icon logo-left" alt="logo" />
 
           <div>
             <h2>Start your workspace</h2>
@@ -130,6 +126,7 @@ const Register = () => {
               value={form.name}
               onChange={handleChange}
               placeholder="Amina Bello"
+              className="input-field"
             />
           </label>
 
@@ -141,6 +138,7 @@ const Register = () => {
               value={form.businessName}
               onChange={handleChange}
               placeholder="Bello Stores"
+              className="input-field"
             />
           </label>
 
@@ -151,6 +149,7 @@ const Register = () => {
               value={form.address}
               onChange={handleChange}
               placeholder="Abuja, Nigeria"
+              className="input-field"
             />
           </label>
 
@@ -161,6 +160,7 @@ const Register = () => {
               value={form.phone}
               onChange={handleChange}
               placeholder="08012345678"
+              className="input-field"
             />
           </label>
 
@@ -173,6 +173,7 @@ const Register = () => {
               value={form.email}
               onChange={handleChange}
               placeholder="owner@business.com"
+              className="input-field"
             />
           </label>
 
@@ -184,6 +185,7 @@ const Register = () => {
               value={form.password}
               onChange={handleChange}
               placeholder="Create a password"
+              className="input-field"
             />
           </label>
 
@@ -191,7 +193,7 @@ const Register = () => {
             <p className="mb-3 font-semibold text-sm text-slate-600">
               Select your industry type
             </p>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="industry-options">
               {industryOptions.map((option) => {
                 const isSelected =
                   form.industryType === option.value;
@@ -205,9 +207,7 @@ const Register = () => {
                         industryType: option.value
                       }))
                     }
-                    className={`industry-card ${
-                      isSelected ? "industry-card-selected" : ""
-                    }`}
+                    className={`industry-card ${isSelected ? "industry-card-selected" : ""}`}
                   >
                     <div className="industry-card-icon">
                       <Icon name={option.icon} />
