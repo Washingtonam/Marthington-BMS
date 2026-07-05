@@ -193,7 +193,7 @@ const Register = () => {
             <p className="mb-3 font-semibold text-sm text-slate-600">
               Select your industry type
             </p>
-            <div className="industry-options">
+              <div className="industry-options grid-3">
               {industryOptions.map((option) => {
                 const isSelected =
                   form.industryType === option.value;
@@ -219,7 +219,7 @@ const Register = () => {
                   </button>
                 );
               })}
-            </div>
+              </div>
           </div>
 
           <button className="primary-button" type="submit" disabled={loading}>

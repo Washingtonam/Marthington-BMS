@@ -1381,8 +1381,9 @@ label input:focus {
 .hero-sub { color: rgba(255,255,255,0.72); margin-top:8px; }
 .auth-icon.logo-left { width:36px; height:36px; display:block; margin-bottom:8px; }
 .industry-options { display:flex; gap:12px; flex-wrap:wrap; }
+.industry-options.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .industry-card { display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:10px; background:#fff; border:1px solid rgba(15,23,42,0.04); min-width:220px; max-width:320px; text-align:left; transition: transform 180ms ease, box-shadow 180ms ease, border-color 160ms ease; }
-.industry-card .text-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f8fafc; color:#0f172a; }
+.industry-card .text-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f8fafc; color:rgba(15,23,42,0.7); }
 .industry-card h3 { margin:0; font-size:1rem; }
 .industry-card p { margin:4px 0 0; color: #64748b; font-size:0.88rem; }
 .industry-card-selected { transform: scale(1.02); border-color: #059669; box-shadow: 0 10px 30px rgba(5,102,70,0.06); background: rgba(5,102,70,0.03); }
