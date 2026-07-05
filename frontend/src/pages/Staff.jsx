@@ -77,6 +77,7 @@ const Staff = () => {
   const [openGroup, setOpenGroup] = useState("inventory");
   const [showDetails, setShowDetails] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
   const drawerRef = useRef(null);
 
   // =====================================
@@ -184,35 +185,35 @@ const Staff = () => {
     <section className="products-layout">
       {/* STAFF LIST */}
       <div className="w-full">
-        <div className="page-heading flex items-start justify-between">
+        <div className="page-heading flex items-center justify-between">
           <div>
             <span>Team Management</span>
             <h1>Staff Workspace</h1>
           </div>
-          <div>
-            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="bg-slate-900 text-white px-4 py-2 rounded-full font-semibold">+ Add Team Member</button>
+          <div className="page-actions">
+            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn">+ Add Team Member</button>
           </div>
         </div>
 
-        <div className="product-table mt-4 w-full">
-          <div className="product-row product-row-head">
-            <span>Staff Member</span>
-            <span>Role</span>
-            <span>Account Status</span>
-            <span>Actions</span>
+          <div className="product-table mt-4 w-full">
+          <div className="product-row product-row-head table-header">
+            <span>STAFF MEMBER</span>
+            <span>ROLE</span>
+            <span>ACCOUNT STATUS</span>
+            <span />
           </div>
 
           {loading && <div className="empty-state">Syncing team data...</div>}
           {!loading && !staff.length && <div className="empty-state">No staff found. Add your first team member!</div>}
 
           {staff.map((user) => (
-            <div key={user._id} className="product-row">
+            <div key={user._id} className="product-row staff-row">
               <span>
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center font-semibold text-slate-700">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
                   <div>
                     <div className="font-semibold">{user.name}</div>
-                    <div className="text-xs text-gray-400">{user.email}</div>
+                    <div className="email-muted">{user.email}</div>
                   </div>
                 </div>
               </span>
@@ -225,9 +226,16 @@ const Staff = () => {
                   <span className="text-sm text-slate-700">{user.isActive !== false ? 'Active' : 'Pending'}</span>
                 </div>
               </span>
-              <span className="flex gap-4">
-                <button onClick={() => handleEdit(user)} className="text-blue-600 hover:underline font-medium">Edit</button>
-                <button onClick={() => handleDelete(user._id)} className="text-red-500 hover:underline font-medium">Remove</button>
+              <span className="flex gap-4 items-center justify-end">
+                <div className="relative">
+                  <button aria-haspopup="menu" aria-expanded={openMenuId === user._id} onClick={() => setOpenMenuId(openMenuId === user._id ? null : user._id)} className="more-options-button">⋯</button>
+                  {openMenuId === user._id && (
+                    <div className="dropdown-menu">
+                      <button onClick={() => { setOpenMenuId(null); handleEdit(user); }} className="dropdown-item">Edit</button>
+                      <button onClick={() => { setOpenMenuId(null); handleDelete(user._id); }} className="dropdown-item danger">Remove</button>
+                    </div>
+                  )}
+                </div>
               </span>
             </div>
           ))}
