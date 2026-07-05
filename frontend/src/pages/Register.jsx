@@ -210,7 +210,7 @@ const Register = () => {
                     aria-pressed={isSelected}
                     className={`industry-card ${isSelected ? "industry-card-selected" : ""}`}
                   >
-                    <div className="industry-card-icon">
+                    <div className="text-icon">
                       <Icon name={option.icon} />
                     </div>
                     <div>
