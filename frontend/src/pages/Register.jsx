@@ -207,6 +207,7 @@ const Register = () => {
                         industryType: option.value
                       }))
                     }
+                    aria-pressed={isSelected}
                     className={`industry-card ${isSelected ? "industry-card-selected" : ""}`}
                   >
                     <div className="industry-card-icon">
@@ -216,6 +217,13 @@ const Register = () => {
                       <h3>{option.title}</h3>
                       <p>{option.description}</p>
                     </div>
+                    {isSelected && (
+                      <span className="industry-selected-check" aria-hidden="true">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    )}
                   </button>
                 );
               })}
