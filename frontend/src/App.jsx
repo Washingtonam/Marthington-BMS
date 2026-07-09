@@ -213,6 +213,15 @@ const App = () => {
 
             {/* ADMIN PARTNERS LEDGER */}
             <Route
+              path="/admin/affiliates"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <AdminPartnersLedger />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/admin/partners-ledger"
               element={
                 <ProtectedRoute requiredRole="super_admin">

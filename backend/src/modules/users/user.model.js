@@ -76,6 +76,11 @@ const userSchema = new mongoose.Schema(
       default: ""
     },
 
+    phoneNumber: {
+      type: String,
+      default: ""
+    },
+
     address: {
       type: String,
       default: ""
@@ -143,6 +148,21 @@ const userSchema = new mongoose.Schema(
     totalEarned: {
       type: Number,
       default: 0
+    },
+
+    bankName: {
+      type: String,
+      default: ""
+    },
+
+    accountNumber: {
+      type: String,
+      default: ""
+    },
+
+    accountName: {
+      type: String,
+      default: ""
     },
 
     paymentDetails: {

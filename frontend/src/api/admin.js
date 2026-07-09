@@ -19,13 +19,27 @@ export const rejectPayout = async (id, payload = {}) => {
   });
 };
 
+export const getAffiliateLedgerOverview = async (query = "") => {
+  const q = query ? `?${query}` : "";
+  return request(`/admin/affiliates${q}`);
+};
+
+export const getAffiliateSettings = async () => request(`/admin/affiliate-settings`);
+
+export const updateAffiliateSettings = async (payload) => request(`/admin/affiliate-settings`, {
+  method: "PUT",
+  body: JSON.stringify(payload)
+});
+
 export const getPartnersLedger = async (query = "") => {
   const q = query ? `?${query}` : "";
   return request(`/admin/partners-ledger${q}`);
 };
 
+export const getPartnerPayoutHistory = async (id) => request(`/admin/affiliates/${id}/payout-history`);
+
 export const settleBalance = async (payload) => {
-  return request(`/admin/settle-balance`, {
+  return request(`/admin/settle-payout`, {
     method: "POST",
     body: JSON.stringify(payload)
   });
@@ -35,6 +49,10 @@ export default {
   getPayoutRequests,
   approvePayout,
   rejectPayout,
+  getAffiliateLedgerOverview,
+  getAffiliateSettings,
+  updateAffiliateSettings,
   getPartnersLedger,
+  getPartnerPayoutHistory,
   settleBalance
 };

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getPartnersLedger, settleBalance } from "../api/admin.js";
+import { useEffect, useMemo, useState } from "react";
+import { getAffiliateLedgerOverview, getAffiliateSettings, getPartnerPayoutHistory, getPartnersLedger, updateAffiliateSettings } from "../api/admin.js";
 import SettlePayoutModal from "../components/SettlePayoutModal.jsx";
 
 const formatCurrency = (value) =>
@@ -7,7 +7,7 @@ const formatCurrency = (value) =>
     style: "currency",
     currency: "NGN",
     maximumFractionDigits: 0
-  }).format(value || 0);
+  }).format(Number(value || 0));
 
 const AdminPartnersLedger = () => {
   const [ledger, setLedger] = useState([]);
@@ -16,21 +16,34 @@ const AdminPartnersLedger = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [limit] = useState(50);
-  const [expandedId, setExpandedId] = useState(null);
-  
-  // Settlement modal states
+  const [limit] = useState(20);
+  const [stats, setStats] = useState({ totalPartners: 0, pendingPayouts: 0, totalPaidCommissions: 0 });
+  const [commissionRate, setCommissionRate] = useState(20);
+  const [rateUpdating, setRateUpdating] = useState(false);
   const [settleModalOpen, setSettleModalOpen] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState([]);
 
   const loadLedger = async (pageNum = 1, search = "") => {
     setLoading(true);
     setError("");
     try {
       const query = `page=${pageNum}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ""}`;
-      const data = await getPartnersLedger(query);
-      setLedger(data.ledger || []);
-      setTotal(data.total || 0);
+      const [overviewData, ledgerData] = await Promise.all([
+        getAffiliateLedgerOverview(),
+        getPartnersLedger(query)
+      ]);
+
+      const nextStats = overviewData?.stats || {};
+      setStats({
+        totalPartners: Number(nextStats.totalPartners || overviewData?.affiliates?.length || 0),
+        pendingPayouts: Number(nextStats.pendingPayouts || 0),
+        totalPaidCommissions: Number(nextStats.totalPaidCommissions || 0)
+      });
+      setCommissionRate(Number(overviewData?.globalRate || overviewData?.settings?.globalAffiliateRate || 20));
+      setLedger(ledgerData?.ledger || []);
+      setTotal(ledgerData?.total || 0);
       setPage(pageNum);
     } catch (err) {
       console.error("Failed to load ledger:", err);
@@ -49,205 +62,205 @@ const AdminPartnersLedger = () => {
     loadLedger(1, searchTerm);
   };
 
+  const handleRateUpdate = async () => {
+    try {
+      setRateUpdating(true);
+      const data = await updateAffiliateSettings({ globalAffiliateRate: Number(commissionRate) });
+      setCommissionRate(Number(data?.settings?.globalAffiliateRate ?? commissionRate));
+    } catch (err) {
+      setError(err.message || "Failed to update rate");
+    } finally {
+      setRateUpdating(false);
+    }
+  };
+
   const handleSettleClick = (partner) => {
     setSelectedPartner(partner);
     setSettleModalOpen(true);
+  };
+
+  const handleHistoryClick = async (partner) => {
+    try {
+      const data = await getPartnerPayoutHistory(partner.affiliate || partner._id);
+      setHistoryItems(data?.history || []);
+      setSelectedPartner(partner);
+      setHistoryModalOpen(true);
+    } catch (err) {
+      setError(err.message || "Failed to load payout history");
+    }
   };
 
   const handleSettleSuccess = () => {
     loadLedger(page, searchTerm);
   };
 
-  const totalPages = Math.ceil(total / limit);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const statCards = useMemo(() => [
+    { label: "Total Approved Partners", value: stats.totalPartners.toLocaleString(), accent: "from-slate-900 to-slate-700" },
+    { label: "Pending Ledger Balances", value: formatCurrency(stats.pendingPayouts), accent: "from-amber-500 to-orange-500" },
+    { label: "Commissions Cleared (Lifetime)", value: formatCurrency(stats.totalPaidCommissions), accent: "from-emerald-600 to-emerald-500" }
+  ], [stats]);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Affiliate Network Ledger</h1>
-          <p className="text-slate-600 mt-2">View all partner profiles with contact and bank details for settlement processing</p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.08),_transparent_24%),linear-gradient(135deg,_#f8fafc_0%,_#f1f5f9_100%)] p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-8 shadow-[0_20px_80px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.35em] text-emerald-600">Affiliate operations</p>
+              <h1 className="mt-2 text-3xl font-semibold text-slate-900">Affiliate Network Ledger</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600">Track partner balances, adjust the live commission share, and settle payouts directly from a premium admin workspace.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              <p className="font-semibold text-slate-900">Live Revenue Share</p>
+              <p className="mt-1">{commissionRate}% dynamic index</p>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {statCards.map((card) => (
+              <div key={card.label} className={`rounded-2xl bg-gradient-to-br ${card.accent} p-[1px]`}>
+                <div className="h-full rounded-[15px] bg-white/95 p-5">
+                  <p className="text-sm font-medium text-slate-500">{card.label}</p>
+                  <p className="mt-3 text-2xl font-semibold text-slate-900">{card.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="mb-6 flex gap-2">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by name, email, phone, or affiliate code..."
-            className="flex-1 rounded-lg border border-slate-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-blue-600 px-6 py-2 text-white font-medium hover:bg-blue-700 transition-colors"
-          >
-            Search
-          </button>
-        </form>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">
-            {error}
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex justify-center py-12">
-            <div className="text-slate-600">Loading partners ledger...</div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && ledger.length === 0 && (
-          <div className="rounded-lg border-2 border-dashed border-slate-300 bg-white p-12 text-center">
-            <p className="text-slate-600">No partners found</p>
-          </div>
-        )}
-
-        {/* Ledger Table */}
-        {!loading && ledger.length > 0 && (
-          <>
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">Partner Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">Affiliate Code</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">Contact</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-900 uppercase tracking-wider">Bank Details</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-900 uppercase tracking-wider">Wallet Balance</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-900 uppercase tracking-wider">Total Earned</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-slate-900 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {ledger.map((partner) => (
-                    <tr key={partner._id} className="hover:bg-slate-50 transition-colors">
-                      {/* Name & Code */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <p className="font-medium text-slate-900">{partner.name || "—"}</p>
-                          <p className="text-xs text-slate-500">{partner.affiliateCode || "—"}</p>
-                        </div>
-                      </td>
-
-                      {/* Affiliate Code */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <code className="inline-block rounded bg-slate-100 px-2 py-1 text-xs text-slate-700 font-mono">
-                          {partner.affiliateCode || "—"}
-                        </code>
-                      </td>
-
-                      {/* Contact Info */}
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
-                          <p className="text-sm text-slate-900">{partner.email || "—"}</p>
-                          <p className="text-sm text-slate-600">{partner.phone || "—"}</p>
-                          <p className="text-xs text-slate-500">{partner.address || "—"}</p>
-                        </div>
-                      </td>
-
-                      {/* Bank Details */}
-                      <td className="px-6 py-4">
-                        {partner.bankName && partner.accountNumber && partner.accountName ? (
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium text-slate-900">{partner.bankName}</p>
-                            <p className="text-sm text-slate-600">{partner.accountName}</p>
-                            <p className="text-xs font-mono text-slate-500">{partner.accountNumber}</p>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-amber-600 font-medium">⚠ Incomplete</span>
-                        )}
-                      </td>
-
-                      {/* Wallet Balance */}
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatCurrency(partner.walletBalance || 0)}
-                        </p>
-                      </td>
-
-                      {/* Total Earned */}
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <p className="text-sm text-slate-700">
-                          {formatCurrency(partner.totalEarned || 0)}
-                        </p>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            onClick={() => setExpandedId(expandedId === partner._id ? null : partner._id)}
-                            className="text-blue-600 hover:text-blue-700 text-xs font-medium"
-                          >
-                            {expandedId === partner._id ? "Hide" : "View"}
-                          </button>
-                          {partner.walletBalance > 0 && (
-                            <button
-                              onClick={() => handleSettleClick(partner)}
-                              className="text-emerald-600 hover:text-emerald-700 text-xs font-medium"
-                            >
-                              Settle
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Global commission settings</h2>
+              <p className="mt-1 text-sm text-slate-600">Adjust the revenue-share index for future commissions in real time.</p>
             </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input type="number" min="0" max="100" value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-slate-900 outline-none focus:border-emerald-500 sm:w-32" />
+              <button onClick={handleRateUpdate} disabled={rateUpdating} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
+                {rateUpdating ? "Updating..." : "Update Rate"}
+              </button>
+            </div>
+          </div>
+        </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-6 flex justify-center gap-2">
-                <button
-                  onClick={() => loadLedger(page - 1, searchTerm)}
-                  disabled={page === 1}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => loadLedger(p, searchTerm)}
-                      className={`px-3 py-1 rounded-lg font-medium ${
-                        page === p
-                          ? "bg-blue-600 text-white"
-                          : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <button
-                  onClick={() => loadLedger(page + 1, searchTerm)}
-                  disabled={page === totalPages}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
-                >
-                  Next
-                </button>
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Affiliate ledger table</h2>
+              <p className="mt-1 text-sm text-slate-600">Each partner includes their bank data and settlement actions for direct payout processing.</p>
+            </div>
+            <form onSubmit={handleSearch} className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by name, email, code, or phone" className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-emerald-500 lg:w-80" />
+              <button type="submit" className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Search</button>
+            </form>
+          </div>
+
+          {error && <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+
+          {loading ? (
+            <div className="mt-8 flex justify-center py-10 text-sm text-slate-500">Loading affiliate ledger...</div>
+          ) : ledger.length === 0 ? (
+            <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-sm text-slate-500">No partners found for this filter.</div>
+          ) : (
+            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Partner identity</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Tracking code</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Wallet balance</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Total earned</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Bank data</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Settlement controls</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {ledger.map((partner) => (
+                      <tr key={partner._id} className="align-top hover:bg-slate-50/80">
+                        <td className="px-4 py-4">
+                          <div>
+                            <p className="font-semibold text-slate-900">{partner.name || "—"}</p>
+                            <p className="mt-1 text-sm text-slate-500">{partner.email || "—"}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-slate-600">
+                          <span className="rounded-full bg-slate-100 px-3 py-1 font-mono text-xs text-slate-700">{partner.affiliateCode || "—"}</span>
+                        </td>
+                        <td className="px-4 py-4 text-sm font-semibold text-slate-900">{formatCurrency(partner.walletBalance || 0)}</td>
+                        <td className="px-4 py-4 text-sm text-slate-600">{formatCurrency(partner.totalEarned || 0)}</td>
+                        <td className="px-4 py-4 text-sm text-slate-600">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-900">{partner.bankName || partner.accountName || partner.accountNumber ? `${partner.bankName || "—"}` : "No bank data saved"}</p>
+                            <p>{partner.accountName || "—"}</p>
+                            <p>{partner.accountNumber || "—"}</p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => handleHistoryClick(partner)} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">View History</button>
+                            <button onClick={() => handleSettleClick(partner)} disabled={(partner.walletBalance || 0) <= 0} className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">Settle Balance</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <button onClick={() => loadLedger(page - 1, searchTerm)} disabled={page === 1} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Previous</button>
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((item) => (
+                <button key={item} onClick={() => loadLedger(item, searchTerm)} className={`rounded-full px-3 py-2 text-sm font-semibold ${page === item ? "bg-slate-900 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-50"}`}>
+                  {item}
+                </button>
+              ))}
+              <button onClick={() => loadLedger(page + 1, searchTerm)} disabled={page === totalPages} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">Next</button>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Settle Balance Modal */}
       {selectedPartner && (
-        <SettlePayoutModal
-          isOpen={settleModalOpen}
-          onClose={() => setSettleModalOpen(false)}
-          affiliate={selectedPartner}
-          onSuccess={handleSettleSuccess}
-        />
+        <SettlePayoutModal isOpen={settleModalOpen} onClose={() => setSettleModalOpen(false)} affiliate={selectedPartner} onSuccess={handleSettleSuccess} />
+      )}
+
+      {historyModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 p-6">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">Payout history</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900">{selectedPartner?.name || "Partner"}</h3>
+              </div>
+              <button onClick={() => setHistoryModalOpen(false)} className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-6">
+              {historyItems.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">No payout history yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {historyItems.map((item, index) => (
+                    <div key={item._id || index} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{formatCurrency(item.amount || 0)}</p>
+                          <p className="mt-1 text-sm text-slate-500">{item.status || "Paid"}</p>
+                        </div>
+                        <p className="text-sm text-slate-500">{new Date(item.date || item.createdAt || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

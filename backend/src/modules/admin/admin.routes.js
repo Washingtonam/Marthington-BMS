@@ -143,10 +143,17 @@ router.get(
 
 // =============== SETTLE BALANCE ================
 router.post(
-  "/settle-balance",
+  "/settle-payout",
   protect,
   onlyAdmin,
   adminController.settleBalance
+);
+
+router.get(
+  "/affiliates/:id/payout-history",
+  protect,
+  onlyAdmin,
+  adminController.getPartnerPayoutHistory
 );
 
 export default router;

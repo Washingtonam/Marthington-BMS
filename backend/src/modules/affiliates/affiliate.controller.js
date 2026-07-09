@@ -159,7 +159,11 @@ const updateAffiliateProfile = async (req, res) => {
 
     const update = {
       phone: phone.trim(),
+      phoneNumber: phone.trim(),
       address: address.trim(),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      accountName: accountName.trim(),
       paymentDetails: {
         bankName: bankName.trim(),
         accountNumber: accountNumber.trim(),

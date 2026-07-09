@@ -13,6 +13,10 @@ const systemSettingsSchema = new mongoose.Schema(
       name: { type: String, default: "Support" },
       email: { type: String, default: "support@marthington.com" },
       phone: { type: String, default: "" }
+    },
+    totalCommissionsCleared: {
+      type: Number,
+      default: 0
     }
   },
   {

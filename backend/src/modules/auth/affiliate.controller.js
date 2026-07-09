@@ -35,6 +35,11 @@ const registerAffiliate = async (req, res) => {
       affiliateCode,
       walletBalance: 0,
       totalEarned: 0,
+      phoneNumber: "",
+      address: "",
+      bankName,
+      accountNumber,
+      accountName,
       paymentDetails: {
         bankName,
         accountNumber,

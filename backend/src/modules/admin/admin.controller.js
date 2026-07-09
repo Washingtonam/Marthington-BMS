@@ -6,6 +6,7 @@ import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
 import Notification from "../notifications/notification.model.js";
+import PayoutHistory from "../affiliates/payoutHistory.model.js";
 import mongoose from "mongoose";
 import Audit from "./audit.model.js";
 
@@ -390,13 +391,27 @@ const listAffiliates = async (req, res) => {
       { $group: { _id: null, total: { $sum: "$commissionEarned" } } }
     ]);
 
+    const settingsDoc = await SystemSettings.findOne();
     const stats = {
       totalPartners: affiliates.length,
       pendingPayouts: await PayoutRequest.countDocuments({ status: "pending" }),
-      totalPaidCommissions: (totalPaid[0] && totalPaid[0].total) || 0
+      totalPaidCommissions: Number(settingsDoc?.totalCommissionsCleared ?? (totalPaid[0] && totalPaid[0].total) ?? 0)
     };
 
     res.json({ affiliates, globalRate, stats });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getPartnerPayoutHistory = async (req, res) => {
+  try {
+    const partnerId = req.params.id;
+    const history = await PayoutHistory.find({ partnerId })
+      .sort({ date: -1 })
+      .lean();
+
+    res.json({ history });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -590,13 +605,13 @@ const getPartnersLedger = async (req, res) => {
           affiliateCode: 1,
           name: "$affiliateData.name",
           email: "$affiliateData.email",
-          phone: "$affiliateData.phone",
+          phone: { $ifNull: ["$affiliateData.phoneNumber", "$affiliateData.phone"] },
           address: "$affiliateData.address",
           walletBalance: "$affiliateData.walletBalance",
           totalEarned: "$affiliateData.totalEarned",
-          bankName: "$affiliateData.paymentDetails.bankName",
-          accountNumber: "$affiliateData.paymentDetails.accountNumber",
-          accountName: "$affiliateData.paymentDetails.accountName",
+          bankName: { $ifNull: ["$affiliateData.bankName", "$affiliateData.paymentDetails.bankName"] },
+          accountNumber: { $ifNull: ["$affiliateData.accountNumber", "$affiliateData.paymentDetails.accountNumber"] },
+          accountName: { $ifNull: ["$affiliateData.accountName", "$affiliateData.paymentDetails.accountName"] },
           amountPaid: 1,
           commissionEarned: 1,
           status: 1,
@@ -633,33 +648,32 @@ const settleBalance = async (req, res) => {
       return res.status(400).json({ message: "Invalid affiliate ID or amount" });
     }
 
-    // Fetch affiliate
     const affiliate = await User.findById(affiliateId).session(session);
     if (!affiliate) {
       await session.abortTransaction();
       return res.status(404).json({ message: "Affiliate not found" });
     }
 
-    if (affiliate.walletBalance < amount) {
+    if (Number(affiliate.walletBalance || 0) < Number(amount)) {
       await session.abortTransaction();
       return res.status(400).json({ message: "Insufficient wallet balance" });
     }
 
-    // Deduct from wallet
+    const settledAmount = Number(amount);
+
     await User.findByIdAndUpdate(
       affiliateId,
-      { $inc: { walletBalance: -amount } },
+      { $inc: { walletBalance: -settledAmount } },
       { session }
     );
 
-    // Log to AffiliatePayout (history)
     await AffiliatePayout.create(
       [{
         affiliate: affiliateId,
         affiliateCode: affiliate.affiliateCode || "",
         businessName: affiliate.name || "Settlement",
-        amountPaid: amount,
-        commissionEarned: amount,
+        amountPaid: settledAmount,
+        commissionEarned: settledAmount,
         rateApplied: 0,
         status: "settled",
         transactionDate: new Date()
@@ -667,42 +681,49 @@ const settleBalance = async (req, res) => {
       { session }
     );
 
-    // Update system settings - increment commissions cleared counter
+    await PayoutHistory.create([
+      {
+        partnerId: affiliateId,
+        amount: settledAmount,
+        status: "Paid",
+        date: new Date(),
+        note: note || ""
+      }
+    ], { session });
+
+    const settings = await SystemSettings.findOne({}).session(session);
+    if (settings) {
+      settings.globalAffiliateRate = Number(settings.globalAffiliateRate ?? 20);
+      await settings.save({ session });
+    }
+
     await SystemSettings.findOneAndUpdate(
       {},
-      { 
-        $inc: { 
-          "affiliateCommissions.totalClearedLifetime": amount
-        }
-      },
-      { session }
+      { $inc: { totalCommissionsCleared: settledAmount } },
+      { session, upsert: true, new: true }
     );
 
-    // Create notification for partner
     await Notification.create(
       [{
         recipient: affiliateId,
         type: "payout_settled",
         title: "Payout Processed Successfully",
-        message: `Your payout of ₦${amount.toLocaleString()} has been approved and processed to your bank account (${affiliate.paymentDetails?.bankName || "Your Bank"}). ${note ? `Note: ${note}` : ""}`,
-        amount,
+        message: `Your payout of ₦${settledAmount.toLocaleString()} has been approved and processed to your bank account (${affiliate.paymentDetails?.bankName || "Your Bank"}). ${note ? `Note: ${note}` : ""}`,
+        amount: settledAmount,
         actionUrl: "/partners/dashboard"
       }],
       { session }
     );
 
-    // Commit transaction
     await session.commitTransaction();
-
-    console.log("SETTLE BALANCE - Success for affiliate:", affiliateId, "Amount:", amount);
 
     res.json({
       message: "Balance settled successfully",
       affiliate: {
         name: affiliate.name,
         email: affiliate.email,
-        newWalletBalance: affiliate.walletBalance - amount,
-        settledAmount: amount
+        newWalletBalance: Number(affiliate.walletBalance || 0) - settledAmount,
+        settledAmount
       }
     });
 
@@ -771,6 +792,7 @@ export default {
   updateAdminContact,
   // affiliates
   listAffiliates,
+  getPartnerPayoutHistory,
   processAffiliatePayout,
   // payouts
   listPayoutRequests,
