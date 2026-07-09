@@ -13,14 +13,22 @@ const createPayoutRequest = async (req, res) => {
       return res.status(400).json({ message: "Invalid payout amount" });
     }
 
+    // Check if affiliate has completed bank details
+    const affiliate = await User.findById(affiliateId);
+    if (!affiliate) return res.status(404).json({ message: "Affiliate not found" });
+    
+    if (!affiliate.paymentDetails?.bankName || !affiliate.paymentDetails?.accountNumber || !affiliate.paymentDetails?.accountName) {
+      return res.status(400).json({ message: "Please complete your bank details in your profile before requesting a payout" });
+    }
+
     // Atomically decrement walletBalance only if sufficient funds
-    const affiliate = await User.findOneAndUpdate(
+    const updatedAffiliate = await User.findOneAndUpdate(
       { _id: affiliateId, walletBalance: { $gte: amountNum } },
       { $inc: { walletBalance: -amountNum } },
       { new: true }
     );
 
-    if (!affiliate) {
+    if (!updatedAffiliate) {
       return res.status(400).json({ message: "Insufficient wallet balance" });
     }
 

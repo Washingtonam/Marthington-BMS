@@ -452,7 +452,7 @@ const listPayoutRequests = async (req, res) => {
 
     const total = await PayoutRequest.countDocuments(q);
     const requests = await PayoutRequest.find(q)
-      .populate("affiliate", "name email affiliateCode")
+      .populate("affiliate", "name email phone address affiliateCode paymentDetails walletBalance")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))

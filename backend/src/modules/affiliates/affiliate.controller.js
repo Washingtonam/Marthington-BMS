@@ -104,6 +104,66 @@ const getAffiliateDashboard = async (req, res) => {
   }
 };
 
+const getAffiliateProfile = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const affiliate = await User.findById(req.user._id)
+      .select("name email phone address paymentDetails affiliateCode totalEarned walletBalance")
+      .lean();
+
+    if (!affiliate || affiliate.role !== "affiliate") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    res.json({ affiliate });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateAffiliateProfile = async (req, res) => {
+  try {
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { phone, address, bankName, accountNumber, accountName } = req.body;
+
+    // Validate required fields
+    if (!phone || !address || !bankName || !accountNumber || !accountName) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const update = {
+      phone: phone.trim(),
+      address: address.trim(),
+      paymentDetails: {
+        bankName: bankName.trim(),
+        accountNumber: accountNumber.trim(),
+        accountName: accountName.trim()
+      }
+    };
+
+    const affiliate = await User.findByIdAndUpdate(req.user._id, update, {
+      new: true,
+      runValidators: true
+    }).select("name email phone address paymentDetails affiliateCode totalEarned walletBalance");
+
+    if (!affiliate) {
+      return res.status(404).json({ message: "Affiliate not found" });
+    }
+
+    res.json({ message: "Profile updated successfully", affiliate });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export default {
-  getAffiliateDashboard
+  getAffiliateDashboard,
+  getAffiliateProfile,
+  updateAffiliateProfile
 };

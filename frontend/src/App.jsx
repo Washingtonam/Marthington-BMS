@@ -41,6 +41,7 @@ const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
 const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
+const PartnerProfile = lazy(() => import("./pages/PartnerProfile.jsx"));
 const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 
@@ -179,6 +180,14 @@ const App = () => {
               element={
                 <ProtectedRoute requiredRole="affiliate">
                   <PartnersDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/partners/profile"
+              element={
+                <ProtectedRoute requiredRole="affiliate">
+                  <PartnerProfile />
                 </ProtectedRoute>
               }
             />

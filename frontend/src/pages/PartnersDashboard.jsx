@@ -150,6 +150,15 @@ const PartnerDashboard = () => {
 
               <button
                 type="button"
+                onClick={() => navigate("/partners/profile")}
+                className="rounded-full border border-white/10 bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition"
+                aria-label="Profile"
+              >
+                Profile
+              </button>
+
+              <button
+                type="button"
                 onClick={() => logout()}
                 className="rounded-full border border-white/10 bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500 transition"
                 aria-label="Logout"
