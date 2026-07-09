@@ -49,7 +49,7 @@ const affiliatePayoutSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["credited", "pending"],
+      enum: ["credited", "pending", "approved", "rejected", "settled", "Paid"],
       default: "credited"
     },
 
