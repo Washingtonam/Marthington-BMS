@@ -347,7 +347,7 @@ const AdminDashboard = () => {
             <div className="rounded-3xl bg-white border border-slate-200/80 p-6 shadow-xl">
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Pending Ledger Balances</p>
               <p className="mt-4 text-3xl font-extrabold tracking-tight text-amber-600">
-                ₦{affiliateStats.pendingPayouts?.toLocaleString() || "0"}
+                {affiliateStats.pendingPayouts?.toLocaleString() || "0"}
               </p>
               <p className="mt-3 text-xs font-medium text-slate-400">Withdrawable revenue assets accumulated inside partner wallets.</p>
             </div>
