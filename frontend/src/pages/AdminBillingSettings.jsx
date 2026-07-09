@@ -13,6 +13,7 @@ const AdminBillingSettings = () => {
     yearlyNgn: 150000,
     yearlyUsd: 150
   });
+  const [commissionRate, setCommissionRate] = useState(20);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,12 +50,15 @@ const AdminBillingSettings = () => {
 
     loadPricing();
 
-    // load admin contact
+    // load admin contact and affiliate commission rate
     (async () => {
       try {
         const settingsRes = await request("/admin/affiliate-settings");
         const settings = settingsRes?.settings || {};
         if (settings.adminContact) setAdminContact(settings.adminContact);
+        if (typeof settings.globalAffiliateRate === "number") {
+          setCommissionRate(settings.globalAffiliateRate);
+        }
       } catch (err) {
         // ignore
       }
@@ -86,14 +90,19 @@ const AdminBillingSettings = () => {
         })
       });
 
+      await request("/admin/affiliate-settings", {
+        method: "PUT",
+        body: JSON.stringify({ globalAffiliateRate: Number(commissionRate) })
+      });
+
       setNotificationType("success");
-      setNotification("✅ Global subscription prices updated successfully!");
+      setNotification("✅ Global subscription prices and commission rate updated successfully!");
 
       // Auto-hide notification after 4 seconds
       setTimeout(() => setNotification(""), 4000);
     } catch (err) {
       setNotificationType("error");
-      setNotification(`❌ Error updating prices: ${err.message}`);
+      setNotification(`❌ Error updating settings: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -278,6 +287,30 @@ const AdminBillingSettings = () => {
             <p className="text-2xl font-black text-slate-900 mt-1">
               ${form.yearlyUsd?.toLocaleString()}
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* AFFILIATE COMMISSION RATE */}
+      <div className="mt-8 rounded-3xl bg-white p-8 shadow-xl border border-slate-200">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Affiliate Commission Rate</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Update the default referral commission percentage used for new affiliate payouts.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={commissionRate}
+              onChange={(e) => setCommissionRate(parseInt(e.target.value) || 0)}
+              disabled={loading || saving}
+              className="w-20 bg-transparent text-lg font-bold text-slate-900 focus:outline-none disabled:cursor-not-allowed"
+            />
+            <span className="text-sm font-semibold text-slate-500">%</span>
           </div>
         </div>
       </div>

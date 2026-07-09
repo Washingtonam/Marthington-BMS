@@ -60,8 +60,15 @@ const features = [
   }
 ];
 
+const categoryTabs = [
+  { value: "retail", label: "Retail" },
+  { value: "school", label: "Schools" },
+  { value: "hospital", label: "Hospitals" }
+];
+
 const Landing = () => {
   const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
+  const [selectedTab, setSelectedTab] = useState("retail");
 
   useEffect(() => {
     const loadPricing = async () => {
@@ -107,31 +114,168 @@ const Landing = () => {
       </header>
 
       {/* HERO SECTION */}
-      <section className="relative overflow-hidden px-6 py-24 text-center sm:py-32">
+      <section className="relative overflow-hidden px-6 py-24 sm:py-32">
         <div className="absolute left-1/4 top-0 -z-10 h-96 w-96 rounded-full bg-blue-50/70 blur-3xl" />
         <div className="absolute right-1/4 top-10 -z-10 h-72 w-72 rounded-full bg-indigo-50/50 blur-3xl" />
         <div className="absolute inset-x-0 top-1/3 -z-10 h-64 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9),transparent_70%)]" />
 
-        <div className="mx-auto flex max-w-3xl flex-col items-center">
-          <span className="mb-8 inline-flex items-center gap-1.5 rounded-full border border-slate-100 bg-white/90 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-600 shadow-sm backdrop-blur">
-            ⚡ Identity Infrastructure 2026
-          </span>
+        <div className="mx-auto grid max-w-7xl items-center gap-16 lg:grid-cols-12">
+          <div className="flex flex-col items-start lg:col-span-7">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-100 bg-white/90 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600 shadow-sm backdrop-blur">
+              <span>⚡ Consolidated Multi-Sector Suite</span>
+            </div>
 
-          <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
-            Verification, <span className="block text-emerald-600 sm:inline">Made Effortless.</span>
-          </h1>
+            <h1 className="mb-6 text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 md:text-6xl">
+              The premium enterprise operating system for
+              <span className="mt-1 block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                African Business Hubs.
+              </span>
+            </h1>
 
-          <p className="mb-10 max-w-2xl text-lg font-medium leading-relaxed text-slate-500">
-            Marthington helps agents and businesses verify identities, process modifications, and manage operations with a polished, professional workflow.
-          </p>
+            <p className="mb-10 max-w-xl text-base leading-relaxed text-slate-500 md:text-lg">
+              One unified workspace engineered for cross-channel sales management, continuous inventory controls, automated analytics, and absolute administrative security.
+            </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link to="/register" className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-8 py-3.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
-              Get Started Free <span aria-hidden="true">→</span>
-            </Link>
-            <Link to="/login" className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-transparent px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-50">
-              Login
-            </Link>
+            <div className="mb-10 flex max-w-md rounded-full border border-slate-200/70 bg-slate-100/80 p-1 shadow-inner">
+              {categoryTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setSelectedTab(tab.value)}
+                  className={`rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                    selectedTab === tab.value
+                      ? "border border-slate-200/40 bg-white text-slate-900 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex w-full flex-wrap items-center gap-4">
+              <Link to="/register" className="inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
+                Deploy Workspace
+              </Link>
+              <Link to="/affiliate-register" className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-slate-50">
+                Become a Partner
+              </Link>
+            </div>
+
+            <div className="mt-14 grid w-full grid-cols-3 gap-8 border-t border-slate-200/60 pt-8">
+              <div>
+                <span className="block text-2xl font-bold tracking-tight text-slate-900">99.9%</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Uptime SLA</span>
+              </div>
+              <div>
+                <span className="block text-2xl font-bold tracking-tight text-slate-900">Instant</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Receipt Stream</span>
+              </div>
+              <div>
+                <span className="block text-2xl font-bold tracking-tight text-slate-900">Multi-Tenancy</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Data Isolation</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 relative w-full">
+            <div className="absolute -top-3 -right-3 bg-slate-900 text-white text-[10px] uppercase font-bold tracking-widest px-3.5 py-1.5 rounded-full shadow-lg z-10 border border-slate-800">
+              Live Preview
+            </div>
+
+            <div className="bg-white border border-slate-200 shadow-xl rounded-[32px] p-8 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
+              <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">
+                    {selectedTab === "retail" && "Point of Sale Terminal"}
+                    {selectedTab === "school" && "Academic Overview"}
+                    {selectedTab === "hospital" && "Clinical Hub Terminal"}
+                  </h3>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    {selectedTab === "retail" && "Seamless physical transactional manager"}
+                    {selectedTab === "school" && "Central core metrics engine"}
+                    {selectedTab === "hospital" && "Patient diagnostic registry portal"}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg font-bold shadow-inner">
+                  M
+                </div>
+              </div>
+
+              {selectedTab === "retail" && (
+                <div className="space-y-3.5">
+                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-800">LaserJet Pro MFP476</p>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">SKU-1780656</p>
+                    </div>
+                    <span className="font-bold text-sm text-slate-900">₦350,000</span>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                    <div>
+                      <p className="font-semibold text-sm text-slate-800">Hardware Component Batch</p>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">Qty: 2 units</p>
+                    </div>
+                    <span className="font-bold text-sm text-slate-900">₦24,000</span>
+                  </div>
+                  <div className="pt-6 mt-6 border-t border-slate-100">
+                    <div className="flex justify-between items-center text-slate-900">
+                      <span className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Balance</span>
+                      <span className="text-xl font-bold text-slate-900">₦374,000</span>
+                    </div>
+                    <div className="mt-4 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl p-3 text-xs font-semibold text-center shadow-inner">
+                      ✅ Digital confirmation ledger processed successfully
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTab === "school" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Enrolled</span>
+                      <span className="text-2xl font-bold text-slate-900 mt-1 block">1,248</span>
+                    </div>
+                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tuition Ledger</span>
+                      <span className="text-2xl font-bold text-slate-900 mt-1 block">₦1.5M</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                    <div className="flex justify-between text-xs font-semibold border-b border-slate-200/60 pb-2 mb-2">
+                      <span className="text-slate-400">Class</span>
+                      <span className="text-slate-400">Instructor</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-700 font-medium">
+                      <span>Advanced Mathematics</span>
+                      <span className="text-slate-500">Mrs. Adisa</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedTab === "hospital" && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Patient Registry Sync</p>
+                      <p className="text-xs text-slate-400 mt-0.5 font-medium">Bed Count & Wards</p>
+                    </div>
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-center">
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Outpatients</span>
+                      <span className="text-xl font-bold text-slate-800 mt-0.5 block">142</span>
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Pharmacy SKU</span>
+                      <span className="text-xl font-bold text-slate-800 mt-0.5 block">1,850</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -165,7 +309,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-20">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Enterprise management architecture.</h2>
-            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
+            <p className="text-slate-400 text-sm mt-3 font-medium leading-relaxed">
               One meticulously designed environment to govern accounts receivable, verify personnel pipelines, track inventory batches, and download structural analytics.
             </p>
           </div>
@@ -189,7 +333,7 @@ const Landing = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">The Referral Partnership Program</h2>
-            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
+            <p className="text-slate-400 text-sm font-medium mt-3 leading-relaxed">
               Earn generous, continuous revenue streams while deploying enterprise platform logic to thousands of expanding retail businesses.
             </p>
           </div>

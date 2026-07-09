@@ -114,9 +114,9 @@ const AdminDashboard = () => {
   const handleUpdateGlobalRate = async () => {
     try {
       setIsUpdatingRate(true);
-      await request("/admin/settings/affiliate-rate", {
+      await request("/admin/affiliate-settings", {
         method: "PUT",
-        body: JSON.stringify({ globalRate })
+        body: JSON.stringify({ globalAffiliateRate: Number(globalRate) })
       });
       alert("Global partner commission configuration updated successfully.");
     } catch (err) {
