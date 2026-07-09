@@ -110,16 +110,35 @@ const getAffiliateProfile = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const affiliate = await User.findById(req.user._id)
-      .select("name email phone address paymentDetails affiliateCode totalEarned walletBalance")
-      .lean();
+    const affiliate = await User.findById(req.user._id).lean();
 
-    if (!affiliate || affiliate.role !== "affiliate") {
+    if (!affiliate) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (affiliate.role !== "affiliate") {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    res.json({ affiliate });
+    // Return profile data
+    res.json({
+      affiliate: {
+        name: affiliate.name,
+        email: affiliate.email,
+        phone: affiliate.phone || "",
+        address: affiliate.address || "",
+        affiliateCode: affiliate.affiliateCode,
+        paymentDetails: affiliate.paymentDetails || {
+          bankName: "",
+          accountNumber: "",
+          accountName: ""
+        },
+        totalEarned: affiliate.totalEarned || 0,
+        walletBalance: affiliate.walletBalance || 0
+      }
+    });
   } catch (err) {
+    console.error("GET PROFILE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -134,6 +153,7 @@ const updateAffiliateProfile = async (req, res) => {
 
     // Validate required fields
     if (!phone || !address || !bankName || !accountNumber || !accountName) {
+      console.warn("UPDATE PROFILE - Missing required fields:", { phone: !!phone, address: !!address, bankName: !!bankName, accountNumber: !!accountNumber, accountName: !!accountName });
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -147,17 +167,34 @@ const updateAffiliateProfile = async (req, res) => {
       }
     };
 
+    console.log("UPDATE PROFILE - Updating user:", req.user._id, "with data:", update);
+
     const affiliate = await User.findByIdAndUpdate(req.user._id, update, {
       new: true,
       runValidators: true
-    }).select("name email phone address paymentDetails affiliateCode totalEarned walletBalance");
+    });
 
     if (!affiliate) {
       return res.status(404).json({ message: "Affiliate not found" });
     }
 
-    res.json({ message: "Profile updated successfully", affiliate });
+    console.log("UPDATE PROFILE - Success for user:", affiliate._id);
+
+    res.json({ 
+      message: "Profile updated successfully", 
+      affiliate: {
+        name: affiliate.name,
+        email: affiliate.email,
+        phone: affiliate.phone,
+        address: affiliate.address,
+        affiliateCode: affiliate.affiliateCode,
+        paymentDetails: affiliate.paymentDetails,
+        totalEarned: affiliate.totalEarned,
+        walletBalance: affiliate.walletBalance
+      }
+    });
   } catch (err) {
+    console.error("UPDATE PROFILE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };

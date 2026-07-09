@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import request from "../api/client.js";
+import { getAffiliateProfile, updateAffiliateProfile } from "../api/affiliates.js";
 
 const PartnerProfile = () => {
   const navigate = useNavigate();
@@ -23,7 +23,13 @@ const PartnerProfile = () => {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const data = await request("/affiliates/profile");
+      setMessage("");
+      
+      console.log("Fetching profile...");
+      const data = await getAffiliateProfile();
+      
+      console.log("Profile data received:", data);
+      
       if (data.affiliate) {
         setFormData({
           phone: data.affiliate.phone || "",
@@ -34,9 +40,9 @@ const PartnerProfile = () => {
         });
       }
     } catch (err) {
-      setMessage("Failed to load profile");
+      console.error("Failed to load profile:", err);
+      setMessage(err.message || "Failed to load profile");
       setMessageType("error");
-      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -45,6 +51,17 @@ const PartnerProfile = () => {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (messageType === "success") {
+      const timer = setTimeout(() => {
+        setMessage("");
+        setMessageType("");
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [messageType]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -65,23 +82,24 @@ const PartnerProfile = () => {
       setSaving(true);
       setMessage("");
       
-      const response = await request("/affiliates/profile", {
-        method: "PUT",
-        body: JSON.stringify({
-          phone: formData.phone.trim(),
-          address: formData.address.trim(),
-          bankName: formData.bankName.trim(),
-          accountNumber: formData.accountNumber.trim(),
-          accountName: formData.accountName.trim()
-        })
+      console.log("Updating profile with data:", formData);
+      
+      const response = await updateAffiliateProfile({
+        phone: formData.phone.trim(),
+        address: formData.address.trim(),
+        bankName: formData.bankName.trim(),
+        accountNumber: formData.accountNumber.trim(),
+        accountName: formData.accountName.trim()
       });
+
+      console.log("Profile update response:", response);
 
       setMessage(response.message || "Profile updated successfully");
       setMessageType("success");
     } catch (err) {
+      console.error("Profile update error:", err);
       setMessage(err.message || "Failed to update profile");
       setMessageType("error");
-      console.error(err);
     } finally {
       setSaving(false);
     }
