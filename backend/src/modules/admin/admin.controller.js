@@ -650,40 +650,6 @@ const approvePayoutRequest = async (req, res) => {
   }
 };
 
-const rejectPayoutRequest = async (req, res) => {
-  try {
-    const id = req.params.id;
-    const payout = await PayoutRequest.findById(id);
-    if (!payout) return res.status(404).json({ message: "Payout request not found" });
-    if (payout.status !== "pending") return res.status(400).json({ message: "Request already processed" });
-
-    payout.status = "rejected";
-    payout.processedAt = new Date();
-    payout.adminNote = req.body.note || "Rejected by admin";
-    await payout.save();
-
-    // refund wallet
-    if (payout.affiliate) {
-      await User.findByIdAndUpdate(payout.affiliate, { $inc: { walletBalance: payout.amountRequested } });
-
-      // Create notification for partner
-      await Notification.create({
-        recipient: payout.affiliate,
-        type: "payout_rejected",
-        title: "Payout Request Rejected",
-        message: `Your payout request of ₦${payout.amountRequested.toLocaleString()} has been rejected. Reason: ${payout.adminNote}`,
-        amount: payout.amountRequested,
-        payoutRequestId: payout._id,
-        actionUrl: "/partners/dashboard"
-      });
-    }
-
-    res.json({ message: "Payout rejected", payout });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-
 // 🔥 PARTNERS LEDGER WITH FULL PROFILE DETAILS
 const getPartnersLedger = async (req, res) => {
   try {
