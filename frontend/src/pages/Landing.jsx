@@ -60,15 +60,8 @@ const features = [
   }
 ];
 
-const categoryTabs = [
-  { value: "retail", label: "Retail" },
-  { value: "school", label: "Schools" },
-  { value: "hospital", label: "Hospitals" }
-];
-
 const Landing = () => {
   const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
-  const [selectedTab, setSelectedTab] = useState("retail");
 
   useEffect(() => {
     const loadPricing = async () => {
@@ -90,9 +83,9 @@ const Landing = () => {
   const yearlySavings = Math.max(0, pricing.monthly * 12 - pricing.yearly);
 
   return (
-    <div className="min-h-screen bg-[#fafbfc] text-slate-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fbff_45%,#ffffff_100%)] text-slate-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
       {/* NAVBAR */}
-      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-md border-b border-slate-100 transition-colors duration-300">
+      <header className="sticky top-0 z-50 border-b border-slate-100/80 bg-white/70 backdrop-blur-md transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <img src="/logo-icon.png" alt="Marthington" className="w-10 h-10 rounded-xl shadow-sm" />
@@ -114,170 +107,37 @@ const Landing = () => {
       </header>
 
       {/* HERO SECTION */}
-      <section className="max-w-7xl mx-auto px-6 pt-20 pb-28">
-        <div className="grid lg:grid-cols-12 items-center gap-16">
-          <div className="lg:col-span-7 flex flex-col items-start">
-            <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase mb-6 shadow-sm">
-              <span>⚡ Consolidated Multi-Sector Suite</span>
-            </div>
+      <section className="relative overflow-hidden px-6 py-24 text-center sm:py-32">
+        <div className="absolute left-1/4 top-0 -z-10 h-96 w-96 rounded-full bg-blue-50/70 blur-3xl" />
+        <div className="absolute right-1/4 top-10 -z-10 h-72 w-72 rounded-full bg-indigo-50/50 blur-3xl" />
+        <div className="absolute inset-x-0 top-1/3 -z-10 h-64 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.9),transparent_70%)]" />
 
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.08] mb-6">
-              The premium enterprise operating system for
-              <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent block mt-1">
-                African Business Hubs.
-              </span>
-            </h1>
+        <div className="mx-auto flex max-w-3xl flex-col items-center">
+          <span className="mb-8 inline-flex items-center gap-1.5 rounded-full border border-slate-100 bg-white/90 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-emerald-600 shadow-sm backdrop-blur">
+            ⚡ Identity Infrastructure 2026
+          </span>
 
-            <p className="text-base md:text-lg leading-relaxed text-slate-500 max-w-xl mb-10">
-              One unified workspace engineered for cross-channel sales management, continuous inventory controls, automated analytics, and absolute administrative security.
-            </p>
+          <h1 className="mb-6 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
+            Verification, <span className="block text-emerald-600 sm:inline">Made Effortless.</span>
+          </h1>
 
-            <div className="flex bg-slate-100 p-1 rounded-2xl mb-10 border border-slate-200/60 max-w-md shadow-inner">
-              {categoryTabs.map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => setSelectedTab(tab.value)}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-                    selectedTab === tab.value
-                      ? "bg-white text-slate-900 shadow-sm border border-slate-200/40"
-                      : "text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          <p className="mb-10 max-w-2xl text-lg font-medium leading-relaxed text-slate-500">
+            Marthington helps agents and businesses verify identities, process modifications, and manage operations with a polished, professional workflow.
+          </p>
 
-            <div className="flex flex-wrap gap-4 items-center w-full">
-              <Link to="/register" className="inline-flex items-center justify-center px-7 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                Deploy Workspace
-              </Link>
-              <Link to="/affiliate-register" className="inline-flex items-center justify-center px-7 py-4 bg-white hover:bg-slate-50 text-slate-700 font-semibold border border-slate-200 rounded-2xl shadow-sm hover:-translate-y-0.5 transition-all duration-200">
-                Become a Partner
-              </Link>
-            </div>
-
-            <div className="mt-14 pt-8 border-t border-slate-200/60 w-full grid grid-cols-3 gap-8">
-              <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">99.9%</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Uptime SLA</span>
-              </div>
-              <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">Instant</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Receipt Stream</span>
-              </div>
-              <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">Multi-Tenancy</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Data Isolation</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 relative w-full">
-            <div className="absolute -top-3 -right-3 bg-slate-900 text-white text-[10px] uppercase font-bold tracking-widest px-3.5 py-1.5 rounded-full shadow-lg z-10 border border-slate-800">
-              Live Preview
-            </div>
-
-            <div className="bg-white border border-slate-200 shadow-xl rounded-[32px] p-8 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
-              <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-5">
-                <div>
-                  <h3 className="font-bold text-lg text-slate-900">
-                    {selectedTab === "retail" && "Point of Sale Terminal"}
-                    {selectedTab === "school" && "Academic Overview"}
-                    {selectedTab === "hospital" && "Clinical Hub Terminal"}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium mt-0.5">
-                    {selectedTab === "retail" && "Seamless physical transactional manager"}
-                    {selectedTab === "school" && "Central core metrics engine"}
-                    {selectedTab === "hospital" && "Patient diagnostic registry portal"}
-                  </p>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-lg font-bold shadow-inner">
-                  M
-                </div>
-              </div>
-
-              {selectedTab === "retail" && (
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                    <div>
-                      <p className="font-semibold text-sm text-slate-800">LaserJet Pro MFP476</p>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">SKU-1780656</p>
-                    </div>
-                    <span className="font-bold text-sm text-slate-900">₦350,000</span>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                    <div>
-                      <p className="font-semibold text-sm text-slate-800">Hardware Component Batch</p>
-                      <p className="text-xs text-slate-400 font-medium mt-0.5">Qty: 2 units</p>
-                    </div>
-                    <span className="font-bold text-sm text-slate-900">₦24,000</span>
-                  </div>
-                  <div className="pt-6 mt-6 border-t border-slate-100">
-                    <div className="flex justify-between items-center text-slate-900">
-                      <span className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Balance</span>
-                      <span className="text-xl font-bold text-slate-900">₦374,000</span>
-                    </div>
-                    <div className="mt-4 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl p-3 text-xs font-semibold text-center shadow-inner">
-                      ✅ Digital confirmation ledger processed successfully
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedTab === "school" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Enrolled</span>
-                      <span className="text-2xl font-bold text-slate-900 mt-1 block">1,248</span>
-                    </div>
-                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tuition Ledger</span>
-                      <span className="text-2xl font-bold text-slate-900 mt-1 block">₦1.5M</span>
-                    </div>
-                  </div>
-                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
-                    <div className="flex justify-between text-xs font-semibold border-b border-slate-200/60 pb-2 mb-2">
-                      <span className="text-slate-400">Class</span>
-                      <span className="text-slate-400">Instructor</span>
-                    </div>
-                    <div className="flex justify-between text-xs text-slate-700 font-medium">
-                      <span>Advanced Mathematics</span>
-                      <span className="text-slate-500">Mrs. Adisa</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {selectedTab === "hospital" && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Patient Registry Sync</p>
-                      <p className="text-xs text-slate-400 mt-0.5 font-medium">Bed Count & Wards</p>
-                    </div>
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-center">
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Outpatients</span>
-                      <span className="text-xl font-bold text-slate-800 mt-0.5 block">142</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Pharmacy SKU</span>
-                      <span className="text-xl font-bold text-slate-800 mt-0.5 block">1,850</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link to="/register" className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-8 py-3.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
+              Get Started Free <span aria-hidden="true">→</span>
+            </Link>
+            <Link to="/login" className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-transparent px-6 py-3.5 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-50">
+              Login
+            </Link>
           </div>
         </div>
       </section>
 
       {/* THREE CARDS OF TRUST */}
-      <section className="max-w-7xl mx-auto px-6 pb-24">
+      <section className="mx-auto max-w-7xl px-6 py-24">
         <div className="grid md:grid-cols-3 gap-6">
           <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
             <h3 className="font-bold text-xl text-slate-900 tracking-tight">Rapid Processing</h3>
@@ -301,11 +161,11 @@ const Landing = () => {
       </section>
 
       {/* CORE CAPABILITIES GRID */}
-      <section className="bg-white border-y border-slate-150 py-28">
+      <section className="border-y border-slate-150 bg-white/80 py-28 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-20">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Enterprise management architecture.</h2>
-            <p className="text-slate-400 text-sm mt-3 font-medium leading-relaxed">
+            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
               One meticulously designed environment to govern accounts receivable, verify personnel pipelines, track inventory batches, and download structural analytics.
             </p>
           </div>
@@ -325,11 +185,11 @@ const Landing = () => {
       </section>
 
       {/* REVENUE SHARING PARTNERSHIP ECOSYSTEM */}
-      <section className="py-28 bg-slate-50/60 border-b border-slate-150">
+      <section className="border-b border-slate-150 bg-slate-50/70 py-28">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">The Referral Partnership Program</h2>
-            <p className="text-slate-400 text-sm font-medium mt-3 leading-relaxed">
+            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
               Earn generous, continuous revenue streams while deploying enterprise platform logic to thousands of expanding retail businesses.
             </p>
           </div>
@@ -368,7 +228,7 @@ const Landing = () => {
       </section>
 
       {/* SUBSCRIPTION CENTER (SOURCE OF TRUTH LINKED) */}
-      <section className="py-28 bg-white">
+      <section className="bg-white py-28">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-20">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900">Transparent subscription plans.</h2>
@@ -440,7 +300,7 @@ const Landing = () => {
       </section>
 
       {/* CALL TO ACTION BOTTOM */}
-      <section className="py-24 bg-[#090d16] text-white text-center px-6 relative overflow-hidden">
+      <section className="relative overflow-hidden bg-[#090d16] px-6 py-24 text-center text-white">
         <div className="max-w-3xl mx-auto relative z-10">
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight leading-[1.1] mb-6">
             Terminate manual data bookkeeping errors.
