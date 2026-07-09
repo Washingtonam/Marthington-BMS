@@ -44,6 +44,7 @@ const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
 const PartnerProfile = lazy(() => import("./pages/PartnerProfile.jsx"));
 const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
+const AdminPartnersLedger = lazy(() => import("./pages/AdminPartnersLedger.jsx"));
 
 const Students = () => (
   <div className="page-shell">
@@ -206,6 +207,16 @@ const App = () => {
               element={
                 <ProtectedRoute requiredRole="super_admin">
                   <AdminPayouts />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* ADMIN PARTNERS LEDGER */}
+            <Route
+              path="/admin/partners-ledger"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <AdminPartnersLedger />
                 </ProtectedRoute>
               }
             />

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getPayoutRequests, approvePayout, rejectPayout } from "../api/admin.js";
+import { getPayoutRequests, approvePayout, rejectPayout, getPartnersLedger } from "../api/admin.js";
+import SettlePayoutModal from "../components/SettlePayoutModal.jsx";
 
 const AdminPayouts = () => {
   const [requests, setRequests] = useState([]);
@@ -7,6 +8,10 @@ const AdminPayouts = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("pending");
   const [expandedId, setExpandedId] = useState(null);
+  
+  // Settlement modal states
+  const [settleModalOpen, setSettleModalOpen] = useState(false);
+  const [selectedAffiliate, setSelectedAffiliate] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -52,6 +57,16 @@ const AdminPayouts = () => {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleSettleBalance = (affiliate) => {
+    setSelectedAffiliate(affiliate);
+    setSettleModalOpen(true);
+  };
+
+  const handleSettleSuccess = () => {
+    load();
+    alert("Balance settled successfully");
   };
 
   return (
@@ -162,6 +177,15 @@ const AdminPayouts = () => {
                         </button>
                       </div>
                     )}
+
+                    {r.status === "paid" && (
+                      <button
+                        onClick={() => handleSettleBalance(r.affiliate)}
+                        className="rounded px-4 py-2 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                      >
+                        Settle Balance
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -214,6 +238,16 @@ const AdminPayouts = () => {
           </div>
         )}
       </div>
+
+      {/* Settle Balance Modal */}
+      {selectedAffiliate && (
+        <SettlePayoutModal
+          isOpen={settleModalOpen}
+          onClose={() => setSettleModalOpen(false)}
+          affiliate={selectedAffiliate}
+          onSuccess={handleSettleSuccess}
+        />
+      )}
     </div>
   );
 };

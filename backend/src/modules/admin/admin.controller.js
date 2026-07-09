@@ -5,6 +5,7 @@ import Product from "../products/product.model.js";
 import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
+import Notification from "../notifications/notification.model.js";
 import mongoose from "mongoose";
 import Audit from "./audit.model.js";
 
@@ -492,6 +493,17 @@ const approvePayoutRequest = async (req, res) => {
       transactionDate: new Date()
     });
 
+    // Create notification for partner
+    await Notification.create({
+      recipient: payout.affiliate,
+      type: "payout_approved",
+      title: "Payout Request Approved",
+      message: `Your payout request of ₦${payout.amountRequested.toLocaleString()} has been approved and will be processed to your bank account (${affiliate?.paymentDetails?.bankName || "Your Bank"}).`,
+      amount: payout.amountRequested,
+      payoutRequestId: payout._id,
+      actionUrl: "/partners/dashboard"
+    });
+
     res.json({ message: "Payout approved" , payout });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -513,11 +525,193 @@ const rejectPayoutRequest = async (req, res) => {
     // refund wallet
     if (payout.affiliate) {
       await User.findByIdAndUpdate(payout.affiliate, { $inc: { walletBalance: payout.amountRequested } });
+
+      // Create notification for partner
+      await Notification.create({
+        recipient: payout.affiliate,
+        type: "payout_rejected",
+        title: "Payout Request Rejected",
+        message: `Your payout request of ₦${payout.amountRequested.toLocaleString()} has been rejected. Reason: ${payout.adminNote}`,
+        amount: payout.amountRequested,
+        payoutRequestId: payout._id,
+        actionUrl: "/partners/dashboard"
+      });
     }
 
     res.json({ message: "Payout rejected", payout });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔥 PARTNERS LEDGER WITH FULL PROFILE DETAILS
+const getPartnersLedger = async (req, res) => {
+  try {
+    const { page = 1, limit = 50, search = "" } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Build search query
+    const searchQuery = search ? {
+      $or: [
+        { "affiliate.name": { $regex: search, $options: "i" } },
+        { "affiliate.email": { $regex: search, $options: "i" } },
+        { "affiliate.phone": { $regex: search, $options: "i" } },
+        { "affiliate.affiliateCode": { $regex: search, $options: "i" } }
+      ]
+    } : {};
+
+    // Use aggregation to populate and get all affiliate details
+    const ledger = await AffiliatePayout.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "affiliate",
+          foreignField: "_id",
+          as: "affiliateData"
+        }
+      },
+      { $unwind: { path: "$affiliateData", preserveNullAndEmptyArrays: true } },
+      {
+        $match: searchQuery
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $skip: skip
+      },
+      {
+        $limit: Number(limit)
+      },
+      {
+        $project: {
+          _id: 1,
+          affiliate: "$affiliateData._id",
+          affiliateCode: 1,
+          name: "$affiliateData.name",
+          email: "$affiliateData.email",
+          phone: "$affiliateData.phone",
+          address: "$affiliateData.address",
+          walletBalance: "$affiliateData.walletBalance",
+          totalEarned: "$affiliateData.totalEarned",
+          bankName: "$affiliateData.paymentDetails.bankName",
+          accountNumber: "$affiliateData.paymentDetails.accountNumber",
+          accountName: "$affiliateData.paymentDetails.accountName",
+          amountPaid: 1,
+          commissionEarned: 1,
+          status: 1,
+          transactionDate: 1,
+          createdAt: 1
+        }
+      }
+    ]);
+
+    const total = await AffiliatePayout.countDocuments();
+
+    res.json({
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      ledger
+    });
+  } catch (err) {
+    console.error("GET PARTNERS LEDGER ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// 🔥 SETTLE BALANCE - ATOMIC TRANSACTION
+const settleBalance = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { affiliateId, amount, note } = req.body;
+
+    if (!affiliateId || !amount || amount <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Invalid affiliate ID or amount" });
+    }
+
+    // Fetch affiliate
+    const affiliate = await User.findById(affiliateId).session(session);
+    if (!affiliate) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Affiliate not found" });
+    }
+
+    if (affiliate.walletBalance < amount) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Insufficient wallet balance" });
+    }
+
+    // Deduct from wallet
+    await User.findByIdAndUpdate(
+      affiliateId,
+      { $inc: { walletBalance: -amount } },
+      { session }
+    );
+
+    // Log to AffiliatePayout (history)
+    await AffiliatePayout.create(
+      [{
+        affiliate: affiliateId,
+        affiliateCode: affiliate.affiliateCode || "",
+        businessName: affiliate.name || "Settlement",
+        amountPaid: amount,
+        commissionEarned: amount,
+        rateApplied: 0,
+        status: "settled",
+        transactionDate: new Date()
+      }],
+      { session }
+    );
+
+    // Update system settings - increment commissions cleared counter
+    await SystemSettings.findOneAndUpdate(
+      {},
+      { 
+        $inc: { 
+          "affiliateCommissions.totalClearedLifetime": amount
+        }
+      },
+      { session }
+    );
+
+    // Create notification for partner
+    await Notification.create(
+      [{
+        recipient: affiliateId,
+        type: "payout_settled",
+        title: "Payout Processed Successfully",
+        message: `Your payout of ₦${amount.toLocaleString()} has been approved and processed to your bank account (${affiliate.paymentDetails?.bankName || "Your Bank"}). ${note ? `Note: ${note}` : ""}`,
+        amount,
+        actionUrl: "/partners/dashboard"
+      }],
+      { session }
+    );
+
+    // Commit transaction
+    await session.commitTransaction();
+
+    console.log("SETTLE BALANCE - Success for affiliate:", affiliateId, "Amount:", amount);
+
+    res.json({
+      message: "Balance settled successfully",
+      affiliate: {
+        name: affiliate.name,
+        email: affiliate.email,
+        newWalletBalance: affiliate.walletBalance - amount,
+        settledAmount: amount
+      }
+    });
+
+  } catch (err) {
+    await session.abortTransaction();
+    console.error("SETTLE BALANCE ERROR:", err);
+    res.status(500).json({ message: err.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -581,5 +775,8 @@ export default {
   // payouts
   listPayoutRequests,
   approvePayoutRequest,
-  rejectPayoutRequest
+  rejectPayoutRequest,
+  // ledger and settlement
+  getPartnersLedger,
+  settleBalance
 };

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getAffiliateDashboard, requestPayout } from "../api/affiliates.js";
+import { getNotifications } from "../api/notifications.js";
+import NotificationBanner from "../components/NotificationBanner.jsx";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-NG", {
@@ -58,6 +60,7 @@ const PartnerDashboard = () => {
     };
 
     loadDashboard();
+    loadNotifications();
   }, [user?.affiliateCode]);
 
   const affiliateCode = dashboardData.affiliate?.affiliateCode || user?.affiliateCode || "";
@@ -85,6 +88,26 @@ const PartnerDashboard = () => {
   const [payoutAmount, setPayoutAmount] = useState("");
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutMessage, setPayoutMessage] = useState("");
+
+  // Notifications
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+
+  const loadNotifications = async () => {
+    try {
+      setNotificationsLoading(true);
+      const data = await getNotifications("limit=5&isRead=false");
+      setNotifications(data.notifications || []);
+    } catch (error) {
+      console.error("Failed to load notifications", error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleNotificationDismiss = (notificationId) => {
+    setNotifications(notifications.filter(n => n._id !== notificationId));
+  };
 
   const conversions = (dashboardData.conversions || []).map((entry) => ({
     businessName: entry.businessName,
@@ -123,6 +146,26 @@ const PartnerDashboard = () => {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.2),_transparent_35%),linear-gradient(135deg,_#020617_0%,_#0f172a_45%,_#111827_100%)] text-slate-100">
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        {/* Notifications Section */}
+        {notifications.length > 0 && (
+          <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-5 shadow-lg shadow-black/20 backdrop-blur space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-300">📬 Recent Notifications</h3>
+              <span className="inline-flex items-center rounded-full bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-300">
+                {notifications.length} new
+              </span>
+            </div>
+            <div className="space-y-2">
+              {notifications.map((notif) => (
+                <NotificationBanner
+                  key={notif._id}
+                  notification={notif}
+                  onDismiss={handleNotificationDismiss}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <header className="rounded-[28px] border border-white/10 bg-white/10 p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
@@ -400,11 +443,12 @@ const PartnerDashboard = () => {
                     const resp = await requestPayout({ amount: amt });
                     setPayoutMessage(resp.message || "Payout requested.");
                     setPayoutModalOpen(false);
-                    // Refresh dashboard
+                    // Refresh dashboard and notifications
                     setLoading(true);
                     const data = await getAffiliateDashboard();
                     setDashboardData(data || dashboardData);
                     setLoading(false);
+                    loadNotifications();
                   } catch (err) {
                     setPayoutMessage(err.message || "Failed to request payout.");
                     setPayoutLoading(false);

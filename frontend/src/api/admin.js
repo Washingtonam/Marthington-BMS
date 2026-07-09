@@ -19,8 +19,22 @@ export const rejectPayout = async (id, payload = {}) => {
   });
 };
 
+export const getPartnersLedger = async (query = "") => {
+  const q = query ? `?${query}` : "";
+  return request(`/admin/partners-ledger${q}`);
+};
+
+export const settleBalance = async (payload) => {
+  return request(`/admin/settle-balance`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+};
+
 export default {
   getPayoutRequests,
   approvePayout,
-  rejectPayout
+  rejectPayout,
+  getPartnersLedger,
+  settleBalance
 };

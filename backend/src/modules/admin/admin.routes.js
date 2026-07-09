@@ -133,4 +133,20 @@ router.put(
   adminController.rejectPayoutRequest
 );
 
+// =============== PARTNERS LEDGER ================
+router.get(
+  "/partners-ledger",
+  protect,
+  onlyAdmin,
+  adminController.getPartnersLedger
+);
+
+// =============== SETTLE BALANCE ================
+router.post(
+  "/settle-balance",
+  protect,
+  onlyAdmin,
+  adminController.settleBalance
+);
+
 export default router;

@@ -26,6 +26,7 @@ import paymentRoutes from "./modules/payments/payment.routes.js";
 import expenseRoutes from "./modules/expenses/expense.routes.js";
 import affiliateRoutes from "./modules/affiliates/affiliate.routes.js";
 import payoutRoutes from "./modules/affiliates/payout.routes.js";
+import notificationRoutes from "./modules/notifications/notification.routes.js";
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/affiliates", affiliateRoutes);
 app.use("/api/affiliates/payouts", payoutRoutes);
+app.use("/api/notifications", notificationRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
