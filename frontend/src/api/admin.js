@@ -38,6 +38,20 @@ export const getPartnersLedger = async (query = "") => {
 
 export const getPartnerPayoutHistory = async (id) => request(`/admin/affiliates/${id}/payout-history`);
 
+export const getWithdrawalHistory = async () => request(`/admin/withdrawal-history`);
+
+export const getPendingPayoutRequests = async () => request(`/admin/payout-requests?status=pending`);
+
+export const settlePayoutRequest = async (id, payload = {}) => request(`/admin/payouts/${id}/settle`, {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
+
+export const rejectPayoutRequest = async (id, payload = {}) => request(`/admin/payout-requests/${id}/reject`, {
+  method: "PUT",
+  body: JSON.stringify(payload)
+});
+
 export const settleBalance = async (payload) => {
   return request(`/admin/settle-payout`, {
     method: "POST",

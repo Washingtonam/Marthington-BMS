@@ -119,6 +119,13 @@ router.get(
   adminController.listPayoutRequests
 );
 
+router.post(
+  "/payouts/:id/settle",
+  protect,
+  onlyAdmin,
+  adminController.settlePayoutRequest
+);
+
 router.put(
   "/payout-requests/:id/approve",
   protect,
@@ -154,6 +161,13 @@ router.get(
   protect,
   onlyAdmin,
   adminController.getPartnerPayoutHistory
+);
+
+router.get(
+  "/withdrawal-history",
+  protect,
+  onlyAdmin,
+  adminController.getWithdrawalHistory
 );
 
 export default router;

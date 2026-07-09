@@ -1,6 +1,8 @@
 import User from "../users/user.model.js";
 import Business from "../businesses/business.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
+import PayoutRequest from "./payoutRequest.model.js";
+import WithdrawalHistory from "./withdrawalHistory.model.js";
 
 const getAffiliateDashboard = async (req, res) => {
   try {
@@ -87,6 +89,14 @@ const getAffiliateDashboard = async (req, res) => {
       rateApplied: Number(item.rateApplied || 0)
     }));
 
+    const payoutRequests = await PayoutRequest.find({ partnerId: req.user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const withdrawalHistory = await WithdrawalHistory.find({ partnerId: req.user._id })
+      .sort({ date: -1 })
+      .lean();
+
     res.json({
       affiliate: {
         affiliateCode: affiliate.affiliateCode,
@@ -97,7 +107,9 @@ const getAffiliateDashboard = async (req, res) => {
         totalLifetimeEarnings
       },
       referrals: referralDetails,
-      conversions: formattedConversions
+      conversions: formattedConversions,
+      payoutRequests,
+      withdrawalHistory
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

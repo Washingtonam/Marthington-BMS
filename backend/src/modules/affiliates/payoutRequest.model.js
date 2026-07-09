@@ -2,10 +2,17 @@ import mongoose from "mongoose";
 
 const payoutRequestSchema = new mongoose.Schema(
   {
-    affiliate: {
+    partnerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true
+    },
+
+    affiliate: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
       index: true
     },
 
@@ -21,6 +28,12 @@ const payoutRequestSchema = new mongoose.Schema(
       default: 0
     },
 
+    bankSnapshot: {
+      bankName: { type: String, default: "" },
+      accountNumber: { type: String, default: "" },
+      accountName: { type: String, default: "" }
+    },
+
     paymentDetails: {
       bankName: { type: String, default: "" },
       accountNumber: { type: String, default: "" },
@@ -29,7 +42,7 @@ const payoutRequestSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "processing", "paid", "rejected"],
+      enum: ["pending", "approved", "rejected"],
       default: "pending"
     },
 

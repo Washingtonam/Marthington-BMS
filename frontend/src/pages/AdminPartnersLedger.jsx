@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getAffiliateLedgerOverview, getAffiliateSettings, getPartnerPayoutHistory, getPartnersLedger, updateAffiliateSettings } from "../api/admin.js";
+import { getAffiliateLedgerOverview, getPartnerPayoutHistory, getPartnersLedger, getPendingPayoutRequests, getWithdrawalHistory, rejectPayoutRequest, settlePayoutRequest, updateAffiliateSettings } from "../api/admin.js";
 import SettlePayoutModal from "../components/SettlePayoutModal.jsx";
 
 const formatCurrency = (value) =>
@@ -24,6 +24,9 @@ const AdminPartnersLedger = () => {
   const [selectedPartner, setSelectedPartner] = useState(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [showWithdrawalHistory, setShowWithdrawalHistory] = useState(false);
+  const [withdrawalHistory, setWithdrawalHistory] = useState([]);
 
   const loadLedger = async (pageNum = 1, search = "") => {
     setLoading(true);
@@ -55,7 +58,17 @@ const AdminPartnersLedger = () => {
 
   useEffect(() => {
     loadLedger(1, searchTerm);
+    loadPendingRequests();
   }, []);
+
+  const loadPendingRequests = async () => {
+    try {
+      const data = await getPendingPayoutRequests();
+      setPendingRequests(data?.requests || []);
+    } catch (err) {
+      console.error("Failed to load pending requests", err);
+    }
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -92,6 +105,44 @@ const AdminPartnersLedger = () => {
 
   const handleSettleSuccess = () => {
     loadLedger(page, searchTerm);
+    loadPendingRequests();
+  };
+
+  const handleApproveRequest = async (requestId) => {
+    try {
+      await settlePayoutRequest(requestId, { note: "Approved by admin" });
+      await loadPendingRequests();
+      await loadLedger(page, searchTerm);
+    } catch (err) {
+      setError(err.message || "Failed to settle payout request");
+    }
+  };
+
+  const handleRejectRequest = async (requestId) => {
+    try {
+      await rejectPayoutRequest(requestId, { note: "Rejected by admin" });
+      await loadPendingRequests();
+      await loadLedger(page, searchTerm);
+    } catch (err) {
+      setError(err.message || "Failed to reject payout request");
+    }
+  };
+
+  const openWithdrawalHistory = async () => {
+    try {
+      const data = await getWithdrawalHistory();
+      setWithdrawalHistory((data?.history || []).map((item) => ({
+        _id: item._id,
+        amount: item.amount,
+        status: item.status,
+        date: item.date,
+        note: item.note || "",
+        partnerName: item.partnerId?.name || item.partnerName || ""
+      })));
+      setShowWithdrawalHistory(true);
+    } catch (err) {
+      setError(err.message || "Failed to load withdrawal history");
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -141,6 +192,58 @@ const AdminPartnersLedger = () => {
               <button onClick={handleRateUpdate} disabled={rateUpdating} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
                 {rateUpdating ? "Updating..." : "Update Rate"}
               </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Pending withdrawal requests</h2>
+              <p className="mt-1 text-sm text-slate-600">Approve or reject partner withdrawal requests before settlement.</p>
+            </div>
+            <button onClick={openWithdrawalHistory} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">View Withdrawal History</button>
+          </div>
+
+          <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Partner name</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Amount requested</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Bank details</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Request date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {pendingRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-4 py-8 text-center text-sm text-slate-500">No pending withdrawal requests.</td>
+                    </tr>
+                  ) : pendingRequests.map((request) => (
+                    <tr key={request._id} className="hover:bg-slate-50/80">
+                      <td className="px-4 py-4 text-sm font-semibold text-slate-900">{request?.affiliate?.name || request?.partnerName || "—"}</td>
+                      <td className="px-4 py-4 text-sm text-slate-700">{formatCurrency(request.amountRequested || 0)}</td>
+                      <td className="px-4 py-4 text-sm text-slate-600">
+                        <div className="space-y-1">
+                          <p>{request.bankSnapshot?.bankName || request.paymentDetails?.bankName || request?.affiliate?.bankName || "—"}</p>
+                          <p>{request.bankSnapshot?.accountName || request.paymentDetails?.accountName || request?.affiliate?.accountName || "—"}</p>
+                          <p>{request.bankSnapshot?.accountNumber || request.paymentDetails?.accountNumber || request?.affiliate?.accountNumber || "—"}</p>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-slate-600">{new Date(request.createdAt || request.created_at || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => handleApproveRequest(request._id)} className="rounded-full bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-emerald-700">Approve & Settle</button>
+                          <button onClick={() => handleRejectRequest(request._id)} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Reject</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -228,6 +331,40 @@ const AdminPartnersLedger = () => {
 
       {selectedPartner && (
         <SettlePayoutModal isOpen={settleModalOpen} onClose={() => setSettleModalOpen(false)} affiliate={selectedPartner} onSuccess={handleSettleSuccess} />
+      )}
+
+      {showWithdrawalHistory && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 p-6">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-400">Withdrawal history</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-900">Completed payout requests</h3>
+              </div>
+              <button onClick={() => setShowWithdrawalHistory(false)} className="rounded-full border border-slate-300 px-3 py-1 text-sm font-medium text-slate-700 transition hover:bg-slate-50">Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-6">
+              {withdrawalHistory.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">No withdrawal history yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {withdrawalHistory.map((item) => (
+                    <div key={item._id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{formatCurrency(item.amount || 0)}</p>
+                          <p className="mt-1 text-sm text-slate-500">{item.status}</p>
+                        </div>
+                        <p className="text-sm text-slate-500">{new Date(item.date || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                      </div>
+                      {item.note && <p className="mt-2 text-sm text-slate-500">{item.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {historyModalOpen && (

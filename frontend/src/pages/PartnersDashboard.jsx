@@ -32,7 +32,9 @@ const PartnerDashboard = () => {
       totalLifetimeEarnings: 0
     },
     referrals: [],
-    conversions: []
+    conversions: [],
+    payoutRequests: [],
+    withdrawalHistory: []
   });
 
   useEffect(() => {
@@ -331,6 +333,56 @@ const PartnerDashboard = () => {
                       <td className="whitespace-nowrap px-3 py-4 font-semibold text-emerald-300">
                         {entry.commissionEarned}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-[28px] border border-white/10 bg-slate-900/70 p-5 shadow-xl shadow-black/20 backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-slate-400">Withdrawal Requests & Payout Status</p>
+              <h2 className="mt-1 text-xl font-semibold text-white">Track partial withdrawals and payout outcomes</h2>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
+                Loading withdrawal activity...
+              </div>
+            ) : (dashboardData.payoutRequests || []).length === 0 && (dashboardData.withdrawalHistory || []).length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/60 p-6 text-sm text-slate-400">
+                No withdrawal requests yet.
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
+                <thead>
+                  <tr className="text-slate-400">
+                    <th className="px-3 py-3 font-medium">Requested</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="px-3 py-3 font-medium">Bank Snapshot</th>
+                    <th className="px-3 py-3 font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {(dashboardData.payoutRequests || []).map((request) => (
+                    <tr key={request._id} className="text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 font-semibold text-white">{formatCurrency(request.amountRequested || 0)}</td>
+                      <td className="px-3 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${request.status === "approved" ? "bg-emerald-500/15 text-emerald-300" : request.status === "rejected" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>{request.status}</span></td>
+                      <td className="px-3 py-4 text-slate-300">{request.bankSnapshot?.bankName || request.paymentDetails?.bankName || "—"} • {request.bankSnapshot?.accountNumber || request.paymentDetails?.accountNumber || "—"}</td>
+                      <td className="px-3 py-4 text-slate-300">{new Date(request.createdAt || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                    </tr>
+                  ))}
+                  {(dashboardData.withdrawalHistory || []).map((item) => (
+                    <tr key={item._id} className="text-slate-200">
+                      <td className="whitespace-nowrap px-3 py-4 font-semibold text-white">{formatCurrency(item.amount || 0)}</td>
+                      <td className="px-3 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${item.status === "Approved" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{item.status}</span></td>
+                      <td className="px-3 py-4 text-slate-300">{item.note || "Completed payout"}</td>
+                      <td className="px-3 py-4 text-slate-300">{new Date(item.date || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</td>
                     </tr>
                   ))}
                 </tbody>

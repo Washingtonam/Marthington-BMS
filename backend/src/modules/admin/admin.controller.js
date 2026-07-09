@@ -5,6 +5,7 @@ import Product from "../products/product.model.js";
 import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
+import WithdrawalHistory from "../affiliates/withdrawalHistory.model.js";
 import Notification from "../notifications/notification.model.js";
 import PayoutHistory from "../affiliates/payoutHistory.model.js";
 import mongoose from "mongoose";
@@ -407,7 +408,20 @@ const listAffiliates = async (req, res) => {
 const getPartnerPayoutHistory = async (req, res) => {
   try {
     const partnerId = req.params.id;
-    const history = await PayoutHistory.find({ partnerId })
+    const history = await WithdrawalHistory.find({ partnerId })
+      .sort({ date: -1 })
+      .lean();
+
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getWithdrawalHistory = async (req, res) => {
+  try {
+    const history = await WithdrawalHistory.find({})
+      .populate("partnerId", "name email affiliateCode")
       .sort({ date: -1 })
       .lean();
 
@@ -468,13 +482,124 @@ const listPayoutRequests = async (req, res) => {
 
     const total = await PayoutRequest.countDocuments(q);
     const requests = await PayoutRequest.find(q)
-      .populate("affiliate", "name email phone address affiliateCode paymentDetails walletBalance")
+      .populate("affiliate", "name email phone address affiliateCode paymentDetails walletBalance bankName accountNumber accountName")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
 
     res.json({ total, page: Number(page), limit: Number(limit), requests });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const settlePayoutRequest = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const payoutId = req.params.id;
+    const payout = await PayoutRequest.findById(payoutId).session(session);
+    if (!payout) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Payout request not found" });
+    }
+
+    if (payout.status !== "pending") {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Request already processed" });
+    }
+
+    const partner = await User.findById(payout.partnerId || payout.affiliate).session(session);
+    if (!partner) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    if (Number(partner.walletBalance || 0) < Number(payout.amountRequested || 0)) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Insufficient wallet balance for this payout" });
+    }
+
+    payout.status = "approved";
+    payout.processedAt = new Date();
+    payout.adminNote = req.body.note || "";
+    await payout.save({ session });
+
+    await User.findByIdAndUpdate(
+      payout.partnerId || payout.affiliate,
+      { $inc: { walletBalance: -Number(payout.amountRequested || 0) } },
+      { session }
+    );
+
+    await WithdrawalHistory.create([
+      {
+        partnerId: payout.partnerId || payout.affiliate,
+        payoutRequestId: payout._id,
+        amount: Number(payout.amountRequested || 0),
+        status: "Approved",
+        note: req.body.note || "",
+        date: new Date()
+      }
+    ], { session });
+
+    await Notification.create([
+      {
+        recipient: payout.partnerId || payout.affiliate,
+        type: "payout_approved",
+        title: "Withdrawal Approved",
+        message: `Your withdrawal request of ₦${Number(payout.amountRequested || 0).toLocaleString()} has been approved and sent to your bank account.`,
+        amount: Number(payout.amountRequested || 0),
+        payoutRequestId: payout._id,
+        actionUrl: "/partners/dashboard"
+      }
+    ], { session });
+
+    await session.commitTransaction();
+
+    res.json({ message: "Payout settled successfully", payout });
+  } catch (err) {
+    await session.abortTransaction();
+    console.error("SETTLE PAYOUT ERROR:", err);
+    res.status(500).json({ message: err.message });
+  } finally {
+    session.endSession();
+  }
+};
+
+const rejectPayoutRequest = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const payout = await PayoutRequest.findById(id);
+    if (!payout) return res.status(404).json({ message: "Payout request not found" });
+    if (payout.status !== "pending") return res.status(400).json({ message: "Request already processed" });
+
+    payout.status = "rejected";
+    payout.processedAt = new Date();
+    payout.adminNote = req.body.note || "Rejected by admin";
+    await payout.save();
+
+    await WithdrawalHistory.create({
+      partnerId: payout.partnerId || payout.affiliate,
+      payoutRequestId: payout._id,
+      amount: Number(payout.amountRequested || 0),
+      status: "Rejected",
+      note: payout.adminNote,
+      date: new Date()
+    });
+
+    await Notification.create({
+      recipient: payout.partnerId || payout.affiliate,
+      type: "payout_rejected",
+      title: "Withdrawal Rejected",
+      message: `Your withdrawal request of ₦${Number(payout.amountRequested || 0).toLocaleString()} was rejected. ${payout.adminNote}`,
+      amount: Number(payout.amountRequested || 0),
+      payoutRequestId: payout._id,
+      actionUrl: "/partners/dashboard"
+    });
+
+    res.json({ message: "Payout rejected", payout });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -793,9 +918,11 @@ export default {
   // affiliates
   listAffiliates,
   getPartnerPayoutHistory,
+  getWithdrawalHistory,
   processAffiliatePayout,
   // payouts
   listPayoutRequests,
+  settlePayoutRequest,
   approvePayoutRequest,
   rejectPayoutRequest,
   // ledger and settlement
