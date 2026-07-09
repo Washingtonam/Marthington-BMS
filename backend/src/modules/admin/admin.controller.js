@@ -500,6 +500,8 @@ const settlePayoutRequest = async (req, res) => {
 
   try {
     const payoutId = req.params.id;
+    
+    // Step 1: Fetch the payout request to validate and extract partnerId
     const payout = await PayoutRequest.findById(payoutId).session(session);
     if (!payout) {
       await session.abortTransaction();
@@ -511,46 +513,75 @@ const settlePayoutRequest = async (req, res) => {
       return res.status(400).json({ message: "Request already processed" });
     }
 
-    const partner = await User.findById(payout.partnerId || payout.affiliate).session(session);
+    // Step 2: Extract and preserve partnerId from the found document
+    const partnerId = payout.partnerId || payout.affiliate;
+    if (!partnerId) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Payout request missing partner reference" });
+    }
+
+    const amountRequested = Number(payout.amountRequested || 0);
+    if (amountRequested <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "Invalid payout amount" });
+    }
+
+    // Step 3: Find the Partner and validate balance
+    const partner = await User.findById(partnerId).session(session);
     if (!partner) {
       await session.abortTransaction();
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    if (Number(partner.walletBalance || 0) < Number(payout.amountRequested || 0)) {
+    if (Number(partner.walletBalance || 0) < amountRequested) {
       await session.abortTransaction();
       return res.status(400).json({ message: "Insufficient wallet balance for this payout" });
     }
 
-    payout.status = "approved";
-    payout.processedAt = new Date();
-    payout.adminNote = req.body.note || "";
-    await payout.save({ session });
+    // Step 4: Update PayoutRequest status using findByIdAndUpdate (safer than save)
+    // This ensures partnerId is preserved and all required fields are maintained
+    const updatedPayout = await PayoutRequest.findByIdAndUpdate(
+      payoutId,
+      {
+        status: "approved",
+        processedAt: new Date(),
+        adminNote: req.body.note || ""
+      },
+      { session, new: true, runValidators: true }
+    );
 
+    if (!updatedPayout) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Failed to update payout request" });
+    }
+
+    // Step 5: Deduct from partner wallet balance
     await User.findByIdAndUpdate(
-      payout.partnerId || payout.affiliate,
-      { $inc: { walletBalance: -Number(payout.amountRequested || 0) } },
+      partnerId,
+      { $inc: { walletBalance: -amountRequested } },
       { session }
     );
 
+    // Step 6: Create WithdrawalHistory record
     await WithdrawalHistory.create([
       {
-        partnerId: payout.partnerId || payout.affiliate,
+        partnerId: partnerId,
         payoutRequestId: payout._id,
-        amount: Number(payout.amountRequested || 0),
+        amount: amountRequested,
         status: "Approved",
         note: req.body.note || "",
         date: new Date()
       }
     ], { session });
 
+    // Step 7: Create notification for partner
     await Notification.create([
       {
-        recipient: payout.partnerId || payout.affiliate,
+        recipient: partnerId,
         type: "payout_approved",
         title: "Withdrawal Approved",
-        message: `Your withdrawal request of ₦${Number(payout.amountRequested || 0).toLocaleString()} has been approved and sent to your bank account.`,
-        amount: Number(payout.amountRequested || 0),
+        message: `Your withdrawal request of ₦${amountRequested.toLocaleString()} has been approved and sent to your bank account.`,
+        amount: amountRequested,
         payoutRequestId: payout._id,
         actionUrl: "/partners/dashboard"
       }
@@ -558,7 +589,7 @@ const settlePayoutRequest = async (req, res) => {
 
     await session.commitTransaction();
 
-    res.json({ message: "Payout settled successfully", payout });
+    res.json({ message: "Payout settled successfully", payout: updatedPayout });
   } catch (err) {
     await session.abortTransaction();
     console.error("SETTLE PAYOUT ERROR:", err);
