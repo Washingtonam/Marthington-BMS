@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAnalytics } from "../api/analytics.js";
+import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
@@ -42,10 +43,16 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const { business, industryType } = useAuth();
+  const { business, industryType, user } = useAuth();
   const businessType = business?.businessType || "general_services";
   const isSchool = industryType === "school";
   const isHospital = industryType === "hospital";
+  const canReviewPayments = Boolean(
+    user?.role === "owner" ||
+    user?.role === "super_admin" ||
+    user?.permissions?.canManagePayments
+  );
+  const [pendingPayments, setPendingPayments] = useState(0);
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +60,16 @@ const Dashboard = () => {
         setLoading(true);
         const data = await getAnalytics();
         setAnalytics(data || analyticsFallback);
+        if (canReviewPayments) {
+          try {
+            const pendingData = await request("/sales?paymentStatus=pending&limit=1");
+            setPendingPayments(Number(pendingData?.pagination?.total || pendingData?.sales?.length || 0));
+          } catch {
+            setPendingPayments(0);
+          }
+        } else {
+          setPendingPayments(0);
+        }
       } catch (err) {
         setError(err.message || "Failed to load analytics");
         setAnalytics(analyticsFallback);
@@ -68,7 +85,7 @@ const Dashboard = () => {
     });
 
     return unsubscribe;
-  }, [refreshKey]);
+  }, [canReviewPayments, refreshKey]);
 
   const { metrics, recentActivity } = useMemo(() => {
     const metricValues = analytics?.metrics || {};
@@ -157,6 +174,15 @@ const Dashboard = () => {
       accent: false,
       icon: "👤",
     },
+    ...(canReviewPayments ? [{
+      title: `Review Payments${pendingPayments ? ` (${pendingPayments})` : ""}`,
+      description: pendingPayments
+        ? "Confirm customer transfers and release verified orders."
+        : "No manual payment approvals are waiting right now.",
+      action: () => navigate("/app/payments"),
+      accent: pendingPayments > 0,
+      icon: "✓",
+    }] : []),
   ];
 
   const moduleTiles = [
@@ -262,7 +288,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-4">
             {quickActions.map((action) => (
               <button
                 key={action.title}

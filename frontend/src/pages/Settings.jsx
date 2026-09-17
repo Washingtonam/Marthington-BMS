@@ -27,7 +27,17 @@ const Settings = () => {
     businessType: "general_services",
     receiptFooter: "",
     receiptTheme: "modern",
-    logo: ""
+    logo: "",
+    whatsappEnabled: false,
+    whatsappNumber: "",
+    whatsappWebhookSecret: "",
+    whatsappApiMode: "meta",
+    paymentBankName: "",
+    paymentAccountName: "",
+    paymentAccountNumber: "",
+    paymentWalletName: "",
+    paymentWalletNumber: "",
+    paymentTransferInstructions: ""
   });
 
   const [loading, setLoading] = useState(false);
@@ -54,7 +64,17 @@ const Settings = () => {
       businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
       receiptTheme: business.receiptTheme || "modern",
-      logo: ""
+      logo: "",
+      whatsappEnabled: Boolean(business.whatsapp?.enabled),
+      whatsappNumber: business.whatsapp?.number || "",
+      whatsappWebhookSecret: business.whatsapp?.webhookSecret || "",
+      whatsappApiMode: business.whatsapp?.apiMode || "meta",
+      paymentBankName: business.paymentSettings?.bankName || "",
+      paymentAccountName: business.paymentSettings?.accountName || "",
+      paymentAccountNumber: business.paymentSettings?.accountNumber || "",
+      paymentWalletName: business.paymentSettings?.walletName || "",
+      paymentWalletNumber: business.paymentSettings?.walletNumber || "",
+      paymentTransferInstructions: business.paymentSettings?.transferInstructions || ""
     });
   }, [business]);
 
@@ -155,6 +175,11 @@ const Settings = () => {
 
     if (tab === "billing") {
       setActiveTab("billing");
+      return;
+    }
+
+    if (tab === "whatsapp") {
+      setActiveTab("whatsapp");
       return;
     }
 
@@ -280,6 +305,7 @@ const Settings = () => {
           { key: "business", label: "Business" },
           { key: "access", label: "Access Control" },
           { key: "receipt", label: "Receipts" },
+          { key: "whatsapp", label: "WhatsApp" },
           { key: "billing", label: "Plan & Billing 💰" }
         ].map((tab) => (
           <button
@@ -294,6 +320,11 @@ const Settings = () => {
               if (tab.key === "receipt") {
                 setSearchParams({ tab: "receipt" });
                 setActiveTab("receipt");
+                return;
+              }
+              if (tab.key === "whatsapp") {
+                setSearchParams({ tab: "whatsapp" });
+                setActiveTab("whatsapp");
                 return;
               }
               if (tab.key === "billing") {
@@ -466,6 +497,130 @@ const Settings = () => {
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Logo (Pro Only)</label>
                 <input className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800" type="file" onChange={handleLogo} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp TAB */}
+        {activeTab === "whatsapp" && (
+          <div className="tool-panel space-y-4 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">WhatsApp Commerce</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Connect your business WhatsApp number for product checks, automated receipts, and customer follow-ups.
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                <input
+                  type="checkbox"
+                  checked={Boolean(form.whatsappEnabled)}
+                  onChange={(e) => setForm((prev) => ({ ...prev, whatsappEnabled: e.target.checked }))}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Enable WhatsApp automation</span>
+              </label>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">API mode</label>
+                <select
+                  className="input-field"
+                  value={form.whatsappApiMode}
+                  onChange={(e) => setForm((prev) => ({ ...prev, whatsappApiMode: e.target.value }))}
+                >
+                  <option value="meta">Meta WhatsApp Cloud API</option>
+                  <option value="twilio">Twilio WhatsApp</option>
+                  <option value="manual">Manual mode</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">WhatsApp Number</label>
+                <input
+                  className="input-field"
+                  placeholder="2348030000000"
+                  value={form.whatsappNumber}
+                  onChange={(e) => setForm((prev) => ({ ...prev, whatsappNumber: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Webhook Secret</label>
+                <input
+                  className="input-field"
+                  placeholder="Optional secret for webhook validation"
+                  value={form.whatsappWebhookSecret}
+                  onChange={(e) => setForm((prev) => ({ ...prev, whatsappWebhookSecret: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Bank Name</label>
+                <input
+                  className="input-field"
+                  placeholder="First Bank"
+                  value={form.paymentBankName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentBankName: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Account Name</label>
+                <input
+                  className="input-field"
+                  placeholder="Business Name"
+                  value={form.paymentAccountName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentAccountName: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Account Number</label>
+                <input
+                  className="input-field"
+                  placeholder="0123456789"
+                  value={form.paymentAccountNumber}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentAccountNumber: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Wallet Name</label>
+                <input
+                  className="input-field"
+                  placeholder="Opay / PalmPay / Transfer"
+                  value={form.paymentWalletName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentWalletName: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Wallet Number</label>
+                <input
+                  className="input-field"
+                  placeholder="08012345678"
+                  value={form.paymentWalletNumber}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentWalletNumber: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Transfer Instructions</label>
+                <textarea
+                  className="input-field"
+                  placeholder="Include payment note, customer instructions, or any special transfer guidance"
+                  rows={3}
+                  value={form.paymentTransferInstructions}
+                  onChange={(e) => setForm((prev) => ({ ...prev, paymentTransferInstructions: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300">
+              Use this as the first sales automation layer: product availability, receipt delivery, payment reminders, and customer follow-up.
             </div>
           </div>
         )}

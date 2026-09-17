@@ -12,6 +12,7 @@ import mongoose from "mongoose";
 import {
   canDeleteSale,
   buildSalesQuery,
+  buildPaymentApprovalMessage,
   buildProductCompensationEntries,
   buildSaleLedgerEntry,
   getCustomerSaleImpact,
@@ -22,6 +23,7 @@ import {
   normalizeSaleErrorMessage
 } from "./sales.utils.js";
 import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
+import { sendWhatsAppText } from "../whatsapp/whatsapp.service.js";
 
 // 🔥 GENERATE RECEIPT ID
 const generateReceiptId = () => {
@@ -502,6 +504,79 @@ const updateSaleStatus = async (req, res) => {
   }
 };
 
+const verifyPaymentProof = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const sale = await Sale.findOne({ _id: req.params.id, business: req.user.businessId, isDeleted: { $ne: true } });
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    const approved = String(req.body?.approved ?? "").toLowerCase() === "true";
+    const note = String(req.body?.note || "").trim();
+
+    sale.paymentStatus = approved ? "verified" : "rejected";
+    sale.paymentVerifiedAt = new Date();
+    sale.paymentVerifiedBy = req.user.id;
+    sale.paymentReference = req.body?.paymentReference || sale.paymentReference || "";
+    sale.paymentProof = req.body?.paymentProof || sale.paymentProof || "";
+
+    if (approved) {
+      sale.status = "posted";
+      sale.paymentMethod = sale.paymentMethod || "bank_transfer";
+      if (note) {
+        sale.notes = [sale.notes, `Payment approved: ${note}`].filter(Boolean).join(" | ");
+      }
+    } else {
+      sale.status = "pending";
+      if (note) {
+        sale.notes = [sale.notes, `Payment rejected: ${note}`].filter(Boolean).join(" | ");
+      }
+    }
+
+    await sale.save();
+
+    let customerNotification = { sent: false };
+    if (approved && sale.customerPhone && process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+      try {
+        const business = await Business.findById(sale.business).select("name").lean();
+        const frontendUrl = String(process.env.FRONTEND_URL || process.env.APP_URL || "").replace(/\/$/, "");
+        const receiptUrl = frontendUrl && sale.receiptId
+          ? `${frontendUrl}/#/r/${encodeURIComponent(sale.receiptId)}`
+          : "";
+
+        await sendWhatsAppText({
+          to: sale.customerPhone,
+          message: buildPaymentApprovalMessage({
+            businessName: business?.name || "Business",
+            sale,
+            receiptUrl
+          })
+        });
+        customerNotification = { sent: true };
+      } catch (notificationError) {
+        customerNotification = {
+          sent: false,
+          error: notificationError.message
+        };
+      }
+    }
+
+    return res.json({
+      message: approved ? "Payment verified and order approved" : "Payment rejected",
+      paymentStatus: sale.paymentStatus,
+      customerNotification,
+      sale: sale.toObject()
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
 const updatePaymentMethod = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -573,6 +648,12 @@ const getSales = async (req, res) => {
       businessId: req.user.businessId,
       isSuperAdmin: req.user.role === "super_admin"
     });
+    if (req.query.paymentStatus) {
+      query.paymentStatus = String(req.query.paymentStatus).trim();
+    }
+    if (req.query.status) {
+      query.status = String(req.query.status).trim();
+    }
     const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
     Object.assign(query, branchQuery);
@@ -955,4 +1036,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, verifyPaymentProof };

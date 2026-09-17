@@ -68,6 +68,57 @@ const businessSchema = new mongoose.Schema(
       }
     },
 
+    whatsapp: {
+      enabled: {
+        type: Boolean,
+        default: false
+      },
+      number: {
+        type: String,
+        default: ""
+      },
+      webhookSecret: {
+        type: String,
+        default: ""
+      },
+      apiMode: {
+        type: String,
+        enum: ["meta", "twilio", "manual"],
+        default: "meta"
+      },
+      lastMessageSentAt: {
+        type: Date,
+        default: null
+      }
+    },
+
+    paymentSettings: {
+      bankName: {
+        type: String,
+        default: ""
+      },
+      accountName: {
+        type: String,
+        default: ""
+      },
+      accountNumber: {
+        type: String,
+        default: ""
+      },
+      walletName: {
+        type: String,
+        default: ""
+      },
+      walletNumber: {
+        type: String,
+        default: ""
+      },
+      transferInstructions: {
+        type: String,
+        default: ""
+      }
+    },
+
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"

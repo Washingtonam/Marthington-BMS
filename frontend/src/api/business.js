@@ -37,6 +37,16 @@ export const updateBusiness = async (payload = {}) => {
   formData.append("receiptFooter", payload.receiptFooter ?? "");
   formData.append("receiptTheme", payload.receiptTheme ?? "");
   formData.append("businessType", payload.businessType ?? "general_services");
+  formData.append("whatsappEnabled", payload.whatsappEnabled ?? false);
+  formData.append("whatsappNumber", payload.whatsappNumber ?? "");
+  formData.append("whatsappWebhookSecret", payload.whatsappWebhookSecret ?? "");
+  formData.append("whatsappApiMode", payload.whatsappApiMode ?? "meta");
+  formData.append("paymentBankName", payload.paymentBankName ?? "");
+  formData.append("paymentAccountName", payload.paymentAccountName ?? "");
+  formData.append("paymentAccountNumber", payload.paymentAccountNumber ?? "");
+  formData.append("paymentWalletName", payload.paymentWalletName ?? "");
+  formData.append("paymentWalletNumber", payload.paymentWalletNumber ?? "");
+  formData.append("paymentTransferInstructions", payload.paymentTransferInstructions ?? "");
 
   // 🔥 FILE UPLOAD
   if (payload.logo instanceof File) {

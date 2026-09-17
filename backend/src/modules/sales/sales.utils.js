@@ -120,11 +120,42 @@ export const normalizeSaleErrorMessage = (error) => {
   return error?.message || 'Failed to create sale';
 };
 
-export const buildSalesQuery = ({ businessId, isSuperAdmin = false, includeDeleted = false, canAccessDeleted = false } = {}) => {
+export const buildPaymentApprovalMessage = ({ businessName = 'Business', sale = {}, receiptUrl = '' } = {}) => {
+  const total = new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    maximumFractionDigits: 0
+  }).format(Number(sale.totalAmount || 0));
+
+  return [
+    `Payment confirmed by ${businessName}.`,
+    `Order reference: ${sale.receiptId || sale._id || 'SALE'}`,
+    `Total: ${total}`,
+    receiptUrl ? `Receipt: ${receiptUrl}` : '',
+    'Thank you for your patronage.'
+  ].filter(Boolean).join('\n');
+};
+
+export const buildSalesQuery = ({
+  businessId,
+  isSuperAdmin = false,
+  includeDeleted = false,
+  canAccessDeleted = false,
+  paymentStatus = null,
+  status = null
+} = {}) => {
   const query = {};
 
   if (!isSuperAdmin) {
     query.business = businessId;
+  }
+
+  if (paymentStatus) {
+    query.paymentStatus = paymentStatus;
+  }
+
+  if (status) {
+    query.status = status;
   }
 
   if (includeDeleted) {

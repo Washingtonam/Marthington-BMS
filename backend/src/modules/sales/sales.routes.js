@@ -78,4 +78,11 @@ router.patch(
   salesController.updatePaymentMethod
 );
 
+router.patch(
+  "/:id/verify-payment",
+  protect,
+  checkPermission("canManagePayments"),
+  salesController.verifyPaymentProof
+);
+
 export default router;

@@ -25,7 +25,22 @@ const formatBusiness = (business) => {
     isPro:
       obj.isPro === true ||
       (subscription.plan === "pro" && subscription.status === "active"),
-    subscription
+    subscription,
+    whatsapp: {
+      enabled: obj.whatsapp?.enabled || false,
+      number: obj.whatsapp?.number || "",
+      webhookSecret: obj.whatsapp?.webhookSecret || "",
+      apiMode: obj.whatsapp?.apiMode || "meta",
+      lastMessageSentAt: obj.whatsapp?.lastMessageSentAt || null
+    },
+    paymentSettings: {
+      bankName: obj.paymentSettings?.bankName || "",
+      accountName: obj.paymentSettings?.accountName || "",
+      accountNumber: obj.paymentSettings?.accountNumber || "",
+      walletName: obj.paymentSettings?.walletName || "",
+      walletNumber: obj.paymentSettings?.walletNumber || "",
+      transferInstructions: obj.paymentSettings?.transferInstructions || ""
+    }
   };
 };
 
@@ -101,6 +116,21 @@ export const getBusiness = async (req, res) => {
         rawBusiness?.isPro === true ||
         (rawBusiness?.subscription?.plan === "pro" &&
           rawBusiness?.subscription?.status === "active"),
+      whatsapp: {
+        enabled: rawBusiness?.whatsapp?.enabled || false,
+        number: rawBusiness?.whatsapp?.number || "",
+        webhookSecret: rawBusiness?.whatsapp?.webhookSecret || "",
+        apiMode: rawBusiness?.whatsapp?.apiMode || "meta",
+        lastMessageSentAt: rawBusiness?.whatsapp?.lastMessageSentAt || null
+      },
+      paymentSettings: {
+        bankName: rawBusiness?.paymentSettings?.bankName || "",
+        accountName: rawBusiness?.paymentSettings?.accountName || "",
+        accountNumber: rawBusiness?.paymentSettings?.accountNumber || "",
+        walletName: rawBusiness?.paymentSettings?.walletName || "",
+        walletNumber: rawBusiness?.paymentSettings?.walletNumber || "",
+        transferInstructions: rawBusiness?.paymentSettings?.transferInstructions || ""
+      },
       studentCount: rawBusiness?.studentCount || 0,
       activePatientCount: rawBusiness?.activePatientCount || 0
     };
@@ -148,7 +178,6 @@ export const getBusiness = async (req, res) => {
 // 🔥 UPDATE BUSINESS SETTINGS (HARDENED)
 export const updateBusiness = async (req, res) => {
   try {
-    // 🚫 BLOCK INVALID USER STATE
     if (!req.user?.businessId) {
       return res.status(400).json({
         message: "No business linked to user"
@@ -173,13 +202,22 @@ export const updateBusiness = async (req, res) => {
       businessType,
       industryType,
       logo,
-      approvalRules
+      approvalRules,
+      whatsappEnabled,
+      whatsappNumber,
+      whatsappWebhookSecret,
+      whatsappApiMode,
+      paymentSettings,
+      paymentBankName,
+      paymentAccountName,
+      paymentAccountNumber,
+      paymentWalletName,
+      paymentWalletNumber,
+      paymentTransferInstructions
     } = req.body;
 
-    // 🔥 LOGO UPLOAD
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
-
       const result = await cloudinary.uploader.upload(base64, {
         folder: "business_logos"
       });
@@ -187,12 +225,10 @@ export const updateBusiness = async (req, res) => {
       business.logo = result.secure_url;
     }
 
-    // 🔥 REMOVE LOGO
     if (logo === "") {
       business.logo = "";
     }
 
-    // 🔥 UPDATE FIELDS (SAFE MERGE)
     business.name = name ?? business.name;
     business.address = address ?? business.address;
     business.phone = phone ?? business.phone;
@@ -201,6 +237,43 @@ export const updateBusiness = async (req, res) => {
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;
     business.industryType = industryType || business.industryType || "retail";
+
+    const nextWhatsAppEnabled = whatsappEnabled !== undefined
+      ? String(whatsappEnabled) === "true"
+      : Boolean(business.whatsapp?.enabled);
+
+    const nextWhatsAppNumber = whatsappNumber !== undefined ? whatsappNumber : business.whatsapp?.number || "";
+    const nextWhatsAppWebhookSecret = whatsappWebhookSecret !== undefined ? whatsappWebhookSecret : business.whatsapp?.webhookSecret || "";
+    const nextWhatsAppApiMode = whatsappApiMode !== undefined ? whatsappApiMode : business.whatsapp?.apiMode || "meta";
+
+    business.whatsapp = {
+      ...(business.whatsapp || {}),
+      enabled: nextWhatsAppEnabled,
+      number: nextWhatsAppNumber,
+      webhookSecret: nextWhatsAppWebhookSecret,
+      apiMode: ["meta", "twilio", "manual"].includes(nextWhatsAppApiMode) ? nextWhatsAppApiMode : "meta"
+    };
+
+    const normalizedPaymentSettings = paymentSettings || {
+      bankName: paymentBankName ?? business.paymentSettings?.bankName ?? "",
+      accountName: paymentAccountName ?? business.paymentSettings?.accountName ?? "",
+      accountNumber: paymentAccountNumber ?? business.paymentSettings?.accountNumber ?? "",
+      walletName: paymentWalletName ?? business.paymentSettings?.walletName ?? "",
+      walletNumber: paymentWalletNumber ?? business.paymentSettings?.walletNumber ?? "",
+      transferInstructions: paymentTransferInstructions ?? business.paymentSettings?.transferInstructions ?? ""
+    };
+
+    if (paymentSettings || paymentBankName !== undefined || paymentAccountName !== undefined || paymentAccountNumber !== undefined || paymentWalletName !== undefined || paymentWalletNumber !== undefined || paymentTransferInstructions !== undefined) {
+      business.paymentSettings = {
+        ...(business.paymentSettings || {}),
+        bankName: normalizedPaymentSettings.bankName ?? business.paymentSettings?.bankName ?? "",
+        accountName: normalizedPaymentSettings.accountName ?? business.paymentSettings?.accountName ?? "",
+        accountNumber: normalizedPaymentSettings.accountNumber ?? business.paymentSettings?.accountNumber ?? "",
+        walletName: normalizedPaymentSettings.walletName ?? business.paymentSettings?.walletName ?? "",
+        walletNumber: normalizedPaymentSettings.walletNumber ?? business.paymentSettings?.walletNumber ?? "",
+        transferInstructions: normalizedPaymentSettings.transferInstructions ?? business.paymentSettings?.transferInstructions ?? ""
+      };
+    }
 
     if (approvalRules) {
       business.approvalRules = {
@@ -216,12 +289,10 @@ export const updateBusiness = async (req, res) => {
     }
 
     await business.save();
-
-    res.json(formatBusiness(business));
-
+    return res.json(formatBusiness(business));
   } catch (err) {
     console.error("❌ UPDATE BUSINESS ERROR:", err);
-    res.status(500).json({
+    return res.status(500).json({
       message: err.message
     });
   }

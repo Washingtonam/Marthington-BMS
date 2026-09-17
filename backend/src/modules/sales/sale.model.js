@@ -85,6 +85,28 @@ const saleSchema = new mongoose.Schema(
       default: ""
     },
 
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending"
+    },
+
+    paymentProof: {
+      type: String,
+      default: ""
+    },
+
+    paymentVerifiedAt: {
+      type: Date,
+      default: null
+    },
+
+    paymentVerifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
     paymentUpdatedAt: {
       type: Date,
       default: null
