@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, Navigate } from "react-router-dom";
+import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 
@@ -10,16 +10,18 @@ const Login = () => {
 
   const { login, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectPath = new URLSearchParams(location.search).get("next") || "/app";
 
   // 🔥 SMART REDIRECT IF ALREADY LOGGED IN
   if (isAuthenticated) {
     if (user?.role === "super_admin") {
-      return <Navigate to="/admin" replace />;
+      return <Navigate to={redirectPath === "/login" ? "/admin" : redirectPath} replace />;
     }
     if (user?.role === "affiliate") {
-      return <Navigate to="/partners/dashboard" replace />;
+      return <Navigate to={redirectPath === "/login" ? "/partners/dashboard" : redirectPath} replace />;
     }
-    return <Navigate to="/app" replace />;
+    return <Navigate to={redirectPath === "/login" ? "/app" : redirectPath} replace />;
   }
 
   const handleChange = (event) => {
@@ -36,12 +38,13 @@ const Login = () => {
       const session = await login(form);
 
       // 🔥 ROLE-BASED REDIRECT (THIS IS THE FIX)
+      const nextPath = redirectPath === "/login" ? "/app" : redirectPath;
       if (session.user.role === "super_admin") {
-        navigate("/admin", { replace: true });
+        navigate(nextPath.startsWith("/admin") ? nextPath : "/admin", { replace: true });
       } else if (session.user.role === "affiliate") {
-        navigate("/partners/dashboard", { replace: true });
+        navigate(nextPath.startsWith("/partners") ? nextPath : "/partners/dashboard", { replace: true });
       } else {
-        navigate("/app", { replace: true });
+        navigate(nextPath.startsWith("/app") || nextPath.startsWith("/") ? nextPath : "/app", { replace: true });
       }
 
     } catch (requestError) {

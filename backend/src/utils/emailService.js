@@ -92,30 +92,74 @@ export const sendReportEmail = async ({
   const contentLabel = reportType === "daily-analysis" ? "Analysis" : "Business Overview";
   const subject = `${businessName} ${frequencyLabel} ${contentLabel} Report`;
   const amount = (value) => Number(value || 0).toLocaleString();
-  const table = (headers, rows) => rows.length === 0 ? "<p style=\"color: #64748b; font-size: 13px;\">No records for this report.</p>" : `
-    <table style="width: 100%; border-collapse: collapse; margin: 10px 0 22px; font-size: 13px;">
-      <thead><tr>${headers.map((header) => `<th style="padding: 8px; border-bottom: 2px solid #cbd5e1; text-align: left;">${escapeHtml(header)}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map((row) => `<tr>${row.map((value) => `<td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody>
-    </table>`;
-  const summaryRows = reportType === "daily-analysis"
-    ? [["Revenue", amount(overview.revenue)], ["Expenses", amount(overview.expenses)], ["Net profit", amount(overview.netProfit)], ["Sales", overview.salesCount || 0]]
-    : [["Revenue", amount(overview.periodRevenue)], ["Expenses", amount(overview.periodOperatingExpenses)], ["Profit", amount(overview.periodProfit)], ["Sales", snapshot?.sales?.length || 0], ["Inventory value", amount(overview.inventoryValue)]];
+  const salesSummaryAmount = reportType === "daily-analysis"
+    ? amount(overview.revenue ?? overview.periodRevenue)
+    : amount(overview.periodRevenue ?? overview.revenue);
+  const profitAmount = reportType === "daily-analysis"
+    ? amount(overview.netProfit ?? overview.periodProfit)
+    : amount(overview.periodProfit ?? overview.netProfit);
+  const expenseAmount = reportType === "daily-analysis"
+    ? amount(overview.expenses ?? overview.periodOperatingExpenses)
+    : amount(overview.periodOperatingExpenses ?? overview.expenses);
+  const salesCount = reportType === "daily-analysis"
+    ? overview.salesCount || 0
+    : snapshot?.sales?.length || snapshot?.recentSales?.length || 0;
+  const usageLabel = frequency === "monthly" ? "this month" : frequency === "weekly" ? "this week" : "today";
+  const summaryTitle = frequency === "monthly" ? "Sales for this month" : frequency === "weekly" ? "Sales for this week" : "Sales for today";
+  const summaryText = frequency === "monthly"
+    ? `This is your monthly sales summary for ${escapeHtml(businessName)}.`
+    : frequency === "weekly"
+      ? `This is your weekly sales summary for ${escapeHtml(businessName)}.`
+      : `This is your daily sales summary for ${escapeHtml(businessName)}.`;
+  const detailCards = [
+    ["Revenue", `₦${salesSummaryAmount}`],
+    ["Expenses", `₦${expenseAmount}`],
+    ["Profit", `₦${profitAmount}`],
+    [summaryTitle, `${salesCount} sales`]
+  ];
   const detailSections = reportType === "daily-analysis"
-    ? `${includes("paymentMethods") ? `<h3>Payment methods</h3>${table(["Method", "Sales", "Amount"], (snapshot.paymentMethods || []).map((item) => [item.method, item.count, amount(item.amount)]))}` : ""}
-      ${includes("expenses") ? `<h3>Expenses by category</h3>${table(["Category", "Amount"], Object.entries(snapshot.expensesByCategory || {}).map(([category, value]) => [category, amount(value)]))}` : ""}
-      ${includes("sales") ? `<h3>Sales</h3>${table(["Date", "Payment", "Amount"], (snapshot.sales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.paymentMethod || "cash", amount(sale.totalAmount)]))}` : ""}`
-    : `${includes("sales") ? `<h3>Recent sales</h3>${table(["Date", "Customer", "Payment", "Amount"], (snapshot.recentSales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.customerName || "Walk-in customer", sale.paymentMethod || "-", amount(sale.totalAmount)]))}` : ""}
-      ${includes("expenses") ? `<h3>Expenses</h3>${table(["Date", "Category", "Amount"], (snapshot.transactions || []).map((transaction) => [new Date(transaction.occurredAt || transaction.createdAt).toLocaleDateString(), transaction.category || "General", amount(transaction.amount)]))}` : ""}
-      ${includes("inventory") ? `<h3>Low-stock products</h3>${table(["Product", "Stock", "Price"], (snapshot.lowStockProducts || []).map((product) => [product.name || "Unnamed product", product.stock ?? product.quantity ?? 0, amount(product.branchPrice ?? product.price)]))}` : ""}
-      ${includes("staff") ? `<h3>Staff performance</h3>${table(["Staff", "Sales", "Revenue"], (snapshot.staffPerformance || []).map((staff) => [staff.name, staff.totalSales, amount(staff.totalRevenue)]))}` : ""}`;
+    ? `${includes("paymentMethods") ? `<div style="margin-top: 26px;"><h3 style="margin: 0 0 12px; font-size: 16px; color: #0f172a;">Payment methods</h3><div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">${(snapshot.paymentMethods || []).slice(0, 4).map((item) => `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px;"><div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; margin-bottom: 6px;">${escapeHtml(item.method || "Method")}</div><div style="font-size: 12px; color: #475569; margin-bottom: 4px;">${item.count || 0} sales</div><div style="font-size: 18px; font-weight: 700; color: #0f172a;">₦${escapeHtml(amount(item.amount))}</div></div>`).join("")}</div></div>` : ""}
+      ${includes("expenses") && Object.keys(snapshot.expensesByCategory || {}).length ? `<div style="margin-top: 26px;"><h3 style="margin: 0 0 12px; font-size: 16px; color: #0f172a;">Expense snapshot</h3><div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 0;">${Object.entries(snapshot.expensesByCategory || {}).slice(0, 4).map(([category, value]) => `<div style="display: flex; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 13px;"><span style="color: #475569;">${escapeHtml(category)}</span><strong style="color: #0f172a;">₦${escapeHtml(amount(value))}</strong></div>`).join("")}</div></div>` : ""}`
+    : `${includes("sales") ? `<div style="margin-top: 26px;"><h3 style="margin: 0 0 12px; font-size: 16px; color: #0f172a;">Sales summary</h3><div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">${(snapshot.recentSales || []).slice(0, 4).map((sale) => `<div style="display: flex; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #f1f5f9;"><div><div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">${new Date(sale.createdAt).toLocaleDateString()}</div><div style="font-size: 13px; color: #0f172a; font-weight: 600;">${escapeHtml(sale.customerName || "Walk-in customer")}</div></div><div style="text-align: right;"><div style="font-size: 12px; color: #64748b;">${escapeHtml(sale.paymentMethod || "Cash")}</div><div style="font-size: 15px; font-weight: 700; color: #0f172a;">₦${escapeHtml(amount(sale.totalAmount))}</div></div></div>`).join("") || '<p style="padding: 14px; margin: 0; color: #64748b; font-size: 13px;">No recent sales recorded for this period.</p>'}</div></div>` : ""}
+      ${includes("expenses") && (snapshot.transactions || []).length ? `<div style="margin-top: 26px;"><h3 style="margin: 0 0 12px; font-size: 16px; color: #0f172a;">Expense summary</h3><div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">${(snapshot.transactions || []).slice(0, 4).map((transaction) => `<div style="display: flex; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #f1f5f9;"><div><div style="font-size: 12px; color: #64748b; margin-bottom: 2px;">${new Date(transaction.occurredAt || transaction.createdAt).toLocaleDateString()}</div><div style="font-size: 13px; color: #0f172a; font-weight: 600;">${escapeHtml(transaction.category || "General")}</div></div><strong style="color: #0f172a; font-size: 14px;">₦${escapeHtml(amount(transaction.amount))}</strong></div>`).join("")}</div></div>` : ""}`;
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #0f172a;">
-      <h2>${escapeHtml(subject)}</h2>
-      <p>Hello ${escapeHtml(recipientName || "there")},</p>
-      <p>Here is your scheduled ${escapeHtml(periodLabel || `${frequencyLabel.toLowerCase()} report`)} for <strong>${escapeHtml(businessName)}</strong>.</p>
-      ${table(["Summary", "Value"], summaryRows)}
-      ${detailSections}
-      <p style="color: #64748b; font-size: 12px; margin-top: 30px;">You can <a href="${escapeHtml(unsubscribeUrl)}">unsubscribe from scheduled reports</a> at any time.</p>
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; background: #f8fafc; padding: 0; color: #0f172a;">
+      <div style="background: linear-gradient(135deg, #0f172a 0%, #0f766e 100%); padding: 24px 28px 18px; border-radius: 18px 18px 0 0;">
+        <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
+          <tr>
+            <td style="vertical-align: middle;">
+              <img src="https://marthington.vercel.app/logo-full.png" alt="Marthington" width="190" height="42" style="display:block; max-width: 190px; height: auto; border-radius: 8px;" />
+            </td>
+          </tr>
+        </table>
+        <div style="margin-top: 18px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.72); font-weight: 700;">Performance update</div>
+        <div style="font-size: 22px; color: #ffffff; font-weight: 700; margin-top: 8px;">${escapeHtml(summaryTitle)}</div>
+      </div>
+      <div style="padding: 26px 28px 18px; background: #ffffff; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+        <p style="margin: 0 0 18px; font-size: 14px; color: #475569;">Hello ${escapeHtml(recipientName || "there")},</p>
+        <p style="margin: 0 0 22px; font-size: 15px; line-height: 1.7; color: #334155;">${summaryText}</p>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px;">
+          ${detailCards.map(([label, value]) => `
+            <div style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%); border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);">
+              <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; margin-bottom: 8px;">${escapeHtml(label)}</div>
+              <div style="font-size: 22px; line-height: 1.2; font-weight: 700; color: #0f172a;">${escapeHtml(value)}</div>
+            </div>
+          `).join("")}
+        </div>
+        <div style="background: linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%); border: 1px solid #a7f3d0; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);">
+          <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #0f766e; font-weight: 700; margin-bottom: 8px;">Summary</div>
+          <div style="font-size: 15px; line-height: 1.7; color: #0f172a;">
+            ${escapeHtml(businessName)} recorded <strong>${escapeHtml(summaryTitle)}</strong> of <strong>₦${escapeHtml(salesSummaryAmount)}</strong>, with a total profit of <strong>₦${escapeHtml(profitAmount)}</strong> and operating expenses of <strong>₦${escapeHtml(expenseAmount)}</strong>.
+          </div>
+        </div>
+        ${detailSections}
+        <div style="margin-top: 30px; text-align: center;">
+          <a href="${escapeHtml((process.env.FRONTEND_URL || "https://marthington.vercel.app") + "/app/reports")}" style="display: inline-block; background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%); color: #ffffff; text-decoration: none; padding: 14px 30px; border-radius: 10px; font-size: 15px; font-weight: 700; box-shadow: 0 10px 26px rgba(15, 118, 110, 0.22);">View more details</a>
+        </div>
+      </div>
+      <div style="padding: 18px 28px 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 18px 18px;">
+        <p style="margin: 0 0 8px; color: #64748b; font-size: 12px; line-height: 1.6;">You can <a href="${escapeHtml(unsubscribeUrl)}" style="color: #0f766e; text-decoration: none;">unsubscribe from scheduled reports</a> at any time.</p>
+      </div>
     </div>
   `;
 

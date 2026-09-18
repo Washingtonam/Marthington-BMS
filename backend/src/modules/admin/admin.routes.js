@@ -125,6 +125,13 @@ router.patch(
   adminController.updateReportSubscription
 );
 
+router.delete(
+  "/report-subscriptions/:id",
+  protect,
+  onlyAdmin,
+  adminController.removeReportSubscription
+);
+
 router.post(
   "/report-subscriptions/:id/test",
   protect,

@@ -7,6 +7,8 @@ import Product from '../src/modules/products/product.model.js';
 import Transaction from '../src/modules/transactions/transaction.model.js';
 import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
 import { formatReportPeriodLabel, getCompletedReportRange, getLocalDate } from '../src/modules/admin/reportSnapshot.js';
+import { sendReportEmail } from '../src/utils/emailService.js';
+import axios from 'axios';
 
 test('Scheduled report dates follow the subscription timezone', () => {
   const instant = new Date('2026-09-18T23:30:00.000Z');
@@ -158,6 +160,46 @@ test('Reports: daily analysis separates payment methods and subtracts expenses',
     { method: 'cash', count: 1, amount: 500 },
     { method: 'bank_transfer', count: 1, amount: 300 },
   ]);
+});
+
+test('Reports: scheduled email uses a summary view with a branded CTA', async () => {
+  const originalAxiosPost = axios.post;
+  const originalApiKey = process.env.RESEND_API_KEY;
+  const originalFrom = process.env.RESEND_FROM;
+
+  process.env.RESEND_API_KEY = 'test-key';
+  process.env.RESEND_FROM = 'hello@marthington.com';
+  axios.post = async (url, payload) => {
+    assert.equal(url, 'https://api.resend.com/emails');
+    assert.match(payload.html, /Sales for today/i);
+    assert.match(payload.html, /View more details/i);
+    assert.doesNotMatch(payload.html, /Rice|Beans|Detailed breakdown/i);
+    return { data: { id: 'email-1' } };
+  };
+
+  try {
+    const sent = await sendReportEmail({
+      recipientEmail: 'owner@example.com',
+      recipientName: 'Ada',
+      businessName: 'Bright Mart',
+      reportType: 'daily-analysis',
+      frequency: 'daily',
+      periodLabel: 'Daily report for Sep 18, 2026',
+      snapshot: {
+        overview: { revenue: 250000, expenses: 75000, netProfit: 175000, salesCount: 42 },
+        sales: [],
+        paymentMethods: [{ method: 'Cash', count: 12, amount: 90000 }],
+        expensesByCategory: { Utilities: 20000 },
+      },
+      unsubscribeUrl: 'https://example.com/unsubscribe'
+    });
+
+    assert.equal(sent, true);
+  } finally {
+    axios.post = originalAxiosPost;
+    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = originalApiKey;
+    if (originalFrom === undefined) delete process.env.RESEND_FROM; else process.env.RESEND_FROM = originalFrom;
+  }
 });
 
 test('Reports: sales query includes the sale status in the projection', async () => {

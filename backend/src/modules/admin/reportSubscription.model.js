@@ -46,6 +46,11 @@ const reportSubscriptionSchema = new mongoose.Schema(
       enum: ["enabled", "admin_disabled", "unsubscribed", "bounced"],
       default: "enabled"
     },
+    isRemoved: {
+      type: Boolean,
+      default: false,
+      index: true
+    },
     lastSentAt: {
       type: Date,
       default: null

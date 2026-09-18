@@ -423,7 +423,7 @@ const updateAdminContact = async (req, res) => {
 const listReportSubscriptions = async (req, res) => {
   try {
     const { status, search } = req.query;
-    const query = {};
+    const query = { isRemoved: { $ne: true } };
 
     if (status) query.status = status;
     if (search) {
@@ -439,7 +439,29 @@ const listReportSubscriptions = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json({ subscriptions });
+    const businesses = await Business.find({ status: { $ne: "deleted" } })
+      .select("name owner email industryType")
+      .populate("owner", "name email")
+      .lean();
+    const configuredBusinessIds = new Set(subscriptions.map((item) => item.business?._id?.toString() || item.business?.toString()));
+    const automaticRecipients = businesses
+      .filter((business) => !configuredBusinessIds.has(business._id.toString()))
+      .map((business) => ({
+        _id: null,
+        isAutomatic: true,
+        recipientEmail: business.owner?.email || business.email || "",
+        recipientName: business.owner?.name || "",
+        business: { _id: business._id, name: business.name, industryType: business.industryType },
+        reportType: "overview",
+        reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
+        frequency: "daily",
+        sendTime: "18:00",
+        timezone: "Africa/Lagos",
+        status: "admin_disabled",
+        isRemoved: false
+      }));
+
+    res.json({ subscriptions: [...subscriptions, ...automaticRecipients] });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -455,7 +477,9 @@ const createReportSubscription = async (req, res) => {
       reportSections,
       frequency = "daily",
       sendTime = "18:00",
-      timezone = "Africa/Lagos"
+      timezone = "Africa/Lagos",
+      status = "enabled",
+      isRemoved = false
     } = req.body;
 
     if (!recipientEmail || !/^\S+@\S+\.\S+$/.test(recipientEmail)) {
@@ -474,6 +498,8 @@ const createReportSubscription = async (req, res) => {
       frequency,
       sendTime,
       timezone,
+      status,
+      isRemoved: isRemoved === true,
       createdBy: req.user.id,
       updatedBy: req.user.id
     });
@@ -515,6 +541,20 @@ const updateReportSubscription = async (req, res) => {
 
     if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
     res.json({ subscription });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const removeReportSubscription = async (req, res) => {
+  try {
+    const subscription = await ReportSubscription.findByIdAndUpdate(
+      req.params.id,
+      { isRemoved: true, status: "admin_disabled", updatedBy: req.user.id },
+      { new: true }
+    ).lean();
+    if (!subscription) return res.status(404).json({ message: "Report recipient not found" });
+    res.json({ message: "Report recipient removed", subscription });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1495,6 +1535,7 @@ export default {
   listReportSubscriptions,
   createReportSubscription,
   updateReportSubscription,
+  removeReportSubscription,
   sendReportSubscriptionTest,
   getEmailHealth,
   unsubscribeReportSubscription,
