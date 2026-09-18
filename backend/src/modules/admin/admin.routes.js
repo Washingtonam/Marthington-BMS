@@ -121,9 +121,12 @@ router.patch(
 // ================= OUTREACH CAMPAIGNS =================
 router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);
 router.get("/email-campaigns/audience-count", protect, onlyAdmin, adminController.getEmailAudienceCount);
+router.get("/email-registry", protect, onlyAdmin, adminController.listEmailRegistry);
+router.patch("/email-registry/:userId/preference", protect, onlyAdmin, adminController.updateEmailPreference);
 router.post("/email-campaigns", protect, onlyAdmin, adminController.createEmailCampaign);
 router.patch("/email-campaigns/:id", protect, onlyAdmin, adminController.updateEmailCampaign);
 router.post("/email-campaigns/:id/cancel", protect, onlyAdmin, adminController.cancelEmailCampaign);
+router.post("/email-campaigns/:id/test", protect, onlyAdmin, adminController.sendCampaignTestEmail);
 
 // ================= AFFILIATE MANAGEMENT =================
 router.get(

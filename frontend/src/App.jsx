@@ -43,6 +43,11 @@ const FinancialReports = lazy(() => import("./pages/FinancialReports.jsx"));
 const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
+const AdminTenantDirectory = lazy(() => import("./pages/AdminTenantDirectory.jsx"));
+const AdminAffiliateNetwork = lazy(() => import("./pages/AdminAffiliateNetwork.jsx"));
+const AdminCommunications = lazy(() => import("./pages/AdminCommunications.jsx"));
+const AdminCampaigns = lazy(() => import("./pages/AdminCampaigns.jsx"));
+const AdminEmailRegistry = lazy(() => import("./pages/AdminEmailRegistry.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
 const AdminOperationLogs = lazy(() => import("./pages/AdminOperationLogs.jsx"));
@@ -114,7 +119,7 @@ const MedicalInventory = () => (
   </div>
 );
 
-const AdminBusinesses = AdminDashboard;
+const AdminBusinesses = AdminTenantDirectory;
 const AdminRevenue = () => (
   <section className="page-stack">
     <div className="page-heading">
@@ -329,7 +334,12 @@ const App = () => {
               }
             >
               <Route index element={<AdminDashboard />} />
+              <Route path="tenants" element={<AdminTenantDirectory />} />
               <Route path="businesses" element={<AdminBusinesses />} />
+              <Route path="affiliate-network" element={<AdminAffiliateNetwork />} />
+              <Route path="communications" element={<AdminCommunications />} />
+              <Route path="campaigns" element={<AdminCampaigns />} />
+              <Route path="email-registry" element={<AdminEmailRegistry />} />
               <Route path="revenue" element={<AdminRevenue />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
               <Route path="billing-settings" element={<AdminBillingSettings />} />

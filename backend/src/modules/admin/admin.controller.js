@@ -14,6 +14,7 @@ import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
 import jwt from "jsonwebtoken";
+import { sendCampaignEmail } from "../../utils/emailService.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
 
@@ -550,6 +551,80 @@ const getEmailAudienceCount = async (req, res) => {
     query._id = { $nin: (await EmailPreference.find({ marketingOptOut: true }).select("user").lean()).map((item) => item.user) };
     const count = await User.countDocuments(query);
     res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const listEmailRegistry = async (req, res) => {
+  try {
+    const { search = "", role, businessId, marketingStatus = "all" } = req.query;
+    const query = { isActive: { $ne: false } };
+    if (role) query.role = role;
+    if (businessId && mongoose.Types.ObjectId.isValid(businessId)) query.business = businessId;
+    if (search) query.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } }
+    ];
+
+    const optedOutIds = (await EmailPreference.find({ marketingOptOut: true }).select("user").lean()).map((item) => item.user);
+    if (marketingStatus === "enabled") query._id = { $nin: optedOutIds };
+    if (marketingStatus === "disabled") query._id = { $in: optedOutIds };
+
+    const users = await User.find(query)
+      .select("name email role business isActive createdAt")
+      .populate("business", "name")
+      .sort({ createdAt: -1 })
+      .lean();
+    const preferenceMap = new Map((await EmailPreference.find({ user: { $in: users.map((user) => user._id) } }).lean()).map((item) => [item.user.toString(), item]));
+
+    res.json({
+      users: users.map((user) => ({
+        ...user,
+        marketingOptOut: Boolean(preferenceMap.get(user._id.toString())?.marketingOptOut),
+        marketingOptOutAt: preferenceMap.get(user._id.toString())?.optedOutAt || null
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateEmailPreference = async (req, res) => {
+  try {
+    const { marketingOptOut } = req.body;
+    if (typeof marketingOptOut !== "boolean") return res.status(400).json({ message: "marketingOptOut must be boolean" });
+    const user = await User.findById(req.params.userId).select("_id");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    const preference = await EmailPreference.findOneAndUpdate(
+      { user: user._id },
+      { user: user._id, marketingOptOut, optedOutAt: marketingOptOut ? new Date() : null, source: "admin" },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean();
+    res.json({ preference });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const sendCampaignTestEmail = async (req, res) => {
+  try {
+    const { email, name = "there" } = req.body;
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: "A valid test email is required" });
+    const campaign = await EmailCampaign.findById(req.params.id).lean();
+    if (!campaign) return res.status(404).json({ message: "Campaign not found" });
+    const sent = await sendCampaignEmail({
+      recipientEmail: email,
+      recipientName: name,
+      subject: `[TEST] ${campaign.subject}`,
+      previewText: campaign.previewText,
+      bodyHtml: campaign.bodyHtml,
+      footerText: campaign.footerText,
+      footerAddress: campaign.footerAddress,
+      userId: req.user.id
+    });
+    if (!sent) return res.status(503).json({ message: "Email transporter unavailable or delivery failed" });
+    res.json({ message: "Test email sent" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1289,6 +1364,9 @@ export default {
   unsubscribeCampaignEmail,
   listEmailCampaigns,
   getEmailAudienceCount,
+  listEmailRegistry,
+  updateEmailPreference,
+  sendCampaignTestEmail,
   createEmailCampaign,
   updateEmailCampaign,
   cancelEmailCampaign,

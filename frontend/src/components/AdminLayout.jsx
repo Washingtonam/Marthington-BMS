@@ -19,48 +19,43 @@ const AdminLayout = () => {
         <div>
           <h1 className="text-xl font-bold mb-6">Super Admin</h1>
 
-          <nav className="space-y-2">
+          <nav className="space-y-5">
+            <div>
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Control Center</p>
 
-            <NavLink to="/admin" end className={navItem}>
-              Dashboard
-            </NavLink>
+              <div className="space-y-1">
 
-            <NavLink to="/admin/businesses" className={navItem}>
-              Businesses
-            </NavLink>
+                <NavLink to="/admin" end className={navItem}>Dashboard</NavLink>
+                <NavLink to="/admin/tenants" className={navItem}>Tenant Directory</NavLink>
+                <NavLink to="/admin/affiliate-network" className={navItem}>Affiliate Network</NavLink>
+                <NavLink to="/admin/communications" className={navItem}>Communications</NavLink>
+                <NavLink to="/admin/campaigns" className={navItem}>Campaigns</NavLink>
+                <NavLink to="/admin/email-registry" className={navItem}>Email Registry</NavLink>
+              </div>
+            </div>
 
-            {/* 🔥 FUTURE READY LINKS */}
-            <NavLink to="/admin/revenue" className={navItem}>
-              Revenue 💰
-            </NavLink>
+            <div>
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Finance</p>
 
-            <NavLink to="/admin/subscriptions" className={navItem}>
-              Subscriptions
-            </NavLink>
+              <div className="space-y-1">
 
-            <NavLink to="/admin/billing-settings" className={navItem}>
-              Billing Settings 💳
-            </NavLink>
+                <NavLink to="/admin/revenue" className={navItem}>Revenue</NavLink>
+                <NavLink to="/admin/subscriptions" className={navItem}>Subscriptions</NavLink>
+                <NavLink to="/admin/billing-settings" className={navItem}>Billing Settings</NavLink>
+                <NavLink to="/admin/payouts" className={navItem}>Payout Requests</NavLink>
+              </div>
+            </div>
 
-            <NavLink to="/admin/affiliates" className={navItem}>
-              Affiliate Ledger 💰
-            </NavLink>
+            <div>
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">System</p>
 
-            <NavLink to="/admin/users" className={navItem}>
-              Users
-            </NavLink>
-
-            <NavLink to="/admin/analytics" className={navItem}>
-              Analytics
-            </NavLink>
-
-            <NavLink to="/admin/settings" className={navItem}>
-              Settings ⚙️
-            </NavLink>
-
-            <NavLink to="/admin/operation-logs" className={navItem}>
-              Operation Logs
-            </NavLink>
+              <div className="space-y-1">
+                <NavLink to="/admin/users" className={navItem}>Users</NavLink>
+                <NavLink to="/admin/analytics" className={navItem}>Analytics</NavLink>
+                <NavLink to="/admin/settings" className={navItem}>Settings</NavLink>
+                <NavLink to="/admin/operation-logs" className={navItem}>Operation Logs</NavLink>
+              </div>
+            </div>
 
           </nav>
         </div>
