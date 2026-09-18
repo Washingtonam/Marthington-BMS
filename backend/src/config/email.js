@@ -21,6 +21,9 @@ const initializeEmailTransporter = () => {
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || "587"),
       secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -87,7 +90,7 @@ export const verifyEmailConfig = async () => {
       }
       const response = await axios.get("https://api.resend.com/domains", {
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
-        timeout: 10000
+        timeout: 5000
       });
       const domains = response.data?.data || response.data?.domains || [];
       const verifiedDomain = domains.find((domain) =>

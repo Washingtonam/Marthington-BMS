@@ -20,14 +20,16 @@ const AdminCommunications = () => {
   const [emailHealth, setEmailHealth] = useState(null);
 
   const load = async () => {
-    const [subscriptionData, businessesData, healthResult] = await Promise.all([
+    const [subscriptionData, businessesData] = await Promise.all([
       request("/admin/report-subscriptions"),
-      request("/admin/businesses"),
-      request("/admin/email-health").then((health) => ({ health })).catch((error) => ({ error }))
+      request("/admin/businesses")
     ]);
     setSubscriptions(subscriptionData.subscriptions || []);
     setBusinesses(businessesData.businesses || []);
-    setEmailHealth(healthResult.health || healthResult.error?.body || { verified: false, email: { lastError: healthResult.error?.message || "Email health check failed" } });
+
+    request("/admin/email-health")
+      .then((health) => setEmailHealth(health))
+      .catch((error) => setEmailHealth(error.body || { verified: false, email: { lastError: error.message || "Email health check failed" } }));
   };
 
   useEffect(() => {
@@ -91,7 +93,7 @@ const AdminCommunications = () => {
   return (
     <section className="page-stack max-w-7xl mx-auto">
       <div className="page-heading"><div><span className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-600">Super Admin</span><h1 className="mt-2 text-4xl font-extrabold text-slate-900">Communications</h1></div><p className="max-w-2xl text-sm text-slate-500">Configure daily, weekly, or monthly business reports and test delivery before enabling them.</p></div>
-      <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth?.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><strong>{emailHealth?.verified ? "Email delivery ready" : "Email delivery needs attention"}</strong><p className="mt-1 text-xs">{emailHealth?.verified ? `SMTP is connected through ${emailHealth.email?.host || "the configured provider"}.` : emailHealth?.email?.lastError || "Check SMTP settings on the deployed backend."}</p></div>
+      <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth === null ? "border-slate-200 bg-slate-50 text-slate-700" : emailHealth.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><strong>{emailHealth === null ? "Checking email delivery" : emailHealth.verified ? "Email delivery ready" : "Email delivery needs attention"}</strong><p className="mt-1 text-xs">{emailHealth === null ? "Verifying the configured email provider..." : emailHealth.verified ? `SMTP is connected through ${emailHealth.email?.host || "the configured provider"}.` : emailHealth.email?.lastError || "Check SMTP settings on the deployed backend."}</p></div>
 
       <form onSubmit={create} className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
         <div className="mb-6 border-b border-slate-100 pb-4"><h2 className="text-xl font-bold text-slate-900">Add Report Recipient</h2><p className="mt-1 text-xs text-slate-400">Selecting a business fills the owner details. You can edit either field before saving.</p></div>
