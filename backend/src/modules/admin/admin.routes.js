@@ -125,6 +125,13 @@ router.post(
   adminController.sendReportSubscriptionTest
 );
 
+router.get(
+  "/email-health",
+  protect,
+  onlyAdmin,
+  adminController.getEmailHealth
+);
+
 // ================= OUTREACH CAMPAIGNS =================
 router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);
 router.get("/email-campaigns/audience-count", protect, onlyAdmin, adminController.getEmailAudienceCount);

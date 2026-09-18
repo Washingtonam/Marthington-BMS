@@ -16,6 +16,7 @@ import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
 import jwt from "jsonwebtoken";
 import { sendCampaignEmail, sendReportEmail } from "../../utils/emailService.js";
+import { getEmailConfigStatus, verifyEmailConfig } from "../../config/email.js";
 import { buildDailyAnalysisSnapshot, buildReportSnapshot } from "../reports/reports.controller.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
@@ -520,11 +521,22 @@ const sendReportSubscriptionTest = async (req, res) => {
       snapshot,
       unsubscribeUrl: `${apiUrl}/api/report-subscriptions/unsubscribe?token=${encodeURIComponent(token)}`
     });
-    if (!sent) return res.status(503).json({ message: "Email transporter unavailable or delivery failed" });
+    if (!sent) {
+      const emailStatus = getEmailConfigStatus();
+      return res.status(503).json({
+        message: emailStatus.lastError || "Email transporter unavailable or delivery failed",
+        email: emailStatus
+      });
+    }
     res.json({ message: "Test report sent" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+};
+
+const getEmailHealth = async (req, res) => {
+  const verified = await verifyEmailConfig();
+  res.status(verified ? 200 : 503).json({ verified, email: getEmailConfigStatus() });
 };
 
 const unsubscribeReportSubscription = async (req, res) => {
@@ -1406,6 +1418,7 @@ export default {
   createReportSubscription,
   updateReportSubscription,
   sendReportSubscriptionTest,
+  getEmailHealth,
   unsubscribeReportSubscription,
   unsubscribeCampaignEmail,
   listEmailCampaigns,

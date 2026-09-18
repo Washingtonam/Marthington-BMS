@@ -17,6 +17,7 @@ const AdminCommunications = () => {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState("");
+  const [emailHealth, setEmailHealth] = useState(null);
 
   const load = async () => {
     const [subscriptionData, overview] = await Promise.all([
@@ -25,6 +26,12 @@ const AdminCommunications = () => {
     ]);
     setSubscriptions(subscriptionData.subscriptions || []);
     setBusinesses(overview.businesses || []);
+    try {
+      const health = await request("/admin/email-health");
+      setEmailHealth(health);
+    } catch (err) {
+      setEmailHealth(err.body || { verified: false, email: { lastError: err.message } });
+    }
   };
 
   useEffect(() => {
@@ -88,6 +95,7 @@ const AdminCommunications = () => {
   return (
     <section className="page-stack max-w-7xl mx-auto">
       <div className="page-heading"><div><span className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-600">Super Admin</span><h1 className="mt-2 text-4xl font-extrabold text-slate-900">Communications</h1></div><p className="max-w-2xl text-sm text-slate-500">Configure daily, weekly, or monthly business reports and test delivery before enabling them.</p></div>
+      <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth?.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><strong>{emailHealth?.verified ? "Email delivery ready" : "Email delivery needs attention"}</strong><p className="mt-1 text-xs">{emailHealth?.verified ? `SMTP is connected through ${emailHealth.email?.host || "the configured provider"}.` : emailHealth?.email?.lastError || "Check SMTP settings on the deployed backend."}</p></div>
 
       <form onSubmit={create} className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
         <div className="mb-6 border-b border-slate-100 pb-4"><h2 className="text-xl font-bold text-slate-900">Add Report Recipient</h2><p className="mt-1 text-xs text-slate-400">Selecting a business fills the owner details. You can edit either field before saving.</p></div>
@@ -96,7 +104,7 @@ const AdminCommunications = () => {
           <label className="text-xs font-bold text-slate-500">Recipient name<input required value={form.recipientName} onChange={(event) => setForm({ ...form, recipientName: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
           <label className="text-xs font-bold text-slate-500">Recipient email<input required type="email" value={form.recipientEmail} onChange={(event) => setForm({ ...form, recipientEmail: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
           <label className="text-xs font-bold text-slate-500">Report content<select value={form.reportType} onChange={(event) => setForm({ ...form, reportType: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="overview">Business overview</option><option value="daily-analysis">Daily sales analysis</option></select></label>
-          <label className="text-xs font-bold text-slate-500">Frequency<select value={form.frequency} onChange={(event) => setForm({ ...form, frequency: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+          <label className="text-xs font-bold text-slate-500">Frequency<select value={form.frequency} onChange={(event) => setForm({ ...form, frequency: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="daily">Daily</option><option value="weekly">Weekly (Friday)</option><option value="monthly">Monthly (last day)</option></select></label>
           <label className="text-xs font-bold text-slate-500">Send time<input type="time" required value={form.sendTime} onChange={(event) => setForm({ ...form, sendTime: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>
           <label className="text-xs font-bold text-slate-500">Timezone<select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="Africa/Lagos">Africa/Lagos</option><option value="UTC">UTC</option><option value="Europe/London">Europe/London</option><option value="America/New_York">America/New_York</option></select></label>
           <button type="submit" disabled={saving} className="self-end rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase text-white disabled:opacity-50">{saving ? "Saving..." : "Save Schedule"}</button>

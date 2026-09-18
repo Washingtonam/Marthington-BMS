@@ -1,4 +1,4 @@
-import { getEmailTransporter } from "../config/email.js";
+import { getEmailTransporter, setLastEmailError } from "../config/email.js";
 import EmailHistory from "../models/emailHistory.model.js";
 import jwt from "jsonwebtoken";
 
@@ -59,7 +59,10 @@ export const sendReportEmail = async ({
   unsubscribeUrl
 }) => {
   const transporter = getEmailTransporter();
-  if (!transporter) return false;
+  if (!transporter) {
+    setLastEmailError(new Error("Email transporter is not configured"));
+    return false;
+  }
 
   const overview = snapshot?.overview || snapshot?.summary || {};
   const subject = `${businessName} ${reportType === "daily-analysis" ? "Daily Analysis" : "Business Overview"} Report`;
@@ -90,6 +93,7 @@ export const sendReportEmail = async ({
     });
     return true;
   } catch (error) {
+    setLastEmailError(error);
     console.error(`Failed to send report email: ${error.message}`);
     return false;
   }

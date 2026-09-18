@@ -49,8 +49,17 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
   }
 
   if (local.time !== subscription.sendTime) return false;
-  if (subscription.frequency === "weekly" && local.weekday !== "Mon") return false;
-  if (subscription.frequency === "monthly" && local.date.slice(-2) !== "01") return false;
+  if (subscription.frequency === "weekly" && local.weekday !== "Fri") return false;
+  if (subscription.frequency === "monthly") {
+    const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+    let nextLocal;
+    try {
+      nextLocal = getLocalScheduleParts(nextDay, subscription.timezone || "Africa/Lagos");
+    } catch {
+      return false;
+    }
+    if (nextLocal.date === local.date) return false;
+  }
 
   if (!subscription.lastSentAt) return true;
   try {

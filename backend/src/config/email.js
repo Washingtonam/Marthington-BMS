@@ -9,6 +9,7 @@ import nodemailer from "nodemailer";
  */
 
 let transporter;
+let lastEmailError = null;
 
 // Initialize email transporter based on provider
 const initializeEmailTransporter = () => {
@@ -46,6 +47,21 @@ export const getEmailTransporter = () => {
   return transporter;
 };
 
+export const getEmailConfigStatus = () => ({
+  configured: Boolean(transporter),
+  provider: process.env.SMTP_HOST ? "smtp" : process.env.MAILGUN_API_KEY ? "mailgun" : "none",
+  host: process.env.SMTP_HOST || null,
+  port: process.env.SMTP_PORT || "587",
+  secure: process.env.SMTP_SECURE === "true",
+  user: process.env.SMTP_USER || null,
+  from: process.env.SMTP_FROM || process.env.SMTP_USER || null,
+  lastError: lastEmailError
+});
+
+export const setLastEmailError = (error) => {
+  lastEmailError = error ? String(error.message || error) : null;
+};
+
 /**
  * Verify email configuration
  */
@@ -53,11 +69,14 @@ export const verifyEmailConfig = async () => {
   try {
     if (transporter) {
       await transporter.verify();
+      lastEmailError = null;
       console.log("✅ Email transporter verified successfully");
       return true;
     }
+    lastEmailError = "Email transporter is not configured";
     return false;
   } catch (error) {
+    lastEmailError = error.message;
     console.error("❌ Email transporter verification failed:", error.message);
     return false;
   }
@@ -66,4 +85,5 @@ export const verifyEmailConfig = async () => {
 export default {
   getEmailTransporter,
   verifyEmailConfig,
+  getEmailConfigStatus,
 };
