@@ -141,6 +141,7 @@ router.post("/email-campaigns", protect, onlyAdmin, adminController.createEmailC
 router.patch("/email-campaigns/:id", protect, onlyAdmin, adminController.updateEmailCampaign);
 router.post("/email-campaigns/:id/cancel", protect, onlyAdmin, adminController.cancelEmailCampaign);
 router.post("/email-campaigns/:id/test", protect, onlyAdmin, adminController.sendCampaignTestEmail);
+router.post("/email-campaigns/:id/retry", protect, onlyAdmin, adminController.retryEmailCampaign);
 
 // ================= AFFILIATE MANAGEMENT =================
 router.get(

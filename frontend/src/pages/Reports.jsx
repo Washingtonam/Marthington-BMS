@@ -22,7 +22,7 @@ import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
 import { buildReportDetailRoute } from "../utils/reportDateRouting.js";
-import { FiCalendar, FiDownload, FiMail, FiPrinter, FiSettings } from "react-icons/fi";
+import { FiCalendar, FiDownload, FiPrinter, FiSettings } from "react-icons/fi";
 
 const PRESET_DATES = [
   { label: "Today", getValue: () => {
@@ -102,14 +102,6 @@ const Reports = () => {
     const stored = localStorage.getItem(WIDGET_CONFIG_KEY);
     return stored ? JSON.parse(stored) : DEFAULT_WIDGET_CONFIG;
   });
-  const [showEmailScheduler, setShowEmailScheduler] = useState(false);
-  const [emailSchedule, setEmailSchedule] = useState({
-    enabled: false,
-    frequency: "daily",
-    sendTime: "20:00",
-    recipients: [],
-    newRecipient: "",
-  });
 
   const loadReports = async (signal) => {
     try {
@@ -127,49 +119,6 @@ const Reports = () => {
     const updated = { ...widgetVisibility, [widget]: !widgetVisibility[widget] };
     setWidgetVisibility(updated);
     localStorage.setItem(WIDGET_CONFIG_KEY, JSON.stringify(updated));
-  };
-
-  // Handle email schedule settings
-  const handleAddRecipient = () => {
-    if (emailSchedule.newRecipient.trim()) {
-      setEmailSchedule({
-        ...emailSchedule,
-        recipients: [...emailSchedule.recipients, emailSchedule.newRecipient.trim()],
-        newRecipient: "",
-      });
-    }
-  };
-
-  const handleRemoveRecipient = (email) => {
-    setEmailSchedule({
-      ...emailSchedule,
-      recipients: emailSchedule.recipients.filter(r => r !== email),
-    });
-  };
-
-  const handleSaveEmailSchedule = async () => {
-    try {
-      const response = await fetch("/api/reports/schedule-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enabled: emailSchedule.enabled,
-          frequency: emailSchedule.frequency,
-          sendTime: emailSchedule.sendTime,
-          recipients: emailSchedule.recipients,
-        }),
-      });
-
-      if (response.ok) {
-        alert("Email schedule saved successfully!");
-        setShowEmailScheduler(false);
-      } else {
-        alert("Failed to save email schedule");
-      }
-    } catch (err) {
-      console.error("Error saving email schedule:", err);
-      alert("Error saving email schedule: " + err.message);
-    }
   };
 
   const handleOpenReportDetail = (label, selectedRange) => {
@@ -1116,13 +1065,6 @@ const Reports = () => {
               <FiDownload />
             </button>
             <button
-              onClick={() => setShowEmailScheduler(!showEmailScheduler)}
-              title="Schedule reports by email"
-              className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-200 transition hover:bg-white/15"
-            >
-              <FiMail />
-            </button>
-            <button
               onClick={handlePrintReport}
               disabled={!startDate || timelineTransactions.length === 0}
               title="Print report"
@@ -1142,124 +1084,6 @@ const Reports = () => {
         visible={Boolean(transactionStatusNotice)}
         onClose={hideTransactionStatusNotice}
       />
-
-      {/* EMAIL SCHEDULER MODAL */}
-      {showEmailScheduler && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">✉️ Schedule Email Reports</h3>
-              <button
-                onClick={() => setShowEmailScheduler(false)}
-                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-xl"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Enable Toggle */}
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={emailSchedule.enabled}
-                  onChange={(e) => setEmailSchedule({ ...emailSchedule, enabled: e.target.checked })}
-                  className="h-4 w-4 rounded border-slate-300 accent-emerald-500 dark:border-slate-600"
-                />
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Enable Email Scheduling</span>
-              </label>
-
-              {emailSchedule.enabled && (
-                <>
-                  {/* Frequency Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                      Frequency
-                    </label>
-                    <select
-                      value={emailSchedule.frequency}
-                      onChange={(e) => setEmailSchedule({ ...emailSchedule, frequency: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    >
-                      <option value="daily">Daily (End of Day)</option>
-                      <option value="weekly">Weekly Summary</option>
-                    </select>
-                  </div>
-
-                  {/* Time Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                      Send Time
-                    </label>
-                    <input
-                      type="time"
-                      value={emailSchedule.sendTime}
-                      onChange={(e) => setEmailSchedule({ ...emailSchedule, sendTime: e.target.value })}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                    />
-                  </div>
-
-                  {/* Email Recipients */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                      Recipients
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="email"
-                        value={emailSchedule.newRecipient}
-                        onChange={(e) => setEmailSchedule({ ...emailSchedule, newRecipient: e.target.value })}
-                        placeholder="Enter email address"
-                        className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <button
-                        onClick={handleAddRecipient}
-                        className="px-3 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
-                      >
-                        Add
-                      </button>
-                    </div>
-
-                    {/* Recipients List */}
-                    {emailSchedule.recipients.length > 0 && (
-                      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 space-y-2">
-                        {emailSchedule.recipients.map((email) => (
-                          <div key={email} className="flex items-center justify-between text-sm">
-                            <span className="text-slate-700 dark:text-slate-300">{email}</span>
-                            <button
-                              onClick={() => handleRemoveRecipient(email)}
-                              className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-semibold"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Modal Buttons */}
-            <div className="mt-6 flex gap-2 justify-end">
-              <button
-                onClick={() => setShowEmailScheduler(false)}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEmailSchedule}
-                disabled={emailSchedule.enabled && emailSchedule.recipients.length === 0}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
-              >
-                Save Schedule
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* DATE RANGE & CALENDAR BAR */}
       <div className="reports-datebar mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">

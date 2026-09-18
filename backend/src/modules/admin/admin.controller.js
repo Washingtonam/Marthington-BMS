@@ -773,6 +773,20 @@ const cancelEmailCampaign = async (req, res) => {
   }
 };
 
+const retryEmailCampaign = async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findOneAndUpdate(
+      { _id: req.params.id, status: "failed" },
+      { status: "scheduled", scheduledFor: new Date(), updatedBy: req.user.id },
+      { new: true }
+    ).lean();
+    if (!campaign) return res.status(404).json({ message: "Failed campaign not found" });
+    res.json({ campaign });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ================= AFFILIATE ADMIN ACTIONS =================
 const listAffiliates = async (req, res) => {
   try {
@@ -1429,6 +1443,7 @@ export default {
   createEmailCampaign,
   updateEmailCampaign,
   cancelEmailCampaign,
+  retryEmailCampaign,
   // affiliates
   listAffiliates,
   getPartnerPayoutHistory,

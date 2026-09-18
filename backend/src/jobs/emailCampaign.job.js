@@ -37,11 +37,16 @@ export const sendDueEmailCampaigns = async (now = new Date()) => {
     const recipients = await User.find(audienceQuery(campaign, optedOutIds))
       .select("name email")
       .lean();
+    const previousDeliveries = await EmailCampaignDelivery.find({
+      campaign: campaign._id,
+      status: "sent"
+    }).select("recipientEmail").lean();
+    const alreadySent = new Set(previousDeliveries.map((delivery) => delivery.recipientEmail));
+    const pendingRecipients = recipients.filter((recipient) => recipient.email && !alreadySent.has(recipient.email));
     let deliveredCount = 0;
     let failedCount = 0;
 
-    for (const recipient of recipients) {
-      if (!recipient.email) continue;
+    for (const recipient of pendingRecipients) {
       try {
         const sent = await sendCampaignEmail({
           recipientEmail: recipient.email,
@@ -86,10 +91,10 @@ export const sendDueEmailCampaigns = async (now = new Date()) => {
     }
 
     await EmailCampaign.findByIdAndUpdate(campaign._id, {
-      status: "sent",
-      sentAt: now,
-      recipientCount: recipients.length,
-      deliveredCount,
+      status: failedCount > 0 ? "failed" : "sent",
+      sentAt: failedCount > 0 ? null : now,
+      recipientCount: recipients.filter((recipient) => recipient.email).length,
+      deliveredCount: alreadySent.size + deliveredCount,
       failedCount
     });
     processed += 1;

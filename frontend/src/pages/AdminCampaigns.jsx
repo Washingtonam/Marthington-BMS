@@ -84,6 +84,16 @@ const AdminCampaigns = () => {
     }
   };
 
+  const retry = async (campaign) => {
+    if (!window.confirm(`Retry delivery for ${campaign.name}? Recipients already sent successfully will be skipped.`)) return;
+    try {
+      const result = await request(`/admin/email-campaigns/${campaign._id}/retry`, { method: "POST" });
+      setCampaigns((current) => current.map((item) => item._id === campaign._id ? result.campaign : item));
+    } catch (err) {
+      alert(err.message || "Failed to retry campaign");
+    }
+  };
+
   const sendTest = async (campaign) => {
     const email = window.prompt("Send a test email to:");
     if (!email || !window.confirm(`Are you sure you want to send a test email to ${email}?`)) return;
@@ -126,7 +136,7 @@ const AdminCampaigns = () => {
         <aside className="rounded-3xl bg-slate-50 p-6 border border-slate-200"><h2 className="text-xl font-bold text-slate-900">Live Preview</h2><article className="mt-5 overflow-hidden rounded-2xl bg-white border border-slate-200"><div className="border-b border-slate-100 px-5 py-4"><strong className="text-emerald-600">Marthington BMS</strong><h3 className="mt-2 text-lg font-bold">{form.subject || "Your email subject"}</h3><p className="text-xs text-slate-400">{form.previewText || "Preview text"}</p></div><div className="min-h-48 px-5 py-6 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{form.bodyHtml || "Your message preview"}</div><footer className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-xs text-slate-500">{form.footerText}<br />{form.footerAddress}<br /><span className="text-slate-400">Unsubscribe from promotional emails</span></footer></article></aside>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80"><h2 className="text-xl font-bold text-slate-900">Campaign Registry</h2><table className="mt-5 min-w-full text-left text-sm"><thead className="border-b border-slate-200 text-[10px] uppercase tracking-widest text-slate-400"><tr><th className="px-5 py-4">Campaign</th><th className="px-5 py-4">Audience</th><th className="px-5 py-4">Schedule</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Control</th></tr></thead><tbody className="divide-y divide-slate-100 text-xs">{campaigns.map((campaign) => <tr key={campaign._id}><td className="px-5 py-4"><strong>{campaign.name}</strong><p className="text-slate-400">{campaign.subject}</p></td><td className="px-5 py-4 capitalize">{campaign.audienceType.replace("_", " ")}</td><td className="px-5 py-4">{campaign.scheduledFor ? new Date(campaign.scheduledFor).toLocaleString() : "Not scheduled"}</td><td className="px-5 py-4 capitalize">{campaign.status}</td><td className="space-x-2 px-5 py-4 text-right">{["draft", "scheduled"].includes(campaign.status) && <><button type="button" onClick={() => sendTest(campaign)} className="rounded-lg border border-emerald-200 px-3 py-2 font-bold text-emerald-700">Test email</button><button type="button" onClick={() => cancel(campaign)} className="rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600">Cancel</button></>}</td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80"><h2 className="text-xl font-bold text-slate-900">Campaign Registry</h2><table className="mt-5 min-w-full text-left text-sm"><thead className="border-b border-slate-200 text-[10px] uppercase tracking-widest text-slate-400"><tr><th className="px-5 py-4">Campaign</th><th className="px-5 py-4">Audience</th><th className="px-5 py-4">Schedule</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Control</th></tr></thead><tbody className="divide-y divide-slate-100 text-xs">{campaigns.map((campaign) => <tr key={campaign._id}><td className="px-5 py-4"><strong>{campaign.name}</strong><p className="text-slate-400">{campaign.subject}</p></td><td className="px-5 py-4 capitalize">{campaign.audienceType.replace("_", " ")}</td><td className="px-5 py-4">{campaign.scheduledFor ? new Date(campaign.scheduledFor).toLocaleString() : "Not scheduled"}</td><td className="px-5 py-4 capitalize">{campaign.status}</td><td className="space-x-2 px-5 py-4 text-right">{campaign.status === "failed" && <button type="button" onClick={() => retry(campaign)} className="rounded-lg border border-amber-200 px-3 py-2 font-bold text-amber-700">Retry</button>}{["draft", "scheduled", "failed"].includes(campaign.status) && <button type="button" onClick={() => sendTest(campaign)} className="rounded-lg border border-emerald-200 px-3 py-2 font-bold text-emerald-700">Test email</button>}{["draft", "scheduled"].includes(campaign.status) && <button type="button" onClick={() => cancel(campaign)} className="rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600">Cancel</button>}</td></tr>)}</tbody></table></div>
     </section>
   );
 };
