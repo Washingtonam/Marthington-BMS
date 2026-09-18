@@ -80,11 +80,17 @@ export const sendReportEmail = async ({
   recipientName,
   businessName,
   reportType,
+  frequency = "daily",
+  periodLabel = "",
+  reportSections = ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
   snapshot,
   unsubscribeUrl
 }) => {
   const overview = snapshot?.overview || snapshot?.summary || {};
-  const subject = `${businessName} ${reportType === "daily-analysis" ? "Daily Analysis" : "Business Overview"} Report`;
+  const includes = (section) => reportSections.includes(section);
+  const frequencyLabel = frequency === "monthly" ? "Monthly" : frequency === "weekly" ? "Weekly" : "Daily";
+  const contentLabel = reportType === "daily-analysis" ? "Analysis" : "Business Overview";
+  const subject = `${businessName} ${frequencyLabel} ${contentLabel} Report`;
   const amount = (value) => Number(value || 0).toLocaleString();
   const table = (headers, rows) => rows.length === 0 ? "<p style=\"color: #64748b; font-size: 13px;\">No records for this report.</p>" : `
     <table style="width: 100%; border-collapse: collapse; margin: 10px 0 22px; font-size: 13px;">
@@ -95,20 +101,18 @@ export const sendReportEmail = async ({
     ? [["Revenue", amount(overview.revenue)], ["Expenses", amount(overview.expenses)], ["Net profit", amount(overview.netProfit)], ["Sales", overview.salesCount || 0]]
     : [["Revenue", amount(overview.periodRevenue)], ["Expenses", amount(overview.periodOperatingExpenses)], ["Profit", amount(overview.periodProfit)], ["Sales", snapshot?.sales?.length || 0], ["Inventory value", amount(overview.inventoryValue)]];
   const detailSections = reportType === "daily-analysis"
-    ? `
-      <h3>Payment methods</h3>${table(["Method", "Sales", "Amount"], (snapshot.paymentMethods || []).map((item) => [item.method, item.count, amount(item.amount)]))}
-      <h3>Expenses by category</h3>${table(["Category", "Amount"], Object.entries(snapshot.expensesByCategory || {}).map(([category, value]) => [category, amount(value)]))}
-      <h3>Sales</h3>${table(["Date", "Payment", "Amount"], (snapshot.sales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.paymentMethod || "cash", amount(sale.totalAmount)]))}`
-    : `
-      <h3>Recent sales</h3>${table(["Date", "Customer", "Payment", "Amount"], (snapshot.recentSales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.customerName || "Walk-in customer", sale.paymentMethod || "-", amount(sale.totalAmount)]))}
-      <h3>Expenses</h3>${table(["Date", "Category", "Amount"], (snapshot.transactions || []).map((transaction) => [new Date(transaction.occurredAt || transaction.createdAt).toLocaleDateString(), transaction.category || "General", amount(transaction.amount)]))}
-      <h3>Low-stock products</h3>${table(["Product", "Stock", "Price"], (snapshot.lowStockProducts || []).map((product) => [product.name || "Unnamed product", product.stock ?? product.quantity ?? 0, amount(product.branchPrice ?? product.price)]))}
-      <h3>Staff performance</h3>${table(["Staff", "Sales", "Revenue"], (snapshot.staffPerformance || []).map((staff) => [staff.name, staff.totalSales, amount(staff.totalRevenue)]))}`;
+    ? `${includes("paymentMethods") ? `<h3>Payment methods</h3>${table(["Method", "Sales", "Amount"], (snapshot.paymentMethods || []).map((item) => [item.method, item.count, amount(item.amount)]))}` : ""}
+      ${includes("expenses") ? `<h3>Expenses by category</h3>${table(["Category", "Amount"], Object.entries(snapshot.expensesByCategory || {}).map(([category, value]) => [category, amount(value)]))}` : ""}
+      ${includes("sales") ? `<h3>Sales</h3>${table(["Date", "Payment", "Amount"], (snapshot.sales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.paymentMethod || "cash", amount(sale.totalAmount)]))}` : ""}`
+    : `${includes("sales") ? `<h3>Recent sales</h3>${table(["Date", "Customer", "Payment", "Amount"], (snapshot.recentSales || []).map((sale) => [new Date(sale.createdAt).toLocaleDateString(), sale.customerName || "Walk-in customer", sale.paymentMethod || "-", amount(sale.totalAmount)]))}` : ""}
+      ${includes("expenses") ? `<h3>Expenses</h3>${table(["Date", "Category", "Amount"], (snapshot.transactions || []).map((transaction) => [new Date(transaction.occurredAt || transaction.createdAt).toLocaleDateString(), transaction.category || "General", amount(transaction.amount)]))}` : ""}
+      ${includes("inventory") ? `<h3>Low-stock products</h3>${table(["Product", "Stock", "Price"], (snapshot.lowStockProducts || []).map((product) => [product.name || "Unnamed product", product.stock ?? product.quantity ?? 0, amount(product.branchPrice ?? product.price)]))}` : ""}
+      ${includes("staff") ? `<h3>Staff performance</h3>${table(["Staff", "Sales", "Revenue"], (snapshot.staffPerformance || []).map((staff) => [staff.name, staff.totalSales, amount(staff.totalRevenue)]))}` : ""}`;
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #0f172a;">
       <h2>${escapeHtml(subject)}</h2>
       <p>Hello ${escapeHtml(recipientName || "there")},</p>
-      <p>Here is your scheduled report for <strong>${escapeHtml(businessName)}</strong>.</p>
+      <p>Here is your scheduled ${escapeHtml(periodLabel || `${frequencyLabel.toLowerCase()} report`)} for <strong>${escapeHtml(businessName)}</strong>.</p>
       ${table(["Summary", "Value"], summaryRows)}
       ${detailSections}
       <p style="color: #64748b; font-size: 12px; margin-top: 30px;">You can <a href="${escapeHtml(unsubscribeUrl)}">unsubscribe from scheduled reports</a> at any time.</p>

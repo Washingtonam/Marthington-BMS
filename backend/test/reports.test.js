@@ -6,6 +6,33 @@ import Sale from '../src/modules/sales/sale.model.js';
 import Product from '../src/modules/products/product.model.js';
 import Transaction from '../src/modules/transactions/transaction.model.js';
 import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
+import { formatReportPeriodLabel, getCompletedReportRange, getLocalDate } from '../src/modules/admin/reportSnapshot.js';
+
+test('Scheduled report dates follow the subscription timezone', () => {
+  const instant = new Date('2026-09-18T23:30:00.000Z');
+
+  assert.equal(getLocalDate(instant, 'UTC'), '2026-09-18');
+  assert.equal(getLocalDate(instant, 'Africa/Lagos'), '2026-09-19');
+});
+
+test('Completed report ranges exclude the current local day', () => {
+  const now = new Date('2026-09-18T23:30:00.000Z');
+  const daily = getCompletedReportRange(now, 'Africa/Lagos', 'daily');
+  const weekly = getCompletedReportRange(now, 'Africa/Lagos', 'weekly');
+
+  assert.equal(daily.startLocalDate, '2026-09-18');
+  assert.equal(daily.endLocalDate, '2026-09-18');
+  assert.equal(weekly.startLocalDate, '2026-09-12');
+  assert.equal(weekly.endLocalDate, '2026-09-18');
+});
+
+test('Completed monthly range selects the previous calendar month', () => {
+  const range = getCompletedReportRange(new Date('2026-09-01T08:00:00.000Z'), 'Africa/Lagos', 'monthly');
+
+  assert.equal(range.startLocalDate, '2026-08-01');
+  assert.equal(range.endLocalDate, '2026-08-31');
+  assert.equal(formatReportPeriodLabel(range, 'monthly'), 'Monthly report: Aug 1, 2026 - Aug 31, 2026');
+});
 
 test('Reports: 30-day snapshot filters sales and costs to the selected period', () => {
   const now = Date.now();

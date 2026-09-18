@@ -68,12 +68,18 @@ const getPeriodBoundary = (period) => {
   return null;
 };
 
-export const buildReportSnapshot = ({ sales = [], products = [], inventory = [], transactions = [], period = "30" }) => {
+export const buildReportSnapshot = ({ sales = [], products = [], inventory = [], transactions = [], period = "30", dateRange = null }) => {
   const now = new Date();
-  const periodBoundary = getPeriodBoundary(period);
+  const periodBoundary = dateRange?.startDate || getPeriodBoundary(period);
+  const periodEnd = dateRange?.endDate || null;
+
+  const isInPeriod = (value) => {
+    const date = new Date(value);
+    return date >= periodBoundary && (!periodEnd || date < periodEnd);
+  };
 
   const filteredSales = periodBoundary
-    ? sales.filter((sale) => new Date(sale.createdAt) >= periodBoundary)
+    ? sales.filter((sale) => isInPeriod(sale.createdAt))
     : sales;
 
   const todayStart = new Date();
@@ -93,7 +99,7 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
   const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + getSaleProfitValue(sale), 0);
 
   const periodTransactions = periodBoundary
-    ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && new Date(tx.occurredAt || tx.createdAt) >= periodBoundary)
+    ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && isInPeriod(tx.occurredAt || tx.createdAt))
     : transactions.filter((tx) => !tx.postingType || tx.postingType === "debit");
 
   const periodOperatingExpenses = periodTransactions.reduce(
@@ -183,10 +189,18 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
   };
 };
 
-export const buildDailyAnalysisSnapshot = ({ sales = [], transactions = [], date }) => {
+export const buildDailyAnalysisSnapshot = ({ sales = [], transactions = [], date, dateRange = null }) => {
   const day = String(date || new Date().toISOString().slice(0, 10));
-  const dailySales = sales.filter((sale) => new Date(sale.createdAt).toISOString().slice(0, 10) === day);
-  const dailyExpenses = transactions.filter((transaction) => new Date(transaction.occurredAt || transaction.createdAt).toISOString().slice(0, 10) === day);
+  const isInRange = (value) => {
+    const timestamp = new Date(value);
+    return timestamp >= dateRange.startDate && timestamp < dateRange.endDate;
+  };
+  const dailySales = dateRange
+    ? sales.filter((sale) => isInRange(sale.createdAt))
+    : sales.filter((sale) => new Date(sale.createdAt).toISOString().slice(0, 10) === day);
+  const dailyExpenses = dateRange
+    ? transactions.filter((transaction) => isInRange(transaction.occurredAt || transaction.createdAt))
+    : transactions.filter((transaction) => new Date(transaction.occurredAt || transaction.createdAt).toISOString().slice(0, 10) === day);
   const paymentMethods = {};
 
   dailySales.forEach((sale) => {

@@ -452,6 +452,7 @@ const createReportSubscription = async (req, res) => {
       recipientName = "",
       businessId,
       reportType = "overview",
+      reportSections,
       frequency = "daily",
       sendTime = "18:00",
       timezone = "Africa/Lagos"
@@ -469,6 +470,7 @@ const createReportSubscription = async (req, res) => {
       recipientName,
       business: businessId,
       reportType,
+      ...(Array.isArray(reportSections) ? { reportSections } : {}),
       frequency,
       sendTime,
       timezone,
@@ -491,7 +493,7 @@ const createReportSubscription = async (req, res) => {
 
 const updateReportSubscription = async (req, res) => {
   try {
-    const allowedFields = ["recipientName", "reportType", "frequency", "sendTime", "timezone", "status"];
+    const allowedFields = ["recipientName", "reportType", "reportSections", "frequency", "sendTime", "timezone", "status"];
     const updates = {};
 
     for (const field of allowedFields) {
@@ -551,7 +553,7 @@ const sendReportSubscriptionTest = async (req, res) => {
     recipientEmailForLog = recipientEmail;
     const businessId = subscription.business?._id || subscription.business;
     currentStage = "report_data_collection";
-    const { snapshot, counts } = await getReportSnapshot(subscription, businessId);
+    const { snapshot, periodLabel, counts } = await getReportSnapshot(subscription, businessId);
     stage("report_data_loaded", `sales=${counts.sales} transactions=${counts.transactions} products=${counts.products}`);
     currentStage = "snapshot_build";
     stage("snapshot_built");
@@ -563,6 +565,8 @@ const sendReportSubscriptionTest = async (req, res) => {
       recipientName,
       businessName: subscription.business?.name || "Marthington BMS business",
       reportType: subscription.reportType,
+      frequency: subscription.frequency,
+      periodLabel,
       snapshot,
       unsubscribeUrl: `${apiUrl}/api/report-subscriptions/unsubscribe?token=${encodeURIComponent(token)}`
     });

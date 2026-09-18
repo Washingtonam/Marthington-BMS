@@ -23,6 +23,11 @@ const reportSubscriptionSchema = new mongoose.Schema(
       enum: ["overview", "daily-analysis"],
       default: "overview"
     },
+    reportSections: {
+      type: [String],
+      enum: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
+      default: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"]
+    },
     frequency: {
       type: String,
       enum: ["daily", "weekly", "monthly"],

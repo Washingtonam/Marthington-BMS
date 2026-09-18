@@ -83,12 +83,14 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
       const business = await Business.findById(subscription.business).select("name").lean();
       if (!business) throw new Error("Business not found");
 
-      const { snapshot } = await getReportSnapshot(subscription, subscription.business);
+      const { snapshot, periodLabel } = await getReportSnapshot(subscription, subscription.business);
       const delivered = await sendReportEmail({
         recipientEmail: subscription.recipientEmail,
         recipientName: subscription.recipientName,
         businessName: business.name,
         reportType: subscription.reportType,
+        frequency: subscription.frequency,
+        periodLabel,
         snapshot,
         unsubscribeUrl: unsubscribeUrlFor(subscription._id)
       });
