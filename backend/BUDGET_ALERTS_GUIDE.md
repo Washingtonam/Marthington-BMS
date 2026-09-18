@@ -179,7 +179,16 @@ Recommended Actions:
 
 ### Requirements
 
-1. **SMTP Configuration** (in `.env`)
+1. **Email provider configuration** (in Render environment variables)
+
+  Resend is recommended for Render because it uses HTTPS and avoids SMTP port connectivity restrictions:
+  ```
+  RESEND_API_KEY=re_...
+  RESEND_FROM=verified-sender@yourdomain.com
+  ```
+  The `RESEND_FROM` domain must be verified in Resend. When `RESEND_API_KEY` is set, the application uses Resend and ignores SMTP settings.
+
+  SMTP fallback configuration:
    ```
    SMTP_HOST=smtp.gmail.com
    SMTP_PORT=587
