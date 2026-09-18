@@ -18,7 +18,7 @@ const sendEmailMessage = async ({ to, subject, html }) => {
     const response = await axios.post(
       "https://api.resend.com/emails",
       { from, to: [to], subject, html },
-      { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, timeout: 15000 }
+      { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, timeout: 8000 }
     );
     if (!response.data?.id) throw new Error("Resend returned no email id");
     return response.data;
