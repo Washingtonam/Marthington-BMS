@@ -1,21 +1,10 @@
 import jwt from "jsonwebtoken";
 import Business from "../modules/businesses/business.model.js";
-import Sale from "../modules/sales/sale.model.js";
-import Product from "../modules/products/product.model.js";
-import Transaction from "../modules/transactions/transaction.model.js";
 import ReportSubscription from "../modules/admin/reportSubscription.model.js";
 import ReportDeliveryLog from "../modules/admin/reportDeliveryLog.model.js";
-import { buildDailyAnalysisSnapshot, buildReportSnapshot } from "../modules/reports/reports.controller.js";
+import { getReportSnapshot } from "../modules/admin/reportSnapshot.js";
 import { sendReportEmail } from "../utils/emailService.js";
 import cron from "node-cron";
-
-const salesFilter = (businessId) => ({
-  $and: [
-    { $or: [{ business: businessId }, { businessId }] },
-    { $or: [{ industryType: "retail" }, { industryType: { $exists: false } }] },
-    { isDeleted: { $ne: true } }
-  ]
-});
 
 export const getLocalScheduleParts = (date, timezone) => {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -69,33 +58,6 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
   }
 };
 
-const getReportSnapshot = async (subscription, businessId) => {
-  const sales = await Sale.find(salesFilter(businessId))
-    .select("items totalAmount totalProfit paymentMethod paymentReference branch createdBy createdAt receiptId customerName status")
-    .populate("createdBy", "name email")
-    .sort({ createdAt: -1 })
-    .lean();
-  const transactions = await Transaction.find({
-    businessId,
-    transactionType: "expense",
-    $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
-    status: "posted",
-    isDeleted: { $ne: true }
-  }).lean();
-
-  if (subscription.reportType === "daily-analysis") {
-    return buildDailyAnalysisSnapshot({ sales, transactions });
-  }
-
-  const products = await Product.find({ business: businessId }).lean();
-  const period = subscription.frequency === "weekly"
-    ? "7"
-    : subscription.frequency === "monthly"
-      ? "month"
-      : "30";
-  return buildReportSnapshot({ sales, products, transactions, period });
-};
-
 const unsubscribeUrlFor = (subscriptionId) => {
   const token = jwt.sign(
     { subscriptionId: subscriptionId.toString(), purpose: "report-unsubscribe" },
@@ -121,7 +83,7 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
       const business = await Business.findById(subscription.business).select("name").lean();
       if (!business) throw new Error("Business not found");
 
-      const snapshot = await getReportSnapshot(subscription, subscription.business);
+      const { snapshot } = await getReportSnapshot(subscription, subscription.business);
       const delivered = await sendReportEmail({
         recipientEmail: subscription.recipientEmail,
         recipientName: subscription.recipientName,

@@ -14,12 +14,13 @@ import Audit from "./audit.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
+import ReportDeliveryLog from "./reportDeliveryLog.model.js";
 import jwt from "jsonwebtoken";
 import { sendCampaignEmail, sendReportEmail } from "../../utils/emailService.js";
 import { getEmailConfigStatus, verifyEmailConfig } from "../../config/email.js";
-import { buildDailyAnalysisSnapshot, buildReportSnapshot } from "../reports/reports.controller.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
+import { getReportSnapshot } from "./reportSnapshot.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -519,37 +520,44 @@ const updateReportSubscription = async (req, res) => {
 
 const sendReportSubscriptionTest = async (req, res) => {
   const startedAt = Date.now();
-  const stage = (name) => console.log(`[report-test] ${name} ${Date.now() - startedAt}ms`);
+  const stage = (name, details = "") => console.log(`[report-test] ${name} ${Date.now() - startedAt}ms${details ? ` ${details}` : ""}`);
+  let subscription = null;
+  let currentStage = "subscription_lookup";
+  let recipientEmailForLog = null;
+  const recordDelivery = async ({ status, errorMessage = "", sentAt = null }) => {
+    if (!subscription) return;
+    try {
+      await ReportDeliveryLog.create({
+        subscription: subscription._id,
+        business: subscription.business?._id || subscription.business,
+        recipientEmail: recipientEmailForLog || subscription.recipientEmail,
+        reportType: subscription.reportType,
+        frequency: subscription.frequency,
+        status,
+        errorMessage,
+        sentAt
+      });
+    } catch (logError) {
+      console.error(`[report-test] delivery_log_failed ${logError.message}`);
+    }
+  };
   try {
-    const subscription = await ReportSubscription.findById(req.params.id).populate("business", "name").lean();
+    subscription = await ReportSubscription.findById(req.params.id).populate("business", "name").lean();
     if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
     stage("subscription_loaded");
 
     const recipientEmail = req.body.recipientEmail || subscription.recipientEmail;
     const recipientName = req.body.recipientName || subscription.recipientName;
+    recipientEmailForLog = recipientEmail;
     const businessId = subscription.business?._id || subscription.business;
-    const salesQuery = Sale.find({
-      $and: [
-        { $or: [{ business: businessId }, { businessId }] },
-        { $or: [{ industryType: "retail" }, { industryType: { $exists: false } }] },
-        { isDeleted: { $ne: true } }
-      ]
-    }).select("items totalAmount totalProfit paymentMethod createdBy createdAt receiptId customerName status").populate("createdBy", "name email").lean();
-    const transactionsQuery = Transaction.find({ businessId, transactionType: "expense", status: "posted", isDeleted: { $ne: true } }).lean();
-    const productsQuery = subscription.reportType === "daily-analysis" ? Promise.resolve([]) : Product.find({ business: businessId }).lean();
-    const [sales, transactions, products] = await Promise.all([salesQuery, transactionsQuery, productsQuery]);
-    stage("report_data_loaded");
-    const snapshot = subscription.reportType === "daily-analysis"
-      ? buildDailyAnalysisSnapshot({ sales, transactions })
-      : buildReportSnapshot({
-        sales,
-        products,
-        transactions,
-        period: subscription.frequency === "weekly" ? "7" : subscription.frequency === "monthly" ? "month" : "30"
-      });
+    currentStage = "report_data_collection";
+    const { snapshot, counts } = await getReportSnapshot(subscription, businessId);
+    stage("report_data_loaded", `sales=${counts.sales} transactions=${counts.transactions} products=${counts.products}`);
+    currentStage = "snapshot_build";
     stage("snapshot_built");
     const token = jwt.sign({ subscriptionId: subscription._id.toString(), purpose: "report-unsubscribe" }, process.env.JWT_SECRET, { expiresIn: "10y" });
     const apiUrl = String(process.env.PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
+    currentStage = "email_delivery";
     const sent = await sendReportEmail({
       recipientEmail,
       recipientName,
@@ -562,15 +570,26 @@ const sendReportSubscriptionTest = async (req, res) => {
     if (!sent) {
       const emailStatus = getEmailConfigStatus();
       const isTimeout = /timeout|timed out|ETIMEDOUT/i.test(emailStatus.lastError || "");
+      const errorMessage = emailStatus.lastError || "Email transporter unavailable or delivery failed";
+      await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: errorMessage });
+      await recordDelivery({ status: "failed", errorMessage });
       return res.status(503).json({
-        message: emailStatus.lastError || "Email transporter unavailable or delivery failed",
+        message: errorMessage,
         code: isTimeout ? "EMAIL_PROVIDER_TIMEOUT" : "EMAIL_DELIVERY_FAILED",
         email: emailStatus
       });
     }
+    await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: "" });
+    await recordDelivery({ status: "sent", sentAt: new Date() });
     res.json({ message: "Test report sent" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    stage("failed", `stage=${currentStage} error=${err.message}`);
+    const errorMessage = `${currentStage}: ${err.message}`;
+    if (subscription) {
+      await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: errorMessage });
+      await recordDelivery({ status: "failed", errorMessage });
+    }
+    res.status(500).json({ message: errorMessage });
   }
 };
 
