@@ -50,6 +50,7 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
 
   if (local.time !== subscription.sendTime) return false;
   if (subscription.frequency === "weekly" && local.weekday !== "Mon") return false;
+  if (subscription.frequency === "monthly" && local.date.slice(-2) !== "01") return false;
 
   if (!subscription.lastSentAt) return true;
   try {
@@ -78,7 +79,12 @@ const getReportSnapshot = async (subscription, businessId) => {
   }
 
   const products = await Product.find({ business: businessId }).lean();
-  return buildReportSnapshot({ sales, products, transactions, period: "30" });
+  const period = subscription.frequency === "weekly"
+    ? "7"
+    : subscription.frequency === "monthly"
+      ? "month"
+      : "30";
+  return buildReportSnapshot({ sales, products, transactions, period });
 };
 
 const unsubscribeUrlFor = (subscriptionId) => {

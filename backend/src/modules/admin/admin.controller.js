@@ -8,13 +8,15 @@ import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
 import WithdrawalHistory from "../affiliates/withdrawalHistory.model.js";
 import Notification from "../notifications/notification.model.js";
 import PayoutHistory from "../affiliates/payoutHistory.model.js";
+import Transaction from "../transactions/transaction.model.js";
 import mongoose from "mongoose";
 import Audit from "./audit.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
 import jwt from "jsonwebtoken";
-import { sendCampaignEmail } from "../../utils/emailService.js";
+import { sendCampaignEmail, sendReportEmail } from "../../utils/emailService.js";
+import { buildDailyAnalysisSnapshot, buildReportSnapshot } from "../reports/reports.controller.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
 
@@ -95,6 +97,8 @@ const getOverview = async (req, res) => {
 
       return {
         ...obj,
+        ownerId: business.owner?._id || null,
+        ownerName: business.owner?.name || "",
         ownerEmail: business.owner?.email || "",
         totalSalesRecord: summary.totalSales,
         saleCount: summary.saleCount,
@@ -477,6 +481,47 @@ const updateReportSubscription = async (req, res) => {
 
     if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
     res.json({ subscription });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const sendReportSubscriptionTest = async (req, res) => {
+  try {
+    const subscription = await ReportSubscription.findById(req.params.id).populate("business", "name").lean();
+    if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
+
+    const recipientEmail = req.body.recipientEmail || subscription.recipientEmail;
+    const recipientName = req.body.recipientName || subscription.recipientName;
+    const businessId = subscription.business?._id || subscription.business;
+    const sales = await Sale.find({
+      $and: [
+        { $or: [{ business: businessId }, { businessId }] },
+        { $or: [{ industryType: "retail" }, { industryType: { $exists: false } }] },
+        { isDeleted: { $ne: true } }
+      ]
+    }).select("items totalAmount totalProfit paymentMethod createdBy createdAt receiptId customerName status").populate("createdBy", "name email").lean();
+    const transactions = await Transaction.find({ businessId, transactionType: "expense", status: "posted", isDeleted: { $ne: true } }).lean();
+    const snapshot = subscription.reportType === "daily-analysis"
+      ? buildDailyAnalysisSnapshot({ sales, transactions })
+      : buildReportSnapshot({
+        sales,
+        products: await Product.find({ business: businessId }).lean(),
+        transactions,
+        period: subscription.frequency === "weekly" ? "7" : subscription.frequency === "monthly" ? "month" : "30"
+      });
+    const token = jwt.sign({ subscriptionId: subscription._id.toString(), purpose: "report-unsubscribe" }, process.env.JWT_SECRET, { expiresIn: "10y" });
+    const apiUrl = String(process.env.PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
+    const sent = await sendReportEmail({
+      recipientEmail,
+      recipientName,
+      businessName: subscription.business?.name || "Marthington BMS business",
+      reportType: subscription.reportType,
+      snapshot,
+      unsubscribeUrl: `${apiUrl}/api/report-subscriptions/unsubscribe?token=${encodeURIComponent(token)}`
+    });
+    if (!sent) return res.status(503).json({ message: "Email transporter unavailable or delivery failed" });
+    res.json({ message: "Test report sent" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1360,6 +1405,7 @@ export default {
   listReportSubscriptions,
   createReportSubscription,
   updateReportSubscription,
+  sendReportSubscriptionTest,
   unsubscribeReportSubscription,
   unsubscribeCampaignEmail,
   listEmailCampaigns,

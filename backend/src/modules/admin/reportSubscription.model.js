@@ -25,7 +25,7 @@ const reportSubscriptionSchema = new mongoose.Schema(
     },
     frequency: {
       type: String,
-      enum: ["daily", "weekly"],
+      enum: ["daily", "weekly", "monthly"],
       default: "daily"
     },
     sendTime: {

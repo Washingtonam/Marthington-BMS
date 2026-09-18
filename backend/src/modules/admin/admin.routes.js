@@ -118,6 +118,13 @@ router.patch(
   adminController.updateReportSubscription
 );
 
+router.post(
+  "/report-subscriptions/:id/test",
+  protect,
+  onlyAdmin,
+  adminController.sendReportSubscriptionTest
+);
+
 // ================= OUTREACH CAMPAIGNS =================
 router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);
 router.get("/email-campaigns/audience-count", protect, onlyAdmin, adminController.getEmailAudienceCount);

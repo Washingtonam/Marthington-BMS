@@ -44,6 +44,10 @@ const getPeriodBoundary = (period) => {
     return cutoff;
   }
 
+  if (period === "month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
   return null;
 };
 
