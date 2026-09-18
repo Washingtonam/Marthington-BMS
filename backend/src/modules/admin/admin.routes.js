@@ -96,6 +96,35 @@ router.put(
   adminController.updateAdminContact
 );
 
+// ================= REPORT COMMUNICATIONS =================
+router.get(
+  "/report-subscriptions",
+  protect,
+  onlyAdmin,
+  adminController.listReportSubscriptions
+);
+
+router.post(
+  "/report-subscriptions",
+  protect,
+  onlyAdmin,
+  adminController.createReportSubscription
+);
+
+router.patch(
+  "/report-subscriptions/:id",
+  protect,
+  onlyAdmin,
+  adminController.updateReportSubscription
+);
+
+// ================= OUTREACH CAMPAIGNS =================
+router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);
+router.get("/email-campaigns/audience-count", protect, onlyAdmin, adminController.getEmailAudienceCount);
+router.post("/email-campaigns", protect, onlyAdmin, adminController.createEmailCampaign);
+router.patch("/email-campaigns/:id", protect, onlyAdmin, adminController.updateEmailCampaign);
+router.post("/email-campaigns/:id/cancel", protect, onlyAdmin, adminController.cancelEmailCampaign);
+
 // ================= AFFILIATE MANAGEMENT =================
 router.get(
   "/affiliates",

@@ -28,7 +28,7 @@ const AdminDashboard = () => {
   const { startImpersonation } = useAuth();
 
   // Navigation View State
-  const [viewMode, setViewMode] = useState("tenants"); // 'tenants' | 'affiliates'
+  const [viewMode, setViewMode] = useState("tenants"); // 'tenants' | 'affiliates' | 'communications' | 'campaigns'
 
   // Global Dashboard Statistics State
   const [stats, setStats] = useState({
@@ -52,18 +52,46 @@ const AdminDashboard = () => {
     totalPaidCommissions: 0
   });
   const [isUpdatingRate, setIsUpdatingRate] = useState(false);
+  const [reportSubscriptions, setReportSubscriptions] = useState([]);
+  const [subscriptionForm, setSubscriptionForm] = useState({
+    recipientEmail: "",
+    recipientName: "",
+    businessId: "",
+    reportType: "overview",
+    frequency: "daily",
+    sendTime: "18:00"
+  });
+  const [isSavingSubscription, setIsSavingSubscription] = useState(false);
+  const [campaigns, setCampaigns] = useState([]);
+  const [audienceCount, setAudienceCount] = useState(0);
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+  const [campaignForm, setCampaignForm] = useState({
+    name: "",
+    subject: "",
+    previewText: "",
+    bodyHtml: "",
+    footerText: "Marthington BMS | Business management, made clearer.",
+    footerAddress: "",
+    audienceType: "all_users",
+    businessId: "",
+    scheduledFor: ""
+  });
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
       // Fetch both Tenant Overview and Affiliate data simultaneously
-      const [overviewData, affiliateData] = await Promise.all([
+      const [overviewData, affiliateData, subscriptionData, campaignData] = await Promise.all([
         request("/admin/overview"),
-        request("/admin/affiliates").catch(() => ({ affiliates: [], globalRate: 20, stats: {} }))
+        request("/admin/affiliates").catch(() => ({ affiliates: [], globalRate: 20, stats: {} })),
+        request("/admin/report-subscriptions").catch(() => ({ subscriptions: [] })),
+        request("/admin/email-campaigns").catch(() => ({ campaigns: [] }))
       ]);
 
       setStats(overviewData.stats || {});
       setBusinesses(overviewData.businesses || []);
+      setReportSubscriptions(subscriptionData.subscriptions || []);
+      setCampaigns(campaignData.campaigns || []);
 
       if (affiliateData) {
         setAffiliates(affiliateData.affiliates || []);
@@ -143,6 +171,106 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleCreateSubscription = async (event) => {
+    event.preventDefault();
+    try {
+      setIsSavingSubscription(true);
+      const response = await request("/admin/report-subscriptions", {
+        method: "POST",
+        body: JSON.stringify(subscriptionForm)
+      });
+      setReportSubscriptions((current) => [response.subscription, ...current]);
+      setSubscriptionForm({
+        recipientEmail: "",
+        recipientName: "",
+        businessId: "",
+        reportType: "overview",
+        frequency: "daily",
+        sendTime: "18:00"
+      });
+    } catch (err) {
+      alert(err.message || "Failed to create report subscription");
+    } finally {
+      setIsSavingSubscription(false);
+    }
+  };
+
+  const handleToggleSubscription = async (subscription) => {
+    const nextStatus = subscription.status === "enabled" ? "admin_disabled" : "enabled";
+    const actionLabel = nextStatus === "enabled" ? "enable" : "disable";
+    if (!window.confirm(`Are you sure you want to ${actionLabel} reports for ${subscription.recipientEmail}?`)) return;
+
+    try {
+      setActionLoading(subscription._id);
+      const response = await request(`/admin/report-subscriptions/${subscription._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus })
+      });
+      setReportSubscriptions((current) => current.map((item) => item._id === subscription._id ? response.subscription : item));
+    } catch (err) {
+      alert(err.message || "Failed to update report subscription");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const loadAudienceCount = async (audienceType = campaignForm.audienceType, businessId = campaignForm.businessId) => {
+    if (audienceType === "business_users" && !businessId) {
+      setAudienceCount(0);
+      return;
+    }
+    try {
+      const params = new URLSearchParams({ audienceType });
+      if (businessId) params.set("businessId", businessId);
+      const response = await request(`/admin/email-campaigns/audience-count?${params.toString()}`);
+      setAudienceCount(response.count || 0);
+    } catch (err) {
+      setAudienceCount(0);
+    }
+  };
+
+  const updateCampaignField = (field, value) => {
+    const next = { ...campaignForm, [field]: value };
+    setCampaignForm(next);
+    if (field === "audienceType" || field === "businessId") loadAudienceCount(next.audienceType, next.businessId);
+  };
+
+  const handleSaveCampaign = async (event) => {
+    event.preventDefault();
+    const isScheduling = Boolean(campaignForm.scheduledFor);
+    if (isScheduling && !window.confirm(`Are you sure you want to schedule this campaign for ${new Date(campaignForm.scheduledFor).toLocaleString()}?`)) return;
+
+    try {
+      setIsSavingCampaign(true);
+      const response = await request("/admin/email-campaigns", {
+        method: "POST",
+        body: JSON.stringify({ ...campaignForm, businessId: campaignForm.businessId || null })
+      });
+      setCampaigns((current) => [response.campaign, ...current]);
+      setCampaignForm({
+        name: "", subject: "", previewText: "", bodyHtml: "",
+        footerText: "Marthington BMS | Business management, made clearer.",
+        footerAddress: "", audienceType: "all_users", businessId: "", scheduledFor: ""
+      });
+      setAudienceCount(0);
+      alert(isScheduling ? "Campaign scheduled successfully." : "Campaign saved as a draft.");
+    } catch (err) {
+      alert(err.message || "Failed to save campaign");
+    } finally {
+      setIsSavingCampaign(false);
+    }
+  };
+
+  const handleCancelCampaign = async (campaign) => {
+    if (!window.confirm(`Are you sure you want to cancel ${campaign.name}?`)) return;
+    try {
+      const response = await request(`/admin/email-campaigns/${campaign._id}/cancel`, { method: "POST" });
+      setCampaigns((current) => current.map((item) => item._id === campaign._id ? response.campaign : item));
+    } catch (err) {
+      alert(err.message || "Failed to cancel campaign");
+    }
+  };
+
   const enterBusiness = (businessId) => {
     startImpersonation(businessId);
     navigate("/app");
@@ -189,6 +317,24 @@ const AdminDashboard = () => {
           >
             Affiliate Network
           </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("communications")}
+            className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+              viewMode === "communications" ? "bg-white text-slate-900 shadow-sm border border-slate-200/40" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            Communications
+          </button>
+          <button
+            type="button"
+            onClick={() => { setViewMode("campaigns"); loadAudienceCount(); }}
+            className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+              viewMode === "campaigns" ? "bg-white text-slate-900 shadow-sm border border-slate-200/40" : "text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            Campaigns
+          </button>
         </div>
       </div>
 
@@ -208,7 +354,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400 text-slate-400">Total Registered Accounts</p>
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Total Registered Accounts</p>
               <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
                 {stats.totalUsers?.toLocaleString() || "0"}
               </p>
@@ -226,11 +372,11 @@ const AdminDashboard = () => {
             </div>
 
             <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400 text-slate-400">Active Pro Subscriptions</p>
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Active Pro Subscriptions</p>
               <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
                 {stats.activeSubscriptions?.toLocaleString() || "0"}
               </p>
-              <p className="mt-3 text-xs font-medium text-slate-400 leading-relaxed text-slate-400">
+              <p className="mt-3 text-xs font-medium text-slate-400 leading-relaxed">
                 Premium multi-tenant system workspaces running under full paid verification conditions.
               </p>
             </div>
@@ -468,6 +614,133 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+        </>
+      )}
+
+      {viewMode === "communications" && (
+        <>
+          <div className="grid gap-4 md:grid-cols-3 mb-8">
+            <div className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl border border-slate-800">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Report Recipients</p>
+              <p className="mt-4 text-3xl font-extrabold">{reportSubscriptions.length}</p>
+              <p className="mt-3 text-xs text-slate-400">Configured delivery schedules across the platform.</p>
+            </div>
+            <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Enabled Schedules</p>
+              <p className="mt-4 text-3xl font-extrabold text-emerald-600">{reportSubscriptions.filter((item) => item.status === "enabled").length}</p>
+              <p className="mt-3 text-xs text-slate-400">Recipients currently eligible for scheduled reports.</p>
+            </div>
+            <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Admin Disabled</p>
+              <p className="mt-4 text-3xl font-extrabold text-amber-600">{reportSubscriptions.filter((item) => item.status === "admin_disabled").length}</p>
+              <p className="mt-3 text-xs text-slate-400">Schedules paused by the system administrator.</p>
+            </div>
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80 mb-8">
+            <div className="mb-6 pb-4 border-b border-slate-100">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">Add Report Recipient</h2>
+              <p className="text-xs font-medium text-slate-400 mt-1">Create a controlled daily or weekly report delivery schedule.</p>
+            </div>
+            <form onSubmit={handleCreateSubscription} className="grid gap-4 md:grid-cols-2 xl:grid-cols-6 items-end">
+              <label className="text-xs font-bold text-slate-500">Name<input required value={subscriptionForm.recipientName} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, recipientName: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-900" /></label>
+              <label className="text-xs font-bold text-slate-500">Email<input required type="email" value={subscriptionForm.recipientEmail} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, recipientEmail: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-900" /></label>
+              <label className="text-xs font-bold text-slate-500">Business<select required value={subscriptionForm.businessId} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, businessId: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-900"><option value="">Select business</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select></label>
+              <label className="text-xs font-bold text-slate-500">Frequency<select value={subscriptionForm.frequency} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, frequency: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-900"><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
+              <label className="text-xs font-bold text-slate-500">Send time<input type="time" value={subscriptionForm.sendTime} onChange={(event) => setSubscriptionForm({ ...subscriptionForm, sendTime: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-900" /></label>
+              <button type="submit" disabled={isSavingSubscription} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 disabled:opacity-50">{isSavingSubscription ? "Saving..." : "Add Recipient"}</button>
+            </form>
+          </div>
+
+          <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+            <div className="mb-6 pb-4 border-b border-slate-100">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900">Email Regulation Registry</h2>
+              <p className="text-xs font-medium text-slate-400 mt-1">Review and pause report delivery without deleting recipient history.</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-slate-200/60"><tr><th className="px-5 py-4">Recipient</th><th className="px-5 py-4">Business</th><th className="px-5 py-4">Schedule</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Control</th></tr></thead>
+                <tbody className="divide-y divide-slate-100 bg-white text-xs font-medium text-slate-700">
+                  {reportSubscriptions.length === 0 ? <tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400">No report recipients configured.</td></tr> : reportSubscriptions.map((subscription) => (
+                    <tr key={subscription._id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4"><p className="font-bold text-slate-900">{subscription.recipientName || "Unnamed recipient"}</p><p className="text-slate-400">{subscription.recipientEmail}</p></td>
+                      <td className="px-5 py-4 font-semibold text-slate-700">{subscription.business?.name || "Unknown business"}</td>
+                      <td className="px-5 py-4 capitalize">{subscription.frequency} at {subscription.sendTime}</td>
+                      <td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${subscription.status === "enabled" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{subscription.status.replace("_", " ")}</span></td>
+                      <td className="px-5 py-4 text-right"><button type="button" disabled={actionLoading === subscription._id} onClick={() => handleToggleSubscription(subscription)} className="rounded-lg border border-slate-200 px-4 py-2 font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{actionLoading === subscription._id ? "Saving..." : subscription.status === "enabled" ? "Disable" : "Enable"}</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {viewMode === "campaigns" && (
+        <>
+          <div className="grid gap-4 md:grid-cols-3 mb-8">
+            <div className="rounded-3xl bg-slate-950 p-6 text-white shadow-xl border border-slate-800">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Campaigns</p>
+              <p className="mt-4 text-3xl font-extrabold">{campaigns.length}</p>
+              <p className="mt-3 text-xs text-slate-400">Drafts, scheduled outreach, and campaign history.</p>
+            </div>
+            <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Scheduled</p>
+              <p className="mt-4 text-3xl font-extrabold text-emerald-600">{campaigns.filter((item) => item.status === "scheduled").length}</p>
+              <p className="mt-3 text-xs text-slate-400">Campaigns waiting for the delivery worker.</p>
+            </div>
+            <div className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">Reachable Audience</p>
+              <p className="mt-4 text-3xl font-extrabold text-slate-900">{audienceCount.toLocaleString()}</p>
+              <p className="mt-3 text-xs text-slate-400">Current audience estimate after marketing opt-outs.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
+            <form onSubmit={handleSaveCampaign} className="rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+              <div className="mb-6 pb-4 border-b border-slate-100">
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">Compose Outreach Email</h2>
+                <p className="text-xs font-medium text-slate-400 mt-1">Draft a polished platform announcement or schedule it for later.</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-xs font-bold text-slate-500">Campaign name<input required value={campaignForm.name} onChange={(event) => updateCampaignField("name", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="September product announcement" /></label>
+                <label className="text-xs font-bold text-slate-500">Subject<input required value={campaignForm.subject} onChange={(event) => updateCampaignField("subject", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="A clearer way to run your business" /></label>
+              </div>
+              <label className="block mt-4 text-xs font-bold text-slate-500">Preview text<input value={campaignForm.previewText} onChange={(event) => updateCampaignField("previewText", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="The short line recipients see beside the subject" /></label>
+              <label className="block mt-4 text-xs font-bold text-slate-500">Message body<textarea required rows={9} value={campaignForm.bodyHtml} onChange={(event) => updateCampaignField("bodyHtml", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm leading-relaxed text-slate-900" placeholder="Write the announcement here. Basic HTML such as <strong> and <a> is supported." /></label>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="text-xs font-bold text-slate-500">Footer message<textarea rows={3} value={campaignForm.footerText} onChange={(event) => updateCampaignField("footerText", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" /></label>
+                <label className="text-xs font-bold text-slate-500">Footer address<textarea rows={3} value={campaignForm.footerAddress} onChange={(event) => updateCampaignField("footerAddress", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" placeholder="Marthington BMS, Lagos, Nigeria" /></label>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <label className="text-xs font-bold text-slate-500">Audience<select value={campaignForm.audienceType} onChange={(event) => updateCampaignField("audienceType", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900"><option value="all_users">All platform users</option><option value="owners">Business owners</option><option value="staff">Managers and staff</option><option value="affiliates">Affiliates</option><option value="business_users">Selected business</option></select></label>
+                <label className="text-xs font-bold text-slate-500">Business{campaignForm.audienceType === "business_users" ? <select required value={campaignForm.businessId} onChange={(event) => updateCampaignField("businessId", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900"><option value="">Select business</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select> : <span className="mt-2 block rounded-xl bg-slate-50 px-3 py-2.5 text-slate-400">Platform-wide</span>}</label>
+                <label className="text-xs font-bold text-slate-500">Schedule<input type="datetime-local" value={campaignForm.scheduledFor} onChange={(event) => updateCampaignField("scheduledFor", event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-900" /></label>
+              </div>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+                <p className="text-xs font-semibold text-slate-500">Estimated recipients: <span className="text-slate-900">{audienceCount.toLocaleString()}</span></p>
+                <button type="submit" disabled={isSavingCampaign} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white hover:bg-emerald-700 disabled:opacity-50">{isSavingCampaign ? "Saving..." : campaignForm.scheduledFor ? "Schedule Campaign" : "Save Draft"}</button>
+              </div>
+            </form>
+
+            <div className="rounded-3xl bg-slate-50 p-6 border border-slate-200/80 self-start">
+              <div className="mb-5 pb-4 border-b border-slate-200">
+                <h2 className="text-xl font-bold tracking-tight text-slate-900">Live Preview</h2>
+                <p className="text-xs font-medium text-slate-400 mt-1">A restrained preview of the recipient experience.</p>
+              </div>
+              <article className="overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4"><p className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Marthington BMS</p><h3 className="mt-2 text-lg font-bold text-slate-900">{campaignForm.subject || "Your email subject"}</h3><p className="mt-1 text-xs text-slate-400">{campaignForm.previewText || "Your preview text will appear here."}</p></div>
+                <div className="min-h-48 px-5 py-6 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap">{campaignForm.bodyHtml || "Your message preview will appear here."}</div>
+                <footer className="border-t border-slate-100 bg-slate-50 px-5 py-4 text-xs text-slate-500"><p>{campaignForm.footerText}</p><p className="mt-1">{campaignForm.footerAddress || "Your business address"}</p><p className="mt-3 text-[11px] text-slate-400">You will be able to unsubscribe from promotional emails.</p></footer>
+              </article>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
+            <div className="mb-6 pb-4 border-b border-slate-100"><h2 className="text-xl font-bold tracking-tight text-slate-900">Campaign Registry</h2><p className="text-xs font-medium text-slate-400 mt-1">Review saved drafts and scheduled outreach.</p></div>
+            <div className="overflow-x-auto"><table className="min-w-full text-left text-sm text-slate-600"><thead className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest font-bold"><tr><th className="px-5 py-4">Campaign</th><th className="px-5 py-4">Audience</th><th className="px-5 py-4">Schedule</th><th className="px-5 py-4">Status</th><th className="px-5 py-4 text-right">Control</th></tr></thead><tbody className="divide-y divide-slate-100 text-xs font-medium">{campaigns.length === 0 ? <tr><td colSpan={5} className="px-5 py-12 text-center text-slate-400">No outreach campaigns created.</td></tr> : campaigns.map((campaign) => <tr key={campaign._id}><td className="px-5 py-4"><p className="font-bold text-slate-900">{campaign.name}</p><p className="text-slate-400">{campaign.subject}</p></td><td className="px-5 py-4">{campaign.audienceType.replace("_", " ")}</td><td className="px-5 py-4">{campaign.scheduledFor ? new Date(campaign.scheduledFor).toLocaleString() : "Not scheduled"}</td><td className="px-5 py-4 capitalize">{campaign.status}</td><td className="px-5 py-4 text-right">{["draft", "scheduled"].includes(campaign.status) && <button type="button" onClick={() => handleCancelCampaign(campaign)} className="rounded-lg border border-red-200 px-3 py-2 font-bold text-red-600 hover:bg-red-50">Cancel</button>}</td></tr>)}</tbody></table></div>
           </div>
         </>
       )}

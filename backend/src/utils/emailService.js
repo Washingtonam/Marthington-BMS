@@ -1,5 +1,13 @@
 import { getEmailTransporter } from "../config/email.js";
 import EmailHistory from "../models/emailHistory.model.js";
+import jwt from "jsonwebtoken";
+
+const escapeHtml = (value) => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;")
+  .replace(/'/g, "&#039;");
 
 /**
  * Email Service
@@ -39,6 +47,101 @@ export const logEmailHistory = async ({
     });
   } catch (error) {
     console.error("Failed to log email history:", error.message);
+  }
+};
+
+export const sendReportEmail = async ({
+  recipientEmail,
+  recipientName,
+  businessName,
+  reportType,
+  snapshot,
+  unsubscribeUrl
+}) => {
+  const transporter = getEmailTransporter();
+  if (!transporter) return false;
+
+  const overview = snapshot?.overview || snapshot?.summary || {};
+  const subject = `${businessName} ${reportType === "daily-analysis" ? "Daily Analysis" : "Business Overview"} Report`;
+  const rows = [
+    ["Revenue", overview.periodRevenue ?? overview.revenue ?? 0],
+    ["Expenses", overview.periodOperatingExpenses ?? overview.expenses ?? 0],
+    ["Profit", overview.periodProfit ?? overview.netProfit ?? 0],
+    ["Transactions", overview.salesCount ?? snapshot?.sales?.length ?? 0]
+  ];
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #0f172a;">
+      <h2>${escapeHtml(subject)}</h2>
+      <p>Hello ${escapeHtml(recipientName || "there")},</p>
+      <p>Here is your scheduled report for <strong>${escapeHtml(businessName)}</strong>.</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
+        ${rows.map(([label, value]) => `<tr><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(label)}</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${escapeHtml(value)}</td></tr>`).join("")}
+      </table>
+      <p style="color: #64748b; font-size: 12px; margin-top: 30px;">You can <a href="${escapeHtml(unsubscribeUrl)}">unsubscribe from scheduled reports</a> at any time.</p>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: recipientEmail,
+      subject,
+      html: htmlContent
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed to send report email: ${error.message}`);
+    return false;
+  }
+};
+
+export const sendCampaignEmail = async ({
+  recipientEmail,
+  recipientName,
+  subject,
+  previewText,
+  bodyHtml,
+  footerText,
+  footerAddress,
+  userId
+}) => {
+  const transporter = getEmailTransporter();
+  if (!transporter) return false;
+
+  const token = jwt.sign(
+    { userId: userId.toString(), purpose: "campaign-unsubscribe" },
+    process.env.JWT_SECRET,
+    { expiresIn: "10y" }
+  );
+  const apiUrl = String(process.env.PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
+  const unsubscribeUrl = `${apiUrl}/api/report-subscriptions/unsubscribe-campaign?token=${encodeURIComponent(token)}`;
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
+      <div style="border-bottom: 1px solid #e2e8f0; padding: 20px 0;">
+        <strong style="color: #059669;">Marthington BMS</strong>
+      </div>
+      <p style="color: #64748b; font-size: 13px;">${escapeHtml(previewText)}</p>
+      <p>Hello ${escapeHtml(recipientName || "there")},</p>
+      <div style="font-size: 15px; line-height: 1.7;">${bodyHtml}</div>
+      <footer style="border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 18px; color: #64748b; font-size: 12px;">
+        <p>${escapeHtml(footerText)}</p>
+        <p>${escapeHtml(footerAddress)}</p>
+        <p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from promotional emails</a></p>
+      </footer>
+    </div>
+  `;
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: recipientEmail,
+      subject,
+      html: htmlContent
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed to send campaign email: ${error.message}`);
+    return false;
   }
 };
 
@@ -534,5 +637,7 @@ export default {
   sendInvoiceOverdueEmail,
   sendInvoiceSharedEmail,
   sendBudgetExceededEmail,
+  sendReportEmail,
+  sendCampaignEmail,
   logEmailHistory
 };

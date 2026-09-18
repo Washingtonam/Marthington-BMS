@@ -7,6 +7,8 @@ import runBusinessIndustryMigration from "./jobs/migrateBusinessIndustryType.job
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
 import startOverdueEmailCron from "./jobs/overduEmailReminder.job.js";
+import startReportEmailCron from "./jobs/reportEmail.job.js";
+import startEmailCampaignCron from "./jobs/emailCampaign.job.js";
 // workers are now run in a separate process via src/worker.js
 
 const PORT = process.env.PORT || 5000;
@@ -44,6 +46,8 @@ const startServer = async () => {
 
     // � START OVERDUE EMAIL CRON JOB (DAILY AT 6 PM)
     startOverdueEmailCron();
+    startReportEmailCron();
+    startEmailCampaignCron();
 
     // �🔥 HEALTH CHECK (IMPORTANT FOR DEPLOYMENT)
     app.get("/health", (req, res) => {

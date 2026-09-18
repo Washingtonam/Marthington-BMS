@@ -12,6 +12,10 @@ import mongoose from "mongoose";
 import Audit from "./audit.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
+import ReportSubscription from "./reportSubscription.model.js";
+import jwt from "jsonwebtoken";
+import EmailCampaign from "./emailCampaign.model.js";
+import EmailPreference from "./emailPreference.model.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -374,6 +378,264 @@ const updateAdminContact = async (req, res) => {
       await settings.save();
     }
     res.json({ message: "Admin contact updated", adminContact: settings.adminContact });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const listReportSubscriptions = async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    const query = {};
+
+    if (status) query.status = status;
+    if (search) {
+      query.$or = [
+        { recipientEmail: { $regex: search, $options: "i" } },
+        { recipientName: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    const subscriptions = await ReportSubscription.find(query)
+      .populate("business", "name industryType")
+      .populate("updatedBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ subscriptions });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const createReportSubscription = async (req, res) => {
+  try {
+    const {
+      recipientEmail,
+      recipientName = "",
+      businessId,
+      reportType = "overview",
+      frequency = "daily",
+      sendTime = "18:00",
+      timezone = "Africa/Lagos"
+    } = req.body;
+
+    if (!recipientEmail || !/^\S+@\S+\.\S+$/.test(recipientEmail)) {
+      return res.status(400).json({ message: "A valid recipient email is required" });
+    }
+    if (!businessId || !mongoose.Types.ObjectId.isValid(businessId) || !(await Business.exists({ _id: businessId }))) {
+      return res.status(400).json({ message: "A valid business is required" });
+    }
+
+    const createdSubscription = await ReportSubscription.create({
+      recipientEmail,
+      recipientName,
+      business: businessId,
+      reportType,
+      frequency,
+      sendTime,
+      timezone,
+      createdBy: req.user.id,
+      updatedBy: req.user.id
+    });
+
+    const subscription = await ReportSubscription.findById(createdSubscription._id)
+      .populate("business", "name industryType")
+      .lean();
+
+    res.status(201).json({ subscription });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "This recipient already has that report schedule" });
+    }
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateReportSubscription = async (req, res) => {
+  try {
+    const allowedFields = ["recipientName", "reportType", "frequency", "sendTime", "timezone", "status"];
+    const updates = {};
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+
+    if (!Object.keys(updates).length) {
+      return res.status(400).json({ message: "No subscription changes supplied" });
+    }
+
+    updates.updatedBy = req.user.id;
+    const subscription = await ReportSubscription.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    )
+      .populate("business", "name industryType")
+      .lean();
+
+    if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
+    res.json({ subscription });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const unsubscribeReportSubscription = async (req, res) => {
+  try {
+    const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
+    if (decoded.purpose !== "report-unsubscribe" || !decoded.subscriptionId) {
+      return res.status(400).send("Invalid unsubscribe link");
+    }
+
+    await ReportSubscription.findByIdAndUpdate(decoded.subscriptionId, {
+      status: "unsubscribed",
+      updatedBy: null
+    });
+
+    res.send("You have been unsubscribed from scheduled reports.");
+  } catch (err) {
+    res.status(400).send("This unsubscribe link is invalid or expired.");
+  }
+};
+
+const unsubscribeCampaignEmail = async (req, res) => {
+  try {
+    const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
+    if (decoded.purpose !== "campaign-unsubscribe" || !decoded.userId) {
+      return res.status(400).send("Invalid unsubscribe link");
+    }
+
+    await EmailPreference.findOneAndUpdate(
+      { user: decoded.userId },
+      { user: decoded.userId, marketingOptOut: true, optedOutAt: new Date(), source: "unsubscribe_link" },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.send("You have been unsubscribed from promotional emails.");
+  } catch (err) {
+    res.status(400).send("This unsubscribe link is invalid or expired.");
+  }
+};
+
+const campaignAudienceQuery = (audienceType, businessId) => {
+  const query = { isActive: { $ne: false } };
+  if (audienceType === "owners") query.role = "owner";
+  if (audienceType === "staff") query.role = { $in: ["manager", "cashier", "staff"] };
+  if (audienceType === "affiliates") query.role = "affiliate";
+  if (audienceType === "business_users") query.business = businessId;
+  return query;
+};
+
+const listEmailCampaigns = async (req, res) => {
+  try {
+    const campaigns = await EmailCampaign.find({})
+      .populate("business", "name")
+      .populate("createdBy", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ campaigns });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getEmailAudienceCount = async (req, res) => {
+  try {
+    const { audienceType = "all_users", businessId } = req.query;
+    if (audienceType === "business_users" && (!businessId || !mongoose.Types.ObjectId.isValid(businessId))) {
+      return res.status(400).json({ message: "A business is required for this audience" });
+    }
+    const query = campaignAudienceQuery(audienceType, businessId);
+    query._id = { $nin: (await EmailPreference.find({ marketingOptOut: true }).select("user").lean()).map((item) => item.user) };
+    const count = await User.countDocuments(query);
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const createEmailCampaign = async (req, res) => {
+  try {
+    const {
+      name,
+      subject,
+      previewText = "",
+      bodyHtml,
+      footerText = "Marthington BMS | Business management, made clearer.",
+      footerAddress = "",
+      audienceType = "all_users",
+      businessId = null,
+      scheduledFor = null
+    } = req.body;
+
+    if (!name?.trim() || !subject?.trim() || !bodyHtml?.trim()) {
+      return res.status(400).json({ message: "Campaign name, subject, and message are required" });
+    }
+    if (audienceType === "business_users" && (!businessId || !mongoose.Types.ObjectId.isValid(businessId))) {
+      return res.status(400).json({ message: "A business is required for this audience" });
+    }
+    if (scheduledFor && Number.isNaN(new Date(scheduledFor).getTime())) {
+      return res.status(400).json({ message: "scheduledFor must be a valid date" });
+    }
+
+    const campaign = await EmailCampaign.create({
+      name,
+      subject,
+      previewText,
+      bodyHtml,
+      footerText,
+      footerAddress,
+      audienceType,
+      business: businessId || null,
+      scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
+      status: scheduledFor ? "scheduled" : "draft",
+      createdBy: req.user.id,
+      updatedBy: req.user.id
+    });
+
+    const result = await EmailCampaign.findById(campaign._id)
+      .populate("business", "name")
+      .lean();
+    res.status(201).json({ campaign: result });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateEmailCampaign = async (req, res) => {
+  try {
+    const allowedFields = ["name", "subject", "previewText", "bodyHtml", "footerText", "footerAddress", "audienceType", "business", "scheduledFor"];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    if (updates.scheduledFor) {
+      updates.scheduledFor = new Date(updates.scheduledFor);
+      updates.status = "scheduled";
+    }
+    updates.updatedBy = req.user.id;
+    const campaign = await EmailCampaign.findOneAndUpdate(
+      { _id: req.params.id, status: { $in: ["draft", "scheduled"] } },
+      updates,
+      { new: true, runValidators: true }
+    ).populate("business", "name").lean();
+    if (!campaign) return res.status(404).json({ message: "Editable campaign not found" });
+    res.json({ campaign });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const cancelEmailCampaign = async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findOneAndUpdate(
+      { _id: req.params.id, status: { $in: ["draft", "scheduled"] } },
+      { status: "cancelled", updatedBy: req.user.id },
+      { new: true }
+    ).lean();
+    if (!campaign) return res.status(404).json({ message: "Campaign cannot be cancelled" });
+    res.json({ campaign });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1020,6 +1282,16 @@ export default {
   archiveBusiness,
   unarchiveBusiness,
   updateAdminContact,
+  listReportSubscriptions,
+  createReportSubscription,
+  updateReportSubscription,
+  unsubscribeReportSubscription,
+  unsubscribeCampaignEmail,
+  listEmailCampaigns,
+  getEmailAudienceCount,
+  createEmailCampaign,
+  updateEmailCampaign,
+  cancelEmailCampaign,
   // affiliates
   listAffiliates,
   getPartnerPayoutHistory,

@@ -36,6 +36,7 @@ import categoryBudgetRoutes from "./modules/budgets/categoryBudget.routes.js";
 import budgetAlertRoutes from "./modules/budgets/budgetAlert.routes.js";
 import syncRoutes from "./modules/sync/sync.routes.js";
 import whatsappRoutes from "./modules/whatsapp/whatsapp.routes.js";
+import reportSubscriptionRoutes from "./modules/admin/reportSubscription.routes.js";
 
 const app = express();
 
@@ -125,6 +126,7 @@ app.use("/api/affiliates", affiliateRoutes);
 app.use("/api/affiliates/payouts", payoutRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/report-subscriptions", reportSubscriptionRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
