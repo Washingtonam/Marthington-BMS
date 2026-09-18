@@ -22,6 +22,13 @@ router.get(
   adminController.getOverview
 );
 
+router.get(
+  "/businesses",
+  protect,
+  onlyAdmin,
+  adminController.listBusinesses
+);
+
 // ================= BUSINESS DETAILS =================
 router.get(
   "/business/:id",

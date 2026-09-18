@@ -87,6 +87,33 @@ test('Reports: branch inventory uses branch quantities and prices', () => {
   assert.equal(snapshot.lowStockProducts[0].stock, 4);
 });
 
+test('Reports: fallback profit is computed from sale items when the virtual is missing', () => {
+  const snapshot = buildReportSnapshot({
+    sales: [
+      {
+        totalAmount: 500,
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        items: [
+          { sellingPrice: 250, costPrice: 150, quantity: 1 },
+          { sellingPrice: 300, costPrice: 180, quantity: 1 }
+        ]
+      },
+      {
+        totalAmount: 300,
+        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        items: [
+          { sellingPrice: 150, costPrice: 120, quantity: 1 }
+        ]
+      }
+    ],
+    transactions: [{ amount: 40, status: 'posted', transactionType: 'expense', occurredAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), isDeleted: false }],
+    period: '30'
+  });
+
+  assert.equal(snapshot.overview.periodGrossProfit, 250);
+  assert.equal(snapshot.overview.periodProfit, 210);
+});
+
 test('Reports: daily analysis separates payment methods and subtracts expenses', () => {
   const date = '2026-08-25';
   const snapshot = buildDailyAnalysisSnapshot({

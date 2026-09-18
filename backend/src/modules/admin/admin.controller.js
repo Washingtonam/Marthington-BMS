@@ -40,6 +40,36 @@ const formatBusiness = (business) => {
 };
 
 // 🔥 OVERVIEW (DASHBOARD)
+const listBusinesses = async (req, res) => {
+  try {
+    const businesses = await Business.find()
+      .select("name owner email industryType subscription status createdAt")
+      .populate("owner", "name email")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      businesses: businesses.map((business) => ({
+        _id: business._id,
+        name: business.name,
+        industryType: business.industryType || "retail",
+        ownerId: business.owner?._id || null,
+        ownerName: business.owner?.name || "",
+        ownerEmail: business.owner?.email || "",
+        subscription: {
+          plan: business.subscription?.plan || "free",
+          status: business.subscription?.status || "trial"
+        },
+        plan: business.subscription?.plan || "free",
+        isPro: business.subscription?.plan === "pro",
+        status: business.status || "active"
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getOverview = async (req, res) => {
   try {
     const businessesCount = await Business.countDocuments();
@@ -1426,6 +1456,7 @@ const getBusinessDetails = async (req, res) => {
 
 export default {
   getOverview,
+  listBusinesses,
   updateSubscription,
   getBusinessDetails,
   getAffiliateSettings,

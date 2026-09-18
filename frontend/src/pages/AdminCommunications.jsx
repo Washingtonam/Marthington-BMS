@@ -20,13 +20,13 @@ const AdminCommunications = () => {
   const [emailHealth, setEmailHealth] = useState(null);
 
   const load = async () => {
-    const [subscriptionData, overview, healthResult] = await Promise.all([
+    const [subscriptionData, businessesData, healthResult] = await Promise.all([
       request("/admin/report-subscriptions"),
-      request("/admin/overview"),
+      request("/admin/businesses"),
       request("/admin/email-health").then((health) => ({ health })).catch((error) => ({ error }))
     ]);
     setSubscriptions(subscriptionData.subscriptions || []);
-    setBusinesses(overview.businesses || []);
+    setBusinesses(businessesData.businesses || []);
     setEmailHealth(healthResult.health || healthResult.error?.body || { verified: false, email: { lastError: healthResult.error?.message || "Email health check failed" } });
   };
 

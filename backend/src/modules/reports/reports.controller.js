@@ -23,6 +23,23 @@ const retailSalesFilter = (businessId) => ({
 
 const reportSaleProjection = "items totalAmount paymentMethod paymentReference branch createdBy createdAt receiptId customerName status";
 
+const getSaleProfitValue = (sale = {}) => {
+  if (!sale || typeof sale !== "object") return 0;
+
+  if (Number.isFinite(Number(sale.totalProfit))) {
+    return Number(sale.totalProfit);
+  }
+
+  if (!Array.isArray(sale.items)) return 0;
+
+  return sale.items.reduce((sum, item) => {
+    const sellingPrice = Number(item.sellingPrice ?? item.price ?? 0);
+    const costPrice = Number(item.costPrice ?? item.cost ?? 0);
+    const quantity = Number(item.quantity ?? 0);
+    return sum + (sellingPrice - costPrice) * quantity;
+  }, 0);
+};
+
 const getPeriodBoundary = (period) => {
   const now = new Date();
 
@@ -73,7 +90,7 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
   const monthlySales = filteredSales.filter((sale) => new Date(sale.createdAt) >= monthStart);
 
   const periodRevenue = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
-  const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0);
+  const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + getSaleProfitValue(sale), 0);
 
   const periodTransactions = periodBoundary
     ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && new Date(tx.occurredAt || tx.createdAt) >= periodBoundary)
@@ -88,7 +105,7 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
 
   const todayRevenue = todaySales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
   const monthlyRevenue = monthlySales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
-  const monthlyGrossProfit = monthlySales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0);
+  const monthlyGrossProfit = monthlySales.reduce((sum, sale) => sum + getSaleProfitValue(sale), 0);
 
   const currentMonthTransactions = transactions.filter((tx) => {
     const date = new Date(tx.occurredAt || tx.createdAt);
@@ -252,20 +269,21 @@ export const buildSalesReportSnapshot = ({ sales = [], period = "30" }) => {
     const key = date.toISOString().slice(0, 10);
     const label = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
     const existing = acc.find((item) => item.key === key);
+    const saleProfit = getSaleProfitValue(sale);
 
     if (existing) {
       existing.revenue += Number(sale.totalAmount || 0);
-      existing.profit += Number(sale.totalProfit || 0);
+      existing.profit += saleProfit;
       return acc;
     }
 
-    acc.push({ key, label, revenue: Number(sale.totalAmount || 0), profit: Number(sale.totalProfit || 0) });
+    acc.push({ key, label, revenue: Number(sale.totalAmount || 0), profit: saleProfit });
     return acc;
   }, []);
 
   const overview = {
     totalRevenue: filteredSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0),
-    totalProfit: filteredSales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0),
+    totalProfit: filteredSales.reduce((sum, sale) => sum + getSaleProfitValue(sale), 0),
     totalSales: filteredSales.length,
     period,
   };
@@ -367,7 +385,7 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
     : sales;
 
   const periodRevenue = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0);
-  const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + (Number(sale.totalProfit) || 0), 0);
+  const periodGrossProfit = filteredSales.reduce((sum, sale) => sum + getSaleProfitValue(sale), 0);
 
   const relevantTransactions = getPeriodBoundary(period)
     ? transactions.filter((tx) => (!tx.postingType || tx.postingType === "debit") && new Date(tx.occurredAt || tx.createdAt) >= getPeriodBoundary(period))
@@ -381,10 +399,11 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
     const key = date.toISOString().slice(0, 10);
     const label = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
     const existing = acc.find((item) => item.key === key);
+    const saleProfit = getSaleProfitValue(sale);
 
     if (existing) {
       existing.revenue += Number(sale.totalAmount || 0);
-      existing.profit += Number(sale.totalProfit || 0);
+      existing.profit += saleProfit;
       existing.expenses = expenseByDate[key] || 0;
       return acc;
     }
@@ -393,7 +412,7 @@ export const buildFinancialReportSnapshot = ({ sales = [], transactions = [], pe
       key,
       label,
       revenue: Number(sale.totalAmount || 0),
-      profit: Number(sale.totalProfit || 0),
+      profit: saleProfit,
       expenses: expenseByDate[key] || 0,
     });
 
