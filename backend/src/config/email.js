@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import axios from "axios";
 
 /**
  * Email Configuration
@@ -13,7 +14,9 @@ let lastEmailError = null;
 
 // Initialize email transporter based on provider
 const initializeEmailTransporter = () => {
-  if (process.env.SMTP_HOST) {
+  if (process.env.RESEND_API_KEY) {
+    console.log("✉️ Email configured with Resend HTTPS API");
+  } else if (process.env.SMTP_HOST) {
     // Use SMTP (Nodemailer)
     transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -47,14 +50,21 @@ export const getEmailTransporter = () => {
   return transporter;
 };
 
+export const hasResendApi = () => Boolean(process.env.RESEND_API_KEY);
+
+export const getResendConfig = () => ({
+  apiKey: process.env.RESEND_API_KEY || "",
+  from: process.env.RESEND_FROM || process.env.SMTP_FROM || ""
+});
+
 export const getEmailConfigStatus = () => ({
-  configured: Boolean(transporter),
-  provider: process.env.SMTP_HOST ? "smtp" : process.env.MAILGUN_API_KEY ? "mailgun" : "none",
+  configured: hasResendApi() || Boolean(transporter),
+  provider: hasResendApi() ? "resend-api" : process.env.SMTP_HOST ? "smtp" : process.env.MAILGUN_API_KEY ? "mailgun" : "none",
   host: process.env.SMTP_HOST || null,
   port: process.env.SMTP_PORT || "587",
   secure: process.env.SMTP_SECURE === "true",
   user: process.env.SMTP_USER || null,
-  from: process.env.SMTP_FROM || process.env.SMTP_USER || null,
+  from: process.env.RESEND_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || null,
   lastError: lastEmailError
 });
 
@@ -67,6 +77,15 @@ export const setLastEmailError = (error) => {
  */
 export const verifyEmailConfig = async () => {
   try {
+    if (hasResendApi()) {
+      await axios.get("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+        timeout: 10000
+      });
+      lastEmailError = null;
+      console.log("✅ Resend API verified successfully");
+      return true;
+    }
     if (transporter) {
       await transporter.verify();
       lastEmailError = null;
@@ -86,4 +105,6 @@ export default {
   getEmailTransporter,
   verifyEmailConfig,
   getEmailConfigStatus,
+  hasResendApi,
+  getResendConfig,
 };

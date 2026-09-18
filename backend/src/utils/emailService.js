@@ -1,6 +1,8 @@
 import { getEmailTransporter, setLastEmailError } from "../config/email.js";
+import { getResendConfig, hasResendApi } from "../config/email.js";
 import EmailHistory from "../models/emailHistory.model.js";
 import jwt from "jsonwebtoken";
+import axios from "axios";
 
 const escapeHtml = (value) => String(value ?? "")
   .replace(/&/g, "&amp;")
@@ -8,6 +10,29 @@ const escapeHtml = (value) => String(value ?? "")
   .replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;")
   .replace(/'/g, "&#039;");
+
+const sendEmailMessage = async ({ to, subject, html }) => {
+  if (hasResendApi()) {
+    const { apiKey, from } = getResendConfig();
+    if (!from) throw new Error("RESEND_FROM is not configured");
+    const response = await axios.post(
+      "https://api.resend.com/emails",
+      { from, to: [to], subject, html },
+      { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, timeout: 15000 }
+    );
+    if (!response.data?.id) throw new Error("Resend returned no email id");
+    return response.data;
+  }
+
+  const transporter = getEmailTransporter();
+  if (!transporter) throw new Error("Email transporter is not configured");
+  return transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to,
+    subject,
+    html
+  });
+};
 
 /**
  * Email Service
@@ -58,12 +83,6 @@ export const sendReportEmail = async ({
   snapshot,
   unsubscribeUrl
 }) => {
-  const transporter = getEmailTransporter();
-  if (!transporter) {
-    setLastEmailError(new Error("Email transporter is not configured"));
-    return false;
-  }
-
   const overview = snapshot?.overview || snapshot?.summary || {};
   const subject = `${businessName} ${reportType === "daily-analysis" ? "Daily Analysis" : "Business Overview"} Report`;
   const rows = [
@@ -85,12 +104,7 @@ export const sendReportEmail = async ({
   `;
 
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: recipientEmail,
-      subject,
-      html: htmlContent
-    });
+    await sendEmailMessage({ to: recipientEmail, subject, html: htmlContent });
     return true;
   } catch (error) {
     setLastEmailError(error);
@@ -109,9 +123,6 @@ export const sendCampaignEmail = async ({
   footerAddress,
   userId
 }) => {
-  const transporter = getEmailTransporter();
-  if (!transporter) return false;
-
   const token = jwt.sign(
     { userId: userId.toString(), purpose: "campaign-unsubscribe" },
     process.env.JWT_SECRET,
@@ -136,14 +147,10 @@ export const sendCampaignEmail = async ({
   `;
 
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: recipientEmail,
-      subject,
-      html: htmlContent
-    });
+    await sendEmailMessage({ to: recipientEmail, subject, html: htmlContent });
     return true;
   } catch (error) {
+    setLastEmailError(error);
     console.error(`Failed to send campaign email: ${error.message}`);
     return false;
   }
