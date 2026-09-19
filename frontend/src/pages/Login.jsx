@@ -16,12 +16,12 @@ const Login = () => {
   // 🔥 SMART REDIRECT IF ALREADY LOGGED IN
   if (isAuthenticated) {
     if (user?.role === "super_admin") {
-      return <Navigate to={redirectPath === "/login" ? "/admin" : redirectPath} replace />;
+      return <Navigate to={redirectPath.startsWith("/admin") ? redirectPath : "/admin"} replace />;
     }
     if (user?.role === "affiliate") {
-      return <Navigate to={redirectPath === "/login" ? "/partners/dashboard" : redirectPath} replace />;
+      return <Navigate to={redirectPath.startsWith("/partners") ? redirectPath : "/partners/dashboard"} replace />;
     }
-    return <Navigate to={redirectPath === "/login" ? "/app" : redirectPath} replace />;
+    return <Navigate to={redirectPath.startsWith("/app") ? redirectPath : "/app"} replace />;
   }
 
   const handleChange = (event) => {
