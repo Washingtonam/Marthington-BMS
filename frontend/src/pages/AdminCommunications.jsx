@@ -11,6 +11,11 @@ const reportSections = [
 ];
 
 const frequencies = [["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"]];
+const statusFilters = [
+  ["all", "All"],
+  ["enabled", "Active"],
+  ["disabled", "Paused"]
+];
 const defaultSections = reportSections.map(([value]) => value);
 const emptyForm = {
   recipientName: "", recipientEmail: "", businessId: "", reportType: "overview",
@@ -221,19 +226,36 @@ const AdminCommunications = () => {
       <div className="flex flex-col items-start gap-3 sm:items-end"><p className="max-w-2xl text-sm text-slate-500">Choose report contents and turn daily, weekly, or monthly delivery on for each recipient.</p><button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white">Add report recipient</button></div>
     </div>
 
-    <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth === null ? "border-slate-200 bg-slate-50 text-slate-700" : emailHealth.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}><strong>{emailHealth === null ? "Checking email delivery" : emailHealth.verified ? "Email delivery ready" : "Email delivery needs attention"}</strong><p className="mt-1 text-xs">{emailHealth === null ? "Verifying the configured email provider..." : emailHealth.verified ? `${emailHealth.email?.provider === "resend-api" ? "Resend API" : "SMTP"} is connected.` : emailHealth.email?.lastError || "Check email provider settings on the deployed backend."}</p></div>
+    <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth === null ? "border-slate-200 bg-slate-50 text-slate-700" : emailHealth.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] ${emailHealth === null ? "border-slate-200 bg-white text-slate-600" : emailHealth.verified ? "border-emerald-200 bg-emerald-100 text-emerald-700" : "border-amber-200 bg-amber-100 text-amber-700"}`}>
+            <span className={`h-2.5 w-2.5 rounded-full ${emailHealth === null ? "bg-slate-400" : emailHealth.verified ? "bg-emerald-500" : "bg-amber-500"} shadow-[0_0_0_3px_rgba(255,255,255,0.8)]`}></span>
+            {emailHealth === null ? "Checking email" : emailHealth.verified ? "Resend API connected" : "Email delivery needs attention"}
+          </span>
+        </div>
+        <p className="text-xs text-slate-500">{emailHealth === null ? "Verifying the configured email provider..." : emailHealth.verified ? `${emailHealth.email?.provider === "resend-api" ? "Resend API" : "SMTP"} is connected.` : emailHealth.email?.lastError || "Check email provider settings on the deployed backend."}</p>
+      </div>
+    </div>
 
     <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
       <div className="border-b border-slate-100 bg-slate-50/60 p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-900">Report recipients</h2>
-            <p className="mt-1 text-xs text-slate-400">Every business email appears here automatically. Changes require confirmation.</p>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="min-w-0 flex-1">
+              <label className="relative block">
+                <span className="sr-only">Search recipients</span>
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">⌕</span>
+                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, email, or business" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-slate-700 outline-none transition focus:border-emerald-400" />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {statusFilters.map(([value, label]) => <button key={value} type="button" onClick={() => setView(value)} className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] ${view === value ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}>{label}</button>)}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search recipient or business" className="w-full min-w-[210px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none ring-0 transition focus:border-emerald-400 lg:w-64" />
-            <select value={view} onChange={(event) => setView(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="all">All recipients</option><option value="enabled">Enabled only</option><option value="disabled">Disabled only</option></select>
             <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="status">Sort by status</option><option value="business">Sort by business</option><option value="email">Sort by email</option><option value="lastSent">Sort by last sent</option></select>
+            <button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white">Add recipient</button>
           </div>
         </div>
 
@@ -273,15 +295,20 @@ const AdminCommunications = () => {
                   <input type="checkbox" checked={selectedIds.includes(recipientKeyValue)} onChange={() => toggleSelection(recipient)} className="h-4 w-4 rounded border-slate-300 text-emerald-600" aria-label={`Select ${recipient.recipientEmail}`} />
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">{(recipient.recipientName || recipient.recipientEmail || "U").slice(0, 2).toUpperCase()}</div>
-                    <div>
-                      <strong className="block text-sm font-semibold text-slate-800">{recipient.recipientName || "Unnamed"}</strong>
-                      <span className="mt-1 block text-slate-500">{recipient.recipientEmail}</span>
-                      <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-500">
-                        <span className="rounded-full bg-slate-100 px-2 py-1">{recipient.business?.name || "General"}</span>
-                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{formatReportType(recipient.reportType)}</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">{(recipient.recipientName || recipient.recipientEmail || "U").slice(0, 2).toUpperCase()}</div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-sm font-semibold text-slate-800">{recipient.recipientName || "Unnamed"}</strong>
+                          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase ${isEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>{isEnabled ? "Live" : "Paused"}</span>
+                        </div>
+                        <span className="mt-0.5 block text-slate-500">{recipient.recipientEmail}</span>
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-1">{recipient.business?.name || "General"}</span>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{formatReportType(recipient.reportType)}</span>
                     </div>
                   </div>
                 </td>
@@ -291,10 +318,13 @@ const AdminCommunications = () => {
                   </span>
                 </td>
                 <td className="px-5 py-4">
-                  <select value={primarySchedule?.frequency || "daily"} onChange={(event) => openFrequency(recipient, event.target.value)} className="min-w-[130px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-emerald-400">
-                    {frequencies.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                  <p className="mt-2 text-[11px] text-slate-400">{primarySchedule?.sendTime || "18:00"} · {primarySchedule?.timezone || "Africa/Lagos"}</p>
+                  <div className="flex items-center gap-2">
+                    <select value={primarySchedule?.frequency || "daily"} onChange={(event) => openFrequency(recipient, event.target.value)} className="min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-emerald-400">
+                      {frequencies.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                    <span className="text-[10px] text-slate-400">{primarySchedule?.sendTime || "18:00"}</span>
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-400">{primarySchedule?.timezone || "Africa/Lagos"}</p>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-col gap-1.5">
