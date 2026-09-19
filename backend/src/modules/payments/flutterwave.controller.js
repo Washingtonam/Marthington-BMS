@@ -173,7 +173,7 @@ const flutterwaveWebhook = async (req, res) => {
 
     await business.save();
 
-    await creditAffiliate(business._id, amount);
+    await creditAffiliate(business._id, amount, null, tx_ref);
 
     return res.status(200).json({
       message: "Webhook processed successfully.",

@@ -12,8 +12,7 @@ const withdrawalHistorySchema = new mongoose.Schema(
     payoutRequestId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "PayoutRequest",
-      default: null,
-      index: true
+      default: null
     },
 
     amount: {
@@ -42,6 +41,11 @@ const withdrawalHistorySchema = new mongoose.Schema(
     timestamps: true,
     collection: "withdrawalHistory"
   }
+);
+
+withdrawalHistorySchema.index(
+  { payoutRequestId: 1 },
+  { unique: true, sparse: true }
 );
 
 const WithdrawalHistory = mongoose.model("WithdrawalHistory", withdrawalHistorySchema);

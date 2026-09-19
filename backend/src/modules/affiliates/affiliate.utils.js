@@ -3,7 +3,7 @@ import Business from "../businesses/business.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
 
-export const creditAffiliate = async (businessId, paymentAmount, session = null) => {
+export const creditAffiliate = async (businessId, paymentAmount, session = null, paymentReference = null) => {
   if (!businessId) {
     console.error("[creditAffiliate] ❌ businessId is required");
     throw new Error("businessId is required to credit affiliate commission.");
@@ -27,6 +27,20 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null)
   if (!business.referredBy) {
     console.log("[creditAffiliate] ℹ️  No referral code (referredBy) found", { businessId });
     return null;
+  }
+
+  if (paymentReference) {
+    const existingCredit = await AffiliatePayout.findOne({ paymentReference }).session(session).lean();
+    if (existingCredit) {
+      return {
+        affiliateId: existingCredit.affiliate,
+        affiliateCode: existingCredit.affiliateCode,
+        businessId: existingCredit.business,
+        commissionAmount: Number(existingCredit.commissionEarned || 0),
+        affiliateRate: Number(existingCredit.rateApplied || 0),
+        alreadyCredited: true
+      };
+    }
   }
 
   console.log("[creditAffiliate] ✅ Business has referral code", {
@@ -109,6 +123,7 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null)
     affiliateCode: affiliate.affiliateCode,
     affiliate: affiliate._id,
     business: business._id,
+    paymentReference: paymentReference || null,
     businessName: business.name || "Unknown Business",
     industry: business.industryType || "N/A",
     amountPaid: amount,

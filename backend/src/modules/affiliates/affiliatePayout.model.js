@@ -22,6 +22,11 @@ const affiliatePayoutSchema = new mongoose.Schema(
       index: true
     },
 
+    paymentReference: {
+      type: String,
+      default: null
+    },
+
     businessName: {
       type: String,
       default: ""
@@ -61,6 +66,11 @@ const affiliatePayoutSchema = new mongoose.Schema(
   {
     timestamps: true
   }
+);
+
+affiliatePayoutSchema.index(
+  { paymentReference: 1 },
+  { unique: true, sparse: true }
 );
 
 const AffiliatePayout = mongoose.model("AffiliatePayout", affiliatePayoutSchema);

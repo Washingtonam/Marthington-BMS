@@ -3,6 +3,7 @@ import Business from "../businesses/business.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
 import PayoutRequest from "./payoutRequest.model.js";
 import WithdrawalHistory from "./withdrawalHistory.model.js";
+import SystemSettings from "../admin/systemSettings.model.js";
 
 const getAffiliateDashboard = async (req, res) => {
   try {
@@ -16,7 +17,11 @@ const getAffiliateDashboard = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const conversions = await AffiliatePayout.find({ affiliate: req.user._id })
+    const conversions = await AffiliatePayout.find({
+      affiliate: req.user._id,
+      business: { $ne: null },
+      status: "credited"
+    })
       .sort({ transactionDate: -1 })
       .lean();
 
@@ -97,14 +102,36 @@ const getAffiliateDashboard = async (req, res) => {
       .sort({ date: -1 })
       .lean();
 
+    const [pendingPayouts, approvedWithdrawals, settings] = await Promise.all([
+      PayoutRequest.aggregate([
+        { $match: { partnerId: req.user._id, status: "pending" } },
+        { $group: { _id: null, amount: { $sum: "$amountRequested" } } }
+      ]),
+      WithdrawalHistory.aggregate([
+        { $match: { partnerId: req.user._id, status: "Approved" } },
+        { $group: { _id: null, amount: { $sum: "$amount" } } }
+      ]),
+      SystemSettings.findOne().lean()
+    ]);
+
+    const totalEarned = Number(affiliate.totalEarned || 0);
+    const availableBalance = Number(affiliate.walletBalance || 0);
+    const pendingAmount = Number(pendingPayouts[0]?.amount || 0);
+    const paidAmount = Number(approvedWithdrawals[0]?.amount || 0);
+
     res.json({
       affiliate: {
         affiliateCode: affiliate.affiliateCode,
         walletBalance,
-        totalEarned: Number(affiliate.totalEarned || 0),
+        totalEarned,
+        earned: totalEarned,
+        available: availableBalance,
+        pending: pendingAmount,
+        paid: paidAmount,
+        currentRate: Number(settings?.globalAffiliateRate ?? 20),
         totalConversions,
         totalReferrals,
-        totalLifetimeEarnings
+        totalLifetimeEarnings: totalEarned
       },
       referrals: referralDetails,
       conversions: formattedConversions,

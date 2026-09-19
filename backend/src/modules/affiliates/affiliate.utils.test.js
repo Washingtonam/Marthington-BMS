@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import User from "../users/user.model.js";
 import Business from "../businesses/business.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
+import AffiliatePayout from "./affiliatePayout.model.js";
 import { creditAffiliate } from "./affiliate.utils.js";
 
 const MONGO_URL = process.env.TEST_MONGO_URL || "mongodb://127.0.0.1:27017/marthington_test";
@@ -33,15 +34,23 @@ test("creditAffiliate credits the referring affiliate and creates a payout recor
 
   await SystemSettings.create({ globalAffiliateRate: 20 });
 
-  const result = await creditAffiliate(business._id, 15000);
+  const result = await creditAffiliate(business._id, 15000, null, "paystack-ref-1");
 
   assert.equal(result.affiliateCode, "PARTNER01");
   assert.equal(result.commissionAmount, 3000);
   assert.equal(result.affiliateRate, 20);
 
+  const duplicateResult = await creditAffiliate(business._id, 15000, null, "paystack-ref-1");
+  assert.equal(duplicateResult.alreadyCredited, true);
+
   const updatedAffiliate = await User.findById(affiliate._id).lean();
   assert.equal(updatedAffiliate.walletBalance, 3000);
   assert.equal(updatedAffiliate.totalEarned, 3000);
+
+  assert.equal(
+    await AffiliatePayout.countDocuments({ paymentReference: "paystack-ref-1" }),
+    1
+  );
 
   await mongoose.connection.dropDatabase();
   await mongoose.disconnect();

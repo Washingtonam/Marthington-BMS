@@ -19,6 +19,7 @@ const formatBusiness = (business) => {
 
   return {
     ...obj,
+    referredBy: obj.referredBy || null,
     industryType,
     businessType,
     plan: subscription.plan,
@@ -71,7 +72,8 @@ export const getBusiness = async (req, res) => {
         },
         isPro: false,
         studentCount: 0,
-        activePatientCount: 0
+        activePatientCount: 0,
+        referredBy: null
       };
 
       return res.status(200).json({
@@ -132,7 +134,8 @@ export const getBusiness = async (req, res) => {
         transferInstructions: rawBusiness?.paymentSettings?.transferInstructions || ""
       },
       studentCount: rawBusiness?.studentCount || 0,
-      activePatientCount: rawBusiness?.activePatientCount || 0
+      activePatientCount: rawBusiness?.activePatientCount || 0,
+      referredBy: rawBusiness?.referredBy || null
     };
 
     return res.status(200).json({
@@ -165,7 +168,8 @@ export const getBusiness = async (req, res) => {
       },
       isPro: false,
       studentCount: 0,
-      activePatientCount: 0
+      activePatientCount: 0,
+      referredBy: null
     };
 
     return res.status(200).json({

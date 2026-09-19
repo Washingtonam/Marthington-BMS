@@ -7,7 +7,6 @@ import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
 import WithdrawalHistory from "../affiliates/withdrawalHistory.model.js";
 import Notification from "../notifications/notification.model.js";
-import PayoutHistory from "../affiliates/payoutHistory.model.js";
 import Transaction from "../transactions/transaction.model.js";
 import mongoose from "mongoose";
 import Audit from "./audit.model.js";
@@ -86,6 +85,32 @@ const getOverview = async (req, res) => {
       "subscription.status": "active"
     });
 
+    const [affiliateTotals, pendingAffiliatePayouts, affiliateSettings, approvedWithdrawals] = await Promise.all([
+      User.aggregate([
+        { $match: { role: "affiliate" } },
+        { $group: { _id: null, totalEarned: { $sum: "$totalEarned" }, availableBalance: { $sum: "$walletBalance" }, totalPartners: { $sum: 1 } } }
+      ]),
+      PayoutRequest.aggregate([
+        { $match: { status: "pending" } },
+        { $group: { _id: null, amount: { $sum: "$amountRequested" }, count: { $sum: 1 } } }
+      ]),
+      SystemSettings.findOne().lean(),
+      WithdrawalHistory.aggregate([
+        { $match: { status: "Approved" } },
+        { $group: { _id: null, amount: { $sum: "$amount" } } }
+      ])
+    ]);
+
+    const affiliateSummary = {
+      totalPartners: Number(affiliateTotals[0]?.totalPartners || 0),
+      totalEarned: Number(affiliateTotals[0]?.totalEarned || 0),
+      availableBalance: Number(affiliateTotals[0]?.availableBalance || 0),
+      pendingPayouts: Number(pendingAffiliatePayouts[0]?.amount || 0),
+      pendingPayoutRequests: Number(pendingAffiliatePayouts[0]?.count || 0),
+      paidPayouts: Number(approvedWithdrawals[0]?.amount || 0),
+      currentRate: Number(affiliateSettings?.globalAffiliateRate ?? 20)
+    };
+
     const industryCounts = {
       retail: 0,
       school: 0,
@@ -145,7 +170,8 @@ const getOverview = async (req, res) => {
         totalUsers: usersCount,
         activeSubscriptions,
         industryCounts,
-        totalBusinesses: businessesCount
+        totalBusinesses: businessesCount,
+        affiliateSummary
       },
       businesses: formattedBusinesses
     });
@@ -901,15 +927,20 @@ const listAffiliates = async (req, res) => {
     const settings = await SystemSettings.findOne();
     const globalRate = Number(settings?.globalAffiliateRate ?? 20);
 
-    const totalPaid = await AffiliatePayout.aggregate([
-      { $group: { _id: null, total: { $sum: "$commissionEarned" } } }
+    const totalPaid = await WithdrawalHistory.aggregate([
+      { $match: { status: "Approved" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } }
+    ]);
+    const pendingPayouts = await PayoutRequest.aggregate([
+      { $match: { status: "pending" } },
+      { $group: { _id: null, total: { $sum: "$amountRequested" }, count: { $sum: 1 } } }
     ]);
 
-    const settingsDoc = await SystemSettings.findOne();
     const stats = {
       totalPartners: affiliates.length,
-      pendingPayouts: await PayoutRequest.countDocuments({ status: "pending" }),
-      totalPaidCommissions: Number(settingsDoc?.totalCommissionsCleared ?? (totalPaid[0] && totalPaid[0].total) ?? 0)
+      pendingPayouts: Number(pendingPayouts[0]?.total || 0),
+      pendingPayoutRequests: Number(pendingPayouts[0]?.count || 0),
+      totalPaidCommissions: Number(totalPaid[0]?.total || 0)
     };
 
     res.json({ affiliates, globalRate, stats });
@@ -1051,42 +1082,70 @@ const getOperationLog = async (req, res) => {
 };
 
 const processAffiliatePayout = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const affiliateId = req.params.id;
-    const affiliate = await User.findById(affiliateId);
-    if (!affiliate) return res.status(404).json({ message: "Affiliate not found" });
+    const affiliate = await User.findById(affiliateId).session(session);
+    if (!affiliate) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Affiliate not found" });
+    }
 
     const amount = Number(affiliate.walletBalance || 0);
-    if (amount <= 0) return res.status(400).json({ message: "No balance to payout" });
+    if (amount <= 0) {
+      await session.abortTransaction();
+      return res.status(400).json({ message: "No balance to payout" });
+    }
 
-    // Create payout request record marked as paid and create an affiliate payout history
     const payout = await PayoutRequest.create({
+      partnerId: affiliate._id,
       affiliate: affiliate._id,
       affiliateCode: affiliate.affiliateCode || "",
       amountRequested: amount,
       status: "paid",
       processedAt: new Date()
-    });
+    }, { session });
 
-    await AffiliatePayout.create({
-      affiliate: affiliate._id,
-      affiliateCode: affiliate.affiliateCode || "",
-      business: null,
-      businessName: affiliate.name || "",
-      amountPaid: amount,
-      commissionEarned: amount,
-      rateApplied: 0,
-      status: "credited",
-      transactionDate: new Date()
-    });
+    await User.findByIdAndUpdate(
+      affiliate._id,
+      { $inc: { walletBalance: -amount } },
+      { session }
+    );
 
-    // Zero out wallet
-    affiliate.walletBalance = 0;
-    await affiliate.save();
+    await WithdrawalHistory.create([{
+      partnerId: affiliate._id,
+      payoutRequestId: payout._id,
+      amount,
+      status: "Approved",
+      note: "Settled by admin",
+      date: new Date()
+    }], { session });
+
+    await SystemSettings.findOneAndUpdate(
+      {},
+      { $inc: { totalCommissionsCleared: amount } },
+      { session, upsert: true, new: true }
+    );
+
+    await Notification.create([{
+      recipient: affiliate._id,
+      type: "payout_settled",
+      title: "Payout Processed Successfully",
+      message: `Your payout of ₦${amount.toLocaleString()} has been approved and processed to your bank account.`,
+      amount,
+      actionUrl: "/partners/dashboard"
+    }], { session });
+
+    await session.commitTransaction();
 
     res.json({ message: "Payout cleared", amount, payoutId: payout._id });
   } catch (err) {
+    await session.abortTransaction();
     res.status(500).json({ message: err.message });
+  } finally {
+    session.endSession();
   }
 };
 
@@ -1162,7 +1221,7 @@ const settlePayoutRequest = async (req, res) => {
     const updatedPayout = await PayoutRequest.findByIdAndUpdate(
       payoutId,
       {
-        status: "approved",
+        status: "paid",
         processedAt: new Date(),
         adminNote: req.body.note || ""
       },
@@ -1192,6 +1251,12 @@ const settlePayoutRequest = async (req, res) => {
         date: new Date()
       }
     ], { session });
+
+    await SystemSettings.findOneAndUpdate(
+      {},
+      { $inc: { totalCommissionsCleared: amountRequested } },
+      { session, upsert: true, new: true }
+    );
 
     // Step 7: Create notification for partner
     await Notification.create([
@@ -1256,48 +1321,7 @@ const rejectPayoutRequest = async (req, res) => {
 };
 
 const approvePayoutRequest = async (req, res) => {
-  try {
-    const id = req.params.id;
-    const payout = await PayoutRequest.findById(id);
-    if (!payout) return res.status(404).json({ message: "Payout request not found" });
-    if (payout.status !== "pending") return res.status(400).json({ message: "Request already processed" });
-
-    // mark paid
-    payout.status = "paid";
-    payout.processedAt = new Date();
-    payout.adminNote = req.body.note || "";
-    await payout.save();
-
-    // create affiliate payout record for history
-    const affiliate = await User.findById(payout.affiliate);
-
-    await AffiliatePayout.create({
-      affiliate: payout.affiliate,
-      affiliateCode: payout.affiliateCode || affiliate?.affiliateCode || "",
-      business: null,
-      businessName: affiliate?.name || "",
-      amountPaid: payout.amountRequested,
-      commissionEarned: payout.amountRequested,
-      rateApplied: 0,
-      status: "credited",
-      transactionDate: new Date()
-    });
-
-    // Create notification for partner
-    await Notification.create({
-      recipient: payout.affiliate,
-      type: "payout_approved",
-      title: "Payout Request Approved",
-      message: `Your payout request of ₦${payout.amountRequested.toLocaleString()} has been approved and will be processed to your bank account (${affiliate?.paymentDetails?.bankName || "Your Bank"}).`,
-      amount: payout.amountRequested,
-      payoutRequestId: payout._id,
-      actionUrl: "/partners/dashboard"
-    });
-
-    res.json({ message: "Payout approved" , payout });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+  return settlePayoutRequest(req, res);
 };
 
 // 🔥 PARTNERS LEDGER WITH FULL PROFILE DETAILS
@@ -1408,25 +1432,22 @@ const settleBalance = async (req, res) => {
       { session }
     );
 
-    await AffiliatePayout.create(
-      [{
-        affiliate: affiliateId,
-        affiliateCode: affiliate.affiliateCode || "",
-        businessName: affiliate.name || "Settlement",
-        amountPaid: settledAmount,
-        commissionEarned: settledAmount,
-        rateApplied: 0,
-        status: "settled",
-        transactionDate: new Date()
-      }],
-      { session }
-    );
+    const payout = await PayoutRequest.create([{
+      partnerId: affiliateId,
+      affiliate: affiliateId,
+      affiliateCode: affiliate.affiliateCode || "",
+      amountRequested: settledAmount,
+      status: "paid",
+      adminNote: note || "Settled by admin",
+      processedAt: new Date()
+    }], { session });
 
-    await PayoutHistory.create([
+    await WithdrawalHistory.create([
       {
         partnerId: affiliateId,
+        payoutRequestId: payout[0]._id,
         amount: settledAmount,
-        status: "Paid",
+        status: "Approved",
         date: new Date(),
         note: note || ""
       }
@@ -1451,6 +1472,7 @@ const settleBalance = async (req, res) => {
         title: "Payout Processed Successfully",
         message: `Your payout of ₦${settledAmount.toLocaleString()} has been approved and processed to your bank account (${affiliate.paymentDetails?.bankName || "Your Bank"}). ${note ? `Note: ${note}` : ""}`,
         amount: settledAmount,
+        payoutRequestId: payout[0]._id,
         actionUrl: "/partners/dashboard"
       }],
       { session }

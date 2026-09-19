@@ -66,7 +66,8 @@ const PartnerDashboard = () => {
   }, [user?.affiliateCode]);
 
   const affiliateCode = dashboardData.affiliate?.affiliateCode || user?.affiliateCode || "";
-  const referralLink = `https://marthington.vercel.app/register?ref=${affiliateCode}`;
+  const referralBaseUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+  const referralLink = `${referralBaseUrl}/register?ref=${affiliateCode}`;
 
   const metrics = [
     {
@@ -83,6 +84,16 @@ const PartnerDashboard = () => {
       label: "Total Referrals Registered",
       value: String(dashboardData.affiliate?.totalReferrals || 0),
       action: "See Referrals"
+    },
+    {
+      label: "Pending Withdrawal",
+      value: formatCurrency(dashboardData.affiliate?.pending || 0),
+      action: "View History"
+    },
+    {
+      label: "Total Paid Out",
+      value: formatCurrency(dashboardData.affiliate?.paid || 0),
+      action: "View History"
     }
   ];
 
@@ -214,7 +225,7 @@ const PartnerDashboard = () => {
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric, index) => (
             <div
               key={metric.label}
@@ -230,7 +241,7 @@ const PartnerDashboard = () => {
                 </div>
               </div>
 
-              <button
+              {index < 3 && <button
                 type="button"
                 className={`mt-5 inline-flex rounded-full px-4 py-2 text-sm font-medium transition ${
                   index === 0
@@ -246,9 +257,20 @@ const PartnerDashboard = () => {
                 }}
               >
                 {metric.action}
-              </button>
+              </button>}
             </div>
           ))}
+        </section>
+
+        <section className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/10 p-5 shadow-lg shadow-black/10 backdrop-blur sm:p-6">
+          <p className="text-sm font-medium text-emerald-200">Commission policy</p>
+          <p className="mt-1 text-xl font-semibold text-white">Current rate: {Number(dashboardData.affiliate?.currentRate || 0)}%</p>
+          <p className="mt-2 text-sm text-emerald-100/80">This rate applies to future qualifying subscription payments. Each earning keeps the rate used when it was credited.</p>
+          <div className="mt-4 grid gap-3 text-sm text-slate-200 sm:grid-cols-3">
+            <div><span className="text-slate-400">Earned</span><p className="font-semibold text-white">{formatCurrency(dashboardData.affiliate?.earned || dashboardData.affiliate?.totalEarned || 0)}</p></div>
+            <div><span className="text-slate-400">Available now</span><p className="font-semibold text-white">{formatCurrency(dashboardData.affiliate?.available || dashboardData.affiliate?.walletBalance || 0)}</p></div>
+            <div><span className="text-slate-400">Paid out</span><p className="font-semibold text-white">{formatCurrency(dashboardData.affiliate?.paid || 0)}</p></div>
+          </div>
         </section>
 
         <section className="rounded-[28px] border border-white/10 bg-slate-900/70 p-5 shadow-xl shadow-black/20 backdrop-blur sm:p-6">
@@ -369,10 +391,10 @@ const PartnerDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {(dashboardData.payoutRequests || []).map((request) => (
+                  {(dashboardData.payoutRequests || []).filter((request) => request.status === "pending").map((request) => (
                     <tr key={request._id} className="text-slate-200">
                       <td className="whitespace-nowrap px-3 py-4 font-semibold text-white">{formatCurrency(request.amountRequested || 0)}</td>
-                      <td className="px-3 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${request.status === "approved" ? "bg-emerald-500/15 text-emerald-300" : request.status === "rejected" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>{request.status}</span></td>
+                      <td className="px-3 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${request.status === "paid" || request.status === "approved" ? "bg-emerald-500/15 text-emerald-300" : request.status === "rejected" ? "bg-rose-500/15 text-rose-300" : "bg-amber-500/15 text-amber-300"}`}>{request.status}</span></td>
                       <td className="px-3 py-4 text-slate-300">{request.bankSnapshot?.bankName || request.paymentDetails?.bankName || "—"} • {request.bankSnapshot?.accountNumber || request.paymentDetails?.accountNumber || "—"}</td>
                       <td className="px-3 py-4 text-slate-300">{new Date(request.createdAt || Date.now()).toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" })}</td>
                     </tr>

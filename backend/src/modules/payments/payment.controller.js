@@ -343,7 +343,8 @@ const verifySubscription = async (req, res) => {
       affiliateCredit = await creditAffiliate(
         updatedBusiness._id,
         paymentAmountConverted,
-        transactionStarted ? session : null
+        transactionStarted ? session : null,
+        reference
       );
 
       if (affiliateCredit) {
@@ -442,7 +443,7 @@ const verifySubscription = async (req, res) => {
 // SINGLE SOURCE OF TRUTH UPGRADE HELPER
 // ======================================
 // Reusable function for both webhook and redirect verification paths
-const executeProUpgrade = async (businessId, billingCycle, amountPaid) => {
+const executeProUpgrade = async (businessId, billingCycle, amountPaid, paymentReference = null) => {
   const session = await Business.startSession();
   let transactionStarted = false;
 
@@ -533,7 +534,8 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid) => {
       affiliateResult = await creditAffiliate(
         updatedBusiness._id,
         amountPaid,
-        session
+        session,
+        paymentReference
       );
 
       if (affiliateResult) {
@@ -667,7 +669,8 @@ const verifyRedirect = async (req, res) => {
     const upgradeResult = await executeProUpgrade(
       businessId,
       billingCycle,
-      paymentAmount
+      paymentAmount,
+      reference
     );
 
     console.log("[verifyRedirect] 🎉 REDIRECT VERIFICATION COMPLETE", {
@@ -788,7 +791,8 @@ const handlePaystackWebhook = async (req, res) => {
     const upgradeResult = await executeProUpgrade(
       businessId,
       billingCycle,
-      paymentAmount
+      paymentAmount,
+      event.data.reference
     );
 
     console.log("[webhook] 🎉 WEBHOOK PROCESSING COMPLETE", {

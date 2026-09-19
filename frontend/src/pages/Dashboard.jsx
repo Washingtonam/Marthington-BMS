@@ -279,6 +279,16 @@ const Dashboard = () => {
         ))}
       </div>
 
+      {user?.role === "owner" && business?.referredBy && (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-600 dark:text-sky-300">Referral attribution</p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm">This workspace was registered with partner code <span className="font-mono font-bold">{business.referredBy}</span>.</p>
+            <button type="button" onClick={() => navigate("/app/billing")} className="rounded-xl border border-sky-300 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100 dark:border-sky-700 dark:text-sky-200 dark:hover:bg-sky-900/40">View subscription</button>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
