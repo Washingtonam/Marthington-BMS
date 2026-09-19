@@ -24,6 +24,9 @@ const Settings = () => {
     address: "",
     phone: "",
     email: "",
+    website: "",
+    supportEmail: "",
+    supportPhone: "",
     businessType: "general_services",
     receiptFooter: "",
     receiptTheme: "modern",
@@ -61,6 +64,9 @@ const Settings = () => {
       address: business.address || "",
       phone: business.phone || "",
       email: business.email || "",
+      website: business.website || "",
+      supportEmail: business.supportEmail || "",
+      supportPhone: business.supportPhone || "",
       businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
       receiptTheme: business.receiptTheme || "modern",
@@ -400,6 +406,20 @@ const Settings = () => {
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Official Email</label>
                 <input className="input-field" name="email" value={form.email} onChange={handleChange} placeholder="biz@example.com" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">Website</label>
+                <input className="input-field" name="website" type="url" value={form.website} onChange={handleChange} placeholder="https://example.com" />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 md:col-span-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Support Email</label>
+                  <input className="input-field" name="supportEmail" type="email" value={form.supportEmail} onChange={handleChange} placeholder="support@example.com" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Support Phone</label>
+                  <input className="input-field" name="supportPhone" value={form.supportPhone} onChange={handleChange} placeholder="+234..." />
+                </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Type</label>

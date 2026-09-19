@@ -80,7 +80,9 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
     if (!isSubscriptionDue(subscription, now)) continue;
 
     try {
-      const business = await Business.findById(subscription.business).select("name").lean();
+      const business = await Business.findById(subscription.business)
+        .select("name address phone email website supportEmail supportPhone logo")
+        .lean();
       if (!business) throw new Error("Business not found");
 
       const { snapshot, periodLabel } = await getReportSnapshot(subscription, subscription.business);
@@ -88,6 +90,7 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
         recipientEmail: subscription.recipientEmail,
         recipientName: subscription.recipientName,
         businessName: business.name,
+        businessProfile: business,
         reportType: subscription.reportType,
         frequency: subscription.frequency,
         periodLabel,

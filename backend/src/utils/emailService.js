@@ -1,4 +1,4 @@
-import { getEmailTransporter, setLastEmailError } from "../config/email.js";
+import { getEmailTransporter, getConfiguredFrom, setLastEmailError } from "../config/email.js";
 import { getResendConfig, hasResendApi } from "../config/email.js";
 import EmailHistory from "../models/emailHistory.model.js";
 import jwt from "jsonwebtoken";
@@ -17,7 +17,7 @@ const sendEmailMessage = async ({ to, subject, html }) => {
     if (!from) throw new Error("RESEND_FROM is not configured");
     const response = await axios.post(
       "https://api.resend.com/emails",
-      { from, to: [to], subject, html },
+      { from: getConfiguredFrom(), to: [to], subject, html },
       { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, timeout: 5000 }
     );
     if (!response.data?.id) throw new Error("Resend returned no email id");
@@ -27,7 +27,7 @@ const sendEmailMessage = async ({ to, subject, html }) => {
   const transporter = getEmailTransporter();
   if (!transporter) throw new Error("Email transporter is not configured");
   return transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    from: getConfiguredFrom(),
     to,
     subject,
     html
@@ -79,6 +79,7 @@ export const sendReportEmail = async ({
   recipientEmail,
   recipientName,
   businessName,
+  businessProfile = {},
   reportType,
   frequency = "daily",
   periodLabel = "",
@@ -86,11 +87,20 @@ export const sendReportEmail = async ({
   snapshot,
   unsubscribeUrl
 }) => {
+  const profile = businessProfile || {};
+  const displayName = profile.name || businessName || "Your business";
+  const logoUrl = profile.logo || process.env.EMAIL_LOGO_URL || "https://marthington.vercel.app/logo-icon.png";
+  const websiteUrl = String(profile.website || "").trim();
+  const contactEmail = profile.supportEmail || profile.email || "";
+  const contactPhone = profile.supportPhone || profile.phone || "";
+  const contactDetails = [profile.address, contactPhone, contactEmail, websiteUrl]
+    .filter(Boolean)
+    .map(escapeHtml);
   const overview = snapshot?.overview || snapshot?.summary || {};
   const includes = (section) => reportSections.includes(section);
   const frequencyLabel = frequency === "monthly" ? "Monthly" : frequency === "weekly" ? "Weekly" : "Daily";
   const contentLabel = reportType === "daily-analysis" ? "Analysis" : "Business Overview";
-  const subject = `${businessName} ${frequencyLabel} ${contentLabel} Report`;
+  const subject = `${displayName} ${frequencyLabel} ${contentLabel} Report`;
   const amount = (value) => Number(value || 0).toLocaleString();
   const salesSummaryAmount = reportType === "daily-analysis"
     ? amount(overview.revenue ?? overview.periodRevenue)
@@ -107,10 +117,10 @@ export const sendReportEmail = async ({
   const usageLabel = frequency === "monthly" ? "this month" : frequency === "weekly" ? "this week" : "today";
   const summaryTitle = frequency === "monthly" ? "Sales for this month" : frequency === "weekly" ? "Sales for this week" : "Sales for today";
   const summaryText = frequency === "monthly"
-    ? `This is your monthly sales summary for ${escapeHtml(businessName)}.`
+    ? `This is your monthly sales summary for ${escapeHtml(displayName)}.`
     : frequency === "weekly"
-      ? `This is your weekly sales summary for ${escapeHtml(businessName)}.`
-      : `This is your daily sales summary for ${escapeHtml(businessName)}.`;
+      ? `This is your weekly sales summary for ${escapeHtml(displayName)}.`
+      : `This is your daily sales summary for ${escapeHtml(displayName)}.`;
   const detailCards = [
     ["Revenue", `₦${salesSummaryAmount}`],
     ["Expenses", `₦${expenseAmount}`],
@@ -128,7 +138,7 @@ export const sendReportEmail = async ({
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;">
           <tr>
             <td style="vertical-align: middle;">
-              <img src="https://marthington.vercel.app/logo-full.png" alt="Marthington" width="190" height="42" style="display:block; max-width: 190px; height: auto; border-radius: 8px;" />
+              ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(displayName)}" width="190" height="52" style="display:block; max-width: 190px; max-height: 52px; height: auto; border-radius: 8px;" />` : `<div style="font-size: 22px; color: #ffffff; font-weight: 700;">${escapeHtml(displayName)}</div>`}
             </td>
           </tr>
         </table>
@@ -149,7 +159,7 @@ export const sendReportEmail = async ({
         <div style="background: linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%); border: 1px solid #a7f3d0; border-radius: 12px; padding: 16px 18px; margin-bottom: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);">
           <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #0f766e; font-weight: 700; margin-bottom: 8px;">Summary</div>
           <div style="font-size: 15px; line-height: 1.7; color: #0f172a;">
-            ${escapeHtml(businessName)} recorded <strong>${escapeHtml(summaryTitle)}</strong> of <strong>₦${escapeHtml(salesSummaryAmount)}</strong>, with a total profit of <strong>₦${escapeHtml(profitAmount)}</strong> and operating expenses of <strong>₦${escapeHtml(expenseAmount)}</strong>.
+            ${escapeHtml(displayName)} recorded <strong>${escapeHtml(summaryTitle)}</strong> of <strong>₦${escapeHtml(salesSummaryAmount)}</strong>, with a total profit of <strong>₦${escapeHtml(profitAmount)}</strong> and operating expenses of <strong>₦${escapeHtml(expenseAmount)}</strong>.
           </div>
         </div>
         ${detailSections}
@@ -157,8 +167,11 @@ export const sendReportEmail = async ({
           <a href="${escapeHtml((process.env.FRONTEND_URL || "https://marthington.vercel.app") + "/app/reports")}" style="display: inline-block; background: linear-gradient(135deg, #14b8a6 0%, #0f766e 100%); color: #ffffff; text-decoration: none; padding: 14px 30px; border-radius: 10px; font-size: 15px; font-weight: 700; box-shadow: 0 10px 26px rgba(15, 118, 110, 0.22);">View more details</a>
         </div>
       </div>
-      <div style="padding: 18px 28px 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 18px 18px;">
-        <p style="margin: 0 0 8px; color: #64748b; font-size: 12px; line-height: 1.6;">You can <a href="${escapeHtml(unsubscribeUrl)}" style="color: #0f766e; text-decoration: none;">unsubscribe from scheduled reports</a> at any time.</p>
+      <div style="padding: 20px 28px 24px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 18px 18px;">
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 8px;">${escapeHtml(displayName)}</div>
+        ${contactDetails.length ? `<p style="margin: 0 0 10px; color: #64748b; font-size: 12px; line-height: 1.7;">${contactDetails.join(" &bull; ")}</p>` : ""}
+        <p style="margin: 0 0 8px; color: #64748b; font-size: 12px; line-height: 1.6;">This report contains confidential business information intended for the recipient only.</p>
+        <p style="margin: 0; color: #64748b; font-size: 12px; line-height: 1.6;">You can <a href="${escapeHtml(unsubscribeUrl)}" style="color: #0f766e; text-decoration: none;">unsubscribe from scheduled reports</a> at any time.</p>
       </div>
     </div>
   `;

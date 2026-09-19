@@ -11,6 +11,9 @@ const businessSchema = new mongoose.Schema(
     address: { type: String, default: "" },
     phone: { type: String, default: "" },
     email: { type: String, default: "" },
+    website: { type: String, default: "" },
+    supportEmail: { type: String, default: "" },
+    supportPhone: { type: String, default: "" },
 
     logo: { type: String, default: "" },
 

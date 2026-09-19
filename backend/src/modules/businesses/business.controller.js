@@ -197,6 +197,9 @@ export const updateBusiness = async (req, res) => {
       address,
       phone,
       email,
+      website,
+      supportEmail,
+      supportPhone,
       receiptFooter,
       receiptTheme,
       businessType,
@@ -233,6 +236,9 @@ export const updateBusiness = async (req, res) => {
     business.address = address ?? business.address;
     business.phone = phone ?? business.phone;
     business.email = email ?? business.email;
+    business.website = website ?? business.website;
+    business.supportEmail = supportEmail ?? business.supportEmail;
+    business.supportPhone = supportPhone ?? business.supportPhone;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;

@@ -34,6 +34,9 @@ export const updateBusiness = async (payload = {}) => {
   formData.append("address", payload.address ?? "");
   formData.append("phone", payload.phone ?? "");
   formData.append("email", payload.email ?? "");
+  formData.append("website", payload.website ?? "");
+  formData.append("supportEmail", payload.supportEmail ?? "");
+  formData.append("supportPhone", payload.supportPhone ?? "");
   formData.append("receiptFooter", payload.receiptFooter ?? "");
   formData.append("receiptTheme", payload.receiptTheme ?? "");
   formData.append("businessType", payload.businessType ?? "general_services");

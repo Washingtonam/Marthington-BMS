@@ -56,6 +56,12 @@ export const getResendConfig = () => ({
   from: process.env.RESEND_FROM || process.env.SMTP_FROM || ""
 });
 
+export const getConfiguredFrom = () => {
+  const configuredFrom = process.env.RESEND_FROM || process.env.SMTP_FROM || process.env.SMTP_USER || "";
+  if (!configuredFrom || configuredFrom.includes("<")) return configuredFrom;
+  return `Marthington BMS <${configuredFrom}>`;
+};
+
 const getResendFromEmail = () => {
   const value = process.env.RESEND_FROM || process.env.SMTP_FROM || "";
   const match = value.match(/<([^>]+)>/);
@@ -123,4 +129,5 @@ export default {
   getEmailConfigStatus,
   hasResendApi,
   getResendConfig,
+  getConfiguredFrom,
 };

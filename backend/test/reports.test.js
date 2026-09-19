@@ -171,8 +171,12 @@ test('Reports: scheduled email uses a summary view with a branded CTA', async ()
   process.env.RESEND_FROM = 'hello@marthington.com';
   axios.post = async (url, payload) => {
     assert.equal(url, 'https://api.resend.com/emails');
+    assert.equal(payload.from, 'Marthington BMS <hello@marthington.com>');
     assert.match(payload.html, /Sales for today/i);
     assert.match(payload.html, /View more details/i);
+    assert.match(payload.html, /https:\/\/cdn.example.com\/bright-mart.png/);
+    assert.match(payload.html, /support@brightmart.example/);
+    assert.match(payload.html, /confidential business information/i);
     assert.doesNotMatch(payload.html, /Rice|Beans|Detailed breakdown/i);
     return { data: { id: 'email-1' } };
   };
@@ -182,6 +186,14 @@ test('Reports: scheduled email uses a summary view with a branded CTA', async ()
       recipientEmail: 'owner@example.com',
       recipientName: 'Ada',
       businessName: 'Bright Mart',
+      businessProfile: {
+        name: 'Bright Mart',
+        address: '12 Market Street',
+        phone: '+2348000000000',
+        email: 'hello@brightmart.example',
+        supportEmail: 'support@brightmart.example',
+        logo: 'https://cdn.example.com/bright-mart.png'
+      },
       reportType: 'daily-analysis',
       frequency: 'daily',
       periodLabel: 'Daily report for Sep 18, 2026',
