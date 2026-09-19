@@ -7,6 +7,7 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 // ====================================
 import AppShell from "./components/layout/AppShell.jsx";
 import AdminLayout from "./components/AdminLayout.jsx";
+import PartnerLayout from "./components/PartnerLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 // ====================================
@@ -57,6 +58,10 @@ const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
 const PartnersDashboard = lazy(() => import("./pages/PartnersDashboard.jsx"));
 const PartnerProfile = lazy(() => import("./pages/PartnerProfile.jsx"));
 const PartnersReferrals = lazy(() => import("./pages/PartnersReferrals.jsx"));
+const PartnerDashboardHome = lazy(() => import("./pages/PartnerDashboardHome.jsx"));
+const PartnerConversions = lazy(() => import("./pages/PartnerConversions.jsx"));
+const PartnerWithdrawals = lazy(() => import("./pages/PartnerWithdrawals.jsx"));
+const PartnerLinkHistory = lazy(() => import("./pages/PartnerLinkHistory.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 const AdminPartnersLedger = lazy(() => import("./pages/AdminPartnersLedger.jsx"));
 const UserGuide = lazy(() => import("./pages/UserGuide.jsx"));
@@ -194,31 +199,22 @@ const App = () => {
             <Route path="/r/:id" element={<PublicReceipt />} />
 
             {/* PARTNER DASHBOARD (STANDALONE) */}
-            <Route path="/partners" element={<Navigate to="/partners/dashboard" replace />} />
             <Route
-              path="/partners/dashboard"
+              path="/partners"
               element={
                 <ProtectedRoute requiredRole="affiliate">
-                  <PartnersDashboard />
+                  <PartnerLayout />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/partners/profile"
-              element={
-                <ProtectedRoute requiredRole="affiliate">
-                  <PartnerProfile />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/partners/referrals"
-              element={
-                <ProtectedRoute requiredRole="affiliate">
-                  <PartnersReferrals />
-                </ProtectedRoute>
-              }
-            />
+            >
+              <Route index element={<Navigate to="/partners/dashboard" replace />} />
+              <Route path="dashboard" element={<PartnerDashboardHome />} />
+              <Route path="conversions" element={<PartnerConversions />} />
+              <Route path="withdrawals" element={<PartnerWithdrawals />} />
+              <Route path="link-history" element={<PartnerLinkHistory />} />
+              <Route path="profile" element={<PartnerProfile />} />
+              <Route path="referrals" element={<Navigate to="/partners/conversions" replace />} />
+            </Route>
 
             {/* ADMIN PAYOUTS */}
             <Route

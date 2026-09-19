@@ -6,6 +6,7 @@ import SystemSettings from "./systemSettings.model.js";
 import PayoutRequest from "../affiliates/payoutRequest.model.js";
 import AffiliatePayout from "../affiliates/affiliatePayout.model.js";
 import WithdrawalHistory from "../affiliates/withdrawalHistory.model.js";
+import AffiliateClick from "../affiliates/affiliateClick.model.js";
 import Notification from "../notifications/notification.model.js";
 import Transaction from "../transactions/transaction.model.js";
 import mongoose from "mongoose";
@@ -924,7 +925,49 @@ const listAffiliates = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const settings = await SystemSettings.findOne();
+    const affiliateCodes = affiliates
+      .map((affiliate) => affiliate.affiliateCode)
+      .filter(Boolean);
+
+    const [clickStats, conversionStats, settings] = await Promise.all([
+      affiliateCodes.length
+        ? AffiliateClick.aggregate([
+            { $match: { affiliateCode: { $in: affiliateCodes } } },
+            { $group: { _id: "$affiliateCode", clicks: { $sum: 1 } } }
+          ])
+        : [],
+      affiliateCodes.length
+        ? AffiliatePayout.aggregate([
+            {
+              $match: {
+                affiliateCode: { $in: affiliateCodes },
+                business: { $ne: null },
+                status: "credited"
+              }
+            },
+            { $group: { _id: "$affiliateCode", conversions: { $sum: 1 } } }
+          ])
+        : [],
+      SystemSettings.findOne()
+    ]);
+
+    const clickMap = new Map(clickStats.map((entry) => [entry._id, Number(entry.clicks || 0)]));
+    const conversionMap = new Map(conversionStats.map((entry) => [entry._id, Number(entry.conversions || 0)]));
+
+    const enrichedAffiliates = affiliates.map((affiliate) => {
+      const affiliateCode = affiliate.affiliateCode || "";
+      const clicks = Number(clickMap.get(affiliateCode) || 0);
+      const conversions = Number(conversionMap.get(affiliateCode) || 0);
+      const conversionRate = clicks > 0 ? Number(((conversions / clicks) * 100).toFixed(2)) : 0;
+
+      return {
+        ...affiliate,
+        clicks,
+        conversions,
+        conversionRate
+      };
+    });
+
     const globalRate = Number(settings?.globalAffiliateRate ?? 20);
 
     const totalPaid = await WithdrawalHistory.aggregate([
@@ -937,13 +980,13 @@ const listAffiliates = async (req, res) => {
     ]);
 
     const stats = {
-      totalPartners: affiliates.length,
+      totalPartners: enrichedAffiliates.length,
       pendingPayouts: Number(pendingPayouts[0]?.total || 0),
       pendingPayoutRequests: Number(pendingPayouts[0]?.count || 0),
       totalPaidCommissions: Number(totalPaid[0]?.total || 0)
     };
 
-    res.json({ affiliates, globalRate, stats });
+    res.json({ affiliates: enrichedAffiliates, globalRate, stats });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

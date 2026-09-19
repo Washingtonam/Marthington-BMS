@@ -2,6 +2,13 @@ import request from "./client.js";
 
 export const getAffiliateDashboard = async () => request("/affiliates/dashboard");
 
+export const trackAffiliateClick = async (affiliateCode) => {
+	return request("/affiliates/track-click", {
+		method: "POST",
+		body: JSON.stringify({ affiliateCode })
+	});
+};
+
 export const getAffiliateProfile = async () => {
 	return request("/affiliates/profile", {
 		method: "GET"

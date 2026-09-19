@@ -3,7 +3,45 @@ import Business from "../businesses/business.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
 import PayoutRequest from "./payoutRequest.model.js";
 import WithdrawalHistory from "./withdrawalHistory.model.js";
+import AffiliateClick from "./affiliateClick.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
+
+const trackAffiliateClick = async (req, res) => {
+  try {
+    const affiliateCode = String(req.body?.affiliateCode || req.query?.affiliateCode || "").trim();
+
+    if (!affiliateCode) {
+      return res.status(400).json({ message: "Affiliate code is required" });
+    }
+
+    const affiliate = await User.findOne({ affiliateCode, role: "affiliate" }).lean();
+
+    if (!affiliate) {
+      return res.status(404).json({ message: "Affiliate not found" });
+    }
+
+    const click = await AffiliateClick.create({
+      affiliateCode,
+      affiliate: affiliate._id,
+      source: "partner-link",
+      referrer: req.headers?.referer || "",
+      userAgent: req.headers?.["user-agent"] || "",
+      ipAddress: req.headers?.["x-forwarded-for"] || req.socket?.remoteAddress || ""
+    });
+
+    res.status(201).json({
+      message: "Affiliate click tracked",
+      click: {
+        _id: click._id,
+        affiliateCode,
+        clickedAt: click.clickedAt
+      }
+    });
+  } catch (err) {
+    console.error("TRACK AFFILIATE CLICK ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
 
 const getAffiliateDashboard = async (req, res) => {
   try {
@@ -76,6 +114,15 @@ const getAffiliateDashboard = async (req, res) => {
       0
     );
 
+    const [totalClicks, recentClicks] = await Promise.all([
+      AffiliateClick.countDocuments({ affiliateCode: affiliate.affiliateCode }),
+      AffiliateClick.find({ affiliateCode: affiliate.affiliateCode })
+        .sort({ clickedAt: -1 })
+        .limit(10)
+        .lean()
+    ]);
+
+    const conversionRate = totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0;
     const walletBalance = Number(affiliate.walletBalance || 0);
 
     const formattedConversions = conversions.map((item) => ({
@@ -131,7 +178,10 @@ const getAffiliateDashboard = async (req, res) => {
         currentRate: Number(settings?.globalAffiliateRate ?? 20),
         totalConversions,
         totalReferrals,
-        totalLifetimeEarnings: totalEarned
+        totalLifetimeEarnings: totalEarned,
+        totalClicks,
+        conversionRate,
+        recentClicks
       },
       referrals: referralDetails,
       conversions: formattedConversions,
@@ -243,6 +293,7 @@ const updateAffiliateProfile = async (req, res) => {
 };
 
 export default {
+  trackAffiliateClick,
   getAffiliateDashboard,
   getAffiliateProfile,
   updateAffiliateProfile

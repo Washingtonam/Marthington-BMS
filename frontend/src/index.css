@@ -51,6 +51,43 @@ img {
   max-width: 100%;
 }
 
+[data-partner-theme="light"] .bg-slate-950 {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+[data-partner-theme="light"] .bg-slate-900 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+[data-partner-theme="light"] .text-white {
+  color: #0f172a !important;
+}
+
+[data-partner-theme="light"] .text-slate-100,
+[data-partner-theme="light"] .text-slate-200,
+[data-partner-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+[data-partner-theme="light"] .text-slate-400,
+[data-partner-theme="light"] .text-slate-500 {
+  color: #64748b !important;
+}
+
+[data-partner-theme="light"] .border-white\/10,
+[data-partner-theme="light"] .border-white\/15 {
+  border-color: #e2e8f0 !important;
+}
+
+[data-partner-theme="light"] input,
+[data-partner-theme="light"] select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
 .gradient-bg {
   background:
     radial-gradient(circle at top left, rgba(22,163,74,0.15), transparent 35%),

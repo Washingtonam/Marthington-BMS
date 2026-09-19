@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
+import { trackAffiliateClick } from "../api/affiliates.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const industryOptions = [
@@ -49,6 +50,7 @@ const Register = () => {
     if (referral) {
       localStorage.setItem("bms_referral", referral);
       setRefCode(referral);
+      trackAffiliateClick(referral).catch(() => undefined);
     } else {
       const savedReferral = localStorage.getItem("bms_referral") || "";
       setRefCode(savedReferral);

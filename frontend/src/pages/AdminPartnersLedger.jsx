@@ -28,6 +28,20 @@ const AdminPartnersLedger = () => {
   const [showWithdrawalHistory, setShowWithdrawalHistory] = useState(false);
   const [withdrawalHistory, setWithdrawalHistory] = useState([]);
 
+  const networkSummary = useMemo(() => {
+    const totalClicks = ledger.reduce((sum, partner) => sum + Number(partner.clicks || 0), 0);
+    const totalConversions = ledger.reduce((sum, partner) => sum + Number(partner.conversions || 0), 0);
+    const conversionRate = totalClicks > 0 ? Number(((totalConversions / totalClicks) * 100).toFixed(2)) : 0;
+    const totalWallet = ledger.reduce((sum, partner) => sum + Number(partner.walletBalance || 0), 0);
+
+    return {
+      totalClicks,
+      totalConversions,
+      conversionRate,
+      totalWallet
+    };
+  }, [ledger]);
+
   const loadLedger = async (pageNum = 1, search = "") => {
     setLoading(true);
     setError("");
@@ -145,6 +159,37 @@ const AdminPartnersLedger = () => {
     }
   };
 
+  const exportLedgerCsv = () => {
+    const rows = [
+      ["Partner", "Email", "Affiliate Code", "Wallet Balance", "Total Earned", "Bank", "Account Name", "Account Number", "Clicks", "Conversions", "Conversion Rate"]
+    ];
+
+    ledger.forEach((partner) => {
+      rows.push([
+        partner.name || "",
+        partner.email || "",
+        partner.affiliateCode || "",
+        Number(partner.walletBalance || 0),
+        Number(partner.totalEarned || 0),
+        partner.bankName || "",
+        partner.accountName || "",
+        partner.accountNumber || "",
+        Number(partner.clicks || 0),
+        Number(partner.conversions || 0),
+        Number(partner.conversionRate || 0)
+      ]);
+    });
+
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "affiliate-ledger.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const statCards = useMemo(() => [
@@ -179,6 +224,25 @@ const AdminPartnersLedger = () => {
               </div>
             ))}
           </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Clicks</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-900">{networkSummary.totalClicks}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Conversions</p>
+              <p className="mt-3 text-2xl font-semibold text-emerald-700">{networkSummary.totalConversions}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Conversion rate</p>
+              <p className="mt-3 text-2xl font-semibold text-sky-700">{networkSummary.conversionRate}%</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.25em] text-slate-500">Network wallet</p>
+              <p className="mt-3 text-2xl font-semibold text-slate-900">{formatCurrency(networkSummary.totalWallet)}</p>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm">
@@ -202,7 +266,10 @@ const AdminPartnersLedger = () => {
               <h2 className="text-xl font-semibold text-slate-900">Pending withdrawal requests</h2>
               <p className="mt-1 text-sm text-slate-600">Approve or reject partner withdrawal requests before settlement.</p>
             </div>
-            <button onClick={openWithdrawalHistory} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">View Withdrawal History</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={openWithdrawalHistory} className="rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">View Withdrawal History</button>
+              <button onClick={exportLedgerCsv} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Export Ledger CSV</button>
+            </div>
           </div>
 
           <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
