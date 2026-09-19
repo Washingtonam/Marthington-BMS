@@ -58,6 +58,16 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
   }
 };
 
+export const shouldCreateAutomaticReportSubscription = (business, hasExistingSchedule) => (
+  !hasExistingSchedule &&
+  business?.status !== "deleted" &&
+  business?.subscription?.plan === "pro" &&
+  business?.subscription?.status === "active" &&
+  business?.reportNotificationsEnabled !== false &&
+  Boolean(business?.owner?._id) &&
+  Boolean(business?.owner?.email || business?.email)
+);
+
 const unsubscribeUrlFor = (subscriptionId) => {
   const token = jwt.sign(
     { subscriptionId: subscriptionId.toString(), purpose: "report-unsubscribe" },
@@ -69,6 +79,36 @@ const unsubscribeUrlFor = (subscriptionId) => {
 };
 
 export const sendDueReportSubscriptions = async (now = new Date()) => {
+  const eligibleBusinesses = await Business.find({
+    status: { $ne: "deleted" },
+    "subscription.plan": "pro",
+    "subscription.status": "active",
+    reportNotificationsEnabled: { $ne: false }
+  }).populate("owner", "name email").lean();
+
+  for (const business of eligibleBusinesses) {
+    const existingSchedule = await ReportSubscription.findOne({ business: business._id });
+    if (!shouldCreateAutomaticReportSubscription(business, Boolean(existingSchedule))) continue;
+
+    try {
+      await ReportSubscription.create({
+        recipientEmail: business.owner.email || business.email,
+        recipientName: business.owner.name || "",
+        business: business._id,
+        reportType: "overview",
+        reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
+        frequency: "daily",
+        sendTime: "18:00",
+        timezone: "Africa/Lagos",
+        status: "enabled",
+        createdBy: business.owner._id,
+        updatedBy: business.owner._id
+      });
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+    }
+  }
+
   const subscriptions = await ReportSubscription.find({
     status: "enabled",
     business: { $exists: true, $ne: null }
@@ -81,9 +121,10 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
 
     try {
       const business = await Business.findById(subscription.business)
-        .select("name address phone email website supportEmail supportPhone logo")
+        .select("name address phone email website supportEmail supportPhone logo reportNotificationsEnabled")
         .lean();
       if (!business) throw new Error("Business not found");
+      if (business.reportNotificationsEnabled === false) continue;
 
       const { snapshot, periodLabel } = await getReportSnapshot(subscription, subscription.business);
       const delivered = await sendReportEmail({

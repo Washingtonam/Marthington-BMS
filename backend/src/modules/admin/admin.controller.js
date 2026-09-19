@@ -31,7 +31,7 @@ const formatBusiness = (business) => {
   return {
     ...obj,
     plan: subPlan || "free",
-    isPro: obj.isPro === true || subPlan === "pro",
+    isPro: obj.isPro === true || (subPlan === "pro" && obj.subscription?.status === "active"),
     subscription: {
       ...obj.subscription,
       plan: subPlan || "free",
@@ -62,7 +62,7 @@ const listBusinesses = async (req, res) => {
           status: business.subscription?.status || "trial"
         },
         plan: business.subscription?.plan || "free",
-        isPro: business.subscription?.plan === "pro",
+        isPro: business.subscription?.plan === "pro" && business.subscription?.status === "active",
         status: business.status || "active"
       }))
     });
@@ -461,30 +461,31 @@ const listReportSubscriptions = async (req, res) => {
     }
 
     const subscriptions = await ReportSubscription.find(query)
-      .populate("business", "name industryType")
+      .populate("business", "name industryType plan subscription isPro reportNotificationsEnabled")
       .populate("updatedBy", "name email")
       .sort({ createdAt: -1 })
       .lean();
 
     const businesses = await Business.find({ status: { $ne: "deleted" } })
-      .select("name owner email industryType")
+      .select("name owner email industryType plan subscription isPro reportNotificationsEnabled")
       .populate("owner", "name email")
       .lean();
     const configuredBusinessIds = new Set(subscriptions.map((item) => item.business?._id?.toString() || item.business?.toString()));
+    const removedBusinessIds = new Set((await ReportSubscription.find({ isRemoved: true }).select("business").lean()).map((item) => item.business.toString()));
     const automaticRecipients = businesses
-      .filter((business) => !configuredBusinessIds.has(business._id.toString()))
+      .filter((business) => !configuredBusinessIds.has(business._id.toString()) && !removedBusinessIds.has(business._id.toString()))
       .map((business) => ({
         _id: null,
         isAutomatic: true,
         recipientEmail: business.owner?.email || business.email || "",
         recipientName: business.owner?.name || "",
-        business: { _id: business._id, name: business.name, industryType: business.industryType },
+        business: { _id: business._id, name: business.name, industryType: business.industryType, plan: business.subscription?.plan || "free", subscription: business.subscription, isPro: business.subscription?.plan === "pro" && business.subscription?.status === "active" },
         reportType: "overview",
         reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
         frequency: "daily",
         sendTime: "18:00",
         timezone: "Africa/Lagos",
-        status: "admin_disabled",
+        status: business.subscription?.plan === "pro" && business.subscription?.status === "active" && business.reportNotificationsEnabled !== false ? "enabled" : "admin_disabled",
         isRemoved: false
       }));
 
@@ -516,7 +517,12 @@ const createReportSubscription = async (req, res) => {
       return res.status(400).json({ message: "A valid business is required" });
     }
 
-    const createdSubscription = await ReportSubscription.create({
+    const existingRemovedSubscription = await ReportSubscription.findOne({ business: businessId, recipientEmail, reportType, frequency, isRemoved: true });
+    const createdSubscription = existingRemovedSubscription
+      ? await ReportSubscription.findByIdAndUpdate(existingRemovedSubscription._id, {
+        recipientName, reportSections, sendTime, timezone, status, isRemoved: isRemoved === true, updatedBy: req.user.id
+      }, { new: true, runValidators: true })
+      : await ReportSubscription.create({
       recipientEmail,
       recipientName,
       business: businessId,
@@ -529,7 +535,7 @@ const createReportSubscription = async (req, res) => {
       isRemoved: isRemoved === true,
       createdBy: req.user.id,
       updatedBy: req.user.id
-    });
+      });
 
     const subscription = await ReportSubscription.findById(createdSubscription._id)
       .populate("business", "name industryType")

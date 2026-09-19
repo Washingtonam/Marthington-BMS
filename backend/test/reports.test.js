@@ -7,6 +7,7 @@ import Product from '../src/modules/products/product.model.js';
 import Transaction from '../src/modules/transactions/transaction.model.js';
 import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
 import { formatReportPeriodLabel, getCompletedReportRange, getLocalDate } from '../src/modules/admin/reportSnapshot.js';
+import { shouldCreateAutomaticReportSubscription } from '../src/jobs/reportEmail.job.js';
 import { sendReportEmail } from '../src/utils/emailService.js';
 import axios from 'axios';
 
@@ -15,6 +16,20 @@ test('Scheduled report dates follow the subscription timezone', () => {
 
   assert.equal(getLocalDate(instant, 'UTC'), '2026-09-18');
   assert.equal(getLocalDate(instant, 'Africa/Lagos'), '2026-09-19');
+});
+
+test('Automatic report schedules are limited to active Pro businesses with notifications enabled', () => {
+  const business = {
+    status: 'active',
+    subscription: { plan: 'pro', status: 'active' },
+    reportNotificationsEnabled: true,
+    owner: { _id: 'owner-1', email: 'owner@example.com' }
+  };
+
+  assert.equal(shouldCreateAutomaticReportSubscription(business, false), true);
+  assert.equal(shouldCreateAutomaticReportSubscription(business, true), false);
+  assert.equal(shouldCreateAutomaticReportSubscription({ ...business, reportNotificationsEnabled: false }, false), false);
+  assert.equal(shouldCreateAutomaticReportSubscription({ ...business, subscription: { plan: 'free', status: 'trial' } }, false), false);
 });
 
 test('Completed report ranges exclude the current local day', () => {

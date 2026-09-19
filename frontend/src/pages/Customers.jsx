@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
 import { createCustomer, getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";

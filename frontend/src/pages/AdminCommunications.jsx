@@ -140,6 +140,58 @@ const AdminCommunications = () => {
     setIsFormOpen(true);
   };
 
+  const updateLocalSchedule = (recipient, frequency, schedule) => {
+    const recipientKey = getRecipientKey(recipient);
+    setSubscriptions((current) => {
+      const next = current.filter((item) => getRecipientKey(item) !== recipientKey || item.frequency !== frequency);
+      return schedule ? [...next, schedule] : next;
+    });
+  };
+
+  const setFrequencyEnabled = async (recipient, frequency, enabled) => {
+    const schedule = recipient.schedules.find((item) => item.frequency === frequency);
+    try {
+      setSaving(true);
+      if (enabled) {
+        const response = schedule?._id
+          ? await request(`/admin/report-subscriptions/${schedule._id}`, { method: "PATCH", body: JSON.stringify({ status: "enabled" }) })
+          : await request("/admin/report-subscriptions", { method: "POST", body: JSON.stringify({
+            recipientName: recipient.recipientName,
+            recipientEmail: recipient.recipientEmail,
+            businessId: recipient.business?._id || recipient.business,
+            reportType: recipient.reportType || "overview",
+            reportSections: recipient.reportSections || defaultSections,
+            frequency,
+            sendTime: recipient.schedules[0]?.sendTime || "18:00",
+            timezone: recipient.schedules[0]?.timezone || "Africa/Lagos",
+            status: "enabled"
+          }) });
+        updateLocalSchedule(recipient, frequency, response.subscription);
+      } else if (schedule?._id) {
+        const response = await request(`/admin/report-subscriptions/${schedule._id}`, { method: "PATCH", body: JSON.stringify({ status: "admin_disabled" }) });
+        updateLocalSchedule(recipient, frequency, response.subscription);
+      } else if (recipient.isAutomatic && frequency === "daily") {
+        await request("/admin/report-subscriptions", { method: "POST", body: JSON.stringify({
+          recipientName: recipient.recipientName,
+          recipientEmail: recipient.recipientEmail,
+          businessId: recipient.business?._id || recipient.business,
+          reportType: recipient.reportType || "overview",
+          reportSections: recipient.reportSections || defaultSections,
+          frequency,
+          sendTime: recipient.schedules[0]?.sendTime || "18:00",
+          timezone: recipient.schedules[0]?.timezone || "Africa/Lagos",
+          status: "admin_disabled",
+          isRemoved: true
+        }) });
+        setSubscriptions((current) => current.filter((item) => getRecipientKey(item) !== getRecipientKey(recipient)));
+      }
+    } catch (error) {
+      alert(error.message || "Failed to update report frequency");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const create = async (event) => {
     event.preventDefault();
     if (!form.frequencies.length || !form.reportSections.length) {
@@ -220,6 +272,33 @@ const AdminCommunications = () => {
     } catch (error) { alert(error.message || "Failed to remove recipient"); }
   };
 
+  const removeRecipient = async (recipient) => {
+    if (!window.confirm(`Remove all report schedules for ${recipient.recipientEmail}? This can be restored by checking a frequency again.`)) return;
+    try {
+      setSaving(true);
+      const schedules = recipient.schedules.filter((item) => item._id);
+      if (schedules.length) {
+        await Promise.all(schedules.map((schedule) => request(`/admin/report-subscriptions/${schedule._id}`, { method: "DELETE" })));
+      } else {
+        await request("/admin/report-subscriptions", { method: "POST", body: JSON.stringify({
+          recipientEmail: recipient.recipientEmail,
+          recipientName: recipient.recipientName,
+          businessId: recipient.business?._id || recipient.business,
+          reportType: recipient.reportType || "overview",
+          reportSections: recipient.reportSections || defaultSections,
+          frequency: "daily",
+          status: "admin_disabled",
+          isRemoved: true
+        }) });
+      }
+      setSubscriptions((current) => current.filter((item) => getRecipientKey(item) !== getRecipientKey(recipient)));
+    } catch (error) {
+      alert(error.message || "Failed to remove recipient");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return <section className="page-stack mx-auto max-w-7xl">
     <div className="page-heading items-start">
       <div><span className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-600">Super Admin</span><h1 className="mt-2 text-4xl font-extrabold text-slate-900">Communications</h1></div>
@@ -288,7 +367,8 @@ const AdminCommunications = () => {
           <tbody className="divide-y divide-slate-100 bg-white text-xs">
             {filteredRecipients.length === 0 ? <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">No report recipients configured.</td></tr> : filteredRecipients.map((recipient) => {
               const primarySchedule = recipient.schedules.find((item) => item.status === "enabled") || recipient.schedules[0];
-              const isEnabled = recipient.schedules.some((item) => item.status === "enabled");
+              const isPro = recipient.business?.isPro === true || (recipient.business?.plan === "pro" && recipient.business?.subscription?.status === "active");
+              const isEnabled = recipient.schedules.some((item) => item.status === "enabled") || (recipient.isAutomatic && isPro && recipient.business?.reportNotificationsEnabled !== false);
               const recipientKeyValue = getRecipientKey(recipient);
               return <tr key={recipientKeyValue} className="align-top transition hover:bg-slate-50/80">
                 <td className="px-5 py-4">
@@ -309,6 +389,7 @@ const AdminCommunications = () => {
                     <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
                       <span className="rounded-full bg-slate-100 px-2 py-1">{recipient.business?.name || "General"}</span>
                       <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{formatReportType(recipient.reportType)}</span>
+                      <span className={`rounded-full px-2 py-1 font-bold ${isPro ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>{isPro ? "Pro" : "Free"}</span>
                     </div>
                   </div>
                 </td>
@@ -318,13 +399,16 @@ const AdminCommunications = () => {
                   </span>
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <select value={primarySchedule?.frequency || "daily"} onChange={(event) => openFrequency(recipient, event.target.value)} className="min-w-[110px] rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-emerald-400">
-                      {frequencies.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
-                    <span className="text-[10px] text-slate-400">{primarySchedule?.sendTime || "18:00"}</span>
+                  <div className="space-y-2">
+                    {frequencies.map(([value, label]) => {
+                      const schedule = recipient.schedules.find((item) => item.frequency === value);
+                      return <label key={value} className="flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold text-slate-700">
+                        <input type="checkbox" checked={schedule?.status === "enabled" || (!schedule && recipient.isAutomatic && isPro && value === "daily")} onChange={(event) => setFrequencyEnabled(recipient, value, event.target.checked)} disabled={saving} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                        {label}
+                      </label>;
+                    })}
                   </div>
-                  <p className="mt-2 text-[10px] text-slate-400">{primarySchedule?.timezone || "Africa/Lagos"}</p>
+                  <p className="mt-2 text-[10px] text-slate-400">{primarySchedule?.sendTime || "18:00"} · {primarySchedule?.timezone || "Africa/Lagos"}</p>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-col gap-1.5">
@@ -340,7 +424,7 @@ const AdminCommunications = () => {
                     <button type="button" onClick={() => { setMenuOpenId(""); sendTest(primarySchedule); }} disabled={!primarySchedule?._id || testingId === primarySchedule?._id} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">{testingId === primarySchedule?._id ? "Sending..." : "Send test"}</button>
                     <button type="button" onClick={() => { setMenuOpenId(""); toggle(primarySchedule); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">{primarySchedule?.status === "enabled" ? "Pause delivery" : "Resume delivery"}</button>
                     <button type="button" onClick={() => { setMenuOpenId(""); openFrequency(recipient, primarySchedule?.frequency || "daily"); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">Edit schedule</button>
-                    <button type="button" onClick={() => { setMenuOpenId(""); remove(primarySchedule); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50">Delete</button>
+                    <button type="button" onClick={() => { setMenuOpenId(""); removeRecipient(recipient); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50">Delete</button>
                   </div>}
                 </td>
               </tr>;

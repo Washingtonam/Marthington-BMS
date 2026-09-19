@@ -208,6 +208,7 @@ export const updateBusiness = async (req, res) => {
       receiptTheme,
       businessType,
       industryType,
+      reportNotificationsEnabled,
       logo,
       approvalRules,
       whatsappEnabled,
@@ -243,6 +244,9 @@ export const updateBusiness = async (req, res) => {
     business.website = website ?? business.website;
     business.supportEmail = supportEmail ?? business.supportEmail;
     business.supportPhone = supportPhone ?? business.supportPhone;
+    business.reportNotificationsEnabled = reportNotificationsEnabled !== undefined
+      ? String(reportNotificationsEnabled) !== "false"
+      : business.reportNotificationsEnabled !== false;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;

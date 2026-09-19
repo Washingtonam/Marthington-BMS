@@ -4,7 +4,7 @@ import {
   getCachedCollection,
   getOfflineSnapshotCollection,
   queueOperation
-} from "./offlineDb";
+} from "./offlineDb.js";
 
 export const API_URL = "https://marthington.onrender.com/api";
 
@@ -248,7 +248,7 @@ const request = async (path, options = {}) => {
 
     const canQueue = isMutation && !path.startsWith("/auth/") && !path.startsWith("/sales") && isOfflineFailure;
     if (canQueue) {
-      const operationId = await queueOperation({
+      const queuedOperationId = await queueOperation({
         path,
         options,
         entity: path.split("/")[1] || "unknown",
@@ -256,7 +256,7 @@ const request = async (path, options = {}) => {
         operationId,
         businessId: localStorage.getItem("bms_impersonation") || localStorage.getItem("bms_business_id") || null
       });
-      return { success: true, offline: true, pending: true, operationId };
+      return { success: true, offline: true, pending: true, operationId: queuedOperationId };
     }
 
     throw err;

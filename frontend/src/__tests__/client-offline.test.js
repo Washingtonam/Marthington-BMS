@@ -35,7 +35,11 @@ describe('offline mutation policy', () => {
     const offlineDb = await import('../api/offlineDb.js');
 
     global.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    await expect(request('/products', { method: 'POST', body: JSON.stringify({ name: 'Tea' }) })).rejects.toThrow();
+    await expect(request('/products', { method: 'POST', body: JSON.stringify({ name: 'Tea' }) })).resolves.toMatchObject({
+      offline: true,
+      pending: true,
+      success: true,
+    });
 
     expect(offlineDb.queueOperation).toHaveBeenCalledTimes(1);
     expect(offlineDb.queueOperation).toHaveBeenCalledWith(expect.objectContaining({ path: '/products' }));
