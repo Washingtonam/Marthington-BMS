@@ -6,7 +6,7 @@ import AdminTenantDirectory from "../pages/AdminTenantDirectory.jsx";
 
 const mockRequest = vi.fn();
 const mockNavigate = vi.fn();
-const mockStartImpersonation = vi.fn();
+const mockStartAccess = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
@@ -22,7 +22,7 @@ vi.mock("../api/client.js", () => ({
 
 vi.mock("../context/AuthContext.jsx", () => ({
   useAuth: () => ({
-    startImpersonation: mockStartImpersonation,
+    startImpersonation: mockStartAccess,
   }),
 }));
 
@@ -30,7 +30,7 @@ describe("Admin tenant directory", () => {
   beforeEach(() => {
     mockRequest.mockReset();
     mockNavigate.mockReset();
-    mockStartImpersonation.mockReset();
+    mockStartAccess.mockReset();
     window.confirm = vi.fn(() => true);
 
     mockRequest.mockImplementation((path, options = {}) => {
@@ -81,5 +81,20 @@ describe("Admin tenant directory", () => {
         })
       );
     });
+  });
+
+  it("accesses a business account from the directory", async () => {
+    render(
+      <MemoryRouter>
+        <AdminTenantDirectory />
+      </MemoryRouter>
+    );
+
+    const accessButton = await screen.findByRole("button", { name: "Access Account" });
+    fireEvent.click(accessButton);
+
+    expect(mockStartAccess).toHaveBeenCalledWith("biz1");
+    expect(mockNavigate).toHaveBeenCalledWith("/app");
+    expect(screen.queryByRole("button", { name: "Impersonate" })).toBeNull();
   });
 });

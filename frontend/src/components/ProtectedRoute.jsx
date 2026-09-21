@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const ProtectedRoute = ({ children, requiredRole, requiredIndustry }) => {
-  const { isAuthenticated, user, industryType } = useAuth();
+  const { isAuthenticated, user, industryType, impersonatedBusiness } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -12,7 +12,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry }) => {
     return <Navigate to="/partners/dashboard" replace />;
   }
 
-  if (user?.role === "super_admin" && requiredRole !== "super_admin") {
+  if (user?.role === "super_admin" && !impersonatedBusiness && requiredRole !== "super_admin") {
     return <Navigate to="/admin" replace />;
   }
 
