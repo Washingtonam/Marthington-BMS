@@ -540,14 +540,14 @@ useEffect(() => {
       </div>
 
       {/* RIGHT COLUMN: CART */}
-      <div ref={cartPanelRef} className={`${cartOpen ? "block" : "hidden"} fixed inset-x-2 bottom-20 z-40 max-h-[calc(100vh-6rem)] min-w-0 overflow-y-auto scroll-mt-4 lg:block lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:max-h-none lg:overflow-visible`}>
+      <div ref={cartPanelRef} className={`${cartOpen ? "block" : "hidden"} fixed inset-x-2 bottom-20 z-40 max-h-[calc(100dvh-6rem)] min-w-0 overflow-hidden scroll-mt-4 lg:block lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:max-h-none`}>
         {selectedBranch && branchInventory.length === 0 && (
           <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
             No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
           </div>
         )}
-        <div className="rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900 lg:flex lg:h-full lg:flex-col">
-          <div className="mb-6 flex items-center justify-between">
+        <div className="flex h-full min-h-0 flex-col rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-6 flex shrink-0 items-center justify-between">
             <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Cart</h2>
             <div className="flex items-center gap-2">
               <button onClick={() => setCart([])} className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 dark:bg-rose-950/40 dark:text-rose-300">Clear</button>
@@ -555,43 +555,44 @@ useEffect(() => {
             </div>
           </div>
 
-          <div className="mb-6 max-h-[35vh] space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-            {cart.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-slate-100 py-10 text-center dark:border-slate-700">
-                <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-300 dark:text-slate-500">Cart is empty</p>
-              </div>
-            ) : (
-              cart.map(item => (
-                <div key={item._id} className="cart-item rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-                  <div className="mb-2 flex items-start justify-between gap-2">
-                    <span className="flex-1 text-xs font-semibold text-slate-700 dark:text-slate-200">{formatDisplayText(item.name)}</span>
-                    <span className="ml-2 text-sm font-black text-slate-900 dark:text-slate-100">{formatCurrency(item.quantity * item.sellingPrice)}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="cart-stepper flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm dark:border-slate-600 dark:bg-slate-700">
-                      <button onClick={() => updateQty(item._id, item.quantity - 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">-</button>
-                      <span className="w-4 text-center text-xs font-black text-slate-700 dark:text-slate-200">{item.quantity}</span>
-                      <button onClick={() => updateQty(item._id, item.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">+</button>
-                    </div>
-                    
-                    {canOverride && (
-                      <input 
-                        type="number" 
-                        value={item.sellingPrice}
-                        onChange={(e) => {
-                          const newPrice = Number(e.target.value);
-                          setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: newPrice} : i));
-                        }}
-                        className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                      />
-                    )}
-                  </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+            <div className="mb-6 space-y-3 pr-1">
+              {cart.length === 0 ? (
+                <div className="rounded-2xl border-2 border-dashed border-slate-100 py-10 text-center dark:border-slate-700">
+                  <p className="text-xs font-black uppercase tracking-[0.35em] text-slate-300 dark:text-slate-500">Cart is empty</p>
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                cart.map(item => (
+                  <div key={item._id} className="cart-item rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <span className="flex-1 text-xs font-semibold text-slate-700 dark:text-slate-200">{formatDisplayText(item.name)}</span>
+                      <span className="ml-2 text-sm font-black text-slate-900 dark:text-slate-100">{formatCurrency(item.quantity * item.sellingPrice)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="cart-stepper flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm dark:border-slate-600 dark:bg-slate-700">
+                        <button onClick={() => updateQty(item._id, item.quantity - 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">-</button>
+                        <span className="w-4 text-center text-xs font-black text-slate-700 dark:text-slate-200">{item.quantity}</span>
+                        <button onClick={() => updateQty(item._id, item.quantity + 1)} className="flex h-7 w-7 items-center justify-center rounded-xl font-black text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-600 dark:hover:text-white">+</button>
+                      </div>
 
-          <div className="space-y-3 border-t border-dashed border-slate-200 pt-4 dark:border-slate-700">
+                      {canOverride && (
+                        <input
+                          type="number"
+                          value={item.sellingPrice}
+                          onChange={(e) => {
+                            const newPrice = Number(e.target.value);
+                            setCart(c => c.map(i => i._id === item._id ? {...i, sellingPrice: newPrice} : i));
+                          }}
+                          className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="space-y-3 border-t border-dashed border-slate-200 pt-4 dark:border-slate-700">
             <div className="grid grid-cols-2 gap-2">
               <input 
                 list="customer-list"
@@ -691,6 +692,7 @@ useEffect(() => {
             >
               {processing ? "PROCESSING..." : "CONFIRM & PRINT"}
             </button>
+            </div>
           </div>
         </div>
       </div>
