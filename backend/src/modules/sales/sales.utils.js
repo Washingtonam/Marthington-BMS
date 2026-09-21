@@ -16,6 +16,8 @@ export const normalizePaymentMethod = (value = "cash") => {
 
 export const isCreditPayment = (value) => normalizePaymentMethod(value) === "credit";
 
+export const shouldCreateInvoiceForSale = (paymentMethod) => isCreditPayment(paymentMethod);
+
 export const buildProductCompensationEntries = (sale = {}, { businessId, branchId = null, createdBy = null, type = 'return', notePrefix = 'Sale reversal' } = {}) => {
   if (!sale || !Array.isArray(sale.items)) {
     return [];

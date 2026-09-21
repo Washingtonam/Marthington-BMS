@@ -8,10 +8,13 @@ import Supplier from "../suppliers/supplier.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Payment from "../payments/payment.model.js";
+import Sale from "../sales/sale.model.js";
+import Transaction from "../transactions/transaction.model.js";
 import EmailHistory from "../../models/emailHistory.model.js";
 import { sendInvoiceCreatedEmail, sendPaymentReceivedEmail, sendInvoiceSharedEmail } from "../../utils/emailService.js";
 import { getOutgoingStockDelta, validateOutgoingStockAvailability } from "./invoice.stock.js";
-import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
+import { canAccessBranch, getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
+import { buildSaleLedgerEntry } from "../sales/sales.utils.js";
 
 const generateInvoiceNumber = async (businessId) => {
   const now = new Date();
@@ -56,10 +59,12 @@ const calculatePaymentStatus = ({ totalAmount, amountPaid, returnedAmount = 0 })
   return "Unpaid";
 };
 
+const hasInvoiceBranchAccess = (invoice, user, action = "view") =>
+  canAccessBranch(user, invoice?.branch?.toString() || null, action);
+
 const createInvoice = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
-
   try {
     const {
       transactionType = "outgoing",
@@ -87,11 +92,20 @@ const createInvoice = async (req, res) => {
     const subtotal = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const totalAmount = subtotal + Number(tax || 0) - Number(discount || 0);
     const returnedAmount = 0;
-    const balanceDue = Math.max(0, totalAmount - Number(amountPaid || 0));
-    const paymentStatus = calculatePaymentStatus({ totalAmount, amountPaid, returnedAmount });
+    const numericAmountPaid = Number(amountPaid || 0);
+    if (!Number.isFinite(numericAmountPaid) || numericAmountPaid < 0 || numericAmountPaid > totalAmount) {
+      throw new Error("Initial payment must be between zero and the invoice total.");
+    }
+    const balanceDue = Math.max(0, totalAmount - numericAmountPaid);
+    const paymentStatus = calculatePaymentStatus({ totalAmount, amountPaid: numericAmountPaid, returnedAmount });
 
     if (transactionType === "incoming" && !supplier) {
       throw new Error("Supplier must be provided for incoming supplier invoices.");
+    }
+
+    if (transactionType === "outgoing" && customer) {
+      const customerRecord = await Customer.findOne({ _id: customer, business: businessId }).session(session);
+      if (!customerRecord) throw new Error("Customer record not found for outgoing customer invoice.");
     }
 
     const processedItems = [];
@@ -139,9 +153,13 @@ const createInvoice = async (req, res) => {
         returnQuantity: 0,
         returnAmount: 0,
         receivedQuantity: transactionType === "incoming" ? Number(item.quantity || 0) : 0,
-        soldQuantity: transactionType === "outgoing" ? Number(item.quantity || 0) : 0,
-        supplierCreditStatus: transactionType === "incoming" ? "Unpaid" : null,
-        supplierBatchLabel: transactionType === "incoming" ? "Supplier Credit - Unpaid" : ""
+        soldQuantity: 0,
+        supplierCreditStatus: transactionType === "incoming"
+          ? (balanceDue === 0 ? "Fully Paid" : numericAmountPaid > 0 ? "Partially Paid" : "Unpaid")
+          : null,
+        supplierBatchLabel: transactionType === "incoming"
+          ? `Supplier Credit - ${balanceDue === 0 ? "Fully Paid" : numericAmountPaid > 0 ? "Partially Paid" : "Unpaid"}`
+          : ""
       };
 
       if (item.service) {
@@ -238,15 +256,17 @@ const createInvoice = async (req, res) => {
           tax,
           discount,
           totalAmount,
-          amountPaid: Number(amountPaid || 0),
+          amountPaid: numericAmountPaid,
           balance: balanceDue,
           balanceDue,
           returnedAmount,
           paymentStatus,
+          status: balanceDue === 0 ? "paid" : numericAmountPaid > 0 ? "partial" : "draft",
           dueDate,
           notes,
           invoiceType,
-          invoiceNumber
+          invoiceNumber,
+          fulfillmentStatus: transactionType === "outgoing" ? "pending_pickup" : "not_applicable"
         }
       ],
       { session }
@@ -267,6 +287,21 @@ const createInvoice = async (req, res) => {
       if (!supplierRecord) {
         throw new Error("Supplier record not found for incoming supplier invoice.");
       }
+      supplierRecord.totalPurchases = Number(supplierRecord.totalPurchases || 0) + totalAmount;
+      supplierRecord.outstandingBalance = Number(supplierRecord.outstandingBalance || 0) + balanceDue;
+      await supplierRecord.save({ session });
+    }
+
+    if (numericAmountPaid > 0) {
+      await Payment.create([{
+        business: businessId,
+        invoice: createdInvoice._id,
+        paymentMethod: "other",
+        amount: numericAmountPaid,
+        notes: "Initial payment recorded with invoice creation",
+        createdBy: req.user.id,
+        status: "confirmed"
+      }], { session });
     }
 
     await session.commitTransaction();
@@ -315,6 +350,12 @@ const returnInvoiceItem = async (req, res) => {
 
     if (!invoice) {
       return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You do not have access to this invoice" });
     }
 
     if (invoice.transactionType !== "outgoing") {
@@ -515,6 +556,198 @@ const finalizeInvoiceStockDeduction = async ({ invoice, userId, session }) => {
   }
 };
 
+const generatePickupReceiptId = () => `PICKUP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+
+const completeInvoicePickup = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const invoice = await Invoice.findOne({
+      _id: req.params.invoiceId,
+      business: req.user.businessId
+    }).session(session);
+
+    if (!invoice) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
+    if (invoice.transactionType !== "outgoing") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Only customer invoices can be completed as pickups" });
+    }
+
+    if (invoice.fulfillmentStatus === "collected" || invoice.linkedSale) {
+      const existingSale = invoice.linkedSale ? await Sale.findById(invoice.linkedSale).session(session) : null;
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(409).json({ message: "This invoice has already been collected", sale: existingSale });
+    }
+
+    if (invoice.fulfillmentStatus === "cancelled") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Cancelled invoices cannot be collected" });
+    }
+
+    const saleItems = [];
+    for (const item of invoice.items || []) {
+      const quantity = Number(item.quantity || 0);
+      if (quantity <= 0) continue;
+
+      if (item.product) {
+        const product = await Product.findById(item.product).session(session);
+        if (!product) throw new Error(`Product not found for invoice item ${item.name}`);
+
+        if (invoice.branch) {
+          const inventory = await BranchInventory.findOneAndUpdate(
+            { business: invoice.business, branch: invoice.branch, product: product._id, quantity: { $gte: quantity } },
+            { $inc: { quantity: -quantity } },
+            { new: true, session }
+          );
+          if (!inventory) throw new Error(`Insufficient branch stock for ${product.name}`);
+          const previousStock = Number(inventory.quantity || 0) + quantity;
+          await InventoryMovement.create([{
+            business: invoice.business,
+            branch: invoice.branch,
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock,
+            newStock: Number(inventory.quantity || 0),
+            note: `Invoice pickup: ${invoice.invoiceNumber}`,
+            createdBy: req.user.id
+          }], { session });
+        } else {
+          const updatedProduct = await Product.findOneAndUpdate(
+            { _id: product._id, business: invoice.business, stock: { $gte: quantity } },
+            { $inc: { stock: -quantity } },
+            { new: true, session }
+          );
+          if (!updatedProduct) throw new Error(`Insufficient stock for ${product.name}`);
+          await InventoryMovement.create([{
+            business: invoice.business,
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock: Number(updatedProduct.stock || 0) + quantity,
+            newStock: Number(updatedProduct.stock || 0),
+            note: `Invoice pickup: ${invoice.invoiceNumber}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+
+        saleItems.push({
+          itemType: "product",
+          product: product._id,
+          name: item.name || product.name,
+          quantity,
+          costPrice: Number(product.costPrice || 0),
+          sellingPrice: Number(item.price || 0),
+          total: Number(item.total || 0)
+        });
+      } else {
+        saleItems.push({
+          itemType: "service",
+          name: item.name,
+          quantity,
+          costPrice: 0,
+          sellingPrice: Number(item.price || 0),
+          total: Number(item.total || 0)
+        });
+      }
+    }
+
+    if (!saleItems.length) throw new Error("Invoice has no collectible items");
+
+    const sale = await Sale.create([{
+      items: saleItems,
+      totalAmount: Number(invoice.totalAmount || 0),
+      paymentMethod: Number(invoice.balanceDue || 0) > 0 ? "credit" : "other",
+      paymentStatus: "verified",
+      business: invoice.business,
+      branch: invoice.branch,
+      createdBy: req.user.id,
+      customer: invoice.customer,
+      customerName: invoice.customerName || "Walk-in",
+      customerPhone: invoice.customerPhone || "",
+      invoice: invoice._id,
+      receiptId: generatePickupReceiptId(),
+      status: "posted"
+    }], { session }).then(result => result[0]);
+
+    invoice.fulfillmentStatus = "collected";
+    invoice.fulfilledAt = new Date();
+    invoice.fulfilledBy = req.user.id;
+    invoice.linkedSale = sale._id;
+    invoice.stockFinalized = true;
+    for (const item of invoice.items || []) item.soldQuantity = item.quantity;
+    await invoice.save({ session });
+
+    await Transaction.create([
+      buildSaleLedgerEntry({
+        sale,
+        businessId: invoice.business,
+        createdBy: req.user.id,
+        status: "posted",
+        notePrefix: "Invoice pickup"
+      })
+    ], { session });
+
+    if (invoice.customer) {
+      await Customer.findOneAndUpdate(
+        { _id: invoice.customer, business: invoice.business },
+        {
+          $inc: {
+            totalSpent: invoice.totalAmount,
+            totalOrders: 1,
+            loyaltyPoints: Math.floor(Number(invoice.totalAmount || 0) / 1000)
+          },
+          $set: { lastPurchaseAt: new Date() }
+        },
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    const populatedInvoice = await Invoice.findById(invoice._id)
+      .populate("customer", "name phone email outstandingBalance")
+      .populate("supplier", "name phone email isActive")
+      .populate("linkedSale");
+    res.json({ invoice: populatedInvoice, sale });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getInvoicePayments = async (req, res) => {
+  try {
+    const invoice = await Invoice.findOne({ _id: req.params.invoiceId, business: req.user.businessId });
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    if (!hasInvoiceBranchAccess(invoice, req.user, "view")) {
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+    const payments = await Payment.find({ invoice: invoice._id, business: req.user.businessId })
+      .sort({ createdAt: -1 });
+    res.json({ payments });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const updateInvoicePayment = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -522,22 +755,34 @@ const updateInvoicePayment = async (req, res) => {
   try {
     const { invoiceId } = req.params;
     const { paymentAmount = 0, paymentMethod = "cash", referenceNumber = "", notes = "" } = req.body;
+    const numericPaymentAmount = Number(paymentAmount);
 
     const invoice = await Invoice.findOne({ _id: invoiceId, business: req.user.businessId }).session(session);
     if (!invoice) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Invoice not found" });
     }
 
-    if (paymentAmount <= 0) {
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
+    if (!Number.isFinite(numericPaymentAmount) || numericPaymentAmount <= 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Payment amount must be greater than zero" });
     }
 
-    if (invoice.transactionType === "outgoing" && invoice.status !== "paid" && invoice.stockFinalized !== true) {
-      await finalizeInvoiceStockDeduction({ invoice, userId: req.user.id, session });
-      invoice.stockFinalized = true;
+    if (numericPaymentAmount > Number(invoice.balanceDue || 0)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Payment amount cannot exceed the invoice balance due" });
     }
 
-    invoice.amountPaid = Number(invoice.amountPaid || 0) + Number(paymentAmount || 0);
+    invoice.amountPaid = Number(invoice.amountPaid || 0) + numericPaymentAmount;
     invoice.balanceDue = Math.max(0, invoice.totalAmount - invoice.amountPaid - invoice.returnedAmount);
     invoice.balance = invoice.balanceDue;
     invoice.paymentStatus = calculatePaymentStatus({
@@ -559,7 +804,7 @@ const updateInvoicePayment = async (req, res) => {
         business: req.user.businessId,
         invoice: invoiceId,
         paymentMethod,
-        amount: Number(paymentAmount || 0),
+        amount: numericPaymentAmount,
         referenceNumber,
         notes,
         createdBy: req.user.id,
@@ -570,8 +815,26 @@ const updateInvoicePayment = async (req, res) => {
     if (invoice.transactionType === "outgoing" && invoice.customer) {
       await Customer.findOneAndUpdate(
         { _id: invoice.customer, business: req.user.businessId },
-        { $inc: { outstandingBalance: -Math.min(paymentAmount, invoice.amountPaid) } },
-        { new: true }
+        { $inc: { outstandingBalance: -Math.min(numericPaymentAmount, invoice.amountPaid) } },
+        { new: true, session }
+      );
+    }
+
+    if (invoice.transactionType === "incoming" && invoice.supplier) {
+      const itemPaymentStatus = invoice.balanceDue === 0
+        ? "Fully Paid"
+        : invoice.amountPaid > 0
+          ? "Partially Paid"
+          : "Unpaid";
+      for (const item of invoice.items || []) {
+        item.supplierCreditStatus = itemPaymentStatus;
+        item.supplierBatchLabel = `Supplier Credit - ${itemPaymentStatus}`;
+      }
+      await invoice.save({ session });
+      await Supplier.findOneAndUpdate(
+        { _id: invoice.supplier, business: req.user.businessId },
+        { $inc: { outstandingBalance: -numericPaymentAmount, totalPaid: numericPaymentAmount } },
+        { new: true, session }
       );
     }
 
@@ -592,7 +855,7 @@ const updateInvoicePayment = async (req, res) => {
           businessId: req.user.businessId,
           invoiceId: invoice._id,
           invoiceNumber: invoice.invoiceNumber,
-          paymentAmount: `$${paymentAmount.toFixed(2)}`,
+          paymentAmount: `$${numericPaymentAmount.toFixed(2)}`,
           paymentDate: new Date().toLocaleDateString(),
           remainingBalance: `$${invoice.balanceDue.toFixed(2)}`,
           invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${invoice._id}`,
@@ -610,10 +873,21 @@ const updateInvoicePayment = async (req, res) => {
 };
 
 const updateInvoice = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const invoice = await Invoice.findOne({ _id: req.params.id, business: req.user.businessId });
+    const invoice = await Invoice.findOne({ _id: req.params.id, business: req.user.businessId }).session(session);
     if (!invoice) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You do not have access to this invoice" });
     }
 
     const allowedFields = [
@@ -639,7 +913,28 @@ const updateInvoice = async (req, res) => {
     });
 
     if (Object.keys(updates).length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "No valid invoice fields provided" });
+    }
+
+    if ((invoice.fulfillmentStatus === "collected" || invoice.stockFinalized || invoice.status === "paid") &&
+        ["items", "tax", "discount"].some(field => updates[field] !== undefined)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Fulfilled or paid invoices cannot change items or totals" });
+    }
+
+    if (updates.status === "paid" && Number(invoice.balanceDue || 0) > 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "An invoice cannot be marked paid while a balance remains" });
+    }
+
+    if (updates.status === "cancelled" && Number(invoice.amountPaid || 0) > 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Invoices with payments cannot be cancelled" });
     }
 
     Object.assign(invoice, updates);
@@ -658,16 +953,27 @@ const updateInvoice = async (req, res) => {
       returnedAmount: invoice.returnedAmount
     });
 
-    await invoice.save();
+    await invoice.save({ session });
 
     const balanceDiff = invoice.balanceDue - originalBalanceDue;
     if (invoice.transactionType === "outgoing" && invoice.customer && balanceDiff !== 0) {
       await Customer.findOneAndUpdate(
         { _id: invoice.customer, business: req.user.businessId },
         { $inc: { outstandingBalance: balanceDiff } },
-        { new: true }
+        { new: true, session }
       );
     }
+
+    if (invoice.transactionType === "incoming" && invoice.supplier && balanceDiff !== 0) {
+      await Supplier.findOneAndUpdate(
+        { _id: invoice.supplier, business: req.user.businessId },
+        { $inc: { outstandingBalance: balanceDiff } },
+        { new: true, session }
+      );
+    }
+
+    await session.commitTransaction();
+    session.endSession();
 
     const populatedInvoice = await Invoice.findById(invoice._id)
       .populate("customer", "name phone email outstandingBalance")
@@ -675,6 +981,8 @@ const updateInvoice = async (req, res) => {
 
     res.json(populatedInvoice);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({ message: err.message });
   }
 };
@@ -691,10 +999,30 @@ const deleteInvoice = async (req, res) => {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
+    if (invoice.fulfillmentStatus === "collected" || invoice.stockFinalized) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Collected invoices cannot be deleted" });
+    }
+
     if (invoice.transactionType === "outgoing" && invoice.customer) {
       await Customer.findOneAndUpdate(
         { _id: invoice.customer, business: req.user.businessId },
         { $inc: { outstandingBalance: -invoice.balanceDue } },
+        { new: true, session }
+      );
+    }
+
+    if (invoice.transactionType === "incoming" && invoice.supplier) {
+      await Supplier.findOneAndUpdate(
+        { _id: invoice.supplier, business: req.user.businessId },
+        { $inc: { outstandingBalance: -Number(invoice.balanceDue || 0), totalPurchases: -Number(invoice.totalAmount || 0), totalPaid: -Number(invoice.amountPaid || 0) } },
         { new: true, session }
       );
     }
@@ -760,6 +1088,7 @@ const deleteInvoice = async (req, res) => {
     }
 
     await Invoice.deleteOne({ _id: invoice._id, business: req.user.businessId }).session(session);
+    await Payment.deleteMany({ invoice: invoice._id, business: req.user.businessId }).session(session);
 
     await session.commitTransaction();
     session.endSession();
@@ -816,9 +1145,10 @@ const getInvoiceById =
     try {
 
       const invoice =
-        await Invoice.findById(
-          req.params.id
-        )
+        await Invoice.findOne({
+          _id: req.params.id,
+          business: req.user.businessId
+        })
 
         .populate(
           "business"
@@ -910,6 +1240,10 @@ const shareInvoice = async (req, res) => {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
+    if (!hasInvoiceBranchAccess(invoice, req.user, "view")) {
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
     // Send invoice share email
     const sent = await sendInvoiceSharedEmail({
       recipientEmail,
@@ -952,6 +1286,10 @@ const getInvoiceEmailHistory = async (req, res) => {
       return res.status(404).json({ message: "Invoice not found" });
     }
 
+    if (!hasInvoiceBranchAccess(invoice, req.user, "view")) {
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
     // Get email history for this invoice
     const emailHistory = await EmailHistory.find({
       invoice: invoiceId,
@@ -973,6 +1311,8 @@ const getInvoiceEmailHistory = async (req, res) => {
 export default {
   createInvoice,
   updateInvoicePayment,
+  completeInvoicePickup,
+  getInvoicePayments,
   updateInvoice,
   deleteInvoice,
   returnInvoiceItem,

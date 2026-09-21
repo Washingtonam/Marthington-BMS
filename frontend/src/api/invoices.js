@@ -24,6 +24,12 @@ export const updateInvoicePayment = (invoiceId, paymentAmount, paymentMethod = "
     body: JSON.stringify({ paymentAmount, paymentMethod, referenceNumber, notes })
   });
 
+export const completeInvoicePickup = (invoiceId) =>
+  request(`/invoices/${invoiceId}/complete-pickup`, { method: "POST" });
+
+export const getInvoicePayments = (invoiceId) =>
+  request(`/invoices/${invoiceId}/payments`);
+
 export const updateInvoice = (invoiceId, data) =>
   request(`/invoices/${invoiceId}`, {
     method: "PUT",

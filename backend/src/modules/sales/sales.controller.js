@@ -18,6 +18,7 @@ import {
   getCustomerSaleImpact,
   normalizePaymentMethod,
   isCreditPayment,
+  shouldCreateInvoiceForSale,
   isDuplicateKeyError,
   isTransactionAbortedError,
   normalizeSaleErrorMessage
@@ -281,8 +282,8 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         await customer.save({ session });
       }
 
-      // 🔥 6. AUTO-CREATE INVOICE FROM SALE
-      try {
+      if (shouldCreateInvoiceForSale(normalizedPaymentMethod)) {
+        try {
         const invoiceItems = items.map(item => ({
           product: item.product || null,
           name: item.name,
@@ -323,6 +324,11 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
               returnedAmount: 0,
               paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
               status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
+              fulfillmentStatus: "collected",
+              fulfilledAt: new Date(),
+              fulfilledBy: req.user.id,
+              linkedSale: sale[0]._id,
+              stockFinalized: true,
               invoiceType: "invoice",
               invoiceNumber
             }], { session }).then(res => res[0]);
@@ -347,9 +353,10 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         if (!invoiceNumber && lastInvoiceError) {
           throw lastInvoiceError;
         }
-      } catch (invoiceErr) {
-        console.error("Failed to create linked invoice:", invoiceErr);
-        // Don't fail the sale if invoice creation fails.
+        } catch (invoiceErr) {
+          console.error("Failed to create linked invoice:", invoiceErr);
+          // Don't fail the sale if invoice creation fails.
+        }
       }
 
       if (transactionStarted && session.inTransaction()) {

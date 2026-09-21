@@ -179,6 +179,29 @@ const invoiceSchema =
       default: false
     },
 
+    fulfillmentStatus: {
+      type: String,
+      enum: ["pending_pickup", "collected", "cancelled", "not_applicable"],
+      default: "pending_pickup"
+    },
+
+    fulfilledAt: {
+      type: Date,
+      default: null
+    },
+
+    fulfilledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+
+    linkedSale: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Sale",
+      default: null
+    },
+
     status: {
       type: String,
 
@@ -187,7 +210,8 @@ const invoiceSchema =
         "sent",
         "partial",
         "paid",
-        "overdue"
+        "overdue",
+        "cancelled"
       ],
 
       default: "draft"

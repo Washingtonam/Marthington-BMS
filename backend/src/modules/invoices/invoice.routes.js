@@ -24,6 +24,20 @@ router.put(
   invoiceController.updateInvoicePayment
 );
 
+router.post(
+  "/:invoiceId/complete-pickup",
+  protect,
+  checkPermission("canManageInvoices"),
+  invoiceController.completeInvoicePickup
+);
+
+router.get(
+  "/:invoiceId/payments",
+  protect,
+  checkPermission("canViewInvoices"),
+  invoiceController.getInvoicePayments
+);
+
 router.put(
   "/:id",
   protect,

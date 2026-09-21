@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory } from "../api/invoices.js";
+import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
 import { getServices } from "../api/services.js";
 import { getCustomers, createCustomer } from "../api/customers.js";
+import { getSuppliers } from "../api/suppliers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 
@@ -66,6 +67,7 @@ const Invoices = () => {
   const [newInvoiceModalOpen, setNewInvoiceModalOpen] = useState(false);
   const [isInvoiceDrawerMounted, setIsInvoiceDrawerMounted] = useState(false);
   const [customers, setCustomers] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [customerLookupOpen, setCustomerLookupOpen] = useState(false);
   const [customerCreationOpen, setCustomerCreationOpen] = useState(false);
   const [customerCreating, setCustomerCreating] = useState(false);
@@ -79,6 +81,7 @@ const Invoices = () => {
     transactionType: "outgoing",
     branch: "",
     customer: "",
+    supplier: "",
     customerName: "",
     customerPhone: "",
     customerEmail: "",
@@ -259,6 +262,7 @@ const Invoices = () => {
       transactionType: "outgoing",
       branch: userBranchId || "",
       customer: "",
+      supplier: "",
       customerName: "",
       customerPhone: "",
       customerEmail: "",
@@ -276,6 +280,13 @@ const Invoices = () => {
     } catch (err) {
       console.error("Failed to load customers:", err);
       setCustomers([]);
+    }
+    try {
+      const data = await getSuppliers();
+      setSuppliers(Array.isArray(data) ? data : data?.suppliers || []);
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+      setSuppliers([]);
     }
     setProductSearch("");
     setProductDropdownIndex(null);
@@ -455,7 +466,7 @@ const Invoices = () => {
   };
 
   const handleCreateInvoice = async () => {
-    const { items = [], customer, customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
+    const { items = [], customer, supplier, customerName, customerPhone, customerEmail, dueDate, notes, invoiceType, tax, discount, transactionType, branch } = newInvoiceDraft;
 
     const validItems = items.filter(item => item && (item.product || item.service || item.name));
     if (!validItems.length) {
@@ -481,12 +492,18 @@ const Invoices = () => {
       };
     });
 
+    if (transactionType === "incoming" && !supplier) {
+      alert("Select a supplier for an incoming invoice.");
+      return;
+    }
+
     try {
       setCreatingInvoice(true);
       const invoice = await createInvoice({
         transactionType,
         branch: branch || null,
         customer: customer || null,
+        supplier: supplier || null,
         customerName,
         customerPhone,
         customerEmail,
@@ -504,6 +521,7 @@ const Invoices = () => {
         transactionType: "outgoing",
         branch: userBranchId || "",
         customer: "",
+        supplier: "",
         customerName: "",
         customerPhone: "",
         customerEmail: "",
@@ -539,6 +557,20 @@ const Invoices = () => {
     setPaymentInvoice(invoice);
     setPaymentAmount(String(invoice.balanceDue || invoice.totalAmount || 0));
     setPaymentModalOpen(true);
+    getInvoicePayments(invoice._id)
+      .then(data => {
+        const records = Array.isArray(data) ? data : data?.payments || [];
+        setPaymentHistory(prev => ({
+          ...prev,
+          [invoice._id]: records.map(record => ({
+            date: record.createdAt,
+            amount: record.amount,
+            method: record.paymentMethod,
+            reference: record.referenceNumber
+          }))
+        }));
+      })
+      .catch(err => console.error("Failed to load payment history:", err));
   };
 
   const handleClosePaymentModal = () => {
@@ -597,11 +629,25 @@ const Invoices = () => {
         setPdfInvoice(null);
       }
       
-      alert("Payment recorded successfully! Stock has been deducted from inventory.");
+      alert("Payment recorded successfully. Stock will be updated when the customer collects the invoice.");
       handleClosePaymentModal();
     } catch (err) {
       console.error("Failed to log payment:", err);
       alert("Unable to record payment. Please try again.");
+    }
+  };
+
+  const handleCompletePickup = async (invoice) => {
+    if (!confirm(`Complete pickup for invoice ${invoice.invoiceNumber || ""}? This will record the sale and deduct stock.`)) return;
+
+    try {
+      const result = await completeInvoicePickup(invoice._id);
+      const updatedInvoice = result.invoice || result;
+      setInvoices(prev => prev.map(item => item._id === updatedInvoice._id ? updatedInvoice : item));
+      alert("Pickup completed and sale recorded successfully.");
+    } catch (err) {
+      console.error("Failed to complete invoice pickup:", err);
+      alert(err.message || "Unable to complete pickup.");
     }
   };
 
@@ -918,7 +964,7 @@ const Invoices = () => {
             >
               <option value="all">All Statuses</option>
               <option value="draft">Draft</option>
-              <option value="pending">Pending</option>
+              <option value="sent">Sent</option>
               <option value="partial">Partial</option>
               <option value="paid">Paid</option>
               <option value="overdue">Overdue</option>
@@ -1036,7 +1082,7 @@ const Invoices = () => {
                             >
                               🗑️
                             </button>
-                            {invoice.transactionType === "outgoing" && invoice.balanceDue > 0 && ["pending", "draft", "partial", "overdue"].includes(invoice.status) && (
+                            {invoice.balanceDue > 0 && ["sent", "draft", "partial", "overdue"].includes(invoice.status) && (
                               <button
                                 onClick={() => handleOpenPaymentModal(invoice)}
                                 className="px-3 py-1 text-xs font-bold text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
@@ -1045,13 +1091,22 @@ const Invoices = () => {
                                 💰
                               </button>
                             )}
-                            {(invoice.status === "pending" || invoice.status === "draft") && (
+                            {(invoice.status === "sent" || invoice.status === "draft") && (
                               <button
                                 onClick={() => handleMarkAsPaid(invoice._id)}
                                 className="px-3 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                 title="Mark as Paid"
                               >
                                 ✓
+                              </button>
+                            )}
+                            {invoice.transactionType === "outgoing" && (!invoice.fulfillmentStatus || invoice.fulfillmentStatus === "pending_pickup") && (
+                              <button
+                                onClick={() => handleCompletePickup(invoice)}
+                                className="px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Complete pickup and record sale"
+                              >
+                                📦
                               </button>
                             )}
                           </div>
@@ -1319,7 +1374,7 @@ const Invoices = () => {
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   >
                     <option value="draft">Draft</option>
-                    <option value="pending">Pending</option>
+                    <option value="sent">Sent</option>
                     <option value="partial">Partial</option>
                     <option value="paid">Paid</option>
                     <option value="overdue">Overdue</option>
@@ -1542,6 +1597,22 @@ const Invoices = () => {
                     </div>
                   )}
                 </div>
+
+                {newInvoiceDraft.transactionType === "incoming" && (
+                  <label className="space-y-2 text-sm font-bold text-slate-700">
+                    Supplier
+                    <select
+                      value={newInvoiceDraft.supplier}
+                      onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, supplier: e.target.value }))}
+                      className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    >
+                      <option value="">Select supplier</option>
+                      {suppliers.map(supplier => (
+                        <option key={supplier._id} value={supplier._id}>{supplier.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
 
                 <label className="space-y-2 text-sm font-bold text-slate-700">
                   {newInvoiceDraft.transactionType === "incoming" ? "Supplier Email" : "Customer Email"}
