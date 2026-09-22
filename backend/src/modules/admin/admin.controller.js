@@ -484,6 +484,8 @@ const listReportSubscriptions = async (req, res) => {
         reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
         frequency: "daily",
         sendTime: "18:00",
+        weeklyDay: 1,
+        monthlyDay: "last",
         timezone: "Africa/Lagos",
         status: business.subscription?.plan === "pro" && business.subscription?.status === "active" && business.reportNotificationsEnabled !== false ? "enabled" : "admin_disabled",
         isRemoved: false
@@ -505,6 +507,8 @@ const createReportSubscription = async (req, res) => {
       reportSections,
       frequency = "daily",
       sendTime = "18:00",
+      weeklyDay = 1,
+      monthlyDay = "last",
       timezone = "Africa/Lagos",
       status = "enabled",
       isRemoved = false
@@ -520,7 +524,7 @@ const createReportSubscription = async (req, res) => {
     const existingRemovedSubscription = await ReportSubscription.findOne({ business: businessId, recipientEmail, reportType, frequency, isRemoved: true });
     const createdSubscription = existingRemovedSubscription
       ? await ReportSubscription.findByIdAndUpdate(existingRemovedSubscription._id, {
-        recipientName, reportSections, sendTime, timezone, status, isRemoved: isRemoved === true, updatedBy: req.user.id
+        recipientName, reportSections, sendTime, weeklyDay, monthlyDay, timezone, status, isRemoved: isRemoved === true, updatedBy: req.user.id
       }, { new: true, runValidators: true })
       : await ReportSubscription.create({
       recipientEmail,
@@ -530,6 +534,8 @@ const createReportSubscription = async (req, res) => {
       ...(Array.isArray(reportSections) ? { reportSections } : {}),
       frequency,
       sendTime,
+      weeklyDay,
+      monthlyDay,
       timezone,
       status,
       isRemoved: isRemoved === true,
@@ -552,7 +558,7 @@ const createReportSubscription = async (req, res) => {
 
 const updateReportSubscription = async (req, res) => {
   try {
-    const allowedFields = ["recipientName", "reportType", "reportSections", "frequency", "sendTime", "timezone", "status"];
+    const allowedFields = ["recipientName", "reportType", "reportSections", "frequency", "sendTime", "weeklyDay", "monthlyDay", "timezone", "status"];
     const updates = {};
 
     for (const field of allowedFields) {
@@ -588,6 +594,20 @@ const removeReportSubscription = async (req, res) => {
     ).lean();
     if (!subscription) return res.status(404).json({ message: "Report recipient not found" });
     res.json({ message: "Report recipient removed", subscription });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const listReportDeliveryHistory = async (req, res) => {
+  try {
+    const subscription = await ReportSubscription.findById(req.params.id).select("_id").lean();
+    if (!subscription) return res.status(404).json({ message: "Report subscription not found" });
+    const deliveries = await ReportDeliveryLog.find({ subscription: subscription._id })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    res.json({ deliveries });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1607,6 +1627,7 @@ export default {
   createReportSubscription,
   updateReportSubscription,
   removeReportSubscription,
+  listReportDeliveryHistory,
   sendReportSubscriptionTest,
   getEmailHealth,
   unsubscribeReportSubscription,

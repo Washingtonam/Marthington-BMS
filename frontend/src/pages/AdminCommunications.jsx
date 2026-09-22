@@ -11,6 +11,7 @@ const reportSections = [
 ];
 
 const frequencies = [["daily", "Daily"], ["weekly", "Weekly"], ["monthly", "Monthly"]];
+const weekdays = [[0, "Sunday"], [1, "Monday"], [2, "Tuesday"], [3, "Wednesday"], [4, "Thursday"], [5, "Friday"], [6, "Saturday"]];
 const statusFilters = [
   ["all", "All"],
   ["enabled", "Active"],
@@ -19,7 +20,7 @@ const statusFilters = [
 const defaultSections = reportSections.map(([value]) => value);
 const emptyForm = {
   recipientName: "", recipientEmail: "", businessId: "", reportType: "overview",
-  frequencies: ["daily"], reportSections: defaultSections, sendTime: "18:00", timezone: "Africa/Lagos"
+  frequencies: ["daily"], reportSections: defaultSections, sendTimes: { daily: "18:00", weekly: "18:00", monthly: "18:00" }, weeklyDay: 1, monthlyDay: "last", timezone: "Africa/Lagos"
 };
 
 const formatReportType = (reportType) => reportType === "daily-analysis" ? "Daily analysis" : "Business overview";
@@ -133,7 +134,9 @@ const AdminCommunications = () => {
       reportType: recipient.reportType || "overview",
       frequencies: [frequency],
       reportSections: recipient.reportSections || defaultSections,
-      sendTime: recipient.schedules[0]?.sendTime || "18:00",
+      sendTimes: Object.fromEntries(["daily", "weekly", "monthly"].map((value) => [value, recipient.schedules.find((item) => item.frequency === value)?.sendTime || "18:00"])),
+      weeklyDay: schedule?.weeklyDay ?? 1,
+      monthlyDay: schedule?.monthlyDay ?? "last",
       timezone: recipient.schedules[0]?.timezone || "Africa/Lagos"
     });
     setEditingId(schedule?._id || "");
@@ -162,7 +165,9 @@ const AdminCommunications = () => {
             reportType: recipient.reportType || "overview",
             reportSections: recipient.reportSections || defaultSections,
             frequency,
-            sendTime: recipient.schedules[0]?.sendTime || "18:00",
+            sendTime: recipient.schedules.find((item) => item.frequency === frequency)?.sendTime || "18:00",
+            weeklyDay: recipient.schedules[0]?.weeklyDay ?? 1,
+            monthlyDay: recipient.schedules[0]?.monthlyDay ?? "last",
             timezone: recipient.schedules[0]?.timezone || "Africa/Lagos",
             status: "enabled"
           }) });
@@ -178,7 +183,9 @@ const AdminCommunications = () => {
           reportType: recipient.reportType || "overview",
           reportSections: recipient.reportSections || defaultSections,
           frequency,
-          sendTime: recipient.schedules[0]?.sendTime || "18:00",
+          sendTime: recipient.schedules.find((item) => item.frequency === frequency)?.sendTime || "18:00",
+          weeklyDay: recipient.schedules[0]?.weeklyDay ?? 1,
+          monthlyDay: recipient.schedules[0]?.monthlyDay ?? "last",
           timezone: recipient.schedules[0]?.timezone || "Africa/Lagos",
           status: "admin_disabled",
           isRemoved: true
@@ -202,7 +209,7 @@ const AdminCommunications = () => {
       setSaving(true);
       const frequenciesToSave = editingId ? [form.frequencies[0]] : form.frequencies;
       const saved = await Promise.all(frequenciesToSave.map(async (frequency) => {
-        const payload = { ...form, frequency };
+        const payload = { ...form, sendTime: form.sendTimes[frequency], frequency };
         const response = await request(editingId ? `/admin/report-subscriptions/${editingId}` : "/admin/report-subscriptions", {
           method: editingId ? "PATCH" : "POST",
           body: JSON.stringify(payload)
@@ -243,6 +250,20 @@ const AdminCommunications = () => {
       alert("Report sent.");
     } catch (error) { alert(error.message || "Failed to send test report"); }
     finally { setTestingId(""); }
+  };
+
+  const openHistory = async (recipient) => {
+    setHistoryRecipient({ ...recipient, schedules: recipient.schedules.map((schedule) => ({ ...schedule, deliveries: null })) });
+    const schedules = await Promise.all(recipient.schedules.map(async (schedule) => {
+      if (!schedule._id) return { ...schedule, deliveries: [] };
+      try {
+        const response = await request(`/admin/report-subscriptions/${schedule._id}/history`);
+        return { ...schedule, deliveries: response.deliveries || [] };
+      } catch (error) {
+        return { ...schedule, deliveries: [], historyError: error.message || "Could not load delivery history" };
+      }
+    }));
+    setHistoryRecipient({ ...recipient, schedules });
   };
 
   const remove = async (subscription) => {
@@ -413,7 +434,7 @@ const AdminCommunications = () => {
                 <td className="px-5 py-4">
                   <div className="flex flex-col gap-1.5">
                     <span className="font-medium text-slate-700">{primarySchedule?.lastSentAt ? new Date(primarySchedule.lastSentAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never sent"}</span>
-                    <button type="button" onClick={() => setHistoryRecipient(recipient)} className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">History</button>
+                    <button type="button" onClick={() => openHistory(recipient)} className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">History</button>
                   </div>
                 </td>
                 <td className="relative px-5 py-4 text-right">
@@ -451,8 +472,13 @@ const AdminCommunications = () => {
               <span className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${schedule.status === "enabled" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>{schedule.status === "enabled" ? "On" : "Paused"}</span>
             </div>
             <p className="mt-3 text-sm font-semibold text-slate-800">{schedule.sendTime || "18:00"} · {schedule.timezone || "Africa/Lagos"}</p>
+            {schedule.frequency === "weekly" && <p className="mt-1 text-xs text-slate-500">Every {weekdays.find(([value]) => value === (schedule.weeklyDay ?? 1))?.[1] || "Monday"}</p>}
+            {schedule.frequency === "monthly" && <p className="mt-1 text-xs text-slate-500">Every {schedule.monthlyDay === "last" ? "last day of the month" : `${schedule.monthlyDay || 1}${Number(schedule.monthlyDay) % 100 >= 11 && Number(schedule.monthlyDay) % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][Number(schedule.monthlyDay) % 10] || "th")} day of the month`}</p>}
             <p className="mt-2 text-xs text-slate-500">Last sent: {schedule.lastSentAt ? new Date(schedule.lastSentAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No email sent yet"}</p>
+            {schedule.lastError && <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">Latest error: {schedule.lastError}</p>}
             <p className="mt-2 text-xs text-slate-500">Report sections: {(schedule.reportSections || defaultSections).map((section) => reportSections.find(([value]) => value === section)?.[1]).filter(Boolean).join(", ") || "Overview"}</p>
+            {schedule.historyError && <p className="mt-2 text-xs text-rose-600">{schedule.historyError}</p>}
+            {schedule.deliveries && <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">{schedule.deliveries.length === 0 ? <p className="text-xs text-slate-400">No attempts recorded.</p> : schedule.deliveries.slice(0, 5).map((delivery) => <div key={delivery._id} className="flex items-start justify-between gap-3 text-xs"><span className={delivery.status === "sent" ? "font-semibold text-emerald-700" : "font-semibold text-rose-700"}>{delivery.status === "sent" ? "Sent" : "Failed"}{delivery.errorMessage ? `: ${delivery.errorMessage}` : ""}</span><span className="shrink-0 text-slate-400">{new Date(delivery.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>)}</div>}
           </div>)}
         </div>
       </aside>
@@ -463,7 +489,10 @@ const AdminCommunications = () => {
       <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-slate-500">Business<select required value={form.businessId} onChange={(event) => handleBusinessChange(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="">Select business</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select></label><label className="text-xs font-bold text-slate-500">Recipient name<input required value={form.recipientName} onChange={(event) => setForm({ ...form, recipientName: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Recipient email<input required type="email" value={form.recipientEmail} onChange={(event) => setForm({ ...form, recipientEmail: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Report content<select value={form.reportType} onChange={(event) => setForm({ ...form, reportType: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="overview">Business overview</option><option value="daily-analysis">Daily report analysis</option></select></label></div>
       <fieldset className="mt-5"><legend className="text-xs font-bold text-slate-500">Delivery frequency</legend><div className="mt-2 flex flex-wrap gap-2">{frequencies.map(([value, label]) => <button key={value} type="button" onClick={() => toggleFormValue("frequencies", value)} className={`rounded-xl border px-4 py-2 text-xs font-bold ${form.frequencies.includes(value) ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-500"}`}>{label}</button>)}</div></fieldset>
       <fieldset className="mt-5"><legend className="text-xs font-bold text-slate-500">Report contents</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{reportSections.map(([value, label]) => <label key={value} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-xs text-slate-700"><input type="checkbox" checked={form.reportSections.includes(value)} onChange={() => toggleFormValue("reportSections", value)} />{label}</label>)}</div></fieldset>
-      <div className="mt-5 grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-slate-500">Send time<input type="time" required value={form.sendTime} onChange={(event) => setForm({ ...form, sendTime: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Timezone<select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="Africa/Lagos">Africa/Lagos</option><option value="UTC">UTC</option><option value="Europe/London">Europe/London</option><option value="America/New_York">America/New_York</option></select></label></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsFormOpen(false)} className="rounded-xl border border-slate-200 px-5 py-3 text-xs font-bold text-slate-600">Cancel</button><button type="submit" disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase text-white disabled:opacity-50">{saving ? "Saving..." : "Save schedules"}</button></div>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">{form.frequencies.map((frequency) => <label key={frequency} className="text-xs font-bold text-slate-500">{frequency[0].toUpperCase() + frequency.slice(1)} send time<input type="time" required value={form.sendTimes[frequency]} onChange={(event) => setForm({ ...form, sendTimes: { ...form.sendTimes, [frequency]: event.target.value } })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>)}<label className="text-xs font-bold text-slate-500">Timezone<select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="Africa/Lagos">Africa/Lagos</option><option value="UTC">UTC</option><option value="Europe/London">Europe/London</option><option value="America/New_York">America/New_York</option></select></label></div>
+      {form.frequencies.includes("weekly") && <label className="mt-4 block text-xs font-bold text-slate-500">Weekly day<select value={form.weeklyDay} onChange={(event) => setForm({ ...form, weeklyDay: Number(event.target.value) })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5">{weekdays.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+      {form.frequencies.includes("monthly") && <label className="mt-4 block text-xs font-bold text-slate-500">Monthly day<select value={form.monthlyDay} onChange={(event) => setForm({ ...form, monthlyDay: event.target.value === "last" ? "last" : Number(event.target.value) })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="last">Last day of the month</option>{Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day}>{day}</option>)}</select></label>}
+      <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setIsFormOpen(false)} className="rounded-xl border border-slate-200 px-5 py-3 text-xs font-bold text-slate-600">Cancel</button><button type="submit" disabled={saving} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase text-white disabled:opacity-50">{saving ? "Saving..." : "Save schedules"}</button></div>
     </form></div>}
   </section>;
 };

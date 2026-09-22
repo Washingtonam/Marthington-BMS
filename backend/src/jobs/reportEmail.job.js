@@ -8,7 +8,7 @@ import cron from "node-cron";
 
 export const getLocalScheduleParts = (date, timezone) => {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
+    timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -37,17 +37,28 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
     return false;
   }
 
-  if (local.time !== subscription.sendTime) return false;
-  if (subscription.frequency === "weekly" && local.weekday !== "Fri") return false;
+  const [configuredHour, configuredMinute] = String(subscription.sendTime || "18:00").split(":").map(Number);
+  const [localHour, localMinute] = local.time.split(":").map(Number);
+  if ((localHour * 60) + localMinute < (configuredHour * 60) + configuredMinute) return false;
+  if (subscription.frequency === "weekly") {
+    const configuredDay = Number.isInteger(subscription.weeklyDay) ? subscription.weeklyDay : 1;
+    const localWeekday = new Date(`${local.date}T00:00:00Z`).getUTCDay();
+    if (localWeekday !== configuredDay) return false;
+  }
   if (subscription.frequency === "monthly") {
-    const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-    let nextLocal;
-    try {
-      nextLocal = getLocalScheduleParts(nextDay, subscription.timezone || "Africa/Lagos");
-    } catch {
+    const configuredDay = subscription.monthlyDay ?? "last";
+    if (configuredDay === "last") {
+      const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
+      let nextLocal;
+      try {
+        nextLocal = getLocalScheduleParts(nextDay, subscription.timezone || "Africa/Lagos");
+      } catch {
+        return false;
+      }
+      if (nextLocal.date === local.date) return false;
+    } else if (Number(local.date.slice(-2)) !== Number(configuredDay)) {
       return false;
     }
-    if (nextLocal.date === local.date) return false;
   }
 
   if (!subscription.lastSentAt) return true;
@@ -99,6 +110,8 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
         reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
         frequency: "daily",
         sendTime: "18:00",
+        weeklyDay: 1,
+        monthlyDay: "last",
         timezone: "Africa/Lagos",
         status: "enabled",
         createdBy: business.owner._id,

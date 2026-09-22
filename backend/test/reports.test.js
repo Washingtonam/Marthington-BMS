@@ -7,7 +7,7 @@ import Product from '../src/modules/products/product.model.js';
 import Transaction from '../src/modules/transactions/transaction.model.js';
 import { buildReportSnapshot, buildDailyAnalysisSnapshot } from '../src/modules/reports/reports.controller.js';
 import { formatReportPeriodLabel, getCompletedReportRange, getLocalDate } from '../src/modules/admin/reportSnapshot.js';
-import { shouldCreateAutomaticReportSubscription } from '../src/jobs/reportEmail.job.js';
+import { isSubscriptionDue, shouldCreateAutomaticReportSubscription } from '../src/jobs/reportEmail.job.js';
 import { sendReportEmail } from '../src/utils/emailService.js';
 import axios from 'axios';
 
@@ -30,6 +30,24 @@ test('Automatic report schedules are limited to active Pro businesses with notif
   assert.equal(shouldCreateAutomaticReportSubscription(business, true), false);
   assert.equal(shouldCreateAutomaticReportSubscription({ ...business, reportNotificationsEnabled: false }, false), false);
   assert.equal(shouldCreateAutomaticReportSubscription({ ...business, subscription: { plan: 'free', status: 'trial' } }, false), false);
+});
+
+test('Report schedules honor configured weekly and monthly days', () => {
+  const monday = new Date('2026-09-21T18:00:00.000Z');
+  const tuesday = new Date('2026-09-22T18:00:00.000Z');
+  const fifteenth = new Date('2026-09-15T18:00:00.000Z');
+  const monthEnd = new Date('2026-09-30T18:00:00.000Z');
+
+  assert.equal(isSubscriptionDue({ frequency: 'weekly', sendTime: '18:00', timezone: 'UTC', weeklyDay: 1 }, monday), true);
+  assert.equal(isSubscriptionDue({ frequency: 'weekly', sendTime: '18:00', timezone: 'UTC', weeklyDay: 1 }, tuesday), false);
+  assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 15 }, fifteenth), true);
+  assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 15 }, monthEnd), false);
+  assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 'last' }, monthEnd), true);
+});
+
+test('Report schedules catch up later on the same scheduled day', () => {
+  assert.equal(isSubscriptionDue({ frequency: 'daily', sendTime: '18:00', timezone: 'UTC' }, new Date('2026-09-22T20:00:00.000Z')), true);
+  assert.equal(isSubscriptionDue({ frequency: 'daily', sendTime: '18:00', timezone: 'UTC' }, new Date('2026-09-22T17:59:00.000Z')), false);
 });
 
 test('Completed report ranges exclude the current local day', () => {

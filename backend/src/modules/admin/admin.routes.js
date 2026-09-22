@@ -140,6 +140,13 @@ router.post(
 );
 
 router.get(
+  "/report-subscriptions/:id/history",
+  protect,
+  onlyAdmin,
+  adminController.listReportDeliveryHistory
+);
+
+router.get(
   "/email-health",
   protect,
   onlyAdmin,
