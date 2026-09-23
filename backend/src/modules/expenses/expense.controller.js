@@ -10,6 +10,8 @@ import { postExpenseToGL, reverseExpenseGL } from "../transactions/transaction.u
 import { shouldAutoApproveExpense } from "./expenseApproval.utils.js";
 import { findCatalogMatch } from "../catalog/catalogUtils.js";
 import Supplier from "../suppliers/supplier.model.js";
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 
 const getExpenseScope = (req, requestedBranch) => getScopedBranchQuery(
@@ -253,14 +255,18 @@ const createExpense = async (req, res) => {
         return res.status(400).json({ message: "Selected supplier not found" });
       }
       finalSupplierId = supplierId;
-    } else if (supplierName) {
+    } else if (String(supplierName || "").trim()) {
       // If only supplierName provided, find or create supplier
-      let supplier = await Supplier.findOne({ business: businessId, name: supplierName });
+      const normalizedSupplierName = String(supplierName).trim();
+      let supplier = await Supplier.findOne({
+        business: businessId,
+        name: { $regex: `^${escapeRegex(normalizedSupplierName)}$`, $options: "i" }
+      });
       if (!supplier) {
         supplier = await Supplier.create({
           business: businessId,
-          name: supplierName,
-          phone: supplierPhone || ""
+          name: normalizedSupplierName,
+          phone: String(supplierPhone || "").trim()
         });
       }
       finalSupplierId = supplier._id;
@@ -366,6 +372,7 @@ const getExpenses = async (req, res) => {
       .populate("createdBy", "name email")
       .populate("approvedBy", "name email")
       .populate("branch", "name")
+      .populate("supplier", "name phone email isActive")
       .sort({ date: -1 })
       .exec();
 
@@ -409,6 +416,7 @@ const getExpenseById = async (req, res) => {
     const expense = await Expense.findOne({ _id: id, ...scope })
       .populate("createdBy", "name email")
       .populate("approvedBy", "name email")
+      .populate("supplier", "name phone email isActive")
       .exec();
 
     if (!expense) {
@@ -470,6 +478,7 @@ const updateExpense = async (req, res) => {
 
     await expense.populate("createdBy", "name email");
     await expense.populate("approvedBy", "name email");
+    await expense.populate("supplier", "name phone email isActive");
 
     return res.status(200).json({
       message: "Expense updated successfully",

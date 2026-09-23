@@ -43,6 +43,7 @@ const getBootstrapSnapshot = async (req, res) => {
         .limit(recentLimit)
         .lean(),
       Expense.find({ business: businessId })
+        .populate("supplier", "name phone email isActive")
         .sort({ createdAt: -1 })
         .limit(recentLimit)
         .lean(),

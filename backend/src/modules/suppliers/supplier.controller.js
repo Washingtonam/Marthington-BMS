@@ -3,6 +3,29 @@ import Invoice from "../invoices/invoice.model.js";
 import PurchaseOrder from "../purchaseOrders/purchaseOrder.model.js";
 import Expense from "../expenses/expense.model.js";
 
+const buildExpenseSummary = (expenses = []) => {
+  const unmatchedExpenses = expenses.filter((expense) => !expense.linkedInvoice);
+  const totalPurchases = unmatchedExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const outstandingBalance = unmatchedExpenses
+    .filter((expense) => expense.paymentMethod === "store_credit" && expense.status !== "rejected")
+    .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+
+  return {
+    totalPurchases,
+    outstandingBalance,
+    expenseCount: expenses.length
+  };
+};
+
+const findExistingSupplier = async ({ businessId, name, excludeId = null }) => {
+  const query = {
+    business: businessId,
+    name: { $regex: `^${String(name).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" }
+  };
+  if (excludeId) query._id = { $ne: excludeId };
+  return Supplier.findOne(query).select("_id").lean();
+};
+
 const normalizeSupplierPayload = (body = {}) => {
   const name = String(body.name || "").trim();
   const phone = String(body.phone || "").trim();
@@ -31,6 +54,11 @@ const getSuppliers = async (req, res) => {
       supplier: { $in: supplierIds }
     }).sort({ createdAt: -1 });
 
+    const expenses = await Expense.find({
+      business: req.user.businessId,
+      supplier: { $in: supplierIds }
+    }).select("supplier amount paymentMethod status linkedInvoice date createdAt").lean();
+
     const invoiceMap = new Map();
     for (const invoice of invoices) {
       const key = invoice.supplier?.toString();
@@ -42,8 +70,10 @@ const getSuppliers = async (req, res) => {
 
     const payload = suppliers.map((supplier) => {
       const supplierInvoices = invoiceMap.get(supplier._id.toString()) || [];
-      const totalPurchases = supplierInvoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
-      const outstandingBalance = supplierInvoices.reduce((sum, invoice) => {
+      const supplierExpenses = expenses.filter((expense) => expense.supplier?.toString() === supplier._id.toString());
+      const expenseSummary = buildExpenseSummary(supplierExpenses);
+      const invoicePurchases = supplierInvoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
+      const invoiceOutstanding = supplierInvoices.reduce((sum, invoice) => {
         const balance = Number(invoice.balanceDue ?? Math.max(0, (invoice.totalAmount || 0) - (invoice.amountPaid || 0)));
         return sum + balance;
       }, 0);
@@ -51,10 +81,11 @@ const getSuppliers = async (req, res) => {
 
       return {
         ...supplier.toObject(),
-        totalPurchases,
-        outstandingBalance,
+        totalPurchases: invoicePurchases + expenseSummary.totalPurchases,
+        outstandingBalance: invoiceOutstanding + expenseSummary.outstandingBalance,
         lastOrderAt,
-        invoiceCount: supplierInvoices.length
+        invoiceCount: supplierInvoices.length,
+        expenseCount: expenseSummary.expenseCount
       };
     });
 
@@ -90,13 +121,16 @@ const getSupplierById = async (req, res) => {
       .populate("items.product", "name sku")
       .sort({ createdAt: -1 });
 
-    const inventoryExpenses = await Expense.find({
+    const supplierExpenses = await Expense.find({
       business: req.user.businessId,
-      supplier: supplier._id,
-      category: "inventory"
+      supplier: supplier._id
     })
       .populate("inventoryItems.product", "name sku")
+      .populate("createdBy", "name email")
+      .populate("branch", "name")
       .sort({ createdAt: -1 });
+
+    const inventoryExpenses = supplierExpenses.filter((expense) => expense.category === "inventory");
 
     const stockReceipts = invoices.flatMap((invoice) =>
       (invoice.items || []).map((item) => ({
@@ -128,8 +162,9 @@ const getSupplierById = async (req, res) => {
       }))
     );
 
-    const totalPurchases = invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
-    const outstandingBalance = invoices.reduce((sum, invoice) => {
+    const expenseSummary = buildExpenseSummary(supplierExpenses);
+    const invoicePurchases = invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0);
+    const invoiceOutstanding = invoices.reduce((sum, invoice) => {
       const balance = Number(invoice.balanceDue ?? Math.max(0, (invoice.totalAmount || 0) - (invoice.amountPaid || 0)));
       return sum + balance;
     }, 0);
@@ -137,15 +172,17 @@ const getSupplierById = async (req, res) => {
     return res.json({
       supplier,
       summary: {
-        totalPurchases,
-        outstandingBalance,
+        totalPurchases: invoicePurchases + expenseSummary.totalPurchases,
+        outstandingBalance: invoiceOutstanding + expenseSummary.outstandingBalance,
         invoiceCount: invoices.length,
+        expenseCount: expenseSummary.expenseCount,
         purchaseOrderCount: purchaseOrders.length,
         receiptCount: stockReceipts.length + supplierItems.length,
         lastOrderAt: invoices[0]?.createdAt || purchaseOrders[0]?.createdAt || supplier.updatedAt || supplier.createdAt
       },
       invoices,
       purchaseOrders,
+      expenses: supplierExpenses,
       stockReceipts,
       supplierItems
     });
@@ -160,6 +197,10 @@ const createSupplier = async (req, res) => {
 
     if (!payload.name) {
       return res.status(400).json({ message: "Supplier name is required" });
+    }
+
+    if (await findExistingSupplier({ businessId: req.user.businessId, name: payload.name })) {
+      return res.status(409).json({ message: "A supplier with this name already exists" });
     }
 
     const supplier = await Supplier.create({
@@ -187,6 +228,10 @@ const updateSupplier = async (req, res) => {
     const payload = normalizeSupplierPayload(req.body);
     if (!payload.name) {
       return res.status(400).json({ message: "Supplier name is required" });
+    }
+
+    if (await findExistingSupplier({ businessId: req.user.businessId, name: payload.name, excludeId: supplier._id })) {
+      return res.status(409).json({ message: "A supplier with this name already exists" });
     }
 
     Object.assign(supplier, payload);

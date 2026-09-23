@@ -1118,7 +1118,7 @@ const Expenses = () => {
                           placeholder="Supplier Name (optional)"
                           value={formData.supplierName}
                           onChange={e => {
-                            setFormData({...formData, supplierName: e.target.value});
+                            setFormData({ ...formData, supplierName: e.target.value, supplierId: "" });
                             fetchSupplierSuggestions(e.target.value);
                           }}
                           onFocus={() => {

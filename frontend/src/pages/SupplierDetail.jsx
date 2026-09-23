@@ -58,6 +58,7 @@ const SupplierDetail = () => {
       { label: "Total purchases", value: formatCurrency(supplierData.summary.totalPurchases || 0) },
       { label: "Outstanding balance", value: formatCurrency(supplierData.summary.outstandingBalance || 0) },
       { label: "Invoices", value: supplierData.summary.invoiceCount || 0 },
+      { label: "Expenses", value: supplierData.summary.expenseCount || 0 },
       { label: "Purchase orders", value: supplierData.summary.purchaseOrderCount || 0 }
     ];
   }, [supplierData]);
@@ -89,7 +90,7 @@ const SupplierDetail = () => {
     );
   }
 
-  const { supplier, invoices = [], purchaseOrders = [], stockReceipts = [], supplierItems = [] } = supplierData;
+  const { supplier, invoices = [], expenses = [], purchaseOrders = [], stockReceipts = [], supplierItems = [] } = supplierData;
 
   const updateDraftItem = (index, field, value) => {
     setDraft((current) => {
@@ -478,6 +479,44 @@ const SupplierDetail = () => {
                             <span className="text-xs text-slate-400">Received</span>
                           )}
                         </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-center gap-2">
+              <FiPackage className="text-emerald-600" />
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Supplier expenses</h2>
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <th className="pb-3">Description</th>
+                    <th className="pb-3">Date</th>
+                    <th className="pb-3">Category</th>
+                    <th className="pb-3">Amount</th>
+                    <th className="pb-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {expenses.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="py-6 text-center text-slate-500">No expenses linked to this supplier yet.</td>
+                    </tr>
+                  ) : (
+                    expenses.slice(0, 10).map((expense) => (
+                      <tr key={expense._id} className="text-slate-700 dark:text-slate-300">
+                        <td className="py-3 pr-4 font-medium">{expense.description}</td>
+                        <td className="py-3 pr-4">{new Date(expense.date).toLocaleDateString()}</td>
+                        <td className="py-3 pr-4">{expense.category}</td>
+                        <td className="py-3 pr-4">{formatCurrency(expense.amount || 0)}</td>
+                        <td className="py-3 pr-4">{expense.status || "pending"}</td>
                       </tr>
                     ))
                   )}
