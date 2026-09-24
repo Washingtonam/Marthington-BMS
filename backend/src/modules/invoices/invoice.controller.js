@@ -62,6 +62,58 @@ const calculatePaymentStatus = ({ totalAmount, amountPaid, returnedAmount = 0 })
 const hasInvoiceBranchAccess = (invoice, user, action = "view") =>
   canAccessBranch(user, invoice?.branch?.toString() || null, action);
 
+export const getBulkInvoiceStatusEligibility = (invoice, status) => {
+  if (!invoice || invoice.linkedSale) return "POS-linked invoices are excluded";
+  if (!["sent", "cancelled"].includes(status)) return "Unsupported bulk status";
+  if (status === "sent" && ["paid", "cancelled"].includes(invoice.status)) {
+    return "Paid or cancelled invoices cannot be marked sent";
+  }
+  if (status === "cancelled" && (Number(invoice.amountPaid || 0) > 0 || invoice.fulfillmentStatus === "collected" || invoice.stockFinalized)) {
+    return "Paid or collected invoices cannot be cancelled";
+  }
+  return null;
+};
+
+const bulkUpdateInvoiceStatus = async (req, res) => {
+  const { invoiceIds = [], status } = req.body || {};
+  if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    return res.status(400).json({ message: "Select at least one invoice" });
+  }
+
+  const uniqueInvoiceIds = [...new Set(invoiceIds.map(String))];
+  const invoices = await Invoice.find({
+    _id: { $in: uniqueInvoiceIds },
+    business: req.user.businessId,
+    linkedSale: null
+  });
+
+  const updatedIds = [];
+  const skipped = [];
+  for (const invoice of invoices) {
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      skipped.push({ id: invoice._id, reason: "You do not have access to this invoice" });
+      continue;
+    }
+
+    const reason = getBulkInvoiceStatusEligibility(invoice, status);
+    if (reason) {
+      skipped.push({ id: invoice._id, reason });
+      continue;
+    }
+
+    invoice.status = status;
+    await invoice.save();
+    updatedIds.push(invoice._id);
+  }
+
+  const foundIds = new Set(invoices.map(invoice => String(invoice._id)));
+  for (const id of uniqueInvoiceIds) {
+    if (!foundIds.has(id)) skipped.push({ id, reason: "Invoice not found or unavailable" });
+  }
+
+  return res.json({ success: true, status, updatedCount: updatedIds.length, skippedCount: skipped.length, skipped });
+};
+
 const createInvoice = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1402,6 +1454,7 @@ export default {
   deleteInvoice,
   returnInvoiceItem,
   getInvoices,
+  bulkUpdateInvoiceStatus,
   getInvoiceById,
   getInvoicePDF,
   shareInvoice,

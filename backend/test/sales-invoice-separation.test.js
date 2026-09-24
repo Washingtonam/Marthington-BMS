@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { shouldCreateInvoiceForSale } from "../src/modules/sales/sales.utils.js";
-import { buildInvoiceListQuery } from "../src/modules/invoices/invoice.controller.js";
+import { buildInvoiceListQuery, getBulkInvoiceStatusEligibility } from "../src/modules/invoices/invoice.controller.js";
 
 test("completed non-credit sales do not create customer invoices", () => {
   for (const paymentMethod of ["cash", "card", "bank_transfer", "other"]) {
@@ -43,4 +43,12 @@ test("invoice list query supports dedicated invoice search fields", () => {
     { customerPhone: { $regex: "Jane", $options: "i" } },
     { customerEmail: { $regex: "Jane", $options: "i" } }
   ]);
+});
+
+test("bulk invoice status eligibility protects paid, collected, and POS-linked invoices", () => {
+  assert.equal(getBulkInvoiceStatusEligibility({ amountPaid: 0, fulfillmentStatus: "pending_pickup" }, "sent"), null);
+  assert.match(getBulkInvoiceStatusEligibility({ status: "paid" }, "sent"), /Paid or cancelled/);
+  assert.match(getBulkInvoiceStatusEligibility({ amountPaid: 100 }, "cancelled"), /Paid or collected/);
+  assert.match(getBulkInvoiceStatusEligibility({ stockFinalized: true }, "cancelled"), /Paid or collected/);
+  assert.match(getBulkInvoiceStatusEligibility({ linkedSale: "sale-1" }, "sent"), /POS-linked/);
 });

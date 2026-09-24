@@ -15,6 +15,12 @@ export const createInvoice = (data) =>
     body: JSON.stringify(data)
   });
 
+export const bulkUpdateInvoiceStatus = (invoiceIds, status) =>
+  request("/invoices/bulk-status", {
+    method: "POST",
+    body: JSON.stringify({ invoiceIds, status })
+  });
+
 export const getInvoice = (id) =>
   request(`/invoices/${id}`);
 

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory } from "../api/invoices.js";
+import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
@@ -36,6 +36,9 @@ const Invoices = () => {
   const [pageSize, setPageSize] = useState(25);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, totalItems: 0, totalPages: 0 });
   const [serverSummary, setServerSummary] = useState({ totalBalanceDue: 0, totalAmount: 0 });
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
@@ -163,7 +166,7 @@ const Invoices = () => {
     };
 
     loadInvoices();
-  }, [invoiceTab, statusFilter, searchTerm, branchFilter, page, pageSize, sortBy, sortOrder]);
+  }, [invoiceTab, statusFilter, searchTerm, branchFilter, page, pageSize, sortBy, sortOrder, invoiceRefreshKey]);
 
   useEffect(() => {
     const loadBranches = async () => {
@@ -181,7 +184,12 @@ const Invoices = () => {
 
   useEffect(() => {
     setPage(1);
+    setSelectedInvoiceIds(new Set());
   }, [invoiceTab, statusFilter, searchTerm, branchFilter, pageSize, sortBy, sortOrder]);
+
+  useEffect(() => {
+    setSelectedInvoiceIds(new Set());
+  }, [page]);
 
   // ====================================
   // COMPUTED METRICS
@@ -217,6 +225,46 @@ const Invoices = () => {
   const activeInvoiceCount = pagination.totalItems;
 
   const displayedInvoices = invoices;
+  const displayedInvoiceIds = displayedInvoices.map(invoice => invoice._id);
+  const allDisplayedSelected = displayedInvoiceIds.length > 0 && displayedInvoiceIds.every(id => selectedInvoiceIds.has(id));
+
+  const toggleInvoiceSelection = (invoiceId) => {
+    setSelectedInvoiceIds(previous => {
+      const next = new Set(previous);
+      if (next.has(invoiceId)) next.delete(invoiceId);
+      else next.add(invoiceId);
+      return next;
+    });
+  };
+
+  const toggleAllDisplayedInvoices = () => {
+    setSelectedInvoiceIds(previous => {
+      const next = new Set(previous);
+      if (allDisplayedSelected) displayedInvoiceIds.forEach(id => next.delete(id));
+      else displayedInvoiceIds.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleBulkStatusUpdate = async (status) => {
+    const invoiceIds = [...selectedInvoiceIds];
+    if (!invoiceIds.length) return;
+    const actionLabel = status === "cancelled" ? "cancel" : "mark as sent";
+    if (!confirm(`Are you sure you want to ${actionLabel} ${invoiceIds.length} invoice${invoiceIds.length === 1 ? "" : "s"}?`)) return;
+
+    try {
+      setBulkUpdating(true);
+      const result = await bulkUpdateInvoiceStatus(invoiceIds, status);
+      setSelectedInvoiceIds(new Set());
+      setInvoiceRefreshKey(value => value + 1);
+      alert(`${result.updatedCount} invoice${result.updatedCount === 1 ? "" : "s"} updated${result.skippedCount ? `; ${result.skippedCount} skipped because they were not eligible.` : "."}`);
+    } catch (err) {
+      console.error("Failed to update invoices in bulk:", err);
+      alert(err.message || "Unable to update the selected invoices.");
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   // ====================================
   // ACTIONS
@@ -1021,6 +1069,40 @@ const Invoices = () => {
           </div>
         </div>
 
+        {selectedInvoiceIds.size > 0 && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold text-blue-900">
+              {selectedInvoiceIds.size} invoice{selectedInvoiceIds.size === 1 ? "" : "s"} selected on this page
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate("sent")}
+                disabled={bulkUpdating}
+                className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow-sm ring-1 ring-blue-200 disabled:opacity-50"
+              >
+                {bulkUpdating ? "Updating..." : "Mark as sent"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatusUpdate("cancelled")}
+                disabled={bulkUpdating}
+                className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm ring-1 ring-red-200 disabled:opacity-50"
+              >
+                Cancel selected
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedInvoiceIds(new Set())}
+                disabled={bulkUpdating}
+                className="rounded-lg px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-50"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* INVOICE TABLE */}
         {displayedInvoices.length === 0 ? (
           <EmptyState />
@@ -1030,6 +1112,15 @@ const Invoices = () => {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-slate-200">
                   <tr>
+                    <th className="w-12 px-4 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={allDisplayedSelected}
+                        onChange={toggleAllDisplayedInvoices}
+                        aria-label="Select all invoices on this page"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-6 py-4 text-left font-bold text-gray-700">Invoice</th>
                     <th className="px-6 py-4 text-left font-bold text-gray-700">Counterparty</th>
                     <th className="px-6 py-4 text-left font-bold text-gray-700">Payment</th>
@@ -1046,6 +1137,15 @@ const Invoices = () => {
 
                     return (
                       <tr key={invoice._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedInvoiceIds.has(invoice._id)}
+                            onChange={() => toggleInvoiceSelection(invoice._id)}
+                            aria-label={`Select invoice ${invoice.invoiceNumber || invoice._id?.slice(-6)}`}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           <div>
                             <p className="font-bold text-gray-900">#{invoice.invoiceNumber || invoice._id?.slice(-6)}</p>

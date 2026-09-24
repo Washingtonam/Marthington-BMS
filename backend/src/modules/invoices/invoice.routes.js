@@ -17,6 +17,13 @@ router.post(
   invoiceController.createInvoice
 );
 
+router.post(
+  "/bulk-status",
+  protect,
+  checkPermission("canManageInvoices"),
+  invoiceController.bulkUpdateInvoiceStatus
+);
+
 router.put(
   "/:invoiceId/payment",
   protect,
