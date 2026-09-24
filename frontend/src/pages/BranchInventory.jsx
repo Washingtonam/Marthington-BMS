@@ -55,6 +55,14 @@ const BranchInventory = () => {
   const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
 
   const loadBranches = async () => {
+    const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
+
+    if (user?.role !== "owner" && user?.role !== "super_admin" && assignedBranchId && !canManageInventory) {
+      setBranchId(assignedBranchId);
+      setBranches([]);
+      return;
+    }
+
     try {
       const data = await getBranches();
       const availableBranches = Array.isArray(data) ? data : [];
@@ -98,6 +106,10 @@ const BranchInventory = () => {
   };
 
   useEffect(() => {
+    const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
+    if (user?.role !== "owner" && user?.role !== "super_admin" && assignedBranchId) {
+      setBranchId(assignedBranchId);
+    }
     loadBranches();
   }, [user]);
 
@@ -474,6 +486,9 @@ const BranchInventory = () => {
             >
               {user?.role === "owner" && (
                 <option value="headOffice">Head Office</option>
+              )}
+              {!canManageInventory && assignedBranchId && !branches.some((branch) => branch._id === assignedBranchId) && (
+                <option value={assignedBranchId}>Assigned branch</option>
               )}
               {branches.map((branch) => (
                 <option key={branch._id} value={branch._id}>
