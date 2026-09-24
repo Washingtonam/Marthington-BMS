@@ -46,7 +46,11 @@ const BranchInventory = () => {
   const [transferSaving, setTransferSaving] = useState(false);
   const [reviewNote, setReviewNote] = useState({});
   const canReviewTransfers = user?.role === "owner" || user?.role === "super_admin";
-  const canRequestTransfers = Boolean(user?.permissions?.canManageBranchInventory) && user?.role !== "owner";
+  const canManageInventory = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canManageBranchInventory === true
+    || user?.permissions?.canManageAllBranchInventory === true;
+  const canRequestTransfers = canManageInventory && user?.role !== "owner";
 
   const loadBranches = async () => {
     try {
@@ -179,7 +183,7 @@ const BranchInventory = () => {
   const [importResult, setImportResult] = useState(null);
 
   const handleImport = () => {
-    if (!branchId) return;
+    if (!canManageInventory || !branchId) return;
     if (sourceType === "branch" && !sourceBranchId) {
       setImportResult({ success: false, message: "Select a source branch before importing." });
       return;
@@ -189,6 +193,7 @@ const BranchInventory = () => {
   };
 
   const handleInventoryChange = (itemId, field, value) => {
+    if (!canManageInventory) return;
     setInventoryEdits((prev) => ({
       ...prev,
       [itemId]: {
@@ -199,6 +204,7 @@ const BranchInventory = () => {
   };
 
   const saveInventoryItem = async (item) => {
+    if (!canManageInventory) return;
     const edit = inventoryEdits[item._id];
     if (!edit) return;
 
@@ -222,7 +228,7 @@ const BranchInventory = () => {
   };
 
   const saveAllInventoryItems = async () => {
-    if (!inventory.length) return;
+    if (!canManageInventory || !inventory.length) return;
 
     try {
       setBulkSaving(true);
@@ -340,6 +346,7 @@ const BranchInventory = () => {
   }, [catalogDrawerOpen, catalogForm.name, catalogType]);
 
   const openCatalogDrawer = (type) => {
+    if (!canManageInventory) return;
     setCatalogType(type);
     setCatalogForm({ name: "", category: "", sku: "", costPrice: "", sellingPrice: "", stock: "", duration: "", code: "", description: "" });
     setCatalogMatches([]);
@@ -422,8 +429,18 @@ const BranchInventory = () => {
           <h1 className="mt-2 text-4xl font-semibold text-slate-900">Inventory Stock</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => openCatalogDrawer("product")} className="btn btn-primary">+ Add product</button>
-          <button onClick={() => openCatalogDrawer("service")} className="btn btn-secondary">+ Add service</button>
+          {canManageInventory ? <>
+            <button onClick={() => openCatalogDrawer("product")} className="btn btn-primary">+ Add product</button>
+            <button onClick={() => openCatalogDrawer("service")} className="btn btn-secondary">+ Add service</button>
+          </> : <span className="inventory-access-badge">View only <span aria-hidden="true">&#128274;</span></span>}
+        </div>
+      </div>
+
+      <div className={`inventory-access-banner ${canManageInventory ? "is-manage" : "is-readonly"}`}>
+        <span className="inventory-access-icon" aria-hidden="true">{canManageInventory ? "✓" : "◉"}</span>
+        <div>
+          <strong>{canManageInventory ? "Inventory management enabled" : "Read-only inventory access"}</strong>
+          <p>{canManageInventory ? "You can adjust stock, pricing, imports, and catalog items within your permitted branch scope." : "You can review stock, prices, and branch inventory. Editing, imports, and catalog changes are disabled for this account."}</p>
         </div>
       </div>
 
@@ -434,15 +451,15 @@ const BranchInventory = () => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr,320px]">
-        <div className="page-card">
+        <div className="page-card inventory-workspace-card">
             <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold">Inventory per location</h2>
-              <p className="text-sm text-slate-500">Select a branch to review and manage inventory.</p>
+              <p className="text-sm text-slate-500">{canManageInventory ? "Select a branch to review and manage inventory." : "Select a branch to review inventory."}</p>
             </div>
-              <button onClick={handleImport} className="btn btn-secondary" disabled={!branchId || importing}>
+              {canManageInventory && <button onClick={handleImport} className="btn btn-secondary" disabled={!branchId || importing}>
                 {importing ? "Importing..." : "Import Inventory"}
-              </button>
+              </button>}
           </div>
 
           <div className="mb-4">
@@ -463,7 +480,7 @@ const BranchInventory = () => {
             </select>
           </div>
 
-          <div className="mb-4">
+          {canManageInventory && <div className="mb-4">
             <label className="block text-sm font-medium text-slate-700">Import Source</label>
             <select
               className="form-select mt-2 w-full"
@@ -473,9 +490,9 @@ const BranchInventory = () => {
               <option value="headOffice">Head Office Catalog</option>
               <option value="branch">Another Branch</option>
             </select>
-          </div>
+          </div>}
 
-          {sourceType === "branch" && (
+          {canManageInventory && sourceType === "branch" && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700">Source Branch</label>
               <select
@@ -518,7 +535,7 @@ const BranchInventory = () => {
                 </p>
               </div>
 
-              {branchId ? (
+              {branchId && canManageInventory ? (
                 <div className="space-y-2">
                   <p className="text-sm text-slate-600">
                     Import from the head office catalog or another branch to begin tracking stock movements and sales for this location.
@@ -553,28 +570,28 @@ const BranchInventory = () => {
                         <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
                         <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
                       </div>
-                      <input
+                      {canManageInventory ? <input
                         type="number"
                         min="0"
                         value={edit.quantity}
                         onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
-                      />
-                      <input
+                      /> : <span className="inventory-readonly-value">{edit.quantity}</span>}
+                      {canManageInventory ? <input
                         type="number"
                         min="0"
                         step="0.01"
                         value={edit.branchPrice}
                         onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
-                      />
-                      <button
+                      /> : <span className="inventory-readonly-value">{Number(edit.branchPrice || 0).toFixed(2)}</span>}
+                      {canManageInventory ? <button
                         onClick={() => saveInventoryItem(item)}
                         className="btn btn-primary"
                         disabled={savingItemId === item._id}
                       >
                         {savingItemId === item._id ? "Saving..." : "Save"}
-                      </button>
+                      </button> : <span className="inventory-readonly-label">View only</span>}
                     </div>
                   );
                 })}
@@ -611,18 +628,18 @@ const BranchInventory = () => {
           )}
         </div>
 
-        <div className="page-card">
+        <div className={`page-card inventory-actions-card ${!canManageInventory ? "is-readonly" : ""}`}>
           <h2 className="text-xl font-semibold">Inventory actions</h2>
           <p className="mt-2 text-sm text-slate-500">
-            Import all matching catalog products into the selected branch and manage inventory counts here.
+            {canManageInventory ? "Import matching catalog products and manage inventory counts here." : "Inventory changes are restricted for this account. You can review the selected location without editing it."}
           </p>
-          <button
+          {canManageInventory && <button
             onClick={saveAllInventoryItems}
             className="btn btn-primary mt-4 w-full"
             disabled={bulkSaving || inventory.length === 0}
           >
             {bulkSaving ? "Saving all..." : "Save all inventory changes"}
-          </button>
+          </button>}
           {bulkSaveMessage && (
             <p className={`mt-3 text-sm ${bulkSaveMessage.includes("failed") ? "text-rose-700" : "text-emerald-700"}`}>
               {bulkSaveMessage}
@@ -727,7 +744,7 @@ const BranchInventory = () => {
         </div>
       )}
 
-      {catalogDrawerOpen && (
+      {catalogDrawerOpen && canManageInventory && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={closeCatalogDrawer} />
           <aside className="relative ml-auto flex h-full w-full max-w-[460px] flex-col overflow-y-auto bg-white shadow-2xl">
