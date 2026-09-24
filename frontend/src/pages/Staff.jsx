@@ -663,14 +663,17 @@ const Staff = () => {
         </div>
       </div>
 
-      {/* DRAWER: form slides in from right */}
+      {/* ACCESS MODAL */}
       {isDrawerMounted && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm drawer-backdrop ${showDrawer ? 'open' : ''}`} onClick={closeDrawer} />
-          <div ref={drawerRef} className={`ml-auto w-full max-w-md bg-white shadow-2xl p-6 transform transition-transform h-full drawer-panel dark:border-l dark:border-slate-700 dark:bg-slate-900 ${showDrawer ? 'open' : ''}`}>
+        <div className={`staff-modal-backdrop ${showDrawer ? 'open' : ''}`}>
+          <div className="staff-modal-scrim" onClick={closeDrawer} />
+          <div ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="staff-modal-title" className={`staff-modal dark:border-slate-700 dark:bg-slate-900 ${showDrawer ? 'open' : ''}`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold dark:text-slate-100">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
-              <button onClick={() => setShowDrawer(false)} className="text-gray-500 dark:text-slate-400">✕</button>
+              <div>
+                <span className="section-eyebrow"><FiShield /> Team access</span>
+                <h2 id="staff-modal-title" className="text-2xl font-bold dark:text-slate-100">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
+              </div>
+              <button aria-label="Close staff access dialog" onClick={() => setShowDrawer(false)} className="staff-modal-close text-gray-500 dark:text-slate-400">✕</button>
             </div>
 
             {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
