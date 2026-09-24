@@ -52,13 +52,13 @@ const BranchInventory = () => {
     || user?.permissions?.canManageBranchInventory === true
     || user?.permissions?.canManageAllBranchInventory === true;
   const canRequestTransfers = canManageInventory && user?.role !== "owner";
+  const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
 
   const loadBranches = async () => {
     try {
       const data = await getBranches();
       const availableBranches = Array.isArray(data) ? data : [];
       setBranches(availableBranches);
-      const assignedBranchId = user?.branch?._id || user?.branch || "";
       const defaultBranchId = user?.role === "owner"
         ? "headOffice"
         : availableBranches.find((branch) => branch._id === assignedBranchId)?._id || "";
@@ -470,6 +470,7 @@ const BranchInventory = () => {
               className="form-select mt-2 w-full"
               value={branchId}
               onChange={(e) => setBranchId(e.target.value)}
+              disabled={!canManageInventory}
             >
               {user?.role === "owner" && (
                 <option value="headOffice">Head Office</option>
@@ -482,7 +483,7 @@ const BranchInventory = () => {
             </select>
           </div>
 
-          <div className="mb-4">
+          {canManageInventory && <div className="mb-4">
             <label className="block text-sm font-medium text-slate-700">Import Source</label>
             <select
               className="form-select mt-2 w-full"
@@ -492,7 +493,7 @@ const BranchInventory = () => {
               <option value="headOffice">Head Office Catalog</option>
               <option value="branch">Another Branch</option>
             </select>
-          </div>
+          </div>}
 
           {canManageInventory && sourceType === "branch" && (
             <div className="mb-4">
@@ -557,8 +558,8 @@ const BranchInventory = () => {
                   {saveMessage}
                 </div>
               )}
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <div className="grid grid-cols-[2fr,1fr,1fr,auto] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <div className="inventory-table-wrap">
+                <div className="inventory-table-head">
                   <span>Product</span>
                   <span>Stock</span>
                   <span>Price</span>
@@ -567,7 +568,7 @@ const BranchInventory = () => {
                 {inventory.map((item) => {
                   const edit = inventoryEdits[item._id] || { quantity: item.quantity ?? 0, branchPrice: item.branchPrice ?? item.product?.price ?? 0 };
                   return (
-                    <div key={item._id} className="grid grid-cols-[2fr,1fr,1fr,auto] items-center gap-3 border-t border-slate-200 px-4 py-3">
+                    <div key={item._id} className={`inventory-table-row ${editingInventoryId === item._id ? "is-editing" : ""}`}>
                       <div>
                         <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
                         <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
