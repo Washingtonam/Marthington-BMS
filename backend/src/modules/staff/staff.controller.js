@@ -89,7 +89,9 @@ const getStaff = async (
           req.user.businessId,
 
         role: { $in: STAFF_ROLES }
-      }).select("-password");
+      })
+        .select("-password")
+        .populate("branch", "name");
 
     res.json(users);
 

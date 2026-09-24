@@ -499,15 +499,15 @@ const Staff = () => {
           method: "POST",
           body: JSON.stringify(form)
         });
-        setStaff((prev) => [res.user, ...prev]);
       } else {
-        const res = await request(`/staff/${editingId}`, {
+        await request(`/staff/${editingId}`, {
           method: "PUT",
           body: JSON.stringify(form)
         });
-        setStaff((prev) => prev.map((u) => (u._id === editingId ? res.user : u)));
         setEditingId(null);
       }
+      const refreshedStaff = await request("/staff");
+      setStaff(Array.isArray(refreshedStaff) ? refreshedStaff : []);
       setForm(initialForm);
     } catch (err) {
       setError(err.message);
