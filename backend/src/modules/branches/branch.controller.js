@@ -57,7 +57,12 @@ const getBranches = async (req, res) => {
 
     const canViewAllBranches =
       isPrivileged(req.user) ||
-      req.user.permissions?.canViewAllBranchInventory === true;
+      req.user.permissions?.canViewAllBranchInventory === true ||
+      req.user.permissions?.canManageAllBranchInventory === true;
+
+    if (!canViewAllBranches && !req.user.branchId) {
+      return res.status(403).json({ message: "A branch assignment is required to view branch information" });
+    }
 
     if (!canViewAllBranches && req.user.branchId) {
       branchQuery = {

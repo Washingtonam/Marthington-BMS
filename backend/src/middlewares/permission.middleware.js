@@ -14,6 +14,12 @@ const checkPermission = (permission) => {
       const permissions = req.user.permissions || {};
 
       const hasPermission = permissions[permission] === true ||
+        (permission === "canViewBranches" && (
+          permissions.canViewBranchInventory === true ||
+          permissions.canManageBranchInventory === true ||
+          permissions.canViewAllBranchInventory === true ||
+          permissions.canManageAllBranchInventory === true
+        )) ||
         (permission === "canViewBranchInventory" && (
           permissions.canViewAllBranchInventory === true ||
           permissions.canManageAllBranchInventory === true
