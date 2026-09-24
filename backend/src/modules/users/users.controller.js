@@ -12,6 +12,10 @@ const getPermissionGrantViolations = (actorPermissions = {}, candidatePermission
 };
 
 const rejectOverGrant = (req, candidatePermissions, res) => {
+  if (req.user?.role === "owner" || req.user?.role === "super_admin") {
+    return false;
+  }
+
   const actorPermissions = req.user?.permissions || {};
   const violations = getPermissionGrantViolations(actorPermissions, candidatePermissions);
 

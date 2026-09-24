@@ -21,6 +21,8 @@ const hasCrossBranchManagement = (user = {}) => (
 const validateStaffRole = (role) => STAFF_ROLES.includes(role);
 
 const rejectOverGrant = (req, permissions, res) => {
+  if (isPrivileged(req.user)) return false;
+
   const violations = getPermissionGrantViolations(req.user?.permissions, permissions);
 
   if (violations.length > 0) {

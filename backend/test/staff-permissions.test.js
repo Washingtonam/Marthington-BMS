@@ -5,6 +5,7 @@ import { createStaff, updateStaff } from "../src/modules/users/users.controller.
 import staffController from "../src/modules/staff/staff.controller.js";
 import User from "../src/modules/users/user.model.js";
 import Branch from "../src/modules/branches/branch.model.js";
+import Business from "../src/modules/businesses/business.model.js";
 
 const buildRes = () => {
   const response = {
@@ -25,17 +26,21 @@ const buildRes = () => {
   };
 };
 
-test("create staff rejects privilege escalation beyond the actor's permissions", async () => {
-  const original = User.findOne;
+test("create staff rejects privilege escalation beyond a manager's permissions", async () => {
+  const originalFindOne = User.findOne;
   const originalCreate = User.create;
+  const originalCountDocuments = User.countDocuments;
+  const originalFindById = Business.findById;
 
   User.findOne = async () => null;
   User.create = async (data) => ({ ...data, _id: "new-staff" });
+  User.countDocuments = async () => 0;
+  Business.findById = async () => ({ getLimits: () => ({ staff: 10 }) });
 
   try {
     const req = {
       user: {
-        role: "owner",
+        role: "manager",
         businessId: "business-1",
         permissions: {
           canInviteStaff: true,
@@ -55,13 +60,15 @@ test("create staff rejects privilege escalation beyond the actor's permissions",
     };
 
     const res = buildRes();
-    await createStaff(req, res);
+    await staffController.createStaff(req, res);
 
     assert.equal(res.response.statusCode, 403);
     assert.match(res.response.body.message, /cannot grant permissions/i);
   } finally {
-    User.findOne = original;
+    User.findOne = originalFindOne;
     User.create = originalCreate;
+    User.countDocuments = originalCountDocuments;
+    Business.findById = originalFindById;
   }
 });
 
@@ -90,7 +97,7 @@ test("update staff rejects privilege escalation beyond the actor's permissions",
   try {
     const req = {
       user: {
-        role: "owner",
+        role: "manager",
         businessId: "business-1",
         permissions: {
           canEditStaffPermissions: true,
@@ -115,6 +122,75 @@ test("update staff rejects privilege escalation beyond the actor's permissions",
   } finally {
     User.findById = originalFindById;
     User.prototype.save = originalSave;
+  }
+});
+
+test("owner can create and update staff with permissions missing from an older owner record", async () => {
+  const originalFindOne = User.findOne;
+  const originalCreate = User.create;
+  const originalCountDocuments = User.countDocuments;
+  const originalFindById = User.findById;
+  const originalBranchFindOne = Branch.findOne;
+  const originalBusinessFindById = Business.findById;
+
+  User.findOne = async () => null;
+  User.create = async (data) => ({ ...data, _id: "new-staff" });
+  User.countDocuments = async () => 0;
+  User.findById = async () => ({
+    business: { toString: () => "business-1" },
+    role: "manager",
+    permissions: { canViewProducts: true },
+    save: async function () { return this; }
+  });
+  Branch.findOne = async () => ({ _id: "branch-b", business: "business-1" });
+  Business.findById = async () => ({ getLimits: () => ({ staff: 10 }) });
+
+  try {
+    const owner = {
+      role: "owner",
+      businessId: "business-1",
+      branchId: null,
+      permissions: { canInviteStaff: true }
+    };
+
+    const createResponse = buildRes();
+    await staffController.createStaff({
+      user: owner,
+      body: {
+        name: "New Manager",
+        email: "manager@example.com",
+        password: "secret123",
+        role: "manager",
+        branch: "branch-b",
+        permissions: {
+          canManageAllBranchInventory: true,
+          canManageSettings: true
+        }
+      }
+    }, createResponse);
+
+    assert.notEqual(createResponse.response.statusCode, 403);
+
+    const updateResponse = buildRes();
+    await staffController.updateStaff({
+      user: owner,
+      params: { id: "staff-2" },
+      body: {
+        permissions: {
+          canManageAllBranchInventory: true,
+          canManageSettings: true
+        }
+      }
+    }, updateResponse);
+
+    assert.notEqual(updateResponse.response.statusCode, 403);
+  } finally {
+    User.findOne = originalFindOne;
+    User.create = originalCreate;
+    User.countDocuments = originalCountDocuments;
+    User.findById = originalFindById;
+    Branch.findOne = originalBranchFindOne;
+    Business.findById = originalBusinessFindById;
   }
 });
 
