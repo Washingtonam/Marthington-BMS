@@ -24,6 +24,13 @@ router.post(
   invoiceController.bulkUpdateInvoiceStatus
 );
 
+router.post(
+  "/bulk-delete",
+  protect,
+  checkPermission("canManageInvoices"),
+  invoiceController.bulkDeleteInvoices
+);
+
 router.put(
   "/:invoiceId/payment",
   protect,

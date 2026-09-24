@@ -114,6 +114,41 @@ const bulkUpdateInvoiceStatus = async (req, res) => {
   return res.json({ success: true, status, updatedCount: updatedIds.length, skippedCount: skipped.length, skipped });
 };
 
+const bulkDeleteInvoices = async (req, res) => {
+  const { invoiceIds = [] } = req.body || {};
+  if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
+    return res.status(400).json({ message: "Select at least one invoice" });
+  }
+
+  const uniqueInvoiceIds = [...new Set(invoiceIds.map(String))];
+  const deleted = [];
+  const skipped = [];
+
+  for (const invoiceId of uniqueInvoiceIds) {
+    let responseStatus = 200;
+    let responseBody = null;
+    const response = {
+      status(statusCode) {
+        responseStatus = statusCode;
+        return this;
+      },
+      json(body) {
+        responseBody = body;
+        return this;
+      }
+    };
+
+    await deleteInvoice({ ...req, params: { id: invoiceId } }, response);
+    if (responseStatus >= 200 && responseStatus < 300 && responseBody?.success) {
+      deleted.push(invoiceId);
+    } else {
+      skipped.push({ id: invoiceId, reason: responseBody?.message || "Invoice could not be deleted" });
+    }
+  }
+
+  return res.json({ success: true, deletedCount: deleted.length, skippedCount: skipped.length, skipped });
+};
+
 const createInvoice = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -1455,6 +1490,7 @@ export default {
   returnInvoiceItem,
   getInvoices,
   bulkUpdateInvoiceStatus,
+  bulkDeleteInvoices,
   getInvoiceById,
   getInvoicePDF,
   shareInvoice,

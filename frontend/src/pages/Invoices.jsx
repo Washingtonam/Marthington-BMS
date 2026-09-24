@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus } from "../api/invoices.js";
+import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
@@ -261,6 +261,25 @@ const Invoices = () => {
     } catch (err) {
       console.error("Failed to update invoices in bulk:", err);
       alert(err.message || "Unable to update the selected invoices.");
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const invoiceIds = [...selectedInvoiceIds];
+    if (!invoiceIds.length) return;
+    if (!confirm(`Delete ${invoiceIds.length} selected invoice${invoiceIds.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+
+    try {
+      setBulkUpdating(true);
+      const result = await bulkDeleteInvoices(invoiceIds);
+      setSelectedInvoiceIds(new Set());
+      setInvoiceRefreshKey(value => value + 1);
+      alert(`${result.deletedCount} invoice${result.deletedCount === 1 ? "" : "s"} deleted${result.skippedCount ? `; ${result.skippedCount} skipped because they could not be deleted.` : "."}`);
+    } catch (err) {
+      console.error("Failed to delete invoices in bulk:", err);
+      alert(err.message || "Unable to delete the selected invoices.");
     } finally {
       setBulkUpdating(false);
     }
@@ -1090,6 +1109,14 @@ const Invoices = () => {
                 className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm ring-1 ring-red-200 disabled:opacity-50"
               >
                 Cancel selected
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkUpdating}
+                className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-red-700 shadow-sm ring-1 ring-red-200 disabled:opacity-50"
+              >
+                Delete selected
               </button>
               <button
                 type="button"

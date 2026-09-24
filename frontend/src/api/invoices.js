@@ -21,6 +21,12 @@ export const bulkUpdateInvoiceStatus = (invoiceIds, status) =>
     body: JSON.stringify({ invoiceIds, status })
   });
 
+export const bulkDeleteInvoices = (invoiceIds) =>
+  request("/invoices/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ invoiceIds })
+  });
+
 export const getInvoice = (id) =>
   request(`/invoices/${id}`);
 
