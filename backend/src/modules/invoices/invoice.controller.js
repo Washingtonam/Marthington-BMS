@@ -84,7 +84,10 @@ const bulkUpdateInvoiceStatus = async (req, res) => {
   const invoices = await Invoice.find({
     _id: { $in: uniqueInvoiceIds },
     business: req.user.businessId,
-    linkedSale: null
+    $or: [
+      { source: "manual" },
+      { source: { $exists: false }, linkedSale: null }
+    ]
   });
 
   const updatedIds = [];
@@ -236,6 +239,8 @@ const createInvoice = async (req, res) => {
         quantity: Number(item.quantity || 0),
         price: Number(item.price || 0),
         total: Number(item.total || 0),
+        fulfillmentStatus: item.product ? "pending" : "collected",
+        serviceStatus: item.service ? "pending" : "completed",
         returned: false,
         returnQuantity: 0,
         returnAmount: 0,
@@ -332,6 +337,7 @@ const createInvoice = async (req, res) => {
           business: businessId,
           branch: branchId,
           createdBy: req.user.id,
+          source: "manual",
           transactionType,
           customer,
           supplier,
@@ -644,6 +650,41 @@ const finalizeInvoiceStockDeduction = async ({ invoice, userId, session }) => {
 };
 
 const generatePickupReceiptId = () => `PICKUP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+
+const updateInvoiceItemProgress = async (req, res) => {
+  try {
+    const { itemIndex, serviceStatus } = req.body || {};
+    const invoice = await Invoice.findOne({ _id: req.params.invoiceId, business: req.user.businessId });
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+    if (!hasInvoiceBranchAccess(invoice, req.user, "manage")) {
+      return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+    if (invoice.transactionType !== "outgoing") {
+      return res.status(400).json({ message: "Only customer invoice services can be updated" });
+    }
+    if (!Number.isInteger(itemIndex) || itemIndex < 0 || itemIndex >= invoice.items.length) {
+      return res.status(400).json({ message: "Invalid invoice item" });
+    }
+    if (!["pending", "in_progress", "completed"].includes(serviceStatus)) {
+      return res.status(400).json({ message: "Invalid service status" });
+    }
+
+    const item = invoice.items[itemIndex];
+    if (!item.service) return res.status(400).json({ message: "Only service items have service progress" });
+    if (invoice.status === "cancelled") return res.status(400).json({ message: "Cancelled invoices cannot be updated" });
+
+    item.serviceStatus = serviceStatus;
+    await invoice.save();
+
+    const populatedInvoice = await Invoice.findById(invoice._id)
+      .populate("customer", "name phone email outstandingBalance")
+      .populate("supplier", "name phone email isActive");
+    res.json(populatedInvoice);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 const completeInvoicePickup = async (req, res) => {
   const session = await mongoose.startSession();
@@ -1191,7 +1232,12 @@ const deleteInvoice = async (req, res) => {
 export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = {} }) => {
   const query = {
     business: businessId,
-    linkedSale: null,
+    $and: [{
+      $or: [
+        { source: "manual" },
+        { source: { $exists: false }, linkedSale: null }
+      ]
+    }],
     ...branchQuery
   };
 
@@ -1227,12 +1273,12 @@ export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = 
 
   if (filters.search?.trim()) {
     const search = filters.search.trim();
-    query.$or = [
+    query.$and.push({ $or: [
       { invoiceNumber: { $regex: search, $options: "i" } },
       { customerName: { $regex: search, $options: "i" } },
       { customerPhone: { $regex: search, $options: "i" } },
       { customerEmail: { $regex: search, $options: "i" } }
-    ];
+    ] });
   }
 
   return query;
@@ -1266,10 +1312,10 @@ const getInvoices = async (req, res) => {
         Customer.find({ business: req.user.businessId, name: { $regex: search, $options: "i" } }).select("_id").lean(),
         Supplier.find({ business: req.user.businessId, name: { $regex: search, $options: "i" } }).select("_id").lean()
       ]);
-      query.$or.push(
+      query.$and.push({ $or: [
         ...customers.map(({ _id }) => ({ customer: _id })),
         ...suppliers.map(({ _id }) => ({ supplier: _id }))
-      );
+      ] });
     }
 
     const { page, limit, sortBy, sortOrder } = getInvoicePagination(req.query);
@@ -1484,6 +1530,7 @@ export default {
   createInvoice,
   updateInvoicePayment,
   completeInvoicePickup,
+  updateInvoiceItemProgress,
   getInvoicePayments,
   updateInvoice,
   deleteInvoice,

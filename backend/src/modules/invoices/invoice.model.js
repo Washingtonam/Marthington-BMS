@@ -35,6 +35,18 @@ const invoiceItemSchema =
       default: 0
     },
 
+    fulfillmentStatus: {
+      type: String,
+      enum: ["pending", "collected"],
+      default: "pending"
+    },
+
+    serviceStatus: {
+      type: String,
+      enum: ["pending", "in_progress", "completed"],
+      default: "pending"
+    },
+
     returned: {
       type: Boolean,
       default: false
@@ -91,6 +103,12 @@ const invoiceSchema =
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"
+    },
+
+    source: {
+      type: String,
+      enum: ["manual", "pos"],
+      default: "manual"
     },
 
     transactionType: {

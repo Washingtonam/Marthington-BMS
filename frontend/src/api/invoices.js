@@ -39,6 +39,12 @@ export const updateInvoicePayment = (invoiceId, paymentAmount, paymentMethod = "
 export const completeInvoicePickup = (invoiceId) =>
   request(`/invoices/${invoiceId}/complete-pickup`, { method: "POST" });
 
+export const updateInvoiceItemProgress = (invoiceId, itemIndex, serviceStatus) =>
+  request(`/invoices/${invoiceId}/item-progress`, {
+    method: "PUT",
+    body: JSON.stringify({ itemIndex, serviceStatus })
+  });
+
 export const getInvoicePayments = (invoiceId) =>
   request(`/invoices/${invoiceId}/payments`);
 

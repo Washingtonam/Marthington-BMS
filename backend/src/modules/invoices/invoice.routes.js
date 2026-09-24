@@ -45,6 +45,13 @@ router.post(
   invoiceController.completeInvoicePickup
 );
 
+router.put(
+  "/:invoiceId/item-progress",
+  protect,
+  checkPermission("canManageInvoices"),
+  invoiceController.updateInvoiceItemProgress
+);
+
 router.get(
   "/:invoiceId/payments",
   protect,

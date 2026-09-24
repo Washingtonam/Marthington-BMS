@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
+import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
@@ -730,6 +730,16 @@ const Invoices = () => {
     }
   };
 
+  const handleServiceProgress = async (invoice, itemIndex, serviceStatus) => {
+    try {
+      const updatedInvoice = await updateInvoiceItemProgress(invoice._id, itemIndex, serviceStatus);
+      setInvoices(prev => prev.map(item => item._id === updatedInvoice._id ? updatedInvoice : item));
+    } catch (err) {
+      console.error("Failed to update service progress:", err);
+      alert(err.message || "Unable to update service progress.");
+    }
+  };
+
   // ====================================
   // PDF HANDLING
   // ====================================
@@ -1161,6 +1171,11 @@ const Invoices = () => {
                     const counterparty = invoiceTab === "incoming"
                       ? (invoice.supplier?.name || invoice.customerName || "Supplier")
                       : (invoice.customerName || invoice.supplier?.name || "Customer");
+                    const productItems = (invoice.items || []).filter(item => item.product);
+                    const serviceItems = (invoice.items || []).filter(item => item.service);
+                    const collectedProducts = productItems.filter(item => item.fulfillmentStatus === "collected" || item.soldQuantity >= item.quantity).length;
+                    const completedServices = serviceItems.filter(item => item.serviceStatus === "completed").length;
+                    const hasCollectibleProducts = invoice.transactionType === "outgoing" && productItems.length > 0 && collectedProducts < productItems.length;
 
                     return (
                       <tr key={invoice._id} className="hover:bg-gray-50 transition-colors">
@@ -1229,9 +1244,28 @@ const Invoices = () => {
 
                         <td className="px-6 py-4 text-sm text-slate-600">
                           {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "No due date"}
-                          {invoice.transactionType === "outgoing" && invoice.fulfillmentStatus && invoice.fulfillmentStatus !== "not_applicable" && (
-                            <p className="mt-1 text-xs capitalize text-slate-500">{invoice.fulfillmentStatus.replaceAll("_", " ")}</p>
+                          {productItems.length > 0 && (
+                            <p className="mt-1 text-xs font-semibold text-indigo-600">Products: {collectedProducts}/{productItems.length} collected</p>
                           )}
+                          {serviceItems.length > 0 && (
+                            <p className="mt-1 text-xs font-semibold text-violet-600">Services: {completedServices}/{serviceItems.length} completed</p>
+                          )}
+                          {serviceItems.map(item => {
+                            const itemIndex = invoice.items.indexOf(item);
+                            const nextStatus = item.serviceStatus === "pending" ? "in_progress" : "completed";
+                            const actionLabel = item.serviceStatus === "pending" ? "Start service" : item.serviceStatus === "in_progress" ? "Complete service" : "Service completed";
+                            return (
+                              <button
+                                key={`${invoice._id}-${itemIndex}`}
+                                type="button"
+                                onClick={() => item.serviceStatus !== "completed" && handleServiceProgress(invoice, itemIndex, nextStatus)}
+                                disabled={item.serviceStatus === "completed"}
+                                className="mt-1 block text-left text-xs font-bold text-violet-700 underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-70"
+                              >
+                                {item.name}: {actionLabel}
+                              </button>
+                            );
+                          })}
                         </td>
 
                         <td className="px-6 py-4 text-center">
@@ -1282,7 +1316,7 @@ const Invoices = () => {
                                 ✓
                               </button>
                             )}
-                            {invoice.transactionType === "outgoing" && (!invoice.fulfillmentStatus || invoice.fulfillmentStatus === "pending_pickup") && (
+                            {hasCollectibleProducts && (!invoice.fulfillmentStatus || invoice.fulfillmentStatus === "pending_pickup") && (
                               <button
                                 onClick={() => handleCompletePickup(invoice)}
                                 className="px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"

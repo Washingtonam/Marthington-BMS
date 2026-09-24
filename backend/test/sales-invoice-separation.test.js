@@ -25,7 +25,12 @@ test("invoice list excludes POS-linked invoices while retaining dedicated invoic
 
   assert.deepEqual(query, {
     business: "business-1",
-    linkedSale: null,
+    $and: [{
+      $or: [
+        { source: "manual" },
+        { source: { $exists: false }, linkedSale: null }
+      ]
+    }],
     branch: "branch-1",
     transactionType: "outgoing"
   });
@@ -37,7 +42,7 @@ test("invoice list query supports dedicated invoice search fields", () => {
     filters: { search: "Jane" }
   });
 
-  assert.deepEqual(query.$or, [
+  assert.deepEqual(query.$and[1].$or, [
     { invoiceNumber: { $regex: "Jane", $options: "i" } },
     { customerName: { $regex: "Jane", $options: "i" } },
     { customerPhone: { $regex: "Jane", $options: "i" } },

@@ -309,6 +309,7 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
               business: businessId,
               branch: branchId,
               createdBy: req.user.id,
+              source: "pos",
               transactionType: "outgoing",
               customer: customer?._id || null,
               customerName: customerName || customer?.name || "Walk-in",
