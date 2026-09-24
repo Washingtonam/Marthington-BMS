@@ -331,13 +331,18 @@ const rolePermissionPresets = {
 };
 
 const permissionGroups = {
-  inventory: ["canManageProducts", "canViewProducts", "canViewBranches", "canManageBranches", "canViewBranchInventory", "canViewAllBranchInventory", "canManageBranchInventory", "canManageAllBranchInventory", "canViewPurchaseOrders", "canManagePurchaseOrders", "canReceiveInventory"],
-  customers: ["canViewCustomers", "canManageCustomers"],
-  finance: ["canViewInvoices", "canManageInvoices", "canViewExpenses", "canManageExpenses", "canViewPayments", "canManagePayments", "canViewFinancialReports"],
-  pos: ["canAccessPOS", "canMakeSale", "canViewSales", "canApplyDiscounts", "canProcessReturns"],
-  reports: ["canViewReports", "canViewSalesReports", "canViewStaffReports"],
-  staff: ["canManageStaff", "canInviteStaff", "canEditStaffPermissions", "canDeactivateStaff"],
-  settings: ["canManageSettings", "canManageBilling", "canManageBusinessProfile", "canManageIntegrations"]
+  access: { label: "Basic access", description: "Choose the core workspace areas this person can open.", permissions: ["canViewDashboard", "canAccessPOS", "canMakeSale", "canViewSales"] },
+  products: { label: "Products & services", description: "Control catalog visibility and changes.", permissions: ["canViewProducts", "canManageProducts"] },
+  inventory: { label: "Inventory", description: "Control stock visibility, branch scope, and stock changes.", permissions: ["canViewBranchInventory", "canViewAllBranchInventory", "canManageBranchInventory", "canManageAllBranchInventory", "canReceiveInventory"] },
+  purchasing: { label: "Purchasing", description: "Control purchase orders and receiving.", permissions: ["canViewPurchaseOrders", "canManagePurchaseOrders"] },
+  expenses: { label: "Expenses", description: "Control expense visibility and entry management.", permissions: ["canViewExpenses", "canManageExpenses"] },
+  customers: { label: "Customers", description: "Control customer records and updates.", permissions: ["canViewCustomers", "canManageCustomers"] },
+  invoices: { label: "Invoices & payments", description: "Control billing records and payment review.", permissions: ["canViewInvoices", "canManageInvoices", "canViewPayments", "canManagePayments"] },
+  reports: { label: "Reports & analytics", description: "Control business reporting and sensitive reporting views.", permissions: ["canViewReports", "canViewSalesReports", "canViewFinancialReports", "canViewStaffReports"] },
+  branches: { label: "Branches", description: "Control branch visibility and branch administration.", permissions: ["canViewBranches", "canManageBranches"] },
+  staff: { label: "Staff management", description: "Control team administration and account actions.", permissions: ["canManageStaff", "canInviteStaff", "canEditStaffPermissions", "canDeactivateStaff"] },
+  settings: { label: "Business settings", description: "Sensitive organization, billing, and integration controls.", permissions: ["canManageSettings", "canManageBilling", "canManageBusinessProfile", "canManageIntegrations"] },
+  pos: { label: "Sales controls", description: "Additional controls for checkout behavior.", permissions: ["canOverridePrice", "canApplyDiscounts", "canProcessReturns"] }
 };
 
 const getStoredCurrentUser = () => {
@@ -358,9 +363,9 @@ const Staff = () => {
   const [error, setError] = useState("");
   const [showDrawer, setShowDrawer] = useState(false);
   const [isDrawerMounted, setIsDrawerMounted] = useState(false);
-  const [openGroup, setOpenGroup] = useState("pos");
   const [showDetails, setShowDetails] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [permissionSearch, setPermissionSearch] = useState("");
   const [openMenuId, setOpenMenuId] = useState(null);
   const [branches, setBranches] = useState([]);
   const [search, setSearch] = useState("");
@@ -466,6 +471,20 @@ const Staff = () => {
   const toggleShowDetail = (permission) => {
     setShowDetails((prev) => ({ ...prev, [permission]: !prev[permission] }));
   };
+
+  const togglePermissionGroup = (permissions) => {
+    const shouldEnable = permissions.some((permission) => !form.permissions[permission]);
+    setForm((prev) => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        ...Object.fromEntries(permissions.map((permission) => [permission, shouldEnable]))
+      }
+    }));
+  };
+
+  const enabledPermissionCount = Object.values(form.permissions).filter(Boolean).length;
+  const normalizedPermissionSearch = permissionSearch.trim().toLowerCase();
 
   // =====================================
   // SUBMIT
@@ -697,52 +716,60 @@ const Staff = () => {
                 </select>
               </div>
 
-              {/* Permissions grouped into accordions */}
-              <div className="border border-gray-100 rounded-2xl p-4 bg-gray-50">
-                <h3 className="font-bold text-sm text-gray-700 mb-3 flex items-center gap-2">🛡️ Security & Permissions</h3>
+              <div className="permission-editor">
+                <div className="permission-editor-heading">
+                  <div>
+                    <span className="section-eyebrow"><FiShield /> Access setup</span>
+                    <h3>Permissions</h3>
+                    <p>Give this person only the workspace areas and actions they need.</p>
+                  </div>
+                  <span className="permission-count">{enabledPermissionCount} enabled</span>
+                </div>
 
-                {Object.keys(permissionGroups).map((groupKey) => (
-                  <div key={groupKey} className="mb-3">
-                    <button type="button" onClick={() => setOpenGroup(openGroup === groupKey ? '' : groupKey)} className="w-full flex items-center justify-between p-3 bg-white rounded-xl border">
-                          <div className="text-sm font-semibold capitalize">
-                            {groupKey === 'inventory' && 'Inventory Management'}
-                            {groupKey === 'customers' && 'Customer Management'}
-                            {groupKey === 'finance' && 'Finance'}
-                            {groupKey === 'pos' && 'POS & Sales'}
-                            {groupKey === 'reports' && 'Reports'}
-                            {groupKey === 'staff' && 'Staff Management'}
-                            {groupKey === 'settings' && 'Settings'}
-                          </div>
-                          <div className="text-xs text-gray-400">{openGroup === groupKey ? '−' : '+'}</div>
-                    </button>
-                    {openGroup === groupKey && (
-                      <div className="mt-2 space-y-2">
-                        {permissionGroups[groupKey].map((permission) => {
-                          const meta = permissionLabels[permission];
-                          return (
-                            <div key={permission} className="flex items-start justify-between p-3 bg-white rounded-xl border">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm font-semibold text-slate-800">{meta.label}</div>
-                                  <div className="relative group">
-                                    <button type="button" onClick={() => toggleShowDetail(permission)} className="text-xs text-gray-400">i</button>
-                                    <div className="permission-tooltip hidden group-hover:block absolute right-0 top-6 w-64 z-50 p-2 bg-white border rounded shadow">{meta.description}</div>
-                                  </div>
+                <div className="permission-search">
+                  <FiSearch />
+                  <input value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder="Search permissions" aria-label="Search permissions" />
+                  {permissionSearch && <button type="button" onClick={() => setPermissionSearch("")} aria-label="Clear permission search"><FiX /></button>}
+                </div>
+
+                <div className="permission-section-list">
+                  {Object.entries(permissionGroups).map(([groupKey, group]) => {
+                    const visiblePermissions = group.permissions.filter((permission) => {
+                      if (!normalizedPermissionSearch) return true;
+                      const meta = permissionLabels[permission];
+                      return `${meta.label} ${meta.description} ${group.label}`.toLowerCase().includes(normalizedPermissionSearch);
+                    });
+
+                    if (!visiblePermissions.length) return null;
+                    const allEnabled = group.permissions.every((permission) => form.permissions[permission]);
+
+                    return (
+                      <div key={groupKey} className="permission-section">
+                        <div className="permission-section-header">
+                          <div><strong>{group.label}</strong><span>{group.description}</span></div>
+                          <button type="button" onClick={() => togglePermissionGroup(group.permissions)} className="permission-select-all">{allEnabled ? "Clear section" : "Select all"}</button>
+                        </div>
+                        <div className="permission-grid">
+                          {visiblePermissions.map((permission) => {
+                            const meta = permissionLabels[permission];
+                            return (
+                              <div key={permission} className="permission-card">
+                                <div className="permission-card-copy">
+                                  <strong>{meta.label}</strong>
+                                  <button type="button" onClick={() => toggleShowDetail(permission)} aria-label={`Explain ${meta.label}`}>i</button>
+                                  {showDetails[permission] && <span>{meta.description}</span>}
                                 </div>
-                                {showDetails[permission] && <div className="text-xs text-gray-500 mt-1">{meta.description}</div>}
-                              </div>
-                              <div>
-                                <button type="button" onClick={() => togglePermission(permission)} className={`w-12 h-6 rounded-full p-1 ${form.permissions[permission] ? 'bg-slate-900' : 'bg-gray-200'}`}>
-                                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${form.permissions[permission] ? 'translate-x-6' : ''}`} />
+                                <button type="button" onClick={() => togglePermission(permission)} aria-pressed={Boolean(form.permissions[permission])} className={`permission-switch ${form.permissions[permission] ? 'is-enabled' : ''}`} aria-label={`${meta.label}: ${form.permissions[permission] ? 'enabled' : 'disabled'}`}>
+                                  <span />
                                 </button>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
 
               <button type="submit" disabled={saving} className="w-full bg-black text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition-all shadow-lg active:scale-95 disabled:bg-gray-400">

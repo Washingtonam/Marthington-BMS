@@ -2040,3 +2040,152 @@ label input:focus {
 
 .dark .staff-drawer-delete:hover { background: rgba(127, 29, 29, 0.45); }
 
+.permission-editor {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(145deg, #f8fafc, #ffffff);
+}
+
+.permission-editor-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.permission-editor-heading h3 {
+  margin: 5px 0 0;
+  color: #0f172a;
+  font-size: 1.15rem;
+}
+
+.permission-editor-heading p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.permission-count {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #047857;
+  background: #d1fae5;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.permission-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 11px;
+  color: #64748b;
+  background: #fff;
+}
+
+.permission-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #0f172a;
+  background: transparent;
+  font-size: 0.84rem;
+}
+
+.permission-search button {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  color: #64748b;
+  background: transparent;
+}
+
+.permission-section-list {
+  display: grid;
+  gap: 12px;
+  max-height: 410px;
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.permission-section {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(148, 163, 184, 0.17);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.permission-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.permission-section-header div { display: grid; gap: 3px; }
+.permission-section-header strong { color: #1e293b; font-size: 0.86rem; }
+.permission-section-header span { color: #64748b; font-size: 0.7rem; line-height: 1.4; }
+
+.permission-select-all {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 7px;
+  color: #047857;
+  background: #ecfdf5;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.permission-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.permission-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 9px;
+  min-height: 51px;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.permission-card-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.permission-card-copy strong { color: #334155; font-size: 0.75rem; line-height: 1.25; }
+.permission-card-copy button { padding: 0; border: 0; color: #94a3b8; background: transparent; font-size: 0.68rem; font-weight: 800; }
+.permission-card-copy span { flex-basis: 100%; color: #64748b; font-size: 0.68rem; line-height: 1.35; }
+
+.permission-switch {
+  display: flex;
+  align-items: center;
+  width: 34px;
+  height: 20px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 0;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 160ms ease;
+}
+
+.permission-switch span { width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 160ms ease; }
+.permission-switch.is-enabled { justify-content: flex-end; background: #059669; }
+
+.dark .permission-editor { border-color: rgba(148, 163, 184, 0.18); background: linear-gradient(145deg, #0f172a, #111827); }
+.dark .permission-editor-heading h3, .dark .permission-section-header strong, .dark .permission-card-copy strong { color: #e2e8f0; }
+.dark .permission-editor-heading p, .dark .permission-section-header span, .dark .permission-card-copy span { color: #94a3b8; }
+.dark .permission-search, .dark .permission-section, .dark .permission-card { border-color: rgba(148, 163, 184, 0.18); background: #0f172a; }
+.dark .permission-search input { color: #e2e8f0; }
+.dark .permission-select-all { color: #6ee7b7; background: rgba(6, 78, 59, 0.45); }
+
