@@ -38,6 +38,25 @@ export const getCachedCollection = async (key) => {
   return cached?.data ?? null;
 };
 
+const resolveBusinessId = (business) => {
+  if (!business) return null;
+  if (typeof business === "string") return business;
+  return business._id || business.id || null;
+};
+
+export const getActiveBusinessId = () => {
+  try {
+    const impersonatedBusiness = localStorage.getItem("bms_impersonation");
+    if (impersonatedBusiness) return impersonatedBusiness;
+
+    const user = JSON.parse(localStorage.getItem("bms_user") || "null");
+    const business = JSON.parse(localStorage.getItem("bms_business") || "null");
+    return resolveBusinessId(user?.business) || resolveBusinessId(business);
+  } catch {
+    return null;
+  }
+};
+
 export const queueOperation = async ({ path, options, entity, action, operationId, businessId = null }) => {
   const resolvedOperationId = operationId || `${Date.now()}-${crypto.randomUUID()}`;
   const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
@@ -65,6 +84,9 @@ export const queueOperation = async ({ path, options, entity, action, operationI
 };
 
 export const saveOfflineSnapshot = async (snapshot) => {
+  const businessId = resolveBusinessId(snapshot.business) || getActiveBusinessId();
+  if (!businessId) throw new Error("Cannot save offline data without a business identity");
+
   const syncedAt = snapshot.syncedAt || new Date().toISOString();
   const collections = {
     business: snapshot.business,
@@ -81,10 +103,11 @@ export const saveOfflineSnapshot = async (snapshot) => {
   };
 
   await db.transaction("rw", db.offlineSnapshot, db.cachedCollections, db.products, async () => {
-    await db.offlineSnapshot.clear();
-    await db.offlineSnapshot.bulkPut(Object.entries(collections).map(([key, data]) => ({ key, data, syncedAt })));
+    await db.offlineSnapshot.where("key").startsWith(`${businessId}:`).delete();
+    await db.cachedCollections.where("key").startsWith(`${businessId}:snapshot:`).delete();
+    await db.offlineSnapshot.bulkPut(Object.entries(collections).map(([key, data]) => ({ key: `${businessId}:${key}`, data, syncedAt })));
     await db.cachedCollections.bulkPut(Object.entries(collections).map(([key, data]) => ({
-      key: `snapshot:${key}`,
+      key: `${businessId}:snapshot:${key}`,
       data,
       updatedAt: Date.now()
     })));
@@ -95,8 +118,9 @@ export const saveOfflineSnapshot = async (snapshot) => {
   return syncedAt;
 };
 
-export const getOfflineSnapshotCollection = async (key) => {
-  const snapshot = await db.offlineSnapshot.get(key);
+export const getOfflineSnapshotCollection = async (key, businessId = getActiveBusinessId()) => {
+  if (!businessId) return null;
+  const snapshot = await db.offlineSnapshot.get(`${businessId}:${key}`);
   return snapshot?.data ?? null;
 };
 
@@ -115,6 +139,8 @@ export const clearQueuedOperations = async () => {
 };
 
 export const getOfflineSnapshotMeta = async () => {
-  const snapshot = await db.offlineSnapshot.get("business");
+  const businessId = getActiveBusinessId();
+  if (!businessId) return null;
+  const snapshot = await db.offlineSnapshot.get(`${businessId}:business`);
   return snapshot?.syncedAt || null;
 };

@@ -2,6 +2,7 @@ import {
   db,
   cacheCollection,
   getCachedCollection,
+  getActiveBusinessId,
   getOfflineSnapshotCollection,
   queueOperation
 } from "./offlineDb.js";
@@ -47,16 +48,18 @@ const doRefresh = async () => {
 };
 
 const getSnapshotFallback = async (path) => {
-  if (path.startsWith("/products")) return getOfflineSnapshotCollection("products");
-  if (path.startsWith("/services")) return getOfflineSnapshotCollection("services");
-  if (path.startsWith("/customers")) return getOfflineSnapshotCollection("customers");
-  if (path.startsWith("/suppliers")) return getOfflineSnapshotCollection("suppliers");
-  if (path === "/branches" || path.startsWith("/branches?")) return getOfflineSnapshotCollection("branches");
-  if (path.startsWith("/branches/inventory")) return getOfflineSnapshotCollection("branchInventory");
-  if (path.startsWith("/expenses")) return getOfflineSnapshotCollection("expenses");
-  if (path.startsWith("/sales")) return getOfflineSnapshotCollection("sales");
-  if (path.startsWith("/invoices")) return getOfflineSnapshotCollection("invoices");
-  if (path === "/business") return getOfflineSnapshotCollection("business");
+  const businessId = getActiveBusinessId();
+  if (!businessId) return null;
+  if (path.startsWith("/products")) return getOfflineSnapshotCollection("products", businessId);
+  if (path.startsWith("/services")) return getOfflineSnapshotCollection("services", businessId);
+  if (path.startsWith("/customers")) return getOfflineSnapshotCollection("customers", businessId);
+  if (path.startsWith("/suppliers")) return getOfflineSnapshotCollection("suppliers", businessId);
+  if (path === "/branches" || path.startsWith("/branches?")) return getOfflineSnapshotCollection("branches", businessId);
+  if (path.startsWith("/branches/inventory")) return getOfflineSnapshotCollection("branchInventory", businessId);
+  if (path.startsWith("/expenses")) return getOfflineSnapshotCollection("expenses", businessId);
+  if (path.startsWith("/sales")) return getOfflineSnapshotCollection("sales", businessId);
+  if (path.startsWith("/invoices")) return getOfflineSnapshotCollection("invoices", businessId);
+  if (path === "/business") return getOfflineSnapshotCollection("business", businessId);
   return null;
 };
 
@@ -208,7 +211,8 @@ const request = async (path, options = {}) => {
 
     // Cache successful reads so screens can render while offline.
     if (!options.method || options.method === "GET") {
-      await cacheCollection(path, data);
+      const businessId = getActiveBusinessId();
+      if (businessId) await cacheCollection(`${businessId}:${path}`, data);
     }
 
     // Keep the legacy product table populated for existing POS consumers.
@@ -234,8 +238,11 @@ const request = async (path, options = {}) => {
 
     // Keep read fallback for non-mutating screens, but do NOT queue writes.
     if (!options.method || options.method === "GET") {
-      const cached = await getCachedCollection(path);
-      if (cached !== null) return cached;
+      const businessId = getActiveBusinessId();
+      if (businessId) {
+        const cached = await getCachedCollection(`${businessId}:${path}`);
+        if (cached !== null) return cached;
+      }
 
       const snapshotFallback = await getSnapshotFallback(path);
       if (snapshotFallback !== null) return snapshotFallback;

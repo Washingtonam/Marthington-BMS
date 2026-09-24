@@ -15,6 +15,7 @@ import { registerAffiliateUser } from "../api/affiliateAuth.js";
 import {
   getBusiness
 } from "../api/business.js";
+import { db } from "../api/offlineDb.js";
 
 const AuthContext = createContext(null);
 
@@ -171,6 +172,8 @@ export const AuthProvider = ({ children }) => {
   const persistSession = (session) => {
     // 🔥 CLEAR OLD IMPERSONATION ON NEW LOGIN
     localStorage.removeItem("bms_impersonation");
+    // The legacy product table is not tenant-keyed; never carry it across sessions.
+    db.products.clear().catch(() => undefined);
 
     localStorage.setItem(
       "bms_token",
@@ -240,6 +243,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(
       "bms_impersonation"
     );
+    db.products.clear().catch(() => undefined);
 
     setToken(null);
 
