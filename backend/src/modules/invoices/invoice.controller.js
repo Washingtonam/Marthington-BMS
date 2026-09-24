@@ -1284,7 +1284,7 @@ export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = 
   return query;
 };
 
-const invoiceSortFields = new Set(["createdAt", "invoiceNumber", "totalAmount", "balanceDue", "dueDate", "status"]);
+const invoiceSortFields = new Set(["createdAt", "invoiceNumber", "customerName", "totalAmount", "balanceDue", "dueDate", "status"]);
 
 const getInvoicePagination = (query = {}) => {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
@@ -1334,7 +1334,66 @@ const getInvoices = async (req, res) => {
           $group: {
             _id: null,
             totalBalanceDue: { $sum: { $ifNull: ["$balanceDue", 0] } },
-            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } }
+            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } },
+            totalCollected: { $sum: { $ifNull: ["$amountPaid", 0] } },
+            pendingAmount: {
+              $sum: {
+                $cond: [
+                  { $and: [
+                    { $ne: ["$paymentStatus", "Fully Paid"] },
+                    { $ne: ["$status", "cancelled"] },
+                    { $or: [
+                      { $eq: ["$status", "draft"] },
+                      { $eq: ["$status", "sent"] },
+                      { $eq: ["$status", "partial"] }
+                    ] }
+                  ] },
+                  { $ifNull: ["$balanceDue", 0] },
+                  0
+                ]
+              }
+            },
+            overdueAmount: {
+              $sum: {
+                $cond: [
+                  { $and: [
+                    { $lt: ["$dueDate", new Date()] },
+                    { $ne: ["$paymentStatus", "Fully Paid"] },
+                    { $ne: ["$status", "cancelled"] }
+                  ] },
+                  { $ifNull: ["$balanceDue", 0] },
+                  0
+                ]
+              }
+            },
+            paidCount: {
+              $sum: { $cond: [{ $eq: ["$paymentStatus", "Fully Paid"] }, 1, 0] }
+            },
+            pendingCount: {
+              $sum: {
+                $cond: [
+                  { $and: [
+                    { $ne: ["$paymentStatus", "Fully Paid"] },
+                    { $ne: ["$status", "cancelled"] }
+                  ] },
+                  1,
+                  0
+                ]
+              }
+            },
+            overdueCount: {
+              $sum: {
+                $cond: [
+                  { $and: [
+                    { $lt: ["$dueDate", new Date()] },
+                    { $ne: ["$paymentStatus", "Fully Paid"] },
+                    { $ne: ["$status", "cancelled"] }
+                  ] },
+                  1,
+                  0
+                ]
+              }
+            }
           }
         }
       ])

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
-import { getInvoices, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
+import { getInvoices, getInvoice, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
@@ -11,6 +11,7 @@ import { getCustomers, createCustomer } from "../api/customers.js";
 import { getSuppliers } from "../api/suppliers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
+import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiEye, FiFileText, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 
 const tabOptions = [
   {
@@ -35,7 +36,7 @@ const Invoices = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, totalItems: 0, totalPages: 0 });
-  const [serverSummary, setServerSummary] = useState({ totalBalanceDue: 0, totalAmount: 0 });
+  const [serverSummary, setServerSummary] = useState({ totalBalanceDue: 0, totalAmount: 0, totalCollected: 0, pendingAmount: 0, overdueAmount: 0, paidCount: 0, pendingCount: 0, overdueCount: 0 });
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
@@ -66,6 +67,9 @@ const Invoices = () => {
   const [pdfInvoice, setPdfInvoice] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const pdfRef = useRef(null);
+  const [quickViewInvoice, setQuickViewInvoice] = useState(null);
+  const [quickViewPayments, setQuickViewPayments] = useState([]);
+  const [quickViewLoading, setQuickViewLoading] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareInvoiceData, setShareInvoiceData] = useState(null);
   const [shareEmail, setShareEmail] = useState("");
@@ -153,13 +157,19 @@ const Invoices = () => {
         else setPagination({ page, limit: pageSize, totalItems: invoiceList.length, totalPages: invoiceList.length ? 1 : 0 });
         setServerSummary(data?.summary || {
           totalBalanceDue: invoiceList.reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          totalAmount: invoiceList.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0)
+          totalAmount: invoiceList.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0),
+          totalCollected: invoiceList.reduce((sum, invoice) => sum + Number(invoice.amountPaid || 0), 0),
+          pendingAmount: invoiceList.filter(invoice => !["Fully Paid", "Returned"].includes(invoice.paymentStatus)).reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+          overdueAmount: invoiceList.filter(invoice => invoice.status === "overdue").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+          paidCount: invoiceList.filter(invoice => invoice.paymentStatus === "Fully Paid").length,
+          pendingCount: invoiceList.filter(invoice => invoice.paymentStatus !== "Fully Paid").length,
+          overdueCount: invoiceList.filter(invoice => invoice.status === "overdue").length
         });
       } catch (err) {
         console.error("Failed to load invoices:", err);
         setInvoices([]);
         setPagination({ page: 1, limit: pageSize, totalItems: 0, totalPages: 0 });
-        setServerSummary({ totalBalanceDue: 0, totalAmount: 0 });
+        setServerSummary({ totalBalanceDue: 0, totalAmount: 0, totalCollected: 0, pendingAmount: 0, overdueAmount: 0, paidCount: 0, pendingCount: 0, overdueCount: 0 });
       } finally {
         setLoading(false);
       }
@@ -219,9 +229,8 @@ const Invoices = () => {
     };
   }, [invoices]);
 
-  const activeTabLabel = invoiceTab === "incoming" ? "Supplier invoices" : "Customer invoices";
   const activeBalance = serverSummary.totalBalanceDue;
-  const activeOverdueBalance = invoiceTab === "incoming" ? metrics.overduePayables : metrics.overdueReceivables;
+  const activeOverdueBalance = serverSummary.overdueAmount || (invoiceTab === "incoming" ? metrics.overduePayables : metrics.overdueReceivables);
   const activeInvoiceCount = pagination.totalItems;
 
   const displayedInvoices = invoices;
@@ -799,6 +808,75 @@ const Invoices = () => {
     setPdfInvoice(null);
   };
 
+  const handleOpenQuickView = async (invoice) => {
+    setQuickViewInvoice(invoice);
+    setQuickViewPayments([]);
+    setQuickViewLoading(true);
+
+    try {
+      const [invoiceData, paymentsData] = await Promise.all([
+        getInvoice(invoice._id),
+        getInvoicePayments(invoice._id)
+      ]);
+      setQuickViewInvoice(invoiceData.invoice || invoiceData);
+      setQuickViewPayments(paymentsData.payments || paymentsData || []);
+    } catch (err) {
+      console.error("Failed to load invoice details:", err);
+    } finally {
+      setQuickViewLoading(false);
+    }
+  };
+
+  const handleCloseQuickView = () => {
+    setQuickViewInvoice(null);
+    setQuickViewPayments([]);
+  };
+
+  const handleSort = (nextSortBy) => {
+    if (sortBy === nextSortBy) {
+      setSortOrder(previous => previous === "asc" ? "desc" : "asc");
+      return;
+    }
+    setSortBy(nextSortBy);
+    setSortOrder(nextSortBy === "dueDate" ? "asc" : "desc");
+  };
+
+  const handleExportCsv = () => {
+    const headers = ["Invoice ID", "Counterparty", "Issue Date", "Due Date", "Amount", "Balance Due", "Payment Status", "Invoice Status"];
+    const rows = displayedInvoices.map(invoice => [
+      invoice.invoiceNumber || invoice._id,
+      invoice.customerName || invoice.customer?.name || invoice.supplier?.name || "",
+      invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : "",
+      invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "",
+      invoice.totalAmount || 0,
+      invoice.balanceDue || 0,
+      invoice.paymentStatus || "Unpaid",
+      invoice.status || "draft"
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `invoices-${invoiceTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const SortHeader = ({ label, field, align = "left" }) => {
+    const active = sortBy === field;
+    const SortIcon = active ? (sortOrder === "asc" ? FiArrowUp : FiArrowDown) : FiChevronsUp;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className={`group inline-flex items-center gap-1.5 font-semibold transition-colors hover:text-slate-950 ${align === "right" ? "text-right" : "text-left"} ${active ? "text-slate-950" : "text-slate-500"}`}
+      >
+        {label}
+        <SortIcon className={`h-3.5 w-3.5 ${active ? "text-blue-600" : "text-slate-300 group-hover:text-slate-500"}`} aria-hidden="true" />
+      </button>
+    );
+  };
+
   // ====================================
   // SHARE HANDLING
   // ====================================
@@ -969,35 +1047,43 @@ const Invoices = () => {
   }
 
   return (
-    <section className="min-h-screen bg-gray-50 py-8 px-4 dark:bg-slate-950 dark:text-slate-100">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <section className="min-h-screen bg-slate-50/80 py-8 px-4 dark:bg-slate-950 dark:text-slate-100">
+      <div className="mx-auto max-w-[1440px] space-y-6">
         {/* HEADER */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Billing</p>
-            <h1 className="text-4xl font-black text-gray-900 dark:text-slate-100">Invoices</h1>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <FiFileText className="h-4 w-4 text-blue-600" /> Billing operations
+            </div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 dark:text-slate-100">Invoice management</h1>
+            <p className="mt-1 text-sm text-slate-500">Monitor collections, outstanding balances, and customer billing activity.</p>
           </div>
-          <button
-            onClick={openNewInvoiceModal}
-            disabled={creatingInvoice || loadingBusiness}
-            className="rounded-2xl bg-blue-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-blue-700 disabled:opacity-50"
-          >
-            {creatingInvoice ? "Creating..." : "+ Create Invoice"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={handleExportCsv} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+              <FiDownload className="h-4 w-4" /> Export
+            </button>
+            <button
+              onClick={openNewInvoiceModal}
+              disabled={creatingInvoice || loadingBusiness}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              <FiPlus className="h-4 w-4" /> {creatingInvoice ? "Creating..." : "Create invoice"}
+            </button>
+          </div>
         </div>
 
         {/* TABS */}
-        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="border-b border-slate-200 dark:border-slate-800">
+          <div className="flex flex-col gap-1 sm:flex-row">
             {tabOptions.map(tab => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setInvoiceTab(tab.id)}
-                className={`flex-1 rounded-2xl px-4 py-3 text-left text-sm font-bold transition-all ${
+                className={`border-b-2 px-4 py-3 text-left text-sm font-semibold transition-all ${
                   invoiceTab === tab.id
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    ? "border-blue-600 text-blue-700 dark:text-blue-400"
+                    : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800 dark:text-slate-400"
                 }`}
               >
                 {tab.label}
@@ -1007,53 +1093,44 @@ const Invoices = () => {
         </div>
 
         {/* SUMMARY CARDS */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Balance due</p>
-                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(activeBalance)}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Total invoiced", value: serverSummary.totalAmount, detail: `${activeInvoiceCount} invoices in scope`, icon: FiFileText, tone: "text-slate-700", iconTone: "bg-slate-100 text-slate-600" },
+            { label: "Paid / collected", value: serverSummary.totalCollected, detail: `${serverSummary.paidCount || 0} fully paid`, icon: FiCheckCircle, tone: "text-emerald-700", iconTone: "bg-emerald-50 text-emerald-600" },
+            { label: "Pending / outstanding", value: serverSummary.pendingAmount || activeBalance, detail: `${serverSummary.pendingCount || 0} awaiting payment`, icon: FiClock, tone: "text-amber-700", iconTone: "bg-amber-50 text-amber-600" },
+            { label: "Overdue", value: activeOverdueBalance, detail: `${serverSummary.overdueCount || 0} past due`, icon: FiAlertCircle, tone: "text-rose-700", iconTone: "bg-rose-50 text-rose-600" }
+          ].map(({ label, value, detail, icon: Icon, tone, iconTone }) => (
+            <div key={label} className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.05)] transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</p>
+                  <p className={`mt-3 text-2xl font-extrabold tracking-tight ${tone}`}>{formatCurrency(value || 0)}</p>
+                  <p className="mt-2 text-xs text-slate-500">{detail}</p>
+                </div>
+                <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconTone}`}><Icon className="h-4 w-4" /></span>
               </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Outstanding balance across {activeTabLabel.toLowerCase()}.</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Overdue balance</p>
-                <p className="mt-2 text-3xl font-black text-red-600 dark:text-red-400">{formatCurrency(activeOverdueBalance)}</p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Past-due amount requiring follow-up.</p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Invoices</p>
-                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{activeInvoiceCount}</p>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">All {activeTabLabel.toLowerCase()} in your current branch scope.</p>
-          </div>
+          ))}
         </div>
 
         {/* FILTER & SEARCH */}
-        <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-white p-3 shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-900 xl:flex-row xl:items-center">
+          <div className="relative min-w-0 flex-1">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search invoices..."
+              placeholder="Search by invoice, client, or email"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="flex-1 min-w-[200px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
+          </div>
+          <div className="flex flex-wrap gap-2">
 
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">All Statuses</option>
               <option value="draft">Draft</option>
@@ -1067,7 +1144,7 @@ const Invoices = () => {
             <select
               value={branchFilter}
               onChange={e => setBranchFilter(e.target.value)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">All Branches</option>
               {branches.map(branch => (
@@ -1084,7 +1161,7 @@ const Invoices = () => {
                 setSortBy(nextSortBy);
                 setSortOrder(nextSortOrder);
               }}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="createdAt:desc">Newest first</option>
               <option value="createdAt:asc">Oldest first</option>
@@ -1158,12 +1235,14 @@ const Invoices = () => {
                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-6 py-4 text-left font-bold text-gray-700">Invoice</th>
-                    <th className="px-6 py-4 text-left font-bold text-gray-700">Counterparty</th>
-                    <th className="px-6 py-4 text-left font-bold text-gray-700">Payment</th>
-                    <th className="px-6 py-4 text-right font-bold text-gray-700">Amount</th>
-                    <th className="px-6 py-4 text-left font-bold text-gray-700">Due</th>
-                    <th className="px-6 py-4 text-center font-bold text-gray-700">Actions</th>
+                    <th className="px-5 py-3 text-left"><SortHeader label="Invoice ID" field="invoiceNumber" /></th>
+                    <th className="px-5 py-3 text-left"><SortHeader label="Counterparty" field="customerName" /></th>
+                    <th className="px-5 py-3 text-left"><SortHeader label="Issue date" field="createdAt" /></th>
+                    <th className="px-5 py-3 text-left"><SortHeader label="Due date" field="dueDate" /></th>
+                    <th className="px-5 py-3 text-right"><SortHeader label="Amount" field="totalAmount" align="right" /></th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Status</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Progress</th>
+                    <th className="px-5 py-3 text-right font-semibold text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1191,9 +1270,6 @@ const Invoices = () => {
                         <td className="px-6 py-4">
                           <div>
                             <p className="font-bold text-gray-900">#{invoice.invoiceNumber || invoice._id?.slice(-6)}</p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : "N/A"}
-                            </p>
                             <p className="text-xs text-slate-500 mt-1 capitalize">{invoice.invoiceType || "invoice"}</p>
                           </div>
                         </td>
@@ -1212,11 +1288,26 @@ const Invoices = () => {
                             tabIndex={0}
                           >
                             <p className="font-semibold text-gray-900 hover:underline">{counterparty}</p>
-                            <p className="text-xs text-slate-500 mt-1">{invoice.transactionType === "incoming" ? "Supplier invoice" : "Customer invoice"}</p>
+                            <p className="text-xs text-slate-500 mt-1">{invoice.customerEmail || invoice.supplier?.email || (invoice.transactionType === "incoming" ? "Supplier invoice" : "Customer invoice")}</p>
                           </div>
                         </td>
 
                         <td className="px-6 py-4">
+                          {invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
+                        </td>
+
+                        <td className="px-6 py-4 text-sm">
+                          <span className={invoice.status === "overdue" ? "font-semibold text-rose-600" : "text-slate-600"}>
+                            {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "No due date"}
+                          </span>
+                        </td>
+
+                        <td className="px-5 py-4 text-right">
+                          <p className="font-bold text-slate-900">{formatCurrency(invoice.totalAmount || 0)}</p>
+                          <p className="mt-1 text-xs text-slate-500">Due {formatCurrency(invoice.balanceDue || 0)}</p>
+                        </td>
+
+                        <td className="px-5 py-4">
                           <div className="space-y-1">
                             <span
                               className={`inline-flex rounded-full px-3 py-1 text-xs font-bold transition-colors ${
@@ -1235,15 +1326,7 @@ const Invoices = () => {
                           </div>
                         </td>
 
-                        <td className="px-6 py-4 text-right">
-                          <p className="font-black text-gray-900 text-base">{formatCurrency(invoice.totalAmount || 0)}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            Due: {formatCurrency(invoice.balanceDue || 0)}
-                          </p>
-                        </td>
-
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "No due date"}
+                        <td className="px-5 py-4 text-sm text-slate-600">
                           {productItems.length > 0 && (
                             <p className="mt-1 text-xs font-semibold text-indigo-600">Products: {collectedProducts}/{productItems.length} collected</p>
                           )}
@@ -1268,61 +1351,76 @@ const Invoices = () => {
                           })}
                         </td>
 
-                        <td className="px-6 py-4 text-center">
-                          <div className="flex flex-wrap justify-center gap-2">
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex flex-wrap justify-end gap-1">
+                            <button
+                              onClick={() => handleOpenQuickView(invoice)}
+                              className="rounded-md p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700"
+                              title="Quick view"
+                              aria-label="Quick view invoice"
+                            >
+                              <FiEye className="h-4 w-4" />
+                            </button>
                             <button
                               onClick={() => handleViewPDF(invoice)}
-                              className="px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              className="rounded-md p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700"
                               title="View Invoice"
+                              aria-label="View invoice PDF"
                             >
-                              📄
+                              <FiDownload className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleShareLink(invoice)}
-                              className="px-3 py-1 text-xs font-bold text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              className="rounded-md p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700"
                               title="Share Invoice"
+                              aria-label="Share invoice"
                             >
-                              🔗
+                              <FiMoreHorizontal className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleOpenEditModal(invoice)}
-                              className="px-3 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
                               title="Edit Invoice"
+                              aria-label="Edit invoice"
                             >
-                              ✏️
+                              <FiEdit2 className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleOpenDeleteModal(invoice._id)}
-                              className="px-3 py-1 text-xs font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              className="rounded-md p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-700"
                               title="Delete Invoice"
+                              aria-label="Delete invoice"
                             >
-                              🗑️
+                              <FiTrash2 className="h-4 w-4" />
                             </button>
                             {invoice.balanceDue > 0 && ["sent", "draft", "partial", "overdue"].includes(invoice.status) && (
                               <button
                                 onClick={() => handleOpenPaymentModal(invoice)}
-                                className="px-3 py-1 text-xs font-bold text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                                className="rounded-md p-2 text-amber-700 hover:bg-amber-50"
                                 title="Log partial payment"
+                                aria-label="Log partial payment"
                               >
-                                💰
+                                <FiDollarSign className="h-4 w-4" />
                               </button>
                             )}
                             {(invoice.status === "sent" || invoice.status === "draft") && (
                               <button
                                 onClick={() => handleMarkAsPaid(invoice._id)}
-                                className="px-3 py-1 text-xs font-bold text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                className="rounded-md p-2 text-emerald-600 hover:bg-emerald-50"
                                 title="Mark as Paid"
+                                aria-label="Mark as paid"
                               >
-                                ✓
+                                <FiCheckCircle className="h-4 w-4" />
                               </button>
                             )}
                             {hasCollectibleProducts && (!invoice.fulfillmentStatus || invoice.fulfillmentStatus === "pending_pickup") && (
                               <button
                                 onClick={() => handleCompletePickup(invoice)}
-                                className="px-3 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                                className="rounded-md p-2 text-indigo-700 hover:bg-indigo-50"
                                 title="Complete pickup and record sale"
+                                aria-label="Complete pickup and record sale"
                               >
-                                📦
+                                <FiCheckCircle className="h-4 w-4" />
                               </button>
                             )}
                           </div>
@@ -1736,6 +1834,69 @@ const Invoices = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {quickViewInvoice && (
+        <div className="fixed inset-0 z-50 flex">
+          <button type="button" className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]" onClick={handleCloseQuickView} aria-label="Close invoice details" />
+          <aside className="relative ml-auto flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Invoice details</p>
+                <h2 className="mt-1 text-xl font-bold text-slate-950 dark:text-slate-100">#{quickViewInvoice.invoiceNumber || quickViewInvoice._id?.slice(-6)}</h2>
+                <p className="mt-1 text-sm text-slate-500">{quickViewInvoice.customerName || quickViewInvoice.customer?.name || quickViewInvoice.supplier?.name || "Counterparty unavailable"}</p>
+              </div>
+              <button type="button" onClick={handleCloseQuickView} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800" aria-label="Close invoice details">
+                <FiX className="h-5 w-5" />
+              </button>
+            </div>
+
+            {quickViewLoading ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading invoice details...</div>
+            ) : (
+              <div className="space-y-6 p-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total amount</p>
+                    <p className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(quickViewInvoice.totalAmount || 0)}</p>
+                  </div>
+                  <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Balance due</p>
+                    <p className="mt-2 text-xl font-bold text-amber-800">{formatCurrency(quickViewInvoice.balanceDue || 0)}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-slate-200 py-5 text-sm dark:border-slate-800">
+                  <div><p className="text-xs text-slate-400">Issue date</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.createdAt ? new Date(quickViewInvoice.createdAt).toLocaleDateString() : "N/A"}</p></div>
+                  <div><p className="text-xs text-slate-400">Due date</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.dueDate ? new Date(quickViewInvoice.dueDate).toLocaleDateString() : "No due date"}</p></div>
+                  <div><p className="text-xs text-slate-400">Payment status</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.paymentStatus || "Unpaid"}</p></div>
+                  <div><p className="text-xs text-slate-400">Invoice status</p><p className="mt-1 font-semibold capitalize text-slate-800 dark:text-slate-200">{quickViewInvoice.status || "draft"}</p></div>
+                </div>
+
+                <div>
+                  <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Payment history</h3><span className="text-xs text-slate-400">{quickViewPayments.length} entries</span></div>
+                  {quickViewPayments.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">No payments recorded yet.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {quickViewPayments.map((payment, index) => (
+                        <div key={`${payment.date || "payment"}-${index}`} className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-sm dark:border-slate-800">
+                          <div><p className="font-semibold text-slate-800 dark:text-slate-200">{payment.paymentMethod || "Payment"}</p><p className="text-xs text-slate-500">{payment.date ? new Date(payment.date).toLocaleDateString() : "Date unavailable"}</p></div>
+                          <span className="font-bold text-emerald-700">{formatCurrency(payment.amount || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => handleOpenPaymentModal(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"><FiDollarSign className="h-4 w-4" /> Log payment</button>
+                  <button type="button" onClick={() => handleViewPDF(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiDownload className="h-4 w-4" /> View PDF</button>
+                </div>
+              </div>
+            )}
+          </aside>
         </div>
       )}
 
