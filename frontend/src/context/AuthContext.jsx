@@ -8,7 +8,8 @@ import {
 
 import {
   loginUser,
-  registerUser
+  registerUser,
+  getCurrentUser
 } from "../api/auth.js";
 import { registerAffiliateUser } from "../api/affiliateAuth.js";
 
@@ -94,6 +95,41 @@ export const AuthProvider = ({ children }) => {
 
   const [impersonatedBusiness, setImpersonatedBusiness] =
     useState(null);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    let isMounted = true;
+    const refreshCurrentUser = () => getCurrentUser()
+      .then((session) => {
+        if (!isMounted || !session?.user) return;
+
+        const normalizedUser = normalizeUser(session.user);
+        localStorage.setItem("bms_user", JSON.stringify(normalizedUser));
+        setUser(normalizedUser);
+
+        if (session.business) {
+          localStorage.setItem("bms_business", JSON.stringify(session.business));
+          setBusiness(session.business);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) console.error("Current user refresh failed:", err.message);
+      });
+
+    refreshCurrentUser();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshCurrentUser();
+    };
+    window.addEventListener("focus", refreshCurrentUser);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("focus", refreshCurrentUser);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [token]);
 
   // 🔥 LOAD IMPERSONATION
   useEffect(() => {

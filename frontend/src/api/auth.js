@@ -13,3 +13,7 @@ export const registerUser = async (payload) => {
     body: JSON.stringify(payload)
   });
 };
+
+export const getCurrentUser = async () => {
+  return request("/auth/me");
+};

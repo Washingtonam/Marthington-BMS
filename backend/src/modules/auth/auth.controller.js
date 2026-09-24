@@ -5,6 +5,36 @@ import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
 import jwt from "jsonwebtoken";
 
+const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select("-password -refreshToken")
+      .populate("business")
+      .populate("branch", "name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const business = user.business || {};
+    const isPro = business.isPro === true || (
+      business.subscription?.plan === "pro" &&
+      business.subscription?.status === "active"
+    );
+
+    return res.json({
+      user: {
+        ...user.toObject(),
+        industryType: business.industryType || "retail",
+        isPro
+      },
+      business
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 // 🔥 REGISTER (FULL BUSINESS ONBOARDING)
 const register = async (req, res) => {
   try {
@@ -257,5 +287,6 @@ const refresh = async (req, res) => {
 export default {
   register,
   login,
-  refresh
+  refresh,
+  getCurrentUser
 };

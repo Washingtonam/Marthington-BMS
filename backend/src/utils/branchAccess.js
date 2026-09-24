@@ -29,7 +29,13 @@ const hasManageAccess = (user = {}, branchId) => {
 };
 
 export const canAccessBranch = (user = {}, branchId, action = "view") => {
-  if (!branchId || branchId === "headOffice") return isPrivileged(user);
+  if (!branchId || branchId === "headOffice") {
+    if (isPrivileged(user)) return true;
+    if (user.branchId) return false;
+    return action === "manage"
+      ? user.permissions?.canManageBranchInventory === true || user.permissions?.canManageAllBranchInventory === true
+      : user.permissions?.canViewBranchInventory === true || user.permissions?.canManageBranchInventory === true || user.permissions?.canViewAllBranchInventory === true || user.permissions?.canManageAllBranchInventory === true;
+  }
   return action === "manage" ? hasManageAccess(user, branchId) : hasViewAccess(user, branchId);
 };
 
@@ -48,7 +54,9 @@ export const resolveOperationalBranchId = ({ user = {}, requestedBranchId } = {}
   const requested = requestedBranchId?._id || requestedBranchId || null;
 
   if (isPrivileged(user)) return requested;
-  if (!user.branchId) return undefined;
+  if (!user.branchId) {
+    return !requested || requested === "headOffice" ? null : undefined;
+  }
   if (!requested || String(requested) === String(user.branchId)) return String(user.branchId);
   if (hasManageAccess(user, requested)) return String(requested);
   return undefined;

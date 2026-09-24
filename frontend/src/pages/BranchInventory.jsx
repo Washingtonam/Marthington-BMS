@@ -57,8 +57,8 @@ const BranchInventory = () => {
   const loadBranches = async () => {
     const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
 
-    if (user?.role !== "owner" && user?.role !== "super_admin" && assignedBranchId && !canManageInventory) {
-      setBranchId(assignedBranchId);
+    if (user?.role !== "owner" && user?.role !== "super_admin" && !canManageInventory) {
+      setBranchId(assignedBranchId || "headOffice");
       setBranches([]);
       return;
     }
@@ -484,7 +484,7 @@ const BranchInventory = () => {
               onChange={(e) => setBranchId(e.target.value)}
               disabled={!canManageInventory}
             >
-              {user?.role === "owner" && (
+              {(user?.role === "owner" || (!assignedBranchId && user?.role !== "super_admin")) && (
                 <option value="headOffice">Head Office</option>
               )}
               {!canManageInventory && assignedBranchId && !branches.some((branch) => branch._id === assignedBranchId) && (

@@ -50,11 +50,16 @@ test("owners retain access to every branch", () => {
   assert.equal(canAccessBranch(req.user, "branch-b", "manage"), true);
 });
 
-test("unassigned staff cannot fall back to head-office operations", () => {
-  const req = requestFor({ user: { branchId: null } });
+test("unassigned staff use head-office operations when permitted", () => {
+  const req = requestFor({
+    user: { branchId: null },
+    permissions: { canManageBranchInventory: false }
+  });
 
-  assert.equal(resolveOperationalBranchId({ user: req.user }), undefined);
-  assert.equal(resolveOperationalBranchId({ user: req.user, requestedBranchId: "headOffice" }), undefined);
+  assert.equal(canAccessBranch(req.user, "headOffice", "view"), true);
+  assert.equal(canAccessBranch(req.user, "headOffice", "manage"), false);
+  assert.equal(resolveOperationalBranchId({ user: req.user }), null);
+  assert.equal(resolveOperationalBranchId({ user: req.user, requestedBranchId: "headOffice" }), null);
 });
 
 test("assigned staff operations stay on their branch", () => {

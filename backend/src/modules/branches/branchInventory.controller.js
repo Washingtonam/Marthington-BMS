@@ -17,8 +17,8 @@ export const canAccessBranch = (req, branchId, action = "view") => {
 
 const assertBranchAccess = (req, res, branchId, action) => {
   if (branchId === "headOffice") {
-    if (!isPrivileged(req.user)) {
-      res.status(403).json({ message: "Only the owner can access head office stock" });
+    if (!canAccessBranch(req, branchId, action)) {
+      res.status(403).json({ message: "You do not have access to head office inventory" });
       return false;
     }
     return true;
