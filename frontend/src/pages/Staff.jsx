@@ -604,8 +604,8 @@ const Staff = () => {
           {loading && <div className="empty-state">Syncing team data...</div>}
           {!loading && !filteredStaff.length && <div className="empty-state"><div><strong>{staff.length ? "No team members match these filters" : "Your team workspace is ready"}</strong><span>{staff.length ? "Try clearing a filter or changing your search." : "Add your first team member to start assigning access."}</span>{staff.length ? <button type="button" className="staff-empty-action" onClick={clearFilters}>Clear filters</button> : null}</div></div>}
 
-          {filteredStaff.map((user) => (
-            <div key={user._id} className="product-row staff-row dark:border-slate-700 dark:hover:bg-slate-800">
+          {filteredStaff.map((user, index) => (
+            <div key={user._id} className={`product-row staff-row ${openMenuId === user._id ? 'staff-row-menu-open' : ''} dark:border-slate-700 dark:hover:bg-slate-800`}>
               <span>
                 <div className="flex items-center gap-3">
                   <div className="staff-avatar">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
@@ -631,7 +631,7 @@ const Staff = () => {
                 <div className="relative">
                   <button aria-label={`Actions for ${user.name}`} aria-haspopup="menu" aria-expanded={openMenuId === user._id} onClick={() => setOpenMenuId(openMenuId === user._id ? null : user._id)} className="more-options-button">⋯</button>
                   {openMenuId === user._id && (
-                    <div className="dropdown-menu">
+                    <div className={`dropdown-menu ${index >= filteredStaff.length - 2 ? 'dropdown-menu-up' : ''}`}>
                       <button onClick={() => { setOpenMenuId(null); handleEdit(user); }} className="dropdown-item"><FiEdit2 /> Edit access</button>
                       <button onClick={() => handleToggleStatus(user)} className="dropdown-item"><FiPower /> {user.isActive === false ? "Enable account" : "Disable account"}</button>
                       <button onClick={() => { setOpenMenuId(null); handleDelete(user._id); }} className="dropdown-item danger"><FiTrash2 /> Delete permanently</button>

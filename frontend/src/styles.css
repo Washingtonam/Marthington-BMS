@@ -558,6 +558,10 @@ a {
   overflow: hidden;
   z-index: 60;
 }
+.dropdown-menu-up {
+  top: auto;
+  bottom: 36px;
+}
 .dropdown-item {
   display: flex;
   align-items: center;
@@ -637,6 +641,8 @@ a {
 .staff-toolbar select { height: 42px; min-width: 132px; padding: 0 12px; border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 11px; color: #334155; background: #fff; font-size: 0.82rem; font-weight: 700; outline: 0; }
 .staff-clear-filter, .staff-empty-action { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 0; border-radius: 10px; color: #047857; background: #ecfdf5; font-size: 0.8rem; font-weight: 800; }
 .staff-table-shell { box-shadow: 0 16px 36px rgba(15, 23, 42, 0.06); }
+.staff-table-shell { overflow: visible; }
+.staff-row-menu-open { position: relative; z-index: 70; }
 .staff-avatar { display: grid; width: 42px; height: 42px; place-items: center; border: 3px solid #ecfdf5; border-radius: 14px; color: #047857; background: linear-gradient(135deg, #d1fae5, #a7f3d0); font-size: 0.8rem; font-weight: 900; }
 .staff-branch { display: inline-flex; align-items: center; gap: 6px; color: #475569; font-size: 0.86rem; }
 .staff-branch svg { color: #10b981; }
