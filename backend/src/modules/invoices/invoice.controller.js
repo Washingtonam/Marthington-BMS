@@ -1101,39 +1101,124 @@ const deleteInvoice = async (req, res) => {
   }
 };
 
+export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = {} }) => {
+  const query = {
+    business: businessId,
+    linkedSale: null,
+    ...branchQuery
+  };
+
+  if (filters.transactionType) {
+    query.transactionType = filters.transactionType;
+  }
+
+  if (filters.paymentStatus) {
+    query.paymentStatus = filters.paymentStatus;
+  }
+
+  if (filters.status && filters.status !== "overdue") {
+    query.status = filters.status;
+  }
+
+  if (filters.status === "overdue") {
+    query.status = { $nin: ["paid", "cancelled"] };
+    query.dueDate = { $lt: new Date() };
+    query.paymentStatus = { $ne: "Fully Paid" };
+  }
+
+  if (filters.customerId) {
+    query.customer = filters.customerId;
+  }
+
+  if (filters.supplierId) {
+    query.supplier = filters.supplierId;
+  }
+
+  if (filters.returnedOnly === "true") {
+    query["items.returned"] = true;
+  }
+
+  if (filters.search?.trim()) {
+    const search = filters.search.trim();
+    query.$or = [
+      { invoiceNumber: { $regex: search, $options: "i" } },
+      { customerName: { $regex: search, $options: "i" } },
+      { customerPhone: { $regex: search, $options: "i" } },
+      { customerEmail: { $regex: search, $options: "i" } }
+    ];
+  }
+
+  return query;
+};
+
+const invoiceSortFields = new Set(["createdAt", "invoiceNumber", "totalAmount", "balanceDue", "dueDate", "status"]);
+
+const getInvoicePagination = (query = {}) => {
+  const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
+  const limit = Math.min(100, Math.max(10, Number.parseInt(query.limit, 10) || 25));
+  const sortBy = invoiceSortFields.has(query.sortBy) ? query.sortBy : "createdAt";
+  const sortOrder = query.sortOrder === "asc" ? 1 : -1;
+
+  return { page, limit, sortBy, sortOrder };
+};
+
 const getInvoices = async (req, res) => {
   try {
-    const query = { business: req.user.businessId };
     const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these invoices" });
-    Object.assign(query, branchQuery);
 
-    if (req.query.transactionType) {
-      query.transactionType = req.query.transactionType;
+    const query = buildInvoiceListQuery({
+      businessId: req.user.businessId,
+      branchQuery,
+      filters: req.query
+    });
+
+    if (req.query.search?.trim()) {
+      const search = req.query.search.trim();
+      const [customers, suppliers] = await Promise.all([
+        Customer.find({ business: req.user.businessId, name: { $regex: search, $options: "i" } }).select("_id").lean(),
+        Supplier.find({ business: req.user.businessId, name: { $regex: search, $options: "i" } }).select("_id").lean()
+      ]);
+      query.$or.push(
+        ...customers.map(({ _id }) => ({ customer: _id })),
+        ...suppliers.map(({ _id }) => ({ supplier: _id }))
+      );
     }
 
-    if (req.query.paymentStatus) {
-      query.paymentStatus = req.query.paymentStatus;
-    }
+    const { page, limit, sortBy, sortOrder } = getInvoicePagination(req.query);
+    const skip = (page - 1) * limit;
+    const [totalItems, invoices, summary] = await Promise.all([
+      Invoice.countDocuments(query),
+      Invoice.find(query)
+        .populate("customer", "name phone email outstandingBalance")
+        .populate("supplier", "name phone email isActive")
+        .sort({ [sortBy]: sortOrder, _id: sortOrder })
+        .skip(skip)
+        .limit(limit),
+      Invoice.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalBalanceDue: { $sum: { $ifNull: ["$balanceDue", 0] } },
+            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } }
+          }
+        }
+      ])
+    ]);
 
-    if (req.query.customerId) {
-      query.customer = req.query.customerId;
-    }
-
-    if (req.query.supplierId) {
-      query.supplier = req.query.supplierId;
-    }
-
-    if (req.query.returnedOnly === "true") {
-      query["items.returned"] = true;
-    }
-
-    const invoices = await Invoice.find(query)
-      .populate("customer", "name phone email outstandingBalance")
-      .populate("supplier", "name phone email isActive")
-      .sort({ createdAt: -1 });
-
-    res.json(invoices);
+    res.json({
+      invoices,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages: Math.ceil(totalItems / limit),
+        sortBy,
+        sortOrder: sortOrder === 1 ? "asc" : "desc"
+      },
+      summary: summary[0] || { totalBalanceDue: 0, totalAmount: 0 }
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

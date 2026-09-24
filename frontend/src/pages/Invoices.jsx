@@ -30,6 +30,12 @@ const Invoices = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, totalItems: 0, totalPages: 0 });
+  const [serverSummary, setServerSummary] = useState({ totalBalanceDue: 0, totalAmount: 0 });
   const [creatingInvoice, setCreatingInvoice] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
@@ -114,8 +120,18 @@ const Invoices = () => {
     const loadInvoices = async () => {
       try {
         setLoading(true);
-        const data = await getInvoices();
-        const invoiceList = Array.isArray(data) ? data : data?.invoices || [];
+        const data = await getInvoices({
+          transactionType: invoiceTab,
+          status: statusFilter === "all" ? undefined : statusFilter,
+          branchId: branchFilter === "all" ? undefined : branchFilter,
+          search: searchTerm.trim() || undefined,
+          page,
+          limit: pageSize,
+          sortBy,
+          sortOrder
+        });
+        const invoiceList = (Array.isArray(data) ? data : data?.invoices || [])
+          .filter(invoice => !invoice.linkedSale);
         
         // Auto-calculate overdue status based on due date
         const processedInvoices = invoiceList.map(inv => {
@@ -130,14 +146,26 @@ const Invoices = () => {
         });
         
         setInvoices(processedInvoices);
+        if (data?.pagination) setPagination(data.pagination);
+        else setPagination({ page, limit: pageSize, totalItems: invoiceList.length, totalPages: invoiceList.length ? 1 : 0 });
+        setServerSummary(data?.summary || {
+          totalBalanceDue: invoiceList.reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+          totalAmount: invoiceList.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0)
+        });
       } catch (err) {
         console.error("Failed to load invoices:", err);
         setInvoices([]);
+        setPagination({ page: 1, limit: pageSize, totalItems: 0, totalPages: 0 });
+        setServerSummary({ totalBalanceDue: 0, totalAmount: 0 });
       } finally {
         setLoading(false);
       }
     };
 
+    loadInvoices();
+  }, [invoiceTab, statusFilter, searchTerm, branchFilter, page, pageSize, sortBy, sortOrder]);
+
+  useEffect(() => {
     const loadBranches = async () => {
       try {
         const data = await getBranches();
@@ -148,9 +176,12 @@ const Invoices = () => {
       }
     };
 
-    loadInvoices();
     loadBranches();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [invoiceTab, statusFilter, searchTerm, branchFilter, pageSize, sortBy, sortOrder]);
 
   // ====================================
   // COMPUTED METRICS
@@ -180,31 +211,12 @@ const Invoices = () => {
     };
   }, [invoices]);
 
-  const displayedInvoices = useMemo(() => {
-    const activeInvoices = invoices.filter(inv => inv.transactionType === invoiceTab);
-    const normalizedQuery = searchTerm.trim().toLowerCase();
+  const activeTabLabel = invoiceTab === "incoming" ? "Supplier invoices" : "Customer invoices";
+  const activeBalance = serverSummary.totalBalanceDue;
+  const activeOverdueBalance = invoiceTab === "incoming" ? metrics.overduePayables : metrics.overdueReceivables;
+  const activeInvoiceCount = pagination.totalItems;
 
-    return activeInvoices
-      .filter(inv => {
-        // Branch filter
-        if (branchFilter !== "all" && inv.branch?._id !== branchFilter && inv.branch !== branchFilter) {
-          return false;
-        }
-
-        const counterparty = invoiceTab === "incoming"
-          ? (inv.supplier?.name || inv.customerName || "")
-          : (inv.customerName || inv.supplier?.name || "");
-
-        const matchesSearch = !normalizedQuery ||
-          inv.invoiceNumber?.toLowerCase().includes(normalizedQuery) ||
-          counterparty.toLowerCase().includes(normalizedQuery);
-
-        const matchesStatus = statusFilter === "all" || inv.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [invoices, invoiceTab, statusFilter, searchTerm, branchFilter]);
+  const displayedInvoices = invoices;
 
   // ====================================
   // ACTIONS
@@ -852,17 +864,21 @@ const Invoices = () => {
             <span className="text-5xl">📄</span>
           </div>
         </div>
-        <h3 className="text-xl font-bold text-gray-900">No Invoices Yet</h3>
+        <h3 className="text-xl font-bold text-gray-900">{searchTerm || statusFilter !== "all" || branchFilter !== "all" ? "No matching invoices" : "No Invoices Yet"}</h3>
         <p className="text-sm text-gray-500 max-w-sm">
-          Start creating invoices to track your billing and manage customer payments efficiently.
+          {searchTerm || statusFilter !== "all" || branchFilter !== "all"
+            ? "Try clearing a filter or changing your search to find another invoice."
+            : "Start creating invoices to track your billing and manage customer payments efficiently."}
         </p>
-        <button
-          onClick={openNewInvoiceModal}
-          disabled={creatingInvoice || loadingBusiness}
-          className="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
-        >
-          {creatingInvoice ? "Creating..." : "+ Create Invoice"}
-        </button>
+        {!searchTerm && statusFilter === "all" && branchFilter === "all" && (
+          <button
+            onClick={openNewInvoiceModal}
+            disabled={creatingInvoice || loadingBusiness}
+            className="mt-4 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all disabled:opacity-50"
+          >
+            {creatingInvoice ? "Creating..." : "+ Create Invoice"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -914,35 +930,35 @@ const Invoices = () => {
         </div>
 
         {/* SUMMARY CARDS */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Total Accounts Receivable</p>
-                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(metrics.totalReceivable)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Balance due</p>
+                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(activeBalance)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Money owed to your business from customer invoices.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Outstanding balance across {activeTabLabel.toLowerCase()}.</p>
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Total Accounts Payable</p>
-                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{formatCurrency(metrics.totalPayable)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Overdue balance</p>
+                <p className="mt-2 text-3xl font-black text-red-600 dark:text-red-400">{formatCurrency(activeOverdueBalance)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Money your business owes suppliers for incoming stock and supplier credit.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Past-due amount requiring follow-up.</p>
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-colors hover:border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Overdue Debt Tracker</p>
-                <p className="mt-2 text-3xl font-black text-red-600 dark:text-red-400">{formatCurrency(metrics.overdueDebt)}</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400">Invoices</p>
+                <p className="mt-2 text-3xl font-black text-gray-900 dark:text-slate-100">{activeInvoiceCount}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Total overdue balance from both customer and supplier invoices.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">All {activeTabLabel.toLowerCase()} in your current branch scope.</p>
           </div>
         </div>
 
@@ -983,6 +999,25 @@ const Invoices = () => {
                 </option>
               ))}
             </select>
+
+            <select
+              value={`${sortBy}:${sortOrder}`}
+              onChange={e => {
+                const [nextSortBy, nextSortOrder] = e.target.value.split(":");
+                setSortBy(nextSortBy);
+                setSortOrder(nextSortOrder);
+              }}
+              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            >
+              <option value="createdAt:desc">Newest first</option>
+              <option value="createdAt:asc">Oldest first</option>
+              <option value="totalAmount:desc">Highest amount</option>
+              <option value="totalAmount:asc">Lowest amount</option>
+              <option value="balanceDue:desc">Highest balance due</option>
+              <option value="balanceDue:asc">Lowest balance due</option>
+              <option value="dueDate:asc">Due date soonest</option>
+              <option value="dueDate:desc">Due date latest</option>
+            </select>
           </div>
         </div>
 
@@ -997,8 +1032,9 @@ const Invoices = () => {
                   <tr>
                     <th className="px-6 py-4 text-left font-bold text-gray-700">Invoice</th>
                     <th className="px-6 py-4 text-left font-bold text-gray-700">Counterparty</th>
-                    <th className="px-6 py-4 text-left font-bold text-gray-700">Status</th>
+                    <th className="px-6 py-4 text-left font-bold text-gray-700">Payment</th>
                     <th className="px-6 py-4 text-right font-bold text-gray-700">Amount</th>
+                    <th className="px-6 py-4 text-left font-bold text-gray-700">Due</th>
                     <th className="px-6 py-4 text-center font-bold text-gray-700">Actions</th>
                   </tr>
                 </thead>
@@ -1016,6 +1052,7 @@ const Invoices = () => {
                             <p className="text-xs text-gray-400 mt-1">
                               {invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : "N/A"}
                             </p>
+                            <p className="text-xs text-slate-500 mt-1 capitalize">{invoice.invoiceType || "invoice"}</p>
                           </div>
                         </td>
 
@@ -1023,6 +1060,12 @@ const Invoices = () => {
                           <div
                             className="cursor-pointer hover:text-blue-600 transition-colors"
                             onClick={() => invoiceTab === "incoming" ? handleNavigateToSupplier(invoice) : handleNavigateToCustomer(invoice)}
+                            onKeyDown={event => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                invoiceTab === "incoming" ? handleNavigateToSupplier(invoice) : handleNavigateToCustomer(invoice);
+                              }
+                            }}
                             role="button"
                             tabIndex={0}
                           >
@@ -1032,17 +1075,22 @@ const Invoices = () => {
                         </td>
 
                         <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 font-bold text-xs rounded-full transition-colors ${
-                              invoice.status === "paid" || invoice.status === "completed"
+                          <div className="space-y-1">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold transition-colors ${
+                              invoice.paymentStatus === "Fully Paid"
                                 ? "bg-emerald-50 text-emerald-700"
+                                : invoice.paymentStatus === "Returned"
+                                ? "bg-slate-100 text-slate-700"
                                 : invoice.status === "overdue"
                                 ? "bg-red-50 text-red-700"
                                 : "bg-amber-50 text-amber-700"
-                            }`}
-                          >
-                            {invoice.status ? invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1) : "Draft"}
-                          </span>
+                              }`}
+                            >
+                              {invoice.paymentStatus || "Unpaid"}
+                            </span>
+                            <p className="text-xs capitalize text-slate-500">{invoice.status || "draft"}</p>
+                          </div>
                         </td>
 
                         <td className="px-6 py-4 text-right">
@@ -1050,6 +1098,13 @@ const Invoices = () => {
                           <p className="text-xs text-slate-500 mt-1">
                             Due: {formatCurrency(invoice.balanceDue || 0)}
                           </p>
+                        </td>
+
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : "No due date"}
+                          {invoice.transactionType === "outgoing" && invoice.fulfillmentStatus && invoice.fulfillmentStatus !== "not_applicable" && (
+                            <p className="mt-1 text-xs capitalize text-slate-500">{invoice.fulfillmentStatus.replaceAll("_", " ")}</p>
+                          )}
                         </td>
 
                         <td className="px-6 py-4 text-center">
@@ -1116,6 +1171,43 @@ const Invoices = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-6 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing {pagination.totalItems === 0 ? 0 : ((pagination.page - 1) * pagination.limit) + 1}
+                -{Math.min(pagination.page * pagination.limit, pagination.totalItems)} of {pagination.totalItems} invoices
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="invoice-page-size" className="text-xs font-bold uppercase tracking-wide">Rows</label>
+                <select
+                  id="invoice-page-size"
+                  value={pageSize}
+                  onChange={e => setPageSize(Number(e.target.value))}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-slate-700"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage => Math.max(1, currentPage - 1))}
+                  disabled={page <= 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="min-w-20 text-center font-bold text-slate-700">Page {pagination.page} of {Math.max(1, pagination.totalPages)}</span>
+                <button
+                  type="button"
+                  onClick={() => setPage(currentPage => Math.min(pagination.totalPages, currentPage + 1))}
+                  disabled={pagination.page >= pagination.totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         )}
