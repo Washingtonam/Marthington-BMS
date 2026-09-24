@@ -13,6 +13,7 @@ const BranchInventory = () => {
   const [sourceBranchId, setSourceBranchId] = useState("");
   const [inventory, setInventory] = useState([]);
   const [inventoryEdits, setInventoryEdits] = useState({});
+  const [editingInventoryId, setEditingInventoryId] = useState(null);
   const [savingItemId, setSavingItemId] = useState(null);
   const [saveMessage, setSaveMessage] = useState("");
   const [bulkSaving, setBulkSaving] = useState(false);
@@ -85,6 +86,7 @@ const BranchInventory = () => {
         return map;
       }, {});
       setInventoryEdits(edits);
+      setEditingInventoryId(null);
       setSaveMessage("");
       setBulkSaveMessage("");
     } catch (err) {
@@ -480,7 +482,7 @@ const BranchInventory = () => {
             </select>
           </div>
 
-          {canManageInventory && <div className="mb-4">
+          <div className="mb-4">
             <label className="block text-sm font-medium text-slate-700">Import Source</label>
             <select
               className="form-select mt-2 w-full"
@@ -490,7 +492,7 @@ const BranchInventory = () => {
               <option value="headOffice">Head Office Catalog</option>
               <option value="branch">Another Branch</option>
             </select>
-          </div>}
+          </div>
 
           {canManageInventory && sourceType === "branch" && (
             <div className="mb-4">
@@ -570,14 +572,14 @@ const BranchInventory = () => {
                         <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
                         <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
                       </div>
-                      {canManageInventory ? <input
+                      {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
                         min="0"
                         value={edit.quantity}
                         onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
                       /> : <span className="inventory-readonly-value">{edit.quantity}</span>}
-                      {canManageInventory ? <input
+                      {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
                         min="0"
                         step="0.01"
@@ -585,13 +587,12 @@ const BranchInventory = () => {
                         onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
                       /> : <span className="inventory-readonly-value">{Number(edit.branchPrice || 0).toFixed(2)}</span>}
-                      {canManageInventory ? <button
-                        onClick={() => saveInventoryItem(item)}
-                        className="btn btn-primary"
-                        disabled={savingItemId === item._id}
-                      >
-                        {savingItemId === item._id ? "Saving..." : "Save"}
-                      </button> : <span className="inventory-readonly-label">View only</span>}
+                      {canManageInventory && editingInventoryId === item._id ? <div className="inventory-row-actions">
+                        <button onClick={() => saveInventoryItem(item)} className="btn btn-primary" disabled={savingItemId === item._id}>
+                          {savingItemId === item._id ? "Saving..." : "Save"}
+                        </button>
+                        <button type="button" onClick={() => setEditingInventoryId(null)} className="btn">Cancel</button>
+                      </div> : canManageInventory ? <button type="button" onClick={() => setEditingInventoryId(item._id)} className="btn btn-secondary">Edit</button> : <span className="inventory-readonly-label">View only</span>}
                     </div>
                   );
                 })}
