@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import request from "../api/client.js";
 import { getBranches } from "../api/branches.js";
 import "../styles.css";
-import { FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiEye, FiEyeOff, FiEdit2, FiMapPin, FiPower, FiSearch, FiShield, FiTrash2, FiUserCheck, FiUsers, FiX } from 'react-icons/fi';
 
 const initialForm = {
   name: "",
@@ -340,7 +340,16 @@ const permissionGroups = {
   settings: ["canManageSettings", "canManageBilling", "canManageBusinessProfile", "canManageIntegrations"]
 };
 
+const getStoredCurrentUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_user")) || null;
+  } catch {
+    return null;
+  }
+};
+
 const Staff = () => {
+  const currentUser = getStoredCurrentUser();
   const [staff, setStaff] = useState([]);
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
@@ -354,7 +363,39 @@ const Staff = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [branches, setBranches] = useState([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const drawerRef = useRef(null);
+
+  const canDeleteStaff = currentUser?.role === "owner"
+    || currentUser?.role === "super_admin"
+    || currentUser?.permissions?.canDeactivateStaff === true;
+
+  const teamStats = useMemo(() => ({
+    total: staff.length,
+    active: staff.filter((user) => user.isActive !== false).length,
+    managers: staff.filter((user) => user.role === "manager").length,
+    assigned: staff.filter((user) => user.branch?._id || user.branch).length
+  }), [staff]);
+
+  const filteredStaff = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return staff.filter((user) => {
+      const branchId = user.branch?._id || user.branch || "head-office";
+      const matchesSearch = !normalizedSearch || [user.name, user.email]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesBranch = branchFilter === "all" || branchId === branchFilter;
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "active" && user.isActive !== false)
+        || (statusFilter === "disabled" && user.isActive === false);
+
+      return matchesSearch && matchesRole && matchesBranch && matchesStatus;
+    });
+  }, [branchFilter, roleFilter, search, staff, statusFilter]);
 
   // =====================================
   // LOAD BRANCHES
@@ -500,23 +541,60 @@ const Staff = () => {
     }
   };
 
+  const handleToggleStatus = async (user) => {
+    const nextStatus = user.isActive === false ? "enable" : "disable";
+    if (!window.confirm(`${nextStatus === "disable" ? "Disable" : "Enable"} ${user.name}'s account?`)) return;
+
+    try {
+      const response = await request(`/staff/${user._id}/status`, { method: "PATCH" });
+      const updatedUser = response.staff;
+      setStaff((prev) => prev.map((item) => (item._id === user._id ? updatedUser : item)));
+      setOpenMenuId(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setRoleFilter("all");
+    setBranchFilter("all");
+    setStatusFilter("all");
+  };
+
   return (
-    <section className="products-layout single-column dark:text-slate-100">
+    <section className="staff-workspace products-layout single-column dark:text-slate-100">
       {/* STAFF LIST */}
       <div className="w-full">
-        <div className="page-heading flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/80">
+        <div className="staff-hero page-heading flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/80">
           <div>
-            <span className="dark:text-emerald-300">Team Management</span>
+            <span className="section-eyebrow"><span className="status-dot" /> Team management</span>
             <h1 className="dark:text-slate-100">Staff Workspace</h1>
+            <p className="mt-3">Manage people, branch assignments, and access levels from one calm workspace.</p>
           </div>
           <div className="page-actions">
-            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-700">+ Add Team Member</button>
+            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn"><FiUsers /> + Add Team Member</button>
           </div>
         </div>
 
-          <div className="product-table mt-4 w-full dark:border-slate-700 dark:bg-slate-900">
+        <div className="staff-metrics" aria-label="Team overview">
+          <div className="staff-metric-card"><span className="staff-metric-icon"><FiUsers /></span><div><strong>{teamStats.total}</strong><span>Total team</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--green"><FiUserCheck /></span><div><strong>{teamStats.active}</strong><span>Active accounts</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--blue"><FiShield /></span><div><strong>{teamStats.managers}</strong><span>Managers</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--amber"><FiMapPin /></span><div><strong>{teamStats.assigned}</strong><span>Branch assigned</span></div></div>
+        </div>
+
+        <div className="staff-toolbar" role="search">
+          <div className="staff-search"><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or email" aria-label="Search staff" /></div>
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} aria-label="Filter by role"><option value="all">All roles</option><option value="manager">Managers</option><option value="cashier">Cashiers</option><option value="staff">Staff</option></select>
+          <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} aria-label="Filter by branch"><option value="all">All branches</option><option value="head-office">Head office</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}</select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status"><option value="all">Any status</option><option value="active">Active</option><option value="disabled">Disabled</option></select>
+          {(search || roleFilter !== "all" || branchFilter !== "all" || statusFilter !== "all") && <button type="button" className="staff-clear-filter" onClick={clearFilters}><FiX /> Clear</button>}
+        </div>
+
+        <div className="staff-table-shell product-table mt-4 w-full dark:border-slate-700 dark:bg-slate-900">
           <div className="product-row product-row-head table-header dark:border-slate-700 dark:bg-slate-800">
-            <span className="dark:text-slate-100">STAFF MEMBER</span>
+            <span className="dark:text-slate-100">TEAM MEMBER</span>
             <span className="dark:text-slate-100">ROLE</span>
             <span className="dark:text-slate-100">BRANCH</span>
             <span className="dark:text-slate-100">ACCOUNT STATUS</span>
@@ -524,13 +602,13 @@ const Staff = () => {
           </div>
 
           {loading && <div className="empty-state">Syncing team data...</div>}
-          {!loading && !staff.length && <div className="empty-state">No staff found. Add your first team member!</div>}
+          {!loading && !filteredStaff.length && <div className="empty-state"><div><strong>{staff.length ? "No team members match these filters" : "Your team workspace is ready"}</strong><span>{staff.length ? "Try clearing a filter or changing your search." : "Add your first team member to start assigning access."}</span>{staff.length ? <button type="button" className="staff-empty-action" onClick={clearFilters}>Clear filters</button> : null}</div></div>}
 
-          {staff.map((user) => (
+          {filteredStaff.map((user) => (
             <div key={user._id} className="product-row staff-row dark:border-slate-700 dark:hover:bg-slate-800">
               <span>
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full flex items-center justify-center bg-gray-100 font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
+                  <div className="staff-avatar">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
                   <div>
                     <div className="font-semibold dark:text-slate-100">{user.name}</div>
                     <div className="email-muted dark:text-slate-400">{user.email}</div>
@@ -541,21 +619,22 @@ const Staff = () => {
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white dark:bg-emerald-600 dark:text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'}`}>{user.role}</span>
               </span>
               <span>
-                <span className="text-sm text-slate-700 dark:text-slate-300">{user.branch?.name || user.branch || 'Head office'}</span>
+                <span className="staff-branch"><FiMapPin /> {user.branch?.name || user.branch || 'Head office'}</span>
               </span>
               <span>
                 <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${user.isActive !== false ? 'bg-green-500' : 'bg-amber-400'}`} />
-                  <span className="text-sm text-slate-700 dark:text-slate-300">{user.isActive !== false ? 'Active' : 'Pending'}</span>
+                  <span className={`staff-status-dot ${user.isActive !== false ? 'is-active' : 'is-disabled'}`} />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{user.isActive !== false ? 'Active' : 'Disabled'}</span>
                 </div>
               </span>
               <span className="flex gap-4 items-center justify-end">
                 <div className="relative">
-                  <button aria-haspopup="menu" aria-expanded={openMenuId === user._id} onClick={() => setOpenMenuId(openMenuId === user._id ? null : user._id)} className="more-options-button">⋯</button>
+                  <button aria-label={`Actions for ${user.name}`} aria-haspopup="menu" aria-expanded={openMenuId === user._id} onClick={() => setOpenMenuId(openMenuId === user._id ? null : user._id)} className="more-options-button">⋯</button>
                   {openMenuId === user._id && (
                     <div className="dropdown-menu">
-                      <button onClick={() => { setOpenMenuId(null); handleEdit(user); }} className="dropdown-item">Edit</button>
-                      <button onClick={() => { setOpenMenuId(null); handleDelete(user._id); }} className="dropdown-item danger">Remove</button>
+                      <button onClick={() => { setOpenMenuId(null); handleEdit(user); }} className="dropdown-item"><FiEdit2 /> Edit access</button>
+                      <button onClick={() => handleToggleStatus(user)} className="dropdown-item"><FiPower /> {user.isActive === false ? "Enable account" : "Disable account"}</button>
+                      <button onClick={() => { setOpenMenuId(null); handleDelete(user._id); }} className="dropdown-item danger"><FiTrash2 /> Delete permanently</button>
                     </div>
                   )}
                 </div>
@@ -669,6 +748,20 @@ const Staff = () => {
               <button type="submit" disabled={saving} className="w-full bg-black text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition-all shadow-lg active:scale-95 disabled:bg-gray-400">
                 {saving ? "Saving..." : editingId ? "Update Account" : "Create Account"}
               </button>
+
+              {editingId && canDeleteStaff && (
+                <button
+                  type="button"
+                  className="staff-drawer-delete"
+                  onClick={() => {
+                    const id = editingId;
+                    closeDrawer();
+                    handleDelete(id);
+                  }}
+                >
+                  <FiTrash2 /> Delete permanently
+                </button>
+              )}
             </form>
           </div>
         </div>

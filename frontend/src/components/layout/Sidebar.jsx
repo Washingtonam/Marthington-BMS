@@ -1,63 +1,71 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
 
+const getStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_user")) || null;
+  } catch {
+    return null;
+  }
+};
+
 const defaultNavGroups = [
   {
     label: "Main",
-    items: [{ to: "/app", label: "Dashboard", icon: "◉" }],
+    items: [{ to: "/app", label: "Dashboard", icon: "◉", permission: "canViewDashboard" }],
   },
   {
     label: "Sales & Operations",
     items: [
-      { to: "/app/pos", label: "POS", icon: "🛒" },
-      { to: "/app/sales", label: "Sales", icon: "▣" },
-      { to: "/app/invoices", label: "Invoices", icon: "◫" },
-      { to: "/app/payments", label: "Payments", icon: "💳" },
-      { to: "/app/customers", label: "Customers / CRM", icon: "◌" },
+      { to: "/app/pos", label: "POS", icon: "🛒", permission: "canAccessPOS" },
+      { to: "/app/sales", label: "Sales", icon: "▣", permission: "canViewSales" },
+      { to: "/app/invoices", label: "Invoices", icon: "◫", permission: "canViewInvoices" },
+      { to: "/app/payments", label: "Payments", icon: "💳", permission: "canViewPayments" },
+      { to: "/app/customers", label: "Customers / CRM", icon: "◌", permission: "canViewCustomers" },
     ],
   },
   {
     label: "Catalog & Inventory",
     items: [
-      { to: "/app/products", label: "Products", icon: "📦" },
-      { to: "/app/services", label: "Services", icon: "🛠️" },
-      { to: "/app/inventory", label: "Inventory", icon: "◧" },
-      { to: "/app/suppliers", label: "Suppliers", icon: "🏭" },
-      { to: "/app/supplier-performance", label: "Supplier Performance", icon: "📈" },
-      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾" },
+      { to: "/app/products", label: "Products", icon: "📦", permission: "canViewProducts" },
+      { to: "/app/services", label: "Services", icon: "🛠️", permission: "canViewProducts" },
+      { to: "/app/inventory", label: "Inventory", icon: "◧", permission: "canViewBranchInventory" },
+      { to: "/app/suppliers", label: "Suppliers", icon: "🏭", permission: "canViewPurchaseOrders" },
+      { to: "/app/supplier-performance", label: "Supplier Performance", icon: "📈", permission: "canViewPurchaseOrders" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾", permission: "canViewPurchaseOrders" },
     ],
   },
   {
     label: "Finance & Control",
     items: [
-      { to: "/app/expenses", label: "Expenses", icon: "💸" },
-      { to: "/app/budget-management", label: "Budget Management", icon: "💰" },
-      { to: "/app/budget-alerts", label: "Budget Alerts", icon: "🔔" },
-      { to: "/app/cost-trends", label: "Cost Trends", icon: "📉" },
-      { to: "/app/billing", label: "Billing", icon: "⬡" },
-      { to: "/app/reports", label: "Reports", icon: "📊" },
-      { to: "/app/analytics", label: "Analytics", icon: "⬢" },
+      { to: "/app/expenses", label: "Expenses", icon: "💸", permission: "canViewExpenses" },
+      { to: "/app/budget-management", label: "Budget Management", icon: "💰", permission: "canViewExpenses" },
+      { to: "/app/budget-alerts", label: "Budget Alerts", icon: "🔔", permission: "canViewExpenses" },
+      { to: "/app/cost-trends", label: "Cost Trends", icon: "📉", permission: "canViewExpenses" },
+      { to: "/app/billing", label: "Billing", icon: "⬡", permission: "canManageBilling" },
+      { to: "/app/reports", label: "Reports", icon: "📊", permission: "canViewReports" },
+      { to: "/app/analytics", label: "Analytics", icon: "⬢", permission: "canViewReports" },
     ],
   },
   {
     label: "Team & Access",
     items: [
-      { to: "/app/staff", label: "Staff", icon: "◎" },
-      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️" },
+      { to: "/app/staff", label: "Staff", icon: "◎", permission: "canManageStaff" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️", permission: "canManageSettings" },
     ],
   },
   {
     label: "People & Locations",
     items: [
-      { to: "/app/branches", label: "Branches", icon: "🏢" },
+      { to: "/app/branches", label: "Branches", icon: "🏢", permission: "canViewBranches" },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/app/settings", label: "Settings", icon: "⚙" },
+      { to: "/app/settings", label: "Settings", icon: "⚙", permission: "canManageSettings" },
       { to: "/app/user-guide", label: "User Guide", icon: "📘" },
     ],
   },
@@ -71,6 +79,15 @@ export default function Sidebar({
   toggleTheme,
 }) {
   const { pathname } = useLocation();
+  const user = getStoredUser();
+  const canAccessItem = (item) => {
+    if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;
+    return user?.permissions?.[item.permission] === true;
+  };
+  const permissionSignature = JSON.stringify(user?.permissions || {});
+  const visibleGroups = useMemo(() => navigationGroups
+    .map((group) => ({ ...group, items: group.items.filter(canAccessItem) }))
+    .filter((group) => group.items.length > 0), [navigationGroups, permissionSignature, user?.role]);
   const normalizeTarget = (target) => (typeof target === "string" ? target.split("?")[0] : target?.pathname || "/app");
   const [openGroups, setOpenGroups] = useState(() => {
     if (typeof window === "undefined") return {};
@@ -89,7 +106,7 @@ export default function Sidebar({
   }, [openGroups]);
 
   useEffect(() => {
-    const activeGroup = navigationGroups.find((group) =>
+    const activeGroup = visibleGroups.find((group) =>
       group.items.some((item) => {
         const target = normalizeTarget(item.to);
         return target === "/app"
@@ -99,9 +116,11 @@ export default function Sidebar({
     );
 
     if (activeGroup) {
-      setOpenGroups((current) => ({ ...current, [activeGroup.label]: true }));
+      setOpenGroups((current) => current[activeGroup.label] === true
+        ? current
+        : { ...current, [activeGroup.label]: true });
     }
-  }, [navigationGroups, pathname]);
+  }, [navigationGroups, pathname, visibleGroups]);
 
   const toggleGroup = (groupLabel) => {
     setOpenGroups((current) => ({
@@ -144,7 +163,7 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {navigationGroups.map((group, groupIndex) => {
+          {visibleGroups.map((group, groupIndex) => {
             const isPermanent = groupIndex === 0;
             const isOpen = isPermanent || openGroups[group.label] !== false;
             const groupId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;

@@ -16,6 +16,7 @@ vi.mock('../api/client.js', () => {
 
 afterEach(() => {
   cleanup()
+  localStorage.removeItem('bms_user')
 })
 
 describe('Staff page', () => {
@@ -49,5 +50,27 @@ describe('Staff page', () => {
     const toggleBtns = await screen.findAllByRole('button')
     fireEvent.click(toggleBtns[toggleBtns.length - 1])
     expect(true).toBe(true)
+  })
+
+  it('hides sidebar pages when the staff member lacks view permission', () => {
+    localStorage.setItem('bms_user', JSON.stringify({
+      role: 'staff',
+      permissions: {
+        canAccessPOS: true,
+        canViewSales: true
+      }
+    }))
+
+    render(
+      <MemoryRouter initialEntries={['/app/pos']}>
+        <Sidebar />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText('POS')).toBeTruthy()
+    expect(screen.getByText('Sales')).toBeTruthy()
+    expect(screen.queryByText('Products')).toBeNull()
+    expect(screen.queryByText('Customers / CRM')).toBeNull()
+    expect(screen.queryByText('Staff')).toBeNull()
   })
 })

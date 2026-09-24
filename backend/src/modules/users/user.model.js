@@ -165,6 +165,11 @@ const permissionSchema = new mongoose.Schema(
     },
 
     // STAFF CONTROL
+    canManageStaff: {
+      type: Boolean,
+      default: false
+    },
+
     canInviteStaff: {
       type: Boolean,
       default: false
@@ -300,6 +305,7 @@ const userSchema = new mongoose.Schema(
         canViewSalesReports: false,
         canViewFinancialReports: false,
         canViewStaffReports: false,
+        canManageStaff: false,
         canInviteStaff: false,
         canEditStaffPermissions: false,
         canDeactivateStaff: false,

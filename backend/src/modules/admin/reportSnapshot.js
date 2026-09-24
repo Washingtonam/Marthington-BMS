@@ -96,6 +96,13 @@ export const getReportSnapshot = async (subscription, businessId) => {
     isDeleted: { $ne: true }
   }).lean();
 
+  const Invoice = (await import("../invoices/invoice.model.js")).default;
+  const invoices = await Invoice.find({
+    business: businessId,
+    status: { $in: ["draft", "sent", "partial", "overdue"] },
+    balanceDue: { $gt: 0 }
+  }).select("invoiceNumber customerName customer totalAmount amountPaid balanceDue paymentStatus status dueDate createdAt").lean();
+
   const products = subscription.reportType === "daily-analysis"
     ? []
     : await Product.find({ business: businessId }).lean();
@@ -106,6 +113,7 @@ export const getReportSnapshot = async (subscription, businessId) => {
       sales,
       products,
       transactions,
+      invoices,
       dateRange
     });
 

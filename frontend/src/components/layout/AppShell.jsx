@@ -6,54 +6,54 @@ import Topbar from "./Topbar.jsx";
 const defaultNavGroups = [
   {
     label: "Main",
-    items: [{ to: "/app", label: "Dashboard", icon: "◉" }],
+    items: [{ to: "/app", label: "Dashboard", icon: "◉", permission: "canViewDashboard" }],
   },
   {
     label: "Sales & Operations",
     items: [
-      { to: "/app/pos", label: "POS", icon: "🛒" },
-      { to: "/app/sales", label: "Sales", icon: "▣" },
-      { to: "/app/invoices", label: "Invoices", icon: "◫" },
-      { to: "/app/payments", label: "Payments", icon: "💳" },
-      { to: "/app/customers", label: "Customers / CRM", icon: "◌" },
+      { to: "/app/pos", label: "POS", icon: "🛒", permission: "canAccessPOS" },
+      { to: "/app/sales", label: "Sales", icon: "▣", permission: "canViewSales" },
+      { to: "/app/invoices", label: "Invoices", icon: "◫", permission: "canViewInvoices" },
+      { to: "/app/payments", label: "Payments", icon: "💳", permission: "canViewPayments" },
+      { to: "/app/customers", label: "Customers / CRM", icon: "◌", permission: "canViewCustomers" },
     ],
   },
   {
     label: "Catalog & Inventory",
     items: [
-      { to: "/app/products", label: "Products", icon: "📦" },
-      { to: "/app/services", label: "Services", icon: "🛠️" },
-      { to: "/app/inventory", label: "Inventory", icon: "◧" },
-      { to: "/app/suppliers", label: "Suppliers", icon: "🏭" },
-      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾" },
+      { to: "/app/products", label: "Products", icon: "📦", permission: "canViewProducts" },
+      { to: "/app/services", label: "Services", icon: "🛠️", permission: "canViewProducts" },
+      { to: "/app/inventory", label: "Inventory", icon: "◧", permission: "canViewBranchInventory" },
+      { to: "/app/suppliers", label: "Suppliers", icon: "🏭", permission: "canViewPurchaseOrders" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾", permission: "canViewPurchaseOrders" },
     ],
   },
   {
     label: "Finance & Control",
     items: [
-      { to: "/app/expenses", label: "Expenses", icon: "💸" },
-      { to: "/app/billing", label: "Billing", icon: "⬡" },
-      { to: "/app/reports", label: "Reports", icon: "📊" },
-      { to: "/app/analytics", label: "Analytics", icon: "⬢" },
+      { to: "/app/expenses", label: "Expenses", icon: "💸", permission: "canViewExpenses" },
+      { to: "/app/billing", label: "Billing", icon: "⬡", permission: "canManageBilling" },
+      { to: "/app/reports", label: "Reports", icon: "📊", permission: "canViewReports" },
+      { to: "/app/analytics", label: "Analytics", icon: "⬢", permission: "canViewReports" },
     ],
   },
   {
     label: "Team & Access",
     items: [
-      { to: "/app/staff", label: "Staff", icon: "◎" },
-      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️" },
+      { to: "/app/staff", label: "Staff", icon: "◎", permission: "canManageStaff" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️", permission: "canManageSettings" },
     ],
   },
   {
     label: "People & Locations",
     items: [
-      { to: "/app/branches", label: "Branches", icon: "🏢" },
+      { to: "/app/branches", label: "Branches", icon: "🏢", permission: "canViewBranches" },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/app/settings", label: "Settings", icon: "⚙" },
+      { to: "/app/settings", label: "Settings", icon: "⚙", permission: "canManageSettings" },
       { to: "/app/user-guide", label: "User Guide", icon: "📘" },
     ],
   },

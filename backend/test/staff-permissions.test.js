@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createStaff, updateStaff } from "../src/modules/users/users.controller.js";
+import staffController from "../src/modules/staff/staff.controller.js";
 import User from "../src/modules/users/user.model.js";
+import Branch from "../src/modules/branches/branch.model.js";
 
 const buildRes = () => {
   const response = {
@@ -113,5 +115,66 @@ test("update staff rejects privilege escalation beyond the actor's permissions",
   } finally {
     User.findById = originalFindById;
     User.prototype.save = originalSave;
+  }
+});
+
+test("canonical staff update cannot modify an owner account", async () => {
+  const originalFindById = User.findById;
+
+  User.findById = async () => ({
+    business: { toString: () => "business-1" },
+    role: "owner"
+  });
+
+  try {
+    const res = buildRes();
+    await staffController.updateStaff({
+      user: {
+        role: "manager",
+        businessId: "business-1",
+        permissions: { canEditStaffPermissions: true }
+      },
+      params: { id: "owner-1" },
+      body: { name: "Changed" }
+    }, res);
+
+    assert.equal(res.response.statusCode, 403);
+    assert.match(res.response.body.message, /accounts can be managed here/i);
+  } finally {
+    User.findById = originalFindById;
+  }
+});
+
+test("canonical staff update prevents assigning a manager outside the actor's branch", async () => {
+  const originalFindById = User.findById;
+  const originalBranchFindOne = Branch.findOne;
+
+  User.findById = async () => ({
+    business: { toString: () => "business-1" },
+    role: "manager",
+    branch: "branch-a",
+    permissions: {},
+    save: async function () { return this; }
+  });
+  Branch.findOne = async () => ({ _id: "branch-b", business: "business-1" });
+
+  try {
+    const res = buildRes();
+    await staffController.updateStaff({
+      user: {
+        role: "manager",
+        businessId: "business-1",
+        branchId: "branch-a",
+        permissions: { canEditStaffPermissions: true }
+      },
+      params: { id: "staff-1" },
+      body: { branch: "branch-b" }
+    }, res);
+
+    assert.equal(res.response.statusCode, 403);
+    assert.match(res.response.body.message, /own branch/i);
+  } finally {
+    User.findById = originalFindById;
+    Branch.findOne = originalBranchFindOne;
   }
 });

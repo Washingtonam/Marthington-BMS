@@ -40,30 +40,44 @@ export const isSubscriptionDue = (subscription, date = new Date()) => {
   const [configuredHour, configuredMinute] = String(subscription.sendTime || "18:00").split(":").map(Number);
   const [localHour, localMinute] = local.time.split(":").map(Number);
   if ((localHour * 60) + localMinute < (configuredHour * 60) + configuredMinute) return false;
+
   if (subscription.frequency === "weekly") {
     const configuredDay = Number.isInteger(subscription.weeklyDay) ? subscription.weeklyDay : 1;
     const localWeekday = new Date(`${local.date}T00:00:00Z`).getUTCDay();
     if (localWeekday !== configuredDay) return false;
   }
+
   if (subscription.frequency === "monthly") {
     const configuredDay = subscription.monthlyDay ?? "last";
-    if (configuredDay === "last") {
-      const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      let nextLocal;
-      try {
-        nextLocal = getLocalScheduleParts(nextDay, subscription.timezone || "Africa/Lagos");
-      } catch {
-        return false;
-      }
-      if (nextLocal.date === local.date) return false;
-    } else if (Number(local.date.slice(-2)) !== Number(configuredDay)) {
+    const currentLocalDay = Number(local.date.slice(-2));
+    if (configuredDay === "first") {
+      if (currentLocalDay !== 1) return false;
+    } else if (configuredDay === "last") {
+      const year = Number(local.date.slice(0, 4));
+      const month = Number(local.date.slice(5, 7));
+      const lastDay = new Date(year, month, 0).getDate();
+      if (currentLocalDay !== lastDay) return false;
+    } else if (currentLocalDay !== Number(configuredDay)) {
       return false;
     }
   }
 
   if (!subscription.lastSentAt) return true;
+
   try {
-    return getLocalScheduleParts(subscription.lastSentAt, subscription.timezone || "Africa/Lagos").date !== local.date;
+    const lastLocal = getLocalScheduleParts(subscription.lastSentAt, subscription.timezone || "Africa/Lagos");
+    if (subscription.frequency === "daily") return lastLocal.date !== local.date;
+    if (subscription.frequency === "weekly") {
+      const currentWeekStart = new Date(`${local.date}T00:00:00Z`);
+      currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - currentWeekStart.getUTCDay());
+      const lastWeekStart = new Date(`${lastLocal.date}T00:00:00Z`);
+      lastWeekStart.setUTCDate(lastWeekStart.getUTCDate() - lastWeekStart.getUTCDay());
+      return currentWeekStart.getTime() !== lastWeekStart.getTime();
+    }
+    if (subscription.frequency === "monthly") {
+      return `${lastLocal.date.slice(0, 7)}` !== `${local.date.slice(0, 7)}`;
+    }
+    return true;
   } catch {
     return true;
   }

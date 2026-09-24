@@ -47,8 +47,8 @@ const reportSubscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: "last",
       validate: {
-        validator: (value) => value === "last" || (Number.isInteger(value) && value >= 1 && value <= 31),
-        message: "monthlyDay must be an integer from 1 to 31 or last"
+        validator: (value) => value === "first" || value === "last" || (Number.isInteger(value) && value >= 1 && value <= 31),
+        message: "monthlyDay must be 'first', 'last', or an integer from 1 to 31"
       }
     },
     timezone: {

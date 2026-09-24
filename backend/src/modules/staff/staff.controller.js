@@ -4,6 +4,60 @@ import User from "../users/user.model.js";
 import Branch from "../branches/branch.model.js";
 import Business from "../businesses/business.model.js";
 
+const STAFF_ROLES = ["staff", "cashier", "manager"];
+
+const isPrivileged = (user = {}) => ["owner", "super_admin"].includes(user.role);
+
+const getPermissionGrantViolations = (actorPermissions = {}, candidatePermissions = {}) => (
+  Object.keys(candidatePermissions).filter((permission) => (
+    candidatePermissions[permission] === true && actorPermissions[permission] !== true
+  ))
+);
+
+const hasCrossBranchManagement = (user = {}) => (
+  isPrivileged(user) || user.permissions?.canManageAllBranchInventory === true
+);
+
+const validateStaffRole = (role) => STAFF_ROLES.includes(role);
+
+const rejectOverGrant = (req, permissions, res) => {
+  const violations = getPermissionGrantViolations(req.user?.permissions, permissions);
+
+  if (violations.length > 0) {
+    res.status(403).json({
+      message: `You cannot grant permissions you do not already hold: ${violations.join(", ")}`
+    });
+    return true;
+  }
+
+  return false;
+};
+
+const validateBranchAssignment = async (req, branch) => {
+  const normalizedBranch = normalizeBranchAssignment(branch);
+
+  if (!normalizedBranch) return normalizedBranch;
+
+  const branchRecord = await Branch.findOne({
+    _id: normalizedBranch,
+    business: req.user.businessId
+  });
+
+  if (!branchRecord) {
+    const error = new Error("Invalid branch assignment");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!hasCrossBranchManagement(req.user) && req.user.branchId && String(req.user.branchId) !== String(normalizedBranch)) {
+    const error = new Error("You can only assign staff to your own branch");
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return normalizedBranch;
+};
+
 export const normalizeBranchAssignment = (branch) => {
   if (branch === undefined || branch === null) {
     return null;
@@ -32,9 +86,7 @@ const getStaff = async (
         business:
           req.user.businessId,
 
-        role: {
-          $ne: "super_admin"
-        }
+        role: { $in: STAFF_ROLES }
       }).select("-password");
 
     res.json(users);
@@ -102,6 +154,16 @@ const createStaff = async (
     } = req.body;
     const email = (rawEmail || "").toLowerCase().trim();
 
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email, and password are required" });
+    }
+
+    if (!validateStaffRole(role || "staff")) {
+      return res.status(400).json({ message: "Only staff, cashier, or manager accounts can be created here" });
+    }
+
+    if (permissions && rejectOverGrant(req, permissions, res)) return;
+
     const existing = await User.findOne({ email });
 
     if (existing) {
@@ -111,14 +173,7 @@ const createStaff = async (
       });
     }
 
-    const normalizedBranch = normalizeBranchAssignment(branch);
-
-    if (normalizedBranch) {
-      const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
-      if (!branchRecord) {
-        return res.status(400).json({ message: "Invalid branch assignment" });
-      }
-    }
+    const normalizedBranch = await validateBranchAssignment(req, branch);
 
     const hashed =
       await bcrypt.hash(
@@ -132,12 +187,10 @@ const createStaff = async (
       password: hashed,
       role: role || "staff",
       permissions: permissions || {},
-      business: req.user.businessId
+      business: req.user.businessId,
+      branch: normalizedBranch,
+      isActive: true
     };
-
-    if (branch) {
-      userData.branch = branch;
-    }
 
     const user = await User.create(userData);
 
@@ -159,7 +212,7 @@ const createStaff = async (
       });
     }
 
-    res.status(500).json({
+    res.status(err.statusCode || 500).json({
       message: err.message
     });
 
@@ -198,6 +251,10 @@ const updateStaff = async (
       });
     }
 
+    if (!STAFF_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: "Only staff, cashier, or manager accounts can be managed here" });
+    }
+
     const {
       name,
       role,
@@ -205,6 +262,12 @@ const updateStaff = async (
       isActive,
       branch
     } = req.body;
+
+    if (role !== undefined && !validateStaffRole(role)) {
+      return res.status(400).json({ message: "Only staff, cashier, or manager roles are allowed" });
+    }
+
+    if (permissions !== undefined && rejectOverGrant(req, permissions, res)) return;
 
     if (name !== undefined) {
       user.name = name;
@@ -223,15 +286,9 @@ const updateStaff = async (
       };
     }
 
-    const normalizedBranch = normalizeBranchAssignment(branch);
+    const normalizedBranch = await validateBranchAssignment(req, branch);
 
     if (branch !== undefined) {
-      if (normalizedBranch) {
-        const branchRecord = await Branch.findOne({ _id: normalizedBranch, business: req.user.businessId });
-        if (!branchRecord) {
-          return res.status(400).json({ message: "Invalid branch assignment" });
-        }
-      }
       user.branch = normalizedBranch;
     }
 
@@ -253,7 +310,7 @@ const updateStaff = async (
 
   } catch (err) {
 
-    res.status(500).json({
+    res.status(err.statusCode || 500).json({
       message: err.message
     });
 
@@ -292,6 +349,10 @@ const deleteStaff = async (
       });
     }
 
+    if (!STAFF_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: "Owner and administrator accounts cannot be deleted here" });
+    }
+
     await user.deleteOne();
 
     res.json({
@@ -301,10 +362,34 @@ const deleteStaff = async (
 
   } catch (err) {
 
-    res.status(500).json({
+    res.status(err.statusCode || 500).json({
       message: err.message
     });
 
+  }
+};
+
+const toggleStaffStatus = async (req, res) => {
+  try {
+    const user = await User.findOne({
+      _id: req.params.id,
+      business: req.user.businessId,
+      role: { $in: STAFF_ROLES }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+
+    user.isActive = !user.isActive;
+    await user.save();
+
+    res.json({
+      message: `Staff ${user.isActive ? "enabled" : "disabled"}`,
+      staff: user
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -317,6 +402,8 @@ export default {
   updateStaff,
 
   deleteStaff,
+
+  toggleStaffStatus,
 
   normalizeBranchAssignment
 };

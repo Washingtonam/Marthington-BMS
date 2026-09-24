@@ -264,38 +264,38 @@ const App = () => {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Dashboard />} />
-              <Route path="products" element={<Products />} />
-              <Route path="branches" element={<Branches />} />
-              <Route path="branches/inventory" element={<BranchInventory />} />
-              <Route path="pos" element={<POS />} />
-              <Route path="sales" element={<Sales />} />
-              <Route path="sales/:id" element={<SaleDetails />} />
-              <Route path="staff" element={<Staff />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="analytics" element={<Analytics />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="reports/detail" element={<ReportsDetailPage />} />
-              <Route path="inventory" element={<BranchInventory />} />
+              <Route index element={<ProtectedRoute requiredPermission="canViewDashboard"><Dashboard /></ProtectedRoute>} />
+              <Route path="products" element={<ProtectedRoute requiredPermission="canViewProducts"><Products /></ProtectedRoute>} />
+              <Route path="branches" element={<ProtectedRoute requiredPermission="canViewBranches"><Branches /></ProtectedRoute>} />
+              <Route path="branches/inventory" element={<ProtectedRoute requiredPermission="canViewBranchInventory"><BranchInventory /></ProtectedRoute>} />
+              <Route path="pos" element={<ProtectedRoute requiredPermission="canAccessPOS"><POS /></ProtectedRoute>} />
+              <Route path="sales" element={<ProtectedRoute requiredPermission="canViewSales"><Sales /></ProtectedRoute>} />
+              <Route path="sales/:id" element={<ProtectedRoute requiredPermission="canViewSales"><SaleDetails /></ProtectedRoute>} />
+              <Route path="staff" element={<ProtectedRoute requiredPermission="canManageStaff"><Staff /></ProtectedRoute>} />
+              <Route path="settings" element={<ProtectedRoute requiredPermission="canManageSettings"><Settings /></ProtectedRoute>} />
+              <Route path="analytics" element={<ProtectedRoute requiredPermission="canViewReports"><Analytics /></ProtectedRoute>} />
+              <Route path="reports" element={<ProtectedRoute requiredPermission="canViewReports"><Reports /></ProtectedRoute>} />
+              <Route path="reports/detail" element={<ProtectedRoute requiredPermission="canViewReports"><ReportsDetailPage /></ProtectedRoute>} />
+              <Route path="inventory" element={<ProtectedRoute requiredPermission="canViewBranchInventory"><BranchInventory /></ProtectedRoute>} />
               <Route path="deleted-sales" element={<DeletedSales />} />
-              <Route path="staff-reports" element={<StaffReports />} />
-              <Route path="inventory-reports" element={<InventoryReports />} />
-              <Route path="financial-reports" element={<FinancialReports />} />
-              <Route path="billing" element={<Billing />} />
+              <Route path="staff-reports" element={<ProtectedRoute requiredPermission="canViewStaffReports"><StaffReports /></ProtectedRoute>} />
+              <Route path="inventory-reports" element={<ProtectedRoute requiredPermission="canViewReports"><InventoryReports /></ProtectedRoute>} />
+              <Route path="financial-reports" element={<ProtectedRoute requiredPermission="canViewFinancialReports"><FinancialReports /></ProtectedRoute>} />
+              <Route path="billing" element={<ProtectedRoute requiredPermission="canManageBilling"><Billing /></ProtectedRoute>} />
               <Route path="user-guide" element={<UserGuide />} />
               <Route path="verify-payment" element={<VerifyPayment />} />
-              <Route path="payments" element={<VerifyPayment />} />
-              <Route path="invoices" element={<Invoices />} />
-              <Route path="customers" element={<Customers />} />
-              <Route path="services" element={<Services />} />
-              <Route path="suppliers" element={<Suppliers />} />
-              <Route path="suppliers/:id" element={<SupplierDetail />} />
-              <Route path="supplier-performance" element={<SupplierPerformance />} />
-              <Route path="purchase-orders" element={<PurchaseOrders />} />
-              <Route path="expenses" element={<Expenses />} />
-              <Route path="budget-management" element={<BudgetManagement />} />
-              <Route path="budget-alerts" element={<BudgetAlerts />} />
-              <Route path="cost-trends" element={<CostTrendAnalysis />} />
+              <Route path="payments" element={<ProtectedRoute requiredPermission="canViewPayments"><VerifyPayment /></ProtectedRoute>} />
+              <Route path="invoices" element={<ProtectedRoute requiredPermission="canViewInvoices"><Invoices /></ProtectedRoute>} />
+              <Route path="customers" element={<ProtectedRoute requiredPermission="canViewCustomers"><Customers /></ProtectedRoute>} />
+              <Route path="services" element={<ProtectedRoute requiredPermission="canViewProducts"><Services /></ProtectedRoute>} />
+              <Route path="suppliers" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><Suppliers /></ProtectedRoute>} />
+              <Route path="suppliers/:id" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><SupplierDetail /></ProtectedRoute>} />
+              <Route path="supplier-performance" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><SupplierPerformance /></ProtectedRoute>} />
+              <Route path="purchase-orders" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><PurchaseOrders /></ProtectedRoute>} />
+              <Route path="expenses" element={<ProtectedRoute requiredPermission="canViewExpenses"><Expenses /></ProtectedRoute>} />
+              <Route path="budget-management" element={<ProtectedRoute requiredPermission="canViewExpenses"><BudgetManagement /></ProtectedRoute>} />
+              <Route path="budget-alerts" element={<ProtectedRoute requiredPermission="canViewExpenses"><BudgetAlerts /></ProtectedRoute>} />
+              <Route path="cost-trends" element={<ProtectedRoute requiredPermission="canViewExpenses"><CostTrendAnalysis /></ProtectedRoute>} />
               <Route
                 path="school-dashboard"
                 element={

@@ -1,7 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const ProtectedRoute = ({ children, requiredRole, requiredIndustry }) => {
+const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPermission }) => {
   const { isAuthenticated, user, industryType, impersonatedBusiness } = useAuth();
 
   if (!isAuthenticated) {
@@ -22,6 +22,17 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry }) => {
 
   if (requiredIndustry && industryType !== requiredIndustry) {
     return <Navigate to="/app" replace />;
+  }
+
+  const hasPermission = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.[requiredPermission] === true;
+
+  if (requiredPermission && !hasPermission) {
+    const fallbackPath = user?.permissions?.canAccessPOS === true
+      ? "/app/pos"
+      : "/app/user-guide";
+    return <Navigate to={fallbackPath} replace />;
   }
 
   return children;

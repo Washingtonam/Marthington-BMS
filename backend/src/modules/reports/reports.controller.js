@@ -68,7 +68,7 @@ const getPeriodBoundary = (period) => {
   return null;
 };
 
-export const buildReportSnapshot = ({ sales = [], products = [], inventory = [], transactions = [], period = "30", dateRange = null }) => {
+export const buildReportSnapshot = ({ sales = [], products = [], inventory = [], transactions = [], invoices = [], period = "30", dateRange = null }) => {
   const now = new Date();
   const periodBoundary = dateRange?.startDate || getPeriodBoundary(period);
   const periodEnd = dateRange?.endDate || null;
@@ -117,6 +117,34 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
     const date = new Date(tx.occurredAt || tx.createdAt);
     return date >= monthStart && tx.status === "posted" && tx.transactionType === "expense" && (!tx.postingType || tx.postingType === "debit");
   });
+
+  const getInvoiceBalanceDue = (invoice = {}) => {
+    const explicitBalance = invoice.balanceDue ?? invoice.balance;
+    if (explicitBalance !== undefined && explicitBalance !== null && explicitBalance !== "") {
+      return Number(explicitBalance || 0);
+    }
+    return Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0));
+  };
+
+  const invoiceList = Array.isArray(invoices) ? invoices.filter((invoice) => {
+    const balanceDue = getInvoiceBalanceDue(invoice);
+    return balanceDue > 0 && (invoice.paymentStatus === "Unpaid" || invoice.paymentStatus === "Partially Paid" || invoice.status === "partial" || invoice.status === "overdue" || invoice.status === "sent");
+  }) : [];
+
+  const unpaidInvoices = invoiceList
+    .map((invoice) => ({
+      _id: invoice._id,
+      invoiceNumber: invoice.invoiceNumber || invoice.number || "INV",
+      customerName: invoice.customerName || invoice.customer?.name || "Customer",
+      totalAmount: Number(invoice.totalAmount || 0),
+      amountPaid: Number(invoice.amountPaid || 0),
+      balanceDue: getInvoiceBalanceDue(invoice),
+      dueDate: invoice.dueDate || invoice.createdAt,
+      paymentStatus: invoice.paymentStatus || "Unpaid",
+      status: invoice.status || "sent"
+    }))
+    .sort((left, right) => Number(right.balanceDue || 0) - Number(left.balanceDue || 0))
+    .slice(0, 5);
 
   const monthlyOperatingExpenses = currentMonthTransactions.reduce(
     (sum, tx) => sum + (Number(tx.amount) || 0),
@@ -183,6 +211,7 @@ export const buildReportSnapshot = ({ sales = [], products = [], inventory = [],
       .map((item) => item.product
         ? { ...item.product, stock: Number(item.quantity || 0), branchPrice: item.branchPrice }
         : item),
+    unpaidInvoices,
     transactions: periodTransactions,
     sales: filteredSales,
     recentSales: filteredSales.slice(0, 20),

@@ -28,6 +28,13 @@ router.put(
   staffController.updateStaff
 );
 
+router.patch(
+  "/:id/status",
+  protect,
+  checkPermission("canDeactivateStaff"),
+  staffController.toggleStaffStatus
+);
+
 router.delete(
   "/:id",
   protect,

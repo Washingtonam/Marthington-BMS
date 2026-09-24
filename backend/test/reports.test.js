@@ -36,12 +36,14 @@ test('Report schedules honor configured weekly and monthly days', () => {
   const monday = new Date('2026-09-21T18:00:00.000Z');
   const tuesday = new Date('2026-09-22T18:00:00.000Z');
   const fifteenth = new Date('2026-09-15T18:00:00.000Z');
+  const firstOfMonth = new Date('2026-09-01T18:00:00.000Z');
   const monthEnd = new Date('2026-09-30T18:00:00.000Z');
 
   assert.equal(isSubscriptionDue({ frequency: 'weekly', sendTime: '18:00', timezone: 'UTC', weeklyDay: 1 }, monday), true);
   assert.equal(isSubscriptionDue({ frequency: 'weekly', sendTime: '18:00', timezone: 'UTC', weeklyDay: 1 }, tuesday), false);
   assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 15 }, fifteenth), true);
   assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 15 }, monthEnd), false);
+  assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 'first' }, firstOfMonth), true);
   assert.equal(isSubscriptionDue({ frequency: 'monthly', sendTime: '18:00', timezone: 'UTC', monthlyDay: 'last' }, monthEnd), true);
 });
 
@@ -67,6 +69,30 @@ test('Completed monthly range selects the previous calendar month', () => {
   assert.equal(range.startLocalDate, '2026-08-01');
   assert.equal(range.endLocalDate, '2026-08-31');
   assert.equal(formatReportPeriodLabel(range, 'monthly'), 'Monthly report: Aug 1, 2026 - Aug 31, 2026');
+});
+
+test('Reports include unpaid invoice summaries in the snapshot', () => {
+  const snapshot = buildReportSnapshot({
+    sales: [],
+    products: [],
+    transactions: [],
+    invoices: [{
+      _id: 'inv-1',
+      invoiceNumber: 'INV-1001',
+      customerName: 'Jane Doe',
+      totalAmount: 500,
+      amountPaid: 250,
+      balanceDue: 250,
+      paymentStatus: 'Partially Paid',
+      status: 'partial',
+      dueDate: new Date('2026-09-30T00:00:00.000Z'),
+      createdAt: new Date('2026-09-15T00:00:00.000Z')
+    }]
+  });
+
+  assert.equal(snapshot.unpaidInvoices.length, 1);
+  assert.equal(snapshot.unpaidInvoices[0].customerName, 'Jane Doe');
+  assert.equal(snapshot.unpaidInvoices[0].balanceDue, 250);
 });
 
 test('Reports: 30-day snapshot filters sales and costs to the selected period', () => {
