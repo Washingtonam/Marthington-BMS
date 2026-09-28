@@ -66,6 +66,9 @@ const calculatePaymentStatus = ({ totalAmount, amountPaid, returnedAmount = 0 })
 const hasInvoiceBranchAccess = (invoice, user, action = "view") =>
   canAccessBranch(user, invoice?.branch?.toString() || null, action);
 
+export const getCustomerOutstandingContribution = (invoice) =>
+  invoice?.status === "cancelled" ? 0 : Number(invoice?.balanceDue || 0);
+
 export const getBulkInvoiceStatusEligibility = (invoice, status) => {
   if (!invoice || invoice.linkedSale) return "POS-linked invoices are excluded";
   if (!["sent", "cancelled"].includes(status)) return "Unsupported bulk status";
@@ -108,8 +111,28 @@ const bulkUpdateInvoiceStatus = async (req, res) => {
       continue;
     }
 
+    const previousOutstanding = getCustomerOutstandingContribution(invoice);
     invoice.status = status;
-    await invoice.save();
+    const nextOutstanding = getCustomerOutstandingContribution(invoice);
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await invoice.save({ session });
+      if (invoice.transactionType === "outgoing" && invoice.customer && nextOutstanding !== previousOutstanding) {
+        await Customer.findOneAndUpdate(
+          { _id: invoice.customer, business: req.user.businessId },
+          { $inc: { outstandingBalance: nextOutstanding - previousOutstanding } },
+          { session }
+        );
+      }
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      skipped.push({ id: invoice._id, reason: error.message || "Invoice update failed" });
+      continue;
+    } finally {
+      await session.endSession();
+    }
     updatedIds.push(invoice._id);
   }
 
@@ -625,6 +648,12 @@ const returnInvoiceItem = async (req, res) => {
       const customerRecord = await Customer.findOne({ _id: invoice.customer, business: req.user.businessId }).session(session);
       if (customerRecord) {
         customerRecord.outstandingBalance = Math.max(0, customerRecord.outstandingBalance - returnAmount);
+        if (invoice.linkedSale) {
+          const previousLoyaltyPoints = Math.floor(Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0) + returnAmount) / 1000);
+          const nextLoyaltyPoints = Math.floor(Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0)) / 1000);
+          customerRecord.totalSpent = Math.max(0, Number(customerRecord.totalSpent || 0) - returnAmount);
+          customerRecord.loyaltyPoints = Math.max(0, Number(customerRecord.loyaltyPoints || 0) - (previousLoyaltyPoints - nextLoyaltyPoints));
+        }
         await customerRecord.save({ session });
       }
     }
@@ -1108,7 +1137,8 @@ const updateInvoice = async (req, res) => {
       "items"
     ];
 
-    const originalBalanceDue = invoice.balanceDue;
+    const originalBalanceDue = Number(invoice.balanceDue || 0);
+    const originalOutstanding = getCustomerOutstandingContribution(invoice);
     const updates = {};
 
     allowedFields.forEach(field => {
@@ -1168,15 +1198,16 @@ const updateInvoice = async (req, res) => {
       );
     }
 
-    const balanceDiff = invoice.balanceDue - originalBalanceDue;
-    if (invoice.transactionType === "outgoing" && invoice.customer && balanceDiff !== 0) {
+    const outstandingDiff = getCustomerOutstandingContribution(invoice) - originalOutstanding;
+    if (invoice.transactionType === "outgoing" && invoice.customer && outstandingDiff !== 0) {
       await Customer.findOneAndUpdate(
         { _id: invoice.customer, business: req.user.businessId },
-        { $inc: { outstandingBalance: balanceDiff } },
+        { $inc: { outstandingBalance: outstandingDiff } },
         { new: true, session }
       );
     }
 
+    const balanceDiff = invoice.balanceDue - originalBalanceDue;
     if (invoice.transactionType === "incoming" && invoice.supplier && balanceDiff !== 0) {
       await Supplier.findOneAndUpdate(
         { _id: invoice.supplier, business: req.user.businessId },
@@ -1233,7 +1264,7 @@ const deleteInvoice = async (req, res) => {
     if (invoice.transactionType === "outgoing" && invoice.customer) {
       await Customer.findOneAndUpdate(
         { _id: invoice.customer, business: req.user.businessId },
-        { $inc: { outstandingBalance: -invoice.balanceDue } },
+        { $inc: { outstandingBalance: -getCustomerOutstandingContribution(invoice) } },
         { new: true, session }
       );
     }
@@ -1331,12 +1362,20 @@ const deleteInvoice = async (req, res) => {
 export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = {} }) => {
   const query = {
     business: businessId,
-    $and: [{
-      $or: [
-        { source: "manual" },
-        { source: { $exists: false }, linkedSale: null }
-      ]
-    }],
+    $and: [
+      {
+        $or: [
+          { source: "manual" },
+          { source: { $exists: false }, linkedSale: null }
+        ]
+      },
+      {
+        $or: [
+          { linkedSale: null },
+          { linkedSale: { $exists: false } }
+        ]
+      }
+    ],
     ...branchQuery
   };
 
@@ -1432,21 +1471,37 @@ const getInvoices = async (req, res) => {
         {
           $group: {
             _id: null,
-            totalBalanceDue: { $sum: { $ifNull: ["$balanceDue", 0] } },
-            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } },
-            totalCollected: { $sum: { $ifNull: ["$amountPaid", 0] } },
+            totalBalanceDue: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "cancelled"] },
+                  { $ifNull: ["$balanceDue", 0] },
+                  0
+                ]
+              }
+            },
+            totalAmount: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "cancelled"] },
+                  { $max: [0, { $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $ifNull: ["$returnedAmount", 0] }] }] },
+                  0
+                ]
+              }
+            },
+            totalCollected: {
+              $sum: {
+                $cond: [
+                  { $ne: ["$status", "cancelled"] },
+                  { $max: [0, { $min: [{ $ifNull: ["$amountPaid", 0] }, { $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $ifNull: ["$returnedAmount", 0] }] }] }] },
+                  0
+                ]
+              }
+            },
             pendingAmount: {
               $sum: {
                 $cond: [
-                  { $and: [
-                    { $ne: ["$paymentStatus", "Fully Paid"] },
-                    { $ne: ["$status", "cancelled"] },
-                    { $or: [
-                      { $eq: ["$status", "draft"] },
-                      { $eq: ["$status", "sent"] },
-                      { $eq: ["$status", "partial"] }
-                    ] }
-                  ] },
+                  { $ne: ["$status", "cancelled"] },
                   { $ifNull: ["$balanceDue", 0] },
                   0
                 ]
@@ -1466,7 +1521,7 @@ const getInvoices = async (req, res) => {
               }
             },
             paidCount: {
-              $sum: { $cond: [{ $eq: ["$paymentStatus", "Fully Paid"] }, 1, 0] }
+              $sum: { $cond: [{ $and: [{ $eq: ["$paymentStatus", "Fully Paid"] }, { $ne: ["$status", "cancelled"] }] }, 1, 0] }
             },
             pendingCount: {
               $sum: {

@@ -157,13 +157,13 @@ const Invoices = () => {
         if (data?.pagination) setPagination(data.pagination);
         else setPagination({ page, limit: pageSize, totalItems: invoiceList.length, totalPages: invoiceList.length ? 1 : 0 });
         setServerSummary(data?.summary || {
-          totalBalanceDue: invoiceList.reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          totalAmount: invoiceList.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0),
-          totalCollected: invoiceList.reduce((sum, invoice) => sum + Number(invoice.amountPaid || 0), 0),
-          pendingAmount: invoiceList.filter(invoice => !["Fully Paid", "Returned"].includes(invoice.paymentStatus)).reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+          totalBalanceDue: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+          totalAmount: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0)), 0),
+          totalCollected: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Math.min(Number(invoice.amountPaid || 0), Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0))), 0),
+          pendingAmount: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
           overdueAmount: invoiceList.filter(invoice => invoice.status === "overdue").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          paidCount: invoiceList.filter(invoice => invoice.paymentStatus === "Fully Paid").length,
-          pendingCount: invoiceList.filter(invoice => invoice.paymentStatus !== "Fully Paid").length,
+          paidCount: invoiceList.filter(invoice => invoice.status !== "cancelled" && invoice.paymentStatus === "Fully Paid").length,
+          pendingCount: invoiceList.filter(invoice => invoice.status !== "cancelled" && invoice.paymentStatus !== "Fully Paid").length,
           overdueCount: invoiceList.filter(invoice => invoice.status === "overdue").length
         });
       } catch (err) {
@@ -334,6 +334,7 @@ const Invoices = () => {
       setInvoices(invoices.map(inv =>
         inv._id === invoiceId ? updatedInvoice : inv
       ));
+      setInvoiceRefreshKey(value => value + 1);
       alert("Invoice marked as paid successfully.");
     } catch (err) {
       console.error("Failed to mark invoice as paid:", err);
@@ -605,6 +606,7 @@ const Invoices = () => {
       });
 
       setInvoices([invoice, ...invoices]);
+      setInvoiceRefreshKey(value => value + 1);
       setNewInvoiceModalOpen(false);
       setNewInvoiceDraft({
         transactionType: "outgoing",
@@ -698,6 +700,7 @@ const Invoices = () => {
       setInvoices(invoices.map(inv =>
         inv._id === updatedInvoice._id ? updatedInvoice : inv
       ));
+      setInvoiceRefreshKey(value => value + 1);
       
       setPaymentHistory(prev => ({
         ...prev,
@@ -733,6 +736,7 @@ const Invoices = () => {
       const result = await completeInvoicePickup(invoice._id);
       const updatedInvoice = result.invoice || result;
       setInvoices(prev => prev.map(item => item._id === updatedInvoice._id ? updatedInvoice : item));
+      setInvoiceRefreshKey(value => value + 1);
       alert("Pickup completed and sale recorded successfully.");
     } catch (err) {
       console.error("Failed to complete invoice pickup:", err);
@@ -977,6 +981,7 @@ const Invoices = () => {
       setInvoices(invoices.map(inv =>
         inv._id === updatedInvoice._id ? updatedInvoice : inv
       ));
+      setInvoiceRefreshKey(value => value + 1);
       handleCloseEditModal();
     } catch (err) {
       console.error("Failed to update invoice:", err);
@@ -1000,6 +1005,7 @@ const Invoices = () => {
     try {
       await deleteInvoice(deleteInvoiceId);
       setInvoices(invoices.filter(inv => inv._id !== deleteInvoiceId));
+      setInvoiceRefreshKey(value => value + 1);
       handleCloseDeleteModal();
     } catch (err) {
       console.error("Failed to delete invoice:", err);

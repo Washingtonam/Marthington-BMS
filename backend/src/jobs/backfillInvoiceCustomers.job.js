@@ -94,7 +94,7 @@ const backfillInvoiceCustomers = async () => {
           if (!customer.email && email) customer.email = email;
         }
 
-        const balanceDue = Number(invoice.balanceDue ?? invoice.balance ?? Math.max(
+        const balanceDue = invoice.status === "cancelled" ? 0 : Number(invoice.balanceDue ?? invoice.balance ?? Math.max(
           0,
           Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0) - Number(invoice.returnedAmount || 0)
         ));
