@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
 import { getInvoices, getInvoice, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { buildInvoiceSummary } from "../utils/invoiceSummary.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
 import { getServices } from "../api/services.js";
@@ -156,16 +157,10 @@ const Invoices = () => {
         setInvoices(processedInvoices);
         if (data?.pagination) setPagination(data.pagination);
         else setPagination({ page, limit: pageSize, totalItems: invoiceList.length, totalPages: invoiceList.length ? 1 : 0 });
-        setServerSummary(data?.summary || {
-          totalBalanceDue: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          totalAmount: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0)), 0),
-          totalCollected: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Math.min(Number(invoice.amountPaid || 0), Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.returnedAmount || 0))), 0),
-          pendingAmount: invoiceList.filter(invoice => invoice.status !== "cancelled").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          overdueAmount: invoiceList.filter(invoice => invoice.status === "overdue").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          paidCount: invoiceList.filter(invoice => invoice.status !== "cancelled" && invoice.paymentStatus === "Fully Paid").length,
-          pendingCount: invoiceList.filter(invoice => invoice.status !== "cancelled" && invoice.paymentStatus !== "Fully Paid").length,
-          overdueCount: invoiceList.filter(invoice => invoice.status === "overdue").length
-        });
+        const hasCompleteResultSet = !data?.pagination || Number(data.pagination.totalItems || 0) <= processedInvoices.length;
+        setServerSummary(hasCompleteResultSet || !data?.summary
+          ? buildInvoiceSummary(processedInvoices)
+          : data.summary);
       } catch (err) {
         console.error("Failed to load invoices:", err);
         setInvoices([]);
