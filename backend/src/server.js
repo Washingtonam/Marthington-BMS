@@ -4,6 +4,7 @@ import app from "./app.js";
 import connectDB from "./config/db.js";
 
 import runBusinessIndustryMigration from "./jobs/migrateBusinessIndustryType.job.js";
+import backfillInvoiceCustomers from "./jobs/backfillInvoiceCustomers.job.js";
 import cron from "node-cron";
 import runSubscriptionCheck from "./jobs/subscription.job.js";
 import startOverdueEmailCron from "./jobs/overduEmailReminder.job.js";
@@ -24,6 +25,8 @@ const startServer = async () => {
       console.log("🔄 Business industryType migration enabled");
       await runBusinessIndustryMigration();
     }
+
+    await backfillInvoiceCustomers();
 
     // 🔥 SAFE JOB WRAPPER
     const safeRunSubscriptionCheck = async (source = "manual") => {

@@ -15,6 +15,8 @@ import { sendInvoiceCreatedEmail, sendPaymentReceivedEmail, sendInvoiceSharedEma
 import { getOutgoingStockDelta, validateOutgoingStockAvailability } from "./invoice.stock.js";
 import { canAccessBranch, getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 import { buildSaleLedgerEntry } from "../sales/sales.utils.js";
+import Expense from "../expenses/expense.model.js";
+import { buildSupplierInvoiceExpense } from "./supplierInvoiceExpense.utils.js";
 
 const generateInvoiceNumber = async (businessId) => {
   const now = new Date();
@@ -40,6 +42,8 @@ const generateInvoiceNumber = async (businessId) => {
 
   return invoiceNumber;
 };
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const calculatePaymentStatus = ({ totalAmount, amountPaid, returnedAmount = 0 }) => {
   const effectiveTotal = Math.max(0, totalAmount - returnedAmount);
@@ -170,8 +174,19 @@ const createInvoice = async (req, res) => {
       dueDate,
       notes,
       invoiceType,
-      branch
+      branch,
+      expenseCategory,
+      expensePaymentMethod,
+      expenseDate,
+      expenseDescription,
+      expenseBudgetAllocation,
+      expenseInventoryItems = []
     } = req.body;
+
+    let customerId = customer || null;
+    let invoiceCustomerName = String(customerName || "").trim();
+    let invoiceCustomerPhone = String(customerPhone || "").trim();
+    let invoiceCustomerEmail = String(customerEmail || "").trim();
 
     const businessId = req.user.businessId;
     const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
@@ -181,6 +196,9 @@ const createInvoice = async (req, res) => {
 
     const subtotal = items.reduce((sum, item) => sum + Number(item.total || 0), 0);
     const totalAmount = subtotal + Number(tax || 0) - Number(discount || 0);
+    if (transactionType === "incoming" && (!Number.isFinite(totalAmount) || totalAmount <= 0)) {
+      throw new Error("Supplier invoice total must be greater than zero.");
+    }
     const returnedAmount = 0;
     const numericAmountPaid = Number(amountPaid || 0);
     if (!Number.isFinite(numericAmountPaid) || numericAmountPaid < 0 || numericAmountPaid > totalAmount) {
@@ -193,9 +211,50 @@ const createInvoice = async (req, res) => {
       throw new Error("Supplier must be provided for incoming supplier invoices.");
     }
 
-    if (transactionType === "outgoing" && customer) {
-      const customerRecord = await Customer.findOne({ _id: customer, business: businessId }).session(session);
+    if (transactionType === "outgoing" && customerId) {
+      const customerRecord = await Customer.findOne({ _id: customerId, business: businessId }).session(session);
       if (!customerRecord) throw new Error("Customer record not found for outgoing customer invoice.");
+      invoiceCustomerName = customerRecord.name;
+      invoiceCustomerPhone = customerRecord.phone || invoiceCustomerPhone;
+      invoiceCustomerEmail = customerRecord.email || invoiceCustomerEmail;
+    } else if (transactionType === "outgoing" && invoiceCustomerName) {
+      const normalizedPhone = Customer.normalizePhoneNumber(invoiceCustomerPhone);
+      const matchScope = { business: businessId, branch: branchId || null };
+      const phoneMatch = normalizedPhone
+        ? await Customer.findOne({ ...matchScope, phoneNormalized: normalizedPhone }).session(session)
+        : null;
+      const emailMatch = invoiceCustomerEmail
+        ? await Customer.findOne({
+          ...matchScope,
+          email: { $regex: `^${escapeRegExp(invoiceCustomerEmail)}$`, $options: "i" }
+        }).session(session)
+        : null;
+
+      if (phoneMatch && emailMatch && !phoneMatch._id.equals(emailMatch._id)) {
+        throw new Error("The phone number and email belong to different customers. Select the correct customer before creating this invoice.");
+      }
+
+      const customerRecord = phoneMatch || emailMatch || await Customer.create([{
+        business: businessId,
+        branch: branchId,
+        name: invoiceCustomerName,
+        phone: normalizedPhone || invoiceCustomerPhone,
+        phoneNormalized: normalizedPhone,
+        email: invoiceCustomerEmail
+      }], { session }).then(records => records[0]);
+
+      if (customerRecord) {
+        if (!customerRecord.phone && (normalizedPhone || invoiceCustomerPhone)) {
+          customerRecord.phone = normalizedPhone || invoiceCustomerPhone;
+          customerRecord.phoneNormalized = normalizedPhone;
+        }
+        if (!customerRecord.email && invoiceCustomerEmail) customerRecord.email = invoiceCustomerEmail;
+        await customerRecord.save({ session });
+        customerId = customerRecord._id;
+        invoiceCustomerName = customerRecord.name;
+        invoiceCustomerPhone = customerRecord.phone || "";
+        invoiceCustomerEmail = customerRecord.email || "";
+      }
     }
 
     const processedItems = [];
@@ -339,11 +398,11 @@ const createInvoice = async (req, res) => {
           createdBy: req.user.id,
           source: "manual",
           transactionType,
-          customer,
+          customer: customerId,
           supplier,
-          customerName,
-          customerPhone,
-          customerEmail,
+          customerName: invoiceCustomerName,
+          customerPhone: invoiceCustomerPhone,
+          customerEmail: invoiceCustomerEmail,
           items: processedItems,
           subtotal,
           tax,
@@ -367,8 +426,24 @@ const createInvoice = async (req, res) => {
 
     const createdInvoice = invoice[0];
 
-    if (transactionType === "outgoing" && customer) {
-      const customerRecord = await Customer.findOne({ _id: customer, business: businessId }).session(session);
+    if (transactionType === "incoming") {
+      const [linkedExpense] = await Expense.create([buildSupplierInvoiceExpense({
+        invoice: createdInvoice,
+        userId: req.user.id,
+        expenseCategory,
+        expensePaymentMethod,
+        expenseDate,
+        expenseDescription,
+        expenseBudgetAllocation,
+        expenseInventoryItems
+      })], { session });
+
+      createdInvoice.linkedExpense = linkedExpense._id;
+      await createdInvoice.save({ session });
+    }
+
+    if (transactionType === "outgoing" && customerId) {
+      const customerRecord = await Customer.findOne({ _id: customerId, business: businessId }).session(session);
       if (customerRecord) {
         customerRecord.outstandingBalance += balanceDue;
         await customerRecord.save({ session });
@@ -382,6 +457,7 @@ const createInvoice = async (req, res) => {
       }
       supplierRecord.totalPurchases = Number(supplierRecord.totalPurchases || 0) + totalAmount;
       supplierRecord.outstandingBalance = Number(supplierRecord.outstandingBalance || 0) + balanceDue;
+      supplierRecord.totalPaid = Number(supplierRecord.totalPaid || 0) + numericAmountPaid;
       await supplierRecord.save({ session });
     }
 
@@ -403,19 +479,20 @@ const createInvoice = async (req, res) => {
     const populatedInvoice = await Invoice.findById(createdInvoice._id)
       .populate("customer", "name phone email outstandingBalance")
       .populate("supplier", "name phone email isActive")
+      .populate("linkedExpense")
       .populate("business", "name email");
 
     // 📧 Send invoice created email (non-blocking)
-    if (transactionType === "outgoing" && customerEmail) {
+    if (transactionType === "outgoing" && invoiceCustomerEmail) {
       setImmediate(() => {
         sendInvoiceCreatedEmail({
-          recipientEmail: customerEmail,
-          recipientName: customerName || "Valued Customer",
+          recipientEmail: invoiceCustomerEmail,
+          recipientName: invoiceCustomerName || "Valued Customer",
           businessName: populatedInvoice.business?.name || "Our Business",
           businessId: req.user.businessId,
           invoiceId: createdInvoice._id,
           invoiceNumber: invoiceNumber,
-          customerName: customerName,
+          customerName: invoiceCustomerName,
           amount: `$${totalAmount.toFixed(2)}`,
           dueDate: dueDate ? new Date(dueDate).toLocaleDateString() : "No due date",
           invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${createdInvoice._id}`,
@@ -1083,6 +1160,14 @@ const updateInvoice = async (req, res) => {
 
     await invoice.save({ session });
 
+    if (invoice.transactionType === "incoming" && invoice.linkedExpense) {
+      await Expense.updateOne(
+        { _id: invoice.linkedExpense, business: req.user.businessId },
+        { $set: { amount: invoice.totalAmount } },
+        { session }
+      );
+    }
+
     const balanceDiff = invoice.balanceDue - originalBalanceDue;
     if (invoice.transactionType === "outgoing" && invoice.customer && balanceDiff !== 0) {
       await Customer.findOneAndUpdate(
@@ -1131,6 +1216,12 @@ const deleteInvoice = async (req, res) => {
       await session.abortTransaction();
       session.endSession();
       return res.status(403).json({ message: "You do not have access to this invoice" });
+    }
+
+    if (invoice.linkedExpense && Number(invoice.amountPaid || 0) > 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Supplier invoices with payments cannot be deleted while linked to an expense." });
     }
 
     if (invoice.fulfillmentStatus === "collected" || invoice.stockFinalized) {
@@ -1213,6 +1304,14 @@ const deleteInvoice = async (req, res) => {
           }
         }
       }
+    }
+
+    if (invoice.linkedExpense) {
+      await Expense.updateOne(
+        { _id: invoice.linkedExpense, business: req.user.businessId },
+        { $set: { linkedInvoice: null } },
+        { session }
+      );
     }
 
     await Invoice.deleteOne({ _id: invoice._id, business: req.user.businessId }).session(session);

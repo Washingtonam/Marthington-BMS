@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
 import { getInvoices, getInvoice, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
@@ -26,11 +26,12 @@ const tabOptions = [
 
 const Invoices = () => {
   const navigate = useNavigate();
-  const [invoiceTab, setInvoiceTab] = useState("outgoing");
+  const [searchParams] = useSearchParams();
+  const [invoiceTab, setInvoiceTab] = useState(searchParams.get("transactionType") === "incoming" ? "incoming" : "outgoing");
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [page, setPage] = useState(1);
@@ -566,14 +567,14 @@ const Invoices = () => {
       const quantity = Number(item.quantity || 0);
       const price = Number(item.price || 0);
 
-      if (!item.product && !item.service) {
+      if (transactionType === "outgoing" && !item.product && !item.service) {
         throw new Error("Each invoice item must include a product or service.");
       }
 
       return {
         product: item.product,
         service: item.service,
-        name: item.name || "Product",
+        name: item.name || (transactionType === "incoming" ? "Supplier bill item" : "Product"),
         quantity,
         price,
         total: quantity * price

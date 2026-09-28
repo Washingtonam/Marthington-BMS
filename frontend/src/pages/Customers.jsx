@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
-import { createCustomer, getCustomers } from "../api/customers.js";
+import { useNavigate } from "react-router-dom";
+import { FiEdit2, FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
+import { createCustomer, getCustomers, updateCustomer } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const createEmptyForm = () => ({
   name: "",
@@ -15,11 +17,17 @@ const createEmptyForm = () => ({
 });
 
 const Customers = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canManageCustomers = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canManageCustomers === true;
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewCustomer, setPreviewCustomer] = useState(null);
+  const [editingCustomer, setEditingCustomer] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(createEmptyForm());
 
   useEffect(() => {
@@ -46,6 +54,7 @@ const Customers = () => {
       const totalOutstanding = Number(customer.outstandingBalance || customer.balance || 0);
       const isActive = customer.status === "active" || customer.isActive === true;
       const isOwing = totalOutstanding > 0;
+      const needsAttention = !String(customer.phone || "").trim() && !String(customer.email || "").trim();
 
       switch (filter) {
         case "active":
@@ -54,6 +63,8 @@ const Customers = () => {
           return isOwing;
         case "vip":
           return Number(customer.totalSpent || 0) > 500000;
+        case "attention":
+          return needsAttention;
         default:
           return true;
       }
@@ -63,6 +74,7 @@ const Customers = () => {
   const summary = useMemo(() => {
     const totalCustomers = customers.length;
     const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.isActive === true).length;
+    const attentionRequired = customers.filter((customer) => !String(customer.phone || "").trim() && !String(customer.email || "").trim()).length;
     const outstandingBalance = customers.reduce((sum, customer) => sum + Number(customer.outstandingBalance || customer.balance || 0), 0);
     const newThisMonth = customers.filter((customer) => {
       const createdAt = customer.createdAt || customer.created_at;
@@ -72,7 +84,7 @@ const Customers = () => {
       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     }).length;
 
-    return { totalCustomers, activeCustomers, outstandingBalance, newThisMonth };
+    return { totalCustomers, activeCustomers, attentionRequired, outstandingBalance, newThisMonth };
   }, [customers]);
 
   const filterOptions = [
@@ -80,6 +92,7 @@ const Customers = () => {
     { key: "active", label: "Active" },
     { key: "owing", label: "Owing Balance" },
     { key: "vip", label: "VIP / Frequent" },
+    { key: "attention", label: `Attention required (${summary.attentionRequired})` },
   ];
 
   const openCreateDrawer = () => {
@@ -139,6 +152,58 @@ const Customers = () => {
     }
   };
 
+  const openCustomerEditor = (customer) => {
+    setEditForm({
+      name: customer.name || "",
+      phone: customer.phone || "",
+      email: customer.email || "",
+      address: customer.address || "",
+      notes: customer.notes || "",
+      isActive: customer.isActive !== false
+    });
+    setEditingCustomer(customer);
+  };
+
+  const handleCustomerUpdate = async (event) => {
+    event.preventDefault();
+    const name = editForm.name.trim();
+    const phone = editForm.phone.trim();
+    const email = editForm.email.trim();
+
+    if (!name) {
+      alert("Customer name is required.");
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert("Please enter a valid email address, or leave it blank.");
+      return;
+    }
+    if (phone && !/^[+()\d\s-]{7,20}$/.test(phone)) {
+      alert("Please enter a valid phone number, or leave it blank.");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      const updated = await updateCustomer(editingCustomer._id, {
+        name,
+        phone,
+        email,
+        address: editForm.address.trim(),
+        notes: editForm.notes.trim(),
+        isActive: editForm.isActive
+      });
+      setCustomers((current) => current.map((customer) => customer._id === updated._id ? updated : customer));
+      setPreviewCustomer(updated);
+      setEditingCustomer(null);
+    } catch (err) {
+      console.error("Failed to update customer:", err);
+      alert(err.message || "Failed to update customer.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   return (
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20">
@@ -155,14 +220,16 @@ const Customers = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openCreateDrawer}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
-          >
-            <FiPlus />
-            Add Customer
-          </button>
+          {canManageCustomers && (
+            <button
+              type="button"
+              onClick={openCreateDrawer}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
+            >
+              <FiPlus />
+              Add Customer
+            </button>
+          )}
         </div>
       </div>
 
@@ -250,6 +317,7 @@ const Customers = () => {
                   const totalOutstanding = Number(customer.outstandingBalance || customer.balance || 0);
                   const isActive = customer.status === "active" || customer.isActive === true;
                   const isOwing = totalOutstanding > 0;
+                  const needsAttention = !String(customer.phone || "").trim() && !String(customer.email || "").trim();
                   const statusClasses = isOwing
                     ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                     : isActive
@@ -281,9 +349,12 @@ const Customers = () => {
                         </div>
                       </td>
                       <td className="py-3 pr-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses}`}>
-                          {isOwing ? "Owing" : isActive ? "Active" : "Inactive"}
-                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {needsAttention && <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Attention required</span>}
+                          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses}`}>
+                            {isOwing ? "Owing" : isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3 pr-4">
                         <div className="flex flex-wrap gap-2">
@@ -294,6 +365,15 @@ const Customers = () => {
                           >
                             View
                           </button>
+                          {needsAttention && canManageCustomers && (
+                            <button
+                              type="button"
+                              onClick={() => openCustomerEditor(customer)}
+                              className="rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-medium text-rose-700 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                            >
+                              Add contact details
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -320,6 +400,7 @@ const Customers = () => {
               const totalOutstanding = Number(customer.outstandingBalance || customer.balance || 0);
               const isActive = customer.status === "active" || customer.isActive === true;
               const isOwing = totalOutstanding > 0;
+              const needsAttention = !String(customer.phone || "").trim() && !String(customer.email || "").trim();
 
               return (
                 <div key={customer._id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
@@ -328,9 +409,12 @@ const Customers = () => {
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{customer.name}</p>
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{customer.phone || customer.email || "No contact info"}</p>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isOwing ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
-                      {isOwing ? "Owing" : isActive ? "Active" : "Inactive"}
-                    </span>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {needsAttention && <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Attention required</span>}
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isOwing ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300" : isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+                        {isOwing ? "Owing" : isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="mt-3 flex items-center justify-between text-sm text-slate-600 dark:text-slate-300">
@@ -346,6 +430,15 @@ const Customers = () => {
                     >
                       View profile
                     </button>
+                    {needsAttention && canManageCustomers && (
+                      <button
+                        type="button"
+                        onClick={() => openCustomerEditor(customer)}
+                        className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700 transition-all duration-150 hover:bg-rose-50 active:scale-[0.99] dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300"
+                      >
+                        Add contact details
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-100 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
@@ -516,8 +609,8 @@ const Customers = () => {
                   <FiUsers />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Relationship health</p>
-                  <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">High-value account</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Customer status</p>
+                  <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">{previewCustomer.isActive === false ? "Inactive" : "Active"}</p>
                 </div>
               </div>
             </div>
@@ -544,15 +637,102 @@ const Customers = () => {
               </div>
             </div>
 
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewCustomer(null);
+                  navigate(`/app/customers/${previewCustomer._id}`);
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Open full profile
+              </button>
+              {canManageCustomers && (
+                <button
+                  type="button"
+                  onClick={() => openCustomerEditor(previewCustomer)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  <FiEdit2 /> Edit customer
+                </button>
+              )}
+            </div>
+
             <div className="mt-5 rounded-[24px] border border-slate-200 p-4 dark:border-slate-800">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent activity</p>
-              <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                <li>• Last invoice issued 2 days ago</li>
-                <li>• 2 orders placed this year</li>
-                <li>• Follow-up recommended for payment review</li>
-              </ul>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Account activity</p>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                {previewCustomer.totalOrders || 0} recorded orders
+                {previewCustomer.lastPurchaseAt ? ` · Last purchase ${new Date(previewCustomer.lastPurchaseAt).toLocaleDateString()}` : " · No purchase date recorded"}
+              </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {editingCustomer && (
+        <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/70 backdrop-blur-sm">
+          <form onSubmit={handleCustomerUpdate} className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-600">CRM</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">Edit customer</h2>
+              </div>
+              <button type="button" onClick={() => setEditingCustomer(null)} aria-label="Close edit customer" className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300">
+                <FiX />
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {[
+                { name: "name", label: "Customer name", required: true },
+                { name: "phone", label: "Phone" },
+                { name: "email", label: "Email", type: "email" },
+                { name: "address", label: "Address" }
+              ].map((field) => (
+                <label key={field.name} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <span className="mb-2 block">{field.label}</span>
+                  <input
+                    name={field.name}
+                    type={field.type || "text"}
+                    required={field.required}
+                    value={editForm[field.name]}
+                    onChange={(event) => setEditForm((current) => ({ ...current, [field.name]: event.target.value }))}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
+                  />
+                </label>
+              ))}
+
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                <span className="mb-2 block">Notes</span>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))}
+                  rows="4"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
+                />
+              </label>
+
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={editForm.isActive}
+                  onChange={(event) => setEditForm((current) => ({ ...current, isActive: event.target.checked }))}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Active customer
+              </label>
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <button type="button" onClick={() => setEditingCustomer(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-300">
+                Cancel
+              </button>
+              <button type="submit" disabled={savingEdit} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {savingEdit ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </section>

@@ -373,6 +373,7 @@ const getExpenses = async (req, res) => {
       .populate("approvedBy", "name email")
       .populate("branch", "name")
       .populate("supplier", "name phone email isActive")
+      .populate("linkedInvoice", "invoiceNumber paymentStatus balanceDue amountPaid status")
       .sort({ date: -1 })
       .exec();
 
@@ -503,6 +504,10 @@ const deleteExpense = async (req, res) => {
       return res.status(404).json({ message: "Expense not found" });
     }
 
+    if (expense.linkedInvoice) {
+      return res.status(409).json({ message: "Delete or cancel the linked supplier invoice before deleting this expense." });
+    }
+
     await reverseExpenseGL(expense, req.user.id);
     await expense.deleteOne();
 
@@ -527,12 +532,15 @@ const bulkDeleteExpenses = async (req, res) => {
     }
 
     const expenses = await Expense.find({ _id: { $in: ids }, business: businessId });
-    await Promise.all(expenses.map(expense => reverseExpenseGL(expense, req.user.id)));
-    const result = await Expense.deleteMany({ _id: { $in: ids }, business: businessId });
+    const deletableExpenses = expenses.filter((expense) => !expense.linkedInvoice);
+    const deletableIds = deletableExpenses.map((expense) => expense._id);
+    await Promise.all(deletableExpenses.map(expense => reverseExpenseGL(expense, req.user.id)));
+    const result = await Expense.deleteMany({ _id: { $in: deletableIds }, business: businessId });
 
     return res.status(200).json({
       message: `${result.deletedCount} expense(s) deleted successfully`,
-      deletedCount: result.deletedCount
+      deletedCount: result.deletedCount,
+      skippedCount: expenses.length - deletableExpenses.length
     });
   } catch (err) {
     console.error("Bulk Delete Error:", err);

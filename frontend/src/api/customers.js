@@ -13,3 +13,9 @@ export const createCustomer = async (payload) => {
 export const getCustomer =
   (id) =>
     request(`/customers/${id}`);
+
+export const updateCustomer = (id, payload) =>
+  request(`/customers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });

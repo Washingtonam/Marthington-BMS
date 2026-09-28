@@ -32,6 +32,7 @@ const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Invoices = lazy(() => import("./pages/Invoices.jsx"));
 const VerifyPayment = lazy(() => import("./pages/VerifyPayment.jsx"));
 const Customers = lazy(() => import("./pages/Customers.jsx"));
+const CustomerDetail = lazy(() => import("./pages/CustomerDetail.jsx"));
 const Services = lazy(() => import("./pages/Services.jsx"));
 const Suppliers = lazy(() => import("./pages/Suppliers.jsx"));
 const SupplierDetail = lazy(() => import("./pages/SupplierDetail.jsx"));
@@ -287,6 +288,7 @@ const App = () => {
               <Route path="payments" element={<ProtectedRoute requiredPermission="canViewPayments"><VerifyPayment /></ProtectedRoute>} />
               <Route path="invoices" element={<ProtectedRoute requiredPermission="canViewInvoices"><Invoices /></ProtectedRoute>} />
               <Route path="customers" element={<ProtectedRoute requiredPermission="canViewCustomers"><Customers /></ProtectedRoute>} />
+              <Route path="customers/:id" element={<ProtectedRoute requiredPermission="canViewCustomers"><CustomerDetail /></ProtectedRoute>} />
               <Route path="services" element={<ProtectedRoute requiredPermission="canViewProducts"><Services /></ProtectedRoute>} />
               <Route path="suppliers" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><Suppliers /></ProtectedRoute>} />
               <Route path="suppliers/:id" element={<ProtectedRoute requiredPermission="canViewPurchaseOrders"><SupplierDetail /></ProtectedRoute>} />

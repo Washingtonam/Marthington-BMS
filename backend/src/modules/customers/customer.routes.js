@@ -29,4 +29,11 @@ router.get(
   customerController.getCustomerById
 );
 
+router.put(
+  "/:id",
+  protect,
+  checkPermission("canManageCustomers"),
+  customerController.updateCustomer
+);
+
 export default router;

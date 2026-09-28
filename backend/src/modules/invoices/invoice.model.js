@@ -220,6 +220,12 @@ const invoiceSchema =
       default: null
     },
 
+    linkedExpense: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Expense",
+      default: null
+    },
+
     status: {
       type: String,
 

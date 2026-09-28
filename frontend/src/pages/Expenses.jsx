@@ -1,10 +1,12 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getBranches } from "../api/branches.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
+import { createInvoice } from "../api/invoices.js";
 
 const EXPENSE_CATEGORIES = [
   { value: "inventory", label: "Inventory/Stock Procurement" },
@@ -39,6 +41,7 @@ const EXPENSE_STATUS_META = {
 };
 
 const Expenses = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = user?.role === "owner" || user?.role === "super_admin";
   const [expenses, setExpenses] = useState([]);
@@ -66,6 +69,7 @@ const Expenses = () => {
     supplierName: "",
     supplierPhone: "",
     supplierId: "",
+    recordAsSupplierInvoice: false,
     inventoryItems: []
   });
 
@@ -400,8 +404,18 @@ const Expenses = () => {
       return;
     }
 
+    if (!Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) {
+      setStatusMsg({ type: "error", text: "Amount must be greater than zero." });
+      return;
+    }
+
     if (formData.category === "inventory" && formData.inventoryItems.length === 0) {
       setStatusMsg({ type: "error", text: "Add at least one inventory item for inventory expenses." });
+      return;
+    }
+
+    if (formData.recordAsSupplierInvoice && !formData.supplierId) {
+      setStatusMsg({ type: "error", text: "Select a supplier to create an Accounts Payable invoice." });
       return;
     }
 
@@ -422,13 +436,34 @@ const Expenses = () => {
         inventoryItems: formData.inventoryItems || []
       };
 
-      const res = await request("/expenses", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
+      const res = formData.recordAsSupplierInvoice
+        ? await createInvoice({
+            transactionType: "incoming",
+            branch: formData.branch || null,
+            supplier: formData.supplierId,
+            items: [{
+              name: formData.description,
+              quantity: 1,
+              price: payload.amount,
+              total: payload.amount
+            }],
+            amountPaid: formData.paymentMethod === "store_credit" ? 0 : payload.amount,
+            notes: formData.notes,
+            expenseCategory: formData.category,
+            expensePaymentMethod: formData.paymentMethod,
+            expenseDate: formData.date,
+            expenseDescription: formData.description,
+            expenseBudgetAllocation: payload.budgetAllocation,
+            expenseInventoryItems: payload.inventoryItems
+          })
+        : await request("/expenses", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
 
-      if (res?.expense) {
-        setExpenses([res.expense, ...expenses]);
+      const createdExpense = res?.linkedExpense || res?.expense;
+      if (createdExpense) {
+        setExpenses([createdExpense, ...expenses]);
         setFormData({
           amount: "",
           description: "",
@@ -442,11 +477,17 @@ const Expenses = () => {
           supplierName: "",
           supplierPhone: "",
           supplierId: "",
+          recordAsSupplierInvoice: false,
           inventoryItems: []
         });
         setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
         setIsFormOpen(false);
-        setStatusMsg({ type: "success", text: "Expense added successfully!" });
+        setStatusMsg({
+          type: "success",
+          text: formData.recordAsSupplierInvoice
+            ? "Supplier invoice created and linked to Expenses and Accounts Payable."
+            : "Expense added successfully!"
+        });
         notifySalesUpdated();
         
         // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
@@ -482,7 +523,7 @@ const Expenses = () => {
       setStatusMsg({ type: "success", text: "Expense deleted." });
       setTimeout(() => setStatusMsg({ type: "", text: "" }), 2000);
     } catch (err) {
-      setStatusMsg({ type: "error", text: "Failed to delete expense." });
+      setStatusMsg({ type: "error", text: err.message || "Failed to delete expense." });
     }
   };
 
@@ -970,6 +1011,19 @@ const Expenses = () => {
                   </select>
                 </label>
 
+                <label className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 md:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.recordAsSupplierInvoice}
+                    onChange={e => setFormData({ ...formData, recordAsSupplierInvoice: e.target.checked })}
+                    className="mt-1 h-4 w-4 accent-emerald-600"
+                  />
+                  <span>
+                    <span className="block text-sm font-bold text-emerald-900">Also record as supplier invoice</span>
+                    <span className="mt-1 block text-xs text-emerald-800">Creates the Accounts Payable bill and links it to this expense.</span>
+                  </span>
+                </label>
+
                 <label className="space-y-2">
                   <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Branch</span>
                   <select
@@ -1107,7 +1161,7 @@ const Expenses = () => {
                   </div>
                 )}
 
-                {formData.category === "inventory" && (
+                {(formData.category === "inventory" || formData.recordAsSupplierInvoice) && (
                   <div className="space-y-3 rounded-[24px] border border-violet-200 bg-violet-50/60 p-4 md:col-span-2">
                     <h4 className="text-sm font-black uppercase tracking-[0.18em] text-violet-700">Supplier information</h4>
 
@@ -1115,7 +1169,7 @@ const Expenses = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Supplier Name (optional)"
+                          placeholder={formData.recordAsSupplierInvoice ? "Select supplier *" : "Supplier Name (optional)"}
                           value={formData.supplierName}
                           onChange={e => {
                             setFormData({ ...formData, supplierName: e.target.value, supplierId: "" });
@@ -1444,6 +1498,15 @@ const Expenses = () => {
                           <div>
                             <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">{expense.supplier.name}</p>
                             {expense.supplier.phone && <p className="text-xs text-slate-500 dark:text-slate-400">{expense.supplier.phone}</p>}
+                            {expense.linkedInvoice && (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/app/invoices?transactionType=incoming&search=${encodeURIComponent(expense.linkedInvoice.invoiceNumber || "")}`)}
+                                className="mt-1 text-xs font-bold text-sky-700 hover:text-sky-900 dark:text-sky-300"
+                              >
+                                AP invoice {expense.linkedInvoice.invoiceNumber || "View"}
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <span className="text-sm text-slate-400 dark:text-slate-500">—</span>
@@ -1451,6 +1514,12 @@ const Expenses = () => {
                       </td>
                       <td className="px-5 py-4 font-semibold text-slate-700 dark:text-slate-200">
                         {PAYMENT_METHODS.find(m => m.value === expense.paymentMethod)?.label || expense.paymentMethod}
+                        {expense.linkedInvoice && (
+                          <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {expense.linkedInvoice.paymentStatus || "Unpaid"}
+                            {Number(expense.linkedInvoice.balanceDue || 0) > 0 && ` · ${formatCurrency(expense.linkedInvoice.balanceDue)} due`}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right font-black text-slate-900 dark:text-slate-100">{formatCurrency(expense.amount)}</td>
                       <td className="px-5 py-4 text-center">
@@ -1480,12 +1549,14 @@ const Expenses = () => {
                               </button>
                             </>
                           )}
-                          <button
-                            onClick={() => handleDeleteExpense(expense._id)}
-                            className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-200"
-                          >
-                            Delete
-                          </button>
+                          {!expense.linkedInvoice && (
+                            <button
+                              onClick={() => handleDeleteExpense(expense._id)}
+                              className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 transition hover:bg-slate-200"
+                            >
+                              Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1658,7 +1729,7 @@ const Expenses = () => {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <p className="font-bold text-gray-900 text-sm">{expense.description}</p>
-                          <p className="text-xs text-gray-600 mt-1">Invoice: <span className="font-mono font-bold">{expense.linkedInvoice}</span></p>
+                          <p className="text-xs text-gray-600 mt-1">Invoice: <span className="font-mono font-bold">{expense.linkedInvoice?.invoiceNumber || expense.linkedInvoice?._id || expense.linkedInvoice}</span></p>
                         </div>
                         <span className="text-sm font-bold text-green-600">{formatCurrency(expense.amount)}</span>
                       </div>
