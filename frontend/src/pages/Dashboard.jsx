@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAnalytics } from "../api/analytics.js";
 import request from "../api/client.js";
@@ -40,6 +40,10 @@ const Dashboard = () => {
   };
 
   const [analytics, setAnalytics] = useState(analyticsFallback);
+  const [recentSales, setRecentSales] = useState([]);
+  const [activeStaff, setActiveStaff] = useState([]);
+  const [activeCustomers, setActiveCustomers] = useState([]);
+  const [pendingExpenseCount, setPendingExpenseCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -52,14 +56,37 @@ const Dashboard = () => {
     user?.role === "super_admin" ||
     user?.permissions?.canManagePayments
   );
+  const canViewStaff = Boolean(
+    user?.role === "owner" ||
+    user?.role === "super_admin" ||
+    user?.permissions?.canManageStaff
+  );
+  const canViewCustomers = Boolean(
+    user?.role === "owner" ||
+    user?.role === "super_admin" ||
+    user?.permissions?.canViewCustomers
+  );
+  const canReviewExpenses = Boolean(user?.role === "owner" || user?.role === "super_admin");
   const [pendingPayments, setPendingPayments] = useState(0);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await getAnalytics();
+        const [data, salesData, staffData, customerData, expenseData] = await Promise.all([
+          getAnalytics(),
+          request("/sales?limit=10").catch(() => ({ sales: [] })),
+          canViewStaff ? request("/staff").catch(() => []) : Promise.resolve([]),
+          canViewCustomers ? request("/customers").catch(() => []) : Promise.resolve([]),
+          canReviewExpenses ? request("/expenses?status=pending").catch(() => ({ expenses: [] })) : Promise.resolve({ expenses: [] }),
+        ]);
         setAnalytics(data || analyticsFallback);
+        setRecentSales(Array.isArray(salesData?.sales) ? salesData.sales : []);
+        setActiveStaff((Array.isArray(staffData) ? staffData : staffData?.users || [])
+          .filter((person) => person.isActive !== false));
+        setActiveCustomers((Array.isArray(customerData) ? customerData : customerData?.customers || [])
+          .filter((customer) => customer.isActive !== false));
+        setPendingExpenseCount(Array.isArray(expenseData?.expenses) ? expenseData.expenses.length : 0);
         if (canReviewPayments) {
           try {
             const pendingData = await request("/sales?paymentStatus=pending&limit=1");
@@ -85,7 +112,7 @@ const Dashboard = () => {
     });
 
     return unsubscribe;
-  }, [canReviewPayments, refreshKey]);
+  }, [canReviewPayments, canViewStaff, canViewCustomers, canReviewExpenses, refreshKey]);
 
   const { metrics, recentActivity } = useMemo(() => {
     const metricValues = analytics?.metrics || {};
@@ -112,24 +139,17 @@ const Dashboard = () => {
         overdueReceivables: metricValues.overdueReceivables || 0,
         overduePayables: metricValues.overduePayables || 0,
       },
-      recentActivity: (analytics?.salesTrend || []).slice(0, 6).map((item, index) => {
-        const amount =
-          item.totalAmount || item.amount || item.total || item.value || item.revenue || 0;
-        const customerName =
-          item.customerName || item.customer?.name || item.clientName || item.entityName || "Customer";
-        const title = item.title || item.description || item.type || "Transaction";
-        const timestamp = item.createdAt || item.date || item.timestamp || item.saleDate || null;
-
+      recentActivity: recentSales.slice(0, 6).map((item, index) => {
         return {
-          id: item._id || `${title}-${index}`,
-          title,
-          customerName,
-          amount,
-          timestamp,
+          id: item._id || `sale-${index}`,
+          title: item.receiptId ? `Sale #${item.receiptId}` : "Sale",
+          customerName: item.customerName || item.customer?.name || "Walk-in customer",
+          amount: item.totalAmount || 0,
+          timestamp: item.createdAt || null,
         };
       }),
     };
-  }, [analytics]);
+  }, [analytics, recentSales]);
 
   const executiveCards = isSchool
     ? [
@@ -146,10 +166,10 @@ const Dashboard = () => {
           { label: "Overdue AR", value: formatCurrency(metrics.overdueReceivables), tone: "amber" },
         ]
       : [
-          { label: "Revenue", value: formatCurrency(metrics.totalRevenue), tone: "emerald" },
-          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), tone: "blue" },
-          { label: "Operating Expenses", value: formatCurrency(metrics.totalOperatingExpenses), tone: "amber" },
-          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), tone: "slate" },
+          { label: "Revenue", value: formatCurrency(metrics.totalRevenue), detail: "All-time sales", tone: "emerald" },
+          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), detail: "Sales profit before expenses · all time", tone: "blue" },
+          { label: "Approved Expenses", value: formatCurrency(metrics.totalOperatingExpenses), detail: "Approved expense records · all time", tone: "amber" },
+          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), detail: "Gross profit minus approved expenses", tone: "slate" },
         ];
 
   const quickActions = [
@@ -183,6 +203,15 @@ const Dashboard = () => {
       accent: pendingPayments > 0,
       icon: "✓",
     }] : []),
+    ...(canReviewExpenses ? [{
+      title: `Expense Approvals${pendingExpenseCount ? ` (${pendingExpenseCount})` : ""}`,
+      description: pendingExpenseCount
+        ? "Open the pending expense queue to review submissions."
+        : "No expense approvals are waiting right now.",
+      action: () => navigate("/app/expenses"),
+      accent: pendingExpenseCount > 0,
+      icon: "◷",
+    }] : []),
   ];
 
   const moduleTiles = [
@@ -190,6 +219,7 @@ const Dashboard = () => {
     { label: "Staff", to: "/app/staff", icon: "👥" },
     { label: "CRM", to: "/app/customers", icon: "🧾" },
     { label: "Analytics", to: "/app/analytics", icon: "📊" },
+    { label: "Expenses", to: "/app/expenses", icon: "🧾" },
   ];
 
   const cardToneStyles = {
@@ -275,9 +305,47 @@ const Dashboard = () => {
             <p className="mt-4 text-2xl font-semibold tracking-tight">
               {card.value}
             </p>
+            {card.detail && <p className="mt-2 text-xs opacity-75">{card.detail}</p>}
           </div>
         ))}
       </div>
+
+      {(activeStaff.length > 0 || activeCustomers.length > 0) && (
+        <div className={`grid gap-4 ${activeStaff.length > 0 && activeCustomers.length > 0 ? "md:grid-cols-2" : "grid-cols-1"}`}>
+          {activeStaff.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Active team accounts</h2>
+                <span className="text-xs text-slate-500 dark:text-slate-400">{activeStaff.length}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {activeStaff.slice(0, 8).map((person) => (
+                  <button key={person._id} type="button" onClick={() => navigate("/app/staff")} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800">
+                    {person.name}
+                  </button>
+                ))}
+                {activeStaff.length > 8 && <span className="px-2 py-1.5 text-sm text-slate-500">+{activeStaff.length - 8} more</span>}
+              </div>
+            </div>
+          )}
+          {activeCustomers.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Active customer accounts</h2>
+                <span className="text-xs text-slate-500 dark:text-slate-400">{activeCustomers.length}</span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {activeCustomers.slice(0, 8).map((customer) => (
+                  <button key={customer._id} type="button" onClick={() => navigate("/app/customers")} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800">
+                    {customer.name}
+                  </button>
+                ))}
+                {activeCustomers.length > 8 && <span className="px-2 py-1.5 text-sm text-slate-500">+{activeCustomers.length - 8} more</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {user?.role === "owner" && business?.referredBy && (
         <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100">
@@ -346,7 +414,7 @@ const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Recent activity</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">A lightweight feed of recent transactions and updates.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Latest sales recorded in the business.</p>
           </div>
           <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
             Updated now

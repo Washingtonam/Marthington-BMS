@@ -3,7 +3,7 @@ import Business from "../businesses/business.model.js";
 import Sale from "../sales/sale.model.js";
 import Product from "../products/product.model.js";
 import Invoice from "../invoices/invoice.model.js";
-import Transaction from "../transactions/transaction.model.js";
+import Expense from "../expenses/expense.model.js";
 import School from "../schools/School.js";
 import Student from "../schools/Student.js";
 import BranchInventory from "../branches/branchInventory.model.js";
@@ -68,24 +68,26 @@ const getAnalytics = async (req, res) => {
       0
     );
 
-    // 🔥 CALCULATE GROSS PROFIT (from sales)
-    const grossProfit = sales.reduce(
-      (sum, sale) => sum + (sale.totalProfit || 0),
-      0
-    );
+    const grossProfit = sales.reduce((salesTotal, sale) => {
+      const saleProfit = sale.totalProfit !== undefined && sale.totalProfit !== null
+        ? Number(sale.totalProfit) || 0
+        : (sale.items || []).reduce((itemsTotal, item) => {
+          const sellingPrice = Number(item.sellingPrice ?? item.price ?? 0);
+          const costPrice = Number(item.costPrice ?? item.cost ?? 0);
+          const quantity = Number(item.quantity ?? 0);
+          return itemsTotal + (sellingPrice - costPrice) * quantity;
+        }, 0);
+      return salesTotal + saleProfit;
+    }, 0);
 
-    // 🔥 GET OPERATING EXPENSES FROM POSTED LEDGER ENTRIES
-    const postedExpenseTransactions = await Transaction.find({
-      businessId: businessObjectId,
-      transactionType: "expense",
-      ...(branchQuery.branch ? { branchId: branchQuery.branch } : {}),
-      $or: [{ postingType: "debit" }, { postingType: { $exists: false } }],
-      status: "posted",
-      isDeleted: { $ne: true }
+    const approvedExpenses = await Expense.find({
+      business: businessObjectId,
+      status: "approved",
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
     }).lean();
 
-    const totalOperatingExpenses = postedExpenseTransactions.reduce(
-      (sum, tx) => sum + (Number(tx.amount) || 0),
+    const totalOperatingExpenses = approvedExpenses.reduce(
+      (sum, expense) => sum + (Number(expense.amount) || 0),
       0
     );
 
@@ -160,6 +162,8 @@ const getAnalytics = async (req, res) => {
       totalSales,
       productsCount,
       totalRevenue,
+      grossProfit,
+      totalOperatingExpenses,
       totalProfit,
       averageOrderValue,
       inventoryValue,
