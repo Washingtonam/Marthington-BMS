@@ -17,6 +17,7 @@ import { canAccessBranch, getScopedBranchQuery, resolveOperationalBranchId } fro
 import { buildSaleLedgerEntry } from "../sales/sales.utils.js";
 import Expense from "../expenses/expense.model.js";
 import { buildSupplierInvoiceExpense } from "./supplierInvoiceExpense.utils.js";
+import { buildSupplierInvoiceProduct } from "./supplierInvoiceProduct.utils.js";
 
 const generateInvoiceNumber = async (businessId) => {
   const now = new Date();
@@ -283,6 +284,10 @@ const createInvoice = async (req, res) => {
     const processedItems = [];
     const invoiceNumber = await generateInvoiceNumber(businessId);
 
+    if (transactionType === "incoming" && items.some(item => item?.service || (!item?.product && !item?.createProduct))) {
+      throw new Error("Supplier invoice items must be an existing product or a new product added to the catalog.");
+    }
+
     if (transactionType === "outgoing") {
       const productAvailability = {};
       for (const item of items) {
@@ -314,8 +319,14 @@ const createInvoice = async (req, res) => {
     }
 
     for (const item of items) {
+      let productId = item.product || null;
+      if (transactionType === "incoming" && item.createProduct) {
+        const [newProduct] = await Product.create([buildSupplierInvoiceProduct({ businessId, item })], { session });
+        productId = newProduct._id;
+      }
+
       const invoiceItem = {
-        product: item.product || null,
+        product: productId,
         service: item.service || null,
         name: item.name,
         quantity: Number(item.quantity || 0),
@@ -343,13 +354,15 @@ const createInvoice = async (req, res) => {
         }
       }
 
-      if (transactionType === "incoming" && item.product) {
-        const product = await Product.findById(item.product).session(session);
+      if (transactionType === "incoming" && productId) {
+        const product = await Product.findOne({ _id: productId, business: businessId }).session(session);
         if (!product) {
           throw new Error(`Product not found for supplier item: ${item.name}`);
         }
+        product.costPrice = Number(item.price || 0);
 
         if (branchId) {
+          await product.save({ session });
           const branchInventory = await BranchInventory.findOne({
             business: businessId,
             branch: branchId,
@@ -366,7 +379,8 @@ const createInvoice = async (req, res) => {
                 product: product._id,
                 createdBy: req.user.id
               },
-              $inc: { quantity: invoiceItem.quantity }
+              $inc: { quantity: invoiceItem.quantity },
+              $set: { unitCost: product.costPrice }
             },
             { upsert: true, new: true, session }
           );
@@ -1422,6 +1436,86 @@ export const buildInvoiceListQuery = ({ businessId, branchQuery = {}, filters = 
   return query;
 };
 
+export const buildOutstandingPeoplePipeline = ({ businessId, branchQuery = {}, transactionType }) => {
+  const entityField = transactionType === "incoming" ? "$supplier" : "$customer";
+  const collection = transactionType === "incoming" ? "suppliers" : "customers";
+  const snapshotName = transactionType === "incoming" ? "" : "$customerName";
+  const query = buildInvoiceListQuery({ businessId, branchQuery, filters: { transactionType } });
+  query.status = { $ne: "cancelled" };
+
+  return [
+    { $match: query },
+    {
+      $addFields: {
+        outstandingAmount: {
+          $ifNull: [
+            "$balanceDue",
+            { $ifNull: ["$balance", { $max: [0, { $subtract: [{ $ifNull: ["$totalAmount", 0] }, { $add: [{ $ifNull: ["$amountPaid", 0] }, { $ifNull: ["$returnedAmount", 0] }] }] }] }] }
+          ]
+        }
+      }
+    },
+    { $match: { outstandingAmount: { $gt: 0 } } },
+    {
+      $group: {
+        _id: {
+          $ifNull: [
+            entityField,
+            { $concat: ["name:", { $toLower: { $trim: { input: { $ifNull: [snapshotName, "Unknown customer"] } } } }] }
+          ]
+        },
+        entityId: { $first: entityField },
+        snapshotName: { $first: snapshotName },
+        balanceDue: { $sum: "$outstandingAmount" },
+        invoiceCount: { $sum: 1 }
+      }
+    },
+    { $lookup: { from: collection, localField: "entityId", foreignField: "_id", as: "entity" } },
+    { $unwind: { path: "$entity", preserveNullAndEmptyArrays: true } },
+    {
+      $project: {
+        _id: "$entityId",
+        name: { $ifNull: ["$entity.name", { $ifNull: ["$snapshotName", "Unknown customer"] }] },
+        balanceDue: 1,
+        invoiceCount: 1
+      }
+    },
+    { $sort: { balanceDue: -1, name: 1 } },
+    {
+      $facet: {
+        people: [{ $limit: 8 }],
+        summary: [{ $group: { _id: null, totalBalanceDue: { $sum: "$balanceDue" }, invoiceCount: { $sum: "$invoiceCount" }, peopleCount: { $sum: 1 } } }]
+      }
+    }
+  ];
+};
+
+const getOutstandingSummary = async (req, res) => {
+  try {
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these invoices" });
+
+    const [receivables, payables] = await Promise.all(["outgoing", "incoming"].map(async (transactionType) => {
+      const [result = {}] = await Invoice.aggregate(buildOutstandingPeoplePipeline({
+        businessId: req.user.businessId,
+        branchQuery,
+        transactionType
+      }));
+      const summary = result.summary?.[0] || {};
+      return {
+        people: result.people || [],
+        totalBalanceDue: summary.totalBalanceDue || 0,
+        invoiceCount: summary.invoiceCount || 0,
+        peopleCount: summary.peopleCount || 0
+      };
+    }));
+
+    return res.json({ receivables, payables });
+  } catch (err) {
+    return res.status(500).json({ message: err.message || "Failed to load outstanding invoice summary" });
+  }
+};
+
 const invoiceSortFields = new Set(["createdAt", "invoiceNumber", "customerName", "totalAmount", "balanceDue", "dueDate", "status"]);
 
 const getInvoicePagination = (query = {}) => {
@@ -1754,5 +1848,6 @@ export default {
   getInvoiceById,
   getInvoicePDF,
   shareInvoice,
-  getInvoiceEmailHistory
+  getInvoiceEmailHistory,
+  getOutstandingSummary
 };

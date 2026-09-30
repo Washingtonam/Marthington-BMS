@@ -88,6 +88,13 @@ router.get(
 );
 
 router.get(
+  "/outstanding-summary",
+  protect,
+  checkPermission("canViewInvoices"),
+  invoiceController.getOutstandingSummary
+);
+
+router.get(
   "/:id",
   protect,
   checkPermission("canViewInvoices"),

@@ -41,8 +41,7 @@ const Dashboard = () => {
 
   const [analytics, setAnalytics] = useState(analyticsFallback);
   const [recentSales, setRecentSales] = useState([]);
-  const [activeStaff, setActiveStaff] = useState([]);
-  const [activeCustomers, setActiveCustomers] = useState([]);
+  const [outstandingSummary, setOutstandingSummary] = useState({ receivables: {}, payables: {} });
   const [pendingExpenseCount, setPendingExpenseCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -56,15 +55,10 @@ const Dashboard = () => {
     user?.role === "super_admin" ||
     user?.permissions?.canManagePayments
   );
-  const canViewStaff = Boolean(
+  const canViewInvoices = Boolean(
     user?.role === "owner" ||
     user?.role === "super_admin" ||
-    user?.permissions?.canManageStaff
-  );
-  const canViewCustomers = Boolean(
-    user?.role === "owner" ||
-    user?.role === "super_admin" ||
-    user?.permissions?.canViewCustomers
+    user?.permissions?.canViewInvoices
   );
   const canReviewExpenses = Boolean(user?.role === "owner" || user?.role === "super_admin");
   const [pendingPayments, setPendingPayments] = useState(0);
@@ -73,19 +67,15 @@ const Dashboard = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const [data, salesData, staffData, customerData, expenseData] = await Promise.all([
+        const [data, salesData, outstandingData, expenseData] = await Promise.all([
           getAnalytics(),
           request("/sales?limit=10").catch(() => ({ sales: [] })),
-          canViewStaff ? request("/staff").catch(() => []) : Promise.resolve([]),
-          canViewCustomers ? request("/customers").catch(() => []) : Promise.resolve([]),
+          canViewInvoices ? request("/invoices/outstanding-summary").catch(() => null) : Promise.resolve(null),
           canReviewExpenses ? request("/expenses?status=pending").catch(() => ({ expenses: [] })) : Promise.resolve({ expenses: [] }),
         ]);
         setAnalytics(data || analyticsFallback);
         setRecentSales(Array.isArray(salesData?.sales) ? salesData.sales : []);
-        setActiveStaff((Array.isArray(staffData) ? staffData : staffData?.users || [])
-          .filter((person) => person.isActive !== false));
-        setActiveCustomers((Array.isArray(customerData) ? customerData : customerData?.customers || [])
-          .filter((customer) => customer.isActive !== false));
+        setOutstandingSummary(outstandingData || { receivables: {}, payables: {} });
         setPendingExpenseCount(Array.isArray(expenseData?.expenses) ? expenseData.expenses.length : 0);
         if (canReviewPayments) {
           try {
@@ -112,7 +102,7 @@ const Dashboard = () => {
     });
 
     return unsubscribe;
-  }, [canReviewPayments, canViewStaff, canViewCustomers, canReviewExpenses, refreshKey]);
+  }, [canReviewPayments, canViewInvoices, canReviewExpenses, refreshKey]);
 
   const { metrics, recentActivity } = useMemo(() => {
     const metricValues = analytics?.metrics || {};
@@ -222,6 +212,23 @@ const Dashboard = () => {
     { label: "Expenses", to: "/app/expenses", icon: "🧾" },
   ];
 
+  const openOutstandingPerson = (transactionType, person) => {
+    const isPrivileged = user?.role === "owner" || user?.role === "super_admin";
+    if (transactionType === "outgoing" && person._id && (isPrivileged || user?.permissions?.canViewCustomers)) {
+      navigate(`/app/customers/${person._id}`);
+      return;
+    }
+    if (transactionType === "incoming" && person._id && (isPrivileged || user?.permissions?.canViewPurchaseOrders)) {
+      navigate(`/app/suppliers/${person._id}`);
+      return;
+    }
+    if (transactionType === "outgoing" && !person._id) {
+      navigate(`/app/sales?search=${encodeURIComponent(person.name || "")}`);
+      return;
+    }
+    navigate(`/app/invoices?transactionType=${transactionType}&search=${encodeURIComponent(person.name || "")}`);
+  };
+
   const cardToneStyles = {
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
     blue: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300",
@@ -310,40 +317,36 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {(activeStaff.length > 0 || activeCustomers.length > 0) && (
-        <div className={`grid gap-4 ${activeStaff.length > 0 && activeCustomers.length > 0 ? "md:grid-cols-2" : "grid-cols-1"}`}>
-          {activeStaff.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Active team accounts</h2>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{activeStaff.length}</span>
+      {canViewInvoices && (outstandingSummary.receivables?.peopleCount > 0 || outstandingSummary.payables?.peopleCount > 0) && (
+        <div className={`grid gap-4 ${outstandingSummary.receivables?.peopleCount > 0 && outstandingSummary.payables?.peopleCount > 0 ? "md:grid-cols-2" : "grid-cols-1"}`}>
+          {[
+            { key: "receivables", type: "outgoing", title: "Customers owing us", totalLabel: "Total owed to us", data: outstandingSummary.receivables },
+            { key: "payables", type: "incoming", title: "Suppliers we owe", totalLabel: "Total we owe suppliers", data: outstandingSummary.payables },
+          ].filter((section) => section.data?.peopleCount > 0).map((section) => (
+            <div key={section.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{section.title}</h2>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{section.data.peopleCount} {section.type === "outgoing" ? "customers" : "suppliers"} · {section.data.invoiceCount} open {section.data.invoiceCount === 1 ? "invoice" : "invoices"}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{section.totalLabel}</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(section.data.totalBalanceDue)}</p>
+                </div>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {activeStaff.slice(0, 8).map((person) => (
-                  <button key={person._id} type="button" onClick={() => navigate("/app/staff")} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800">
-                    {person.name}
+              <div className="mt-4 divide-y divide-slate-200 dark:divide-slate-800">
+                {section.data.people.map((person, index) => (
+                  <button key={person._id || `${section.key}-${person.name}-${index}`} type="button" onClick={() => openOutstandingPerson(section.type, person)} className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-950/50">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-200">{person.name}</span>
+                      <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{person.invoiceCount} open {person.invoiceCount === 1 ? "invoice" : "invoices"}</span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(person.balanceDue)}</span>
                   </button>
                 ))}
-                {activeStaff.length > 8 && <span className="px-2 py-1.5 text-sm text-slate-500">+{activeStaff.length - 8} more</span>}
               </div>
             </div>
-          )}
-          {activeCustomers.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Active customer accounts</h2>
-                <span className="text-xs text-slate-500 dark:text-slate-400">{activeCustomers.length}</span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {activeCustomers.slice(0, 8).map((customer) => (
-                  <button key={customer._id} type="button" onClick={() => navigate("/app/customers")} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800">
-                    {customer.name}
-                  </button>
-                ))}
-                {activeCustomers.length > 8 && <span className="px-2 py-1.5 text-sm text-slate-500">+{activeCustomers.length - 8} more</span>}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
 

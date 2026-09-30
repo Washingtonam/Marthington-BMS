@@ -24,6 +24,8 @@ const tabOptions = [
   }
 ];
 
+const suggestSellingPrice = (costPrice) => Math.round(Number(costPrice || 0) * 1.3 * 100) / 100;
+
 const Invoices = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -469,14 +471,14 @@ const Invoices = () => {
     const loadCatalogMatches = async () => {
       setLoadingProducts(true);
       try {
-        const [productResult, serviceResult] = await Promise.allSettled([
+        const catalogResults = await Promise.allSettled([
           getProducts({ search, limit: 50 }),
-          getServices({ search })
+          newInvoiceDraft.transactionType === "incoming" ? Promise.resolve([]) : getServices({ search })
         ]);
         if (cancelled || requestId !== productSearchRequestRef.current) return;
 
-        const products = productResult.status === "fulfilled" ? productResult.value : [];
-        const services = serviceResult.status === "fulfilled" ? serviceResult.value : [];
+        const products = catalogResults[0].status === "fulfilled" ? catalogResults[0].value : [];
+        const services = catalogResults[1].status === "fulfilled" ? catalogResults[1].value : [];
         const productList = Array.isArray(products) ? products : products?.products || [];
         const serviceList = Array.isArray(services) ? services : services?.data || services?.services || [];
         setProductCatalog([
@@ -504,7 +506,7 @@ const Invoices = () => {
     return () => {
       cancelled = true;
     };
-  }, [newInvoiceModalOpen, productDropdownIndex, productSearch]);
+  }, [newInvoiceModalOpen, newInvoiceDraft.transactionType, productDropdownIndex, productSearch]);
 
   const updateNewInvoiceItem = (index, field, value) => {
     setNewInvoiceDraft(prev => {
@@ -517,7 +519,11 @@ const Invoices = () => {
           nextItems[index].product = selectedCatalogItem.catalogType === "product" ? selectedCatalogItem._id : "";
           nextItems[index].service = selectedCatalogItem.catalogType === "service" ? selectedCatalogItem._id : "";
           nextItems[index].name = selectedCatalogItem.name || "";
-          nextItems[index].price = Number(selectedCatalogItem.price || selectedCatalogItem.sellingPrice || 0);
+          nextItems[index].price = prev.transactionType === "incoming"
+            ? Number(selectedCatalogItem.costPrice || 0)
+            : Number(selectedCatalogItem.price || selectedCatalogItem.sellingPrice || 0);
+          nextItems[index].createProduct = false;
+          nextItems[index].total = Number(nextItems[index].quantity || 0) * nextItems[index].price;
         }
       }
 
@@ -525,10 +531,36 @@ const Invoices = () => {
         const quantity = Number(nextItems[index].quantity || 0);
         const price = Number(nextItems[index].price || 0);
         nextItems[index].total = quantity * price;
+        if (field === "price" && nextItems[index].createProduct && !nextItems[index].sellingPriceEdited) {
+          nextItems[index].sellingPrice = suggestSellingPrice(price);
+        }
       }
 
       return { ...prev, items: nextItems };
     });
+  };
+
+  const beginNewSupplierProduct = (index) => {
+    const name = productSearch.trim();
+    if (!name) return;
+    setNewInvoiceDraft(prev => {
+      const items = [...prev.items];
+      const item = items[index];
+      const costPrice = Number(item.price || 0);
+      items[index] = {
+        ...item,
+        product: "",
+        service: "",
+        name,
+        createProduct: true,
+        category: "General",
+        sellingPrice: suggestSellingPrice(costPrice),
+        sellingPriceEdited: false
+      };
+      return { ...prev, items };
+    });
+    setProductDropdownIndex(null);
+    setProductSearch("");
   };
 
   const addNewInvoiceItem = () => {
@@ -577,6 +609,9 @@ const Invoices = () => {
         name: item.name || (transactionType === "incoming" ? "Supplier bill item" : "Product"),
         quantity,
         price,
+        createProduct: transactionType === "incoming" && Boolean(item.createProduct),
+        category: item.category,
+        sellingPrice: item.sellingPrice,
         total: quantity * price
       };
     });
@@ -2018,7 +2053,16 @@ const Invoices = () => {
                     Supplier
                     <select
                       value={newInvoiceDraft.supplier}
-                      onChange={(e) => setNewInvoiceDraft(prev => ({ ...prev, supplier: e.target.value }))}
+                      onChange={(e) => {
+                        const selectedSupplier = suppliers.find(supplier => supplier._id === e.target.value);
+                        setNewInvoiceDraft(prev => ({
+                          ...prev,
+                          supplier: e.target.value,
+                          customerName: selectedSupplier?.name || "",
+                          customerEmail: selectedSupplier?.email || "",
+                          customerPhone: selectedSupplier?.phone || ""
+                        }));
+                      }}
                       className="w-full rounded-2xl border border-slate-200 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                     >
                       <option value="">Select supplier</option>
@@ -2054,7 +2098,7 @@ const Invoices = () => {
                 </label>
 
                 <label className="space-y-2 text-sm font-bold text-slate-700">
-                  Due Date
+                  Due Date (optional)
                   <input
                     type="date"
                     value={newInvoiceDraft.dueDate}
@@ -2102,7 +2146,7 @@ const Invoices = () => {
                             Product or Service
                             <input
                               type="text"
-                              placeholder="Type product or service name..."
+                              placeholder={newInvoiceDraft.transactionType === "incoming" ? "Search goods or type a new product..." : "Type product or service name..."}
                               value={productDropdownIndex === index ? productSearch : (selectedCatalogItem?.name || item.name || "")}
                               onChange={(e) => {
                                 setProductDropdownIndex(index);
@@ -2117,6 +2161,7 @@ const Invoices = () => {
                                   <>
                                     {productCatalog
                                       .filter(product => {
+                                        if (newInvoiceDraft.transactionType === "incoming" && product.catalogType !== "product") return false;
                                         const searchLower = productSearch.toLowerCase();
                                         return product.name.toLowerCase().includes(searchLower) ||
                                           (product.sku && product.sku.toLowerCase().includes(searchLower)) ||
@@ -2147,10 +2192,15 @@ const Invoices = () => {
                                       return p.name.toLowerCase().includes(searchLower) ||
                                         (p.sku && p.sku.toLowerCase().includes(searchLower)) ||
                                         (p.code && p.code.toLowerCase().includes(searchLower));
-                                    }).length === 0 && (
+                                      }).length === 0 && (
                                       <div className="px-4 py-3 text-sm text-slate-500 text-center">
                                         No products found for "{productSearch}"
                                       </div>
+                                    )}
+                                    {newInvoiceDraft.transactionType === "incoming" && !productCatalog.some(product => product.catalogType === "product" && product.name.toLowerCase() === productSearch.trim().toLowerCase()) && (
+                                      <button type="button" onClick={() => beginNewSupplierProduct(index)} className="w-full border-t border-slate-100 px-4 py-3 text-left text-sm font-bold text-blue-700 hover:bg-blue-50">
+                                        + Add "{productSearch.trim()}" as a new product
+                                      </button>
                                     )}
                                   </>
                                 ) : loadingProducts ? (
@@ -2158,8 +2208,13 @@ const Invoices = () => {
                                     Loading products...
                                   </div>
                                 ) : (
-                                  <div className="px-4 py-3 text-sm text-slate-500 text-center">
-                                    Loading products...
+                                  <div className="p-3 text-center text-sm text-slate-500">
+                                    <p>{loadingProducts ? "Loading products..." : "No matching products"}</p>
+                                    {!loadingProducts && newInvoiceDraft.transactionType === "incoming" && (
+                                      <button type="button" onClick={() => beginNewSupplierProduct(index)} className="mt-2 font-bold text-blue-700 hover:text-blue-800">
+                                        + Add "{productSearch.trim()}" as a new product
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2178,7 +2233,7 @@ const Invoices = () => {
                           </label>
 
                           <label className="space-y-2 text-sm font-bold text-slate-700">
-                            Unit Price
+                            {newInvoiceDraft.transactionType === "incoming" ? "Purchase Price / Unit Cost" : "Unit Price"}
                             <input
                               type="number"
                               min="0"
@@ -2190,9 +2245,31 @@ const Invoices = () => {
                           </label>
                         </div>
 
+                        {newInvoiceDraft.transactionType === "incoming" && item.createProduct && (
+                          <div className="mt-4 grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 md:grid-cols-2">
+                            <label className="space-y-2 text-sm font-bold text-slate-700">
+                              Product category
+                              <input value={item.category || "General"} onChange={(e) => updateNewInvoiceItem(index, "category", e.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-3" />
+                            </label>
+                            <label className="space-y-2 text-sm font-bold text-slate-700">
+                              Suggested selling price (30% markup, editable)
+                              <input type="number" min="0" step="0.01" value={item.sellingPrice ?? 0} onChange={(e) => {
+                                updateNewInvoiceItem(index, "sellingPrice", Number(e.target.value || 0));
+                                setNewInvoiceDraft(prev => {
+                                  const items = [...prev.items];
+                                  items[index] = { ...items[index], sellingPriceEdited: true };
+                                  return { ...prev, items };
+                                });
+                              }} className="w-full rounded-2xl border border-slate-200 px-4 py-3" />
+                            </label>
+                          </div>
+                        )}
+
                         <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
                           <span>
-                            {selectedCatalogItem?.catalogType === "product"
+                            {item.createProduct
+                              ? "New product will be added to your catalog and stock"
+                              : selectedCatalogItem?.catalogType === "product"
                               ? `Available stock: ${selectedCatalogItem.stock ?? 0}`
                               : selectedCatalogItem?.catalogType === "service"
                                 ? "Service"

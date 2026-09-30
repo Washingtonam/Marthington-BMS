@@ -2,6 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { buildSupplierInvoiceExpense } from "../src/modules/invoices/supplierInvoiceExpense.utils.js";
+import { buildSupplierInvoiceProduct } from "../src/modules/invoices/supplierInvoiceProduct.utils.js";
+
+test("new supplier invoice product stores purchase cost and suggested selling price separately", () => {
+  const product = buildSupplierInvoiceProduct({
+    businessId: "business-1",
+    item: { name: "  New Rice  ", category: "Grains", price: "100", sellingPrice: "130" }
+  });
+
+  assert.equal(product.business, "business-1");
+  assert.equal(product.name, "New Rice");
+  assert.equal(product.category, "Grains");
+  assert.equal(product.costPrice, 100);
+  assert.equal(product.price, 130);
+  assert.equal(product.stock, 0);
+  assert.match(product.sku, /^SUP-/);
+});
+
+test("new supplier invoice product rejects missing names and invalid prices", () => {
+  assert.throws(() => buildSupplierInvoiceProduct({ businessId: "business-1", item: { price: 10 } }), /name/);
+  assert.throws(() => buildSupplierInvoiceProduct({ businessId: "business-1", item: { name: "Rice", price: -1 } }), /price/);
+});
 
 test("supplier invoice creates a linked pending expense with bill details", () => {
   const invoice = {
