@@ -79,6 +79,7 @@ export default function Sidebar({
   toggleTheme,
 }) {
   const { pathname } = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const user = getStoredUser();
   const canAccessItem = (item) => {
     if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;
@@ -139,22 +140,35 @@ export default function Sidebar({
       />
 
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-screen w-72 flex-col border-r border-slate-200 bg-white/95 backdrop-blur transition-transform duration-300 dark:border-slate-800 dark:bg-slate-950/95 ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        onMouseEnter={() => {
+          if (!mobileOpen) setIsCollapsed(false);
+        }}
+        onMouseLeave={() => {
+          if (!mobileOpen) setIsCollapsed(true);
+        }}
+        onClick={() => {
+          if (!mobileOpen && isCollapsed) {
+            setIsCollapsed(false);
+          }
+        }}
+        className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-slate-200 bg-white/95 backdrop-blur transition-all duration-200 dark:border-slate-800 dark:bg-slate-950/95 ${
+          mobileOpen ? "w-72 translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } ${!mobileOpen ? (isCollapsed ? "lg:w-20" : "lg:w-72") : ""}`}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
-              Marthington
-            </p>
-            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Business Hub
-            </p>
-          </div>
+        <div className={`flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 ${isCollapsed ? "lg:justify-center lg:px-2" : ""}`}>
+          {!isCollapsed && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                Marthington
+              </p>
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                Business Hub
+              </p>
+            </div>
+          )}
 
           <button
-            className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
+            className={`rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 ${isCollapsed ? "lg:hidden" : ""}`}
             onClick={() => setMobileOpen(false)}
             type="button"
           >
@@ -167,10 +181,11 @@ export default function Sidebar({
             const isPermanent = groupIndex === 0;
             const isOpen = isPermanent || openGroups[group.label] !== false;
             const groupId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+            const showSectionLabel = !isCollapsed;
 
             return (
             <div key={group.label} className="mb-5">
-              {isPermanent ? (
+              {showSectionLabel && (isPermanent ? (
                 <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
                   {group.label}
                 </p>
@@ -187,7 +202,7 @@ export default function Sidebar({
                     {isOpen ? "⌄" : "›"}
                   </span>
                 </button>
-              )}
+              ))}
 
               <div id={groupId} className={`space-y-1 ${isOpen ? "" : "hidden"}`}>
                 {group.items.map((item) => (
@@ -195,17 +210,25 @@ export default function Sidebar({
                     key={typeof item.to === "string" ? item.to : item.to?.pathname || item.label}
                     to={item.to}
                     end={normalizeTarget(item.to) === "/app"}
-                    onClick={() => setMobileOpen(false)}
+                    onClick={() => {
+                      setMobileOpen(false);
+                      if (!mobileOpen) setIsCollapsed(true);
+                    }}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 active:scale-[0.99] ${
+                      `flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[0.99] ${
+                        isCollapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"
+                      } ${
                         isActive
                           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
                           : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                       }`
                     }
+                    title={item.label}
                   >
-                    <span className="text-base">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center text-base">{item.icon}</span>
+                    {!isCollapsed && (
+                      <span className="truncate whitespace-nowrap">{item.label}</span>
+                    )}
                   </NavLink>
                 ))}
               </div>
@@ -214,14 +237,15 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className="border-t border-slate-200 p-3 dark:border-slate-800">
+        <div className={`border-t border-slate-200 p-3 dark:border-slate-800 ${isCollapsed ? "lg:px-2" : ""}`}>
           <button
             onClick={toggleTheme}
-            className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+            className={`flex w-full items-center rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 ${isCollapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"}`}
             type="button"
+            title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
-            <span>{theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}</span>
-            <span className="text-xs text-slate-400">Toggle</span>
+            <span>{theme === "dark" ? "☀️" : "🌙"}</span>
+            {!isCollapsed && <span className="text-xs text-slate-400">Toggle</span>}
           </button>
         </div>
       </aside>

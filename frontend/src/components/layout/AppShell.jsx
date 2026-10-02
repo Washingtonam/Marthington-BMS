@@ -91,7 +91,7 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
         toggleTheme={toggleTheme}
       />
 
-      <div className="lg:pl-72">
+      <div className="lg:pl-0">
         <Topbar
           onMenuClick={() => setMobileOpen(true)}
           theme={theme}
