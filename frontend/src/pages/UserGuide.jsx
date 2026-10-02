@@ -1,106 +1,111 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
+
+const tasks = [
+  {
+    icon: "🖼️",
+    title: "Update your company logo",
+    route: "/app/settings",
+    routeLabel: "Open Settings",
+    steps: [
+      "Go to Settings from the left sidebar or open /app/settings.",
+      "Click the Business tab to open your profile details.",
+      "Scroll to the logo section and upload your new logo image.",
+      "Save the form and the new brand logo will be used in your profile, receipts, and reports."
+    ]
+  },
+  {
+    icon: "🧾",
+    title: "Create an invoice",
+    route: "/app/invoices",
+    routeLabel: "Open Invoices",
+    steps: [
+      "Go to the Invoices page at /app/invoices.",
+      "Click Create Invoice or New Invoice from the invoice toolbar.",
+      "Choose the customer, add the product or service lines, confirm pricing, and set the payment status.",
+      "Save the invoice. You can then print, email, or view it from the invoice details page."
+    ]
+  },
+  {
+    icon: "🛒",
+    title: "Make a sale at the POS",
+    route: "/app/pos",
+    routeLabel: "Open POS",
+    steps: [
+      "Open the POS from /app/pos.",
+      "Search for a product or service and add it to the cart.",
+      "Select the customer, adjust quantity or discount if needed, and choose the payment method.",
+      "Complete checkout and print or send the receipt. The sale will appear in the sales dashboard and reports."
+    ]
+  },
+  {
+    icon: "📦",
+    title: "Add a product to inventory",
+    route: "/app/products",
+    routeLabel: "Manage Products",
+    steps: [
+      "Open /app/products or /app/inventory to manage stock.",
+      "Click Add Product, fill in the name, pricing, category, and SKU.",
+      "Set inventory quantity and any related product details.",
+      "Save it and it becomes available for POS sales and reports."
+    ]
+  },
+  {
+    icon: "📊",
+    title: "Check business performance",
+    route: "/app/analytics",
+    routeLabel: "Open Analytics",
+    steps: [
+      "Visit /app/analytics to review your revenue, expenses, sales activity, customers, and stock trends.",
+      "Use the filters to focus on a date range, branch, or product category.",
+      "Compare KPIs and use the insights to plan stock, pricing, and operations."
+    ]
+  },
+  {
+    icon: "👥",
+    title: "Add staff and control access",
+    route: "/app/staff",
+    routeLabel: "Open Staff",
+    steps: [
+      "Go to /app/staff and invite a team member.",
+      "Assign a role and permissions according to what they should and should not access.",
+      "If needed, open /app/settings?tab=access to review role templates and the approval rules for sensitive tasks."
+    ]
+  }
+];
 
 const sections = [
   {
     title: "Overview",
     content: [
-      "Marthington BMS is a unified business operating system built for retail, schools, and hospitals.",
-      "It helps teams manage sales, inventory, customers, staff, analytics, billing, and branch operations from one workspace.",
-    ],
+      "Marthington BMS is your one-stop business control center for sales, stock, logistics, customer relationships, reports, and billing.",
+      "Whether you are running a retail shop, service business, school, or medical operation, the system gives each team member the tools they need in one place."
+    ]
   },
   {
-    title: "Access & Login",
+    title: "Start here: the basic flow",
     content: [
-      "Visit the landing page at / to sign in or create a new workspace.",
-      "Use the login page to sign in with your email and password.",
-      "New businesses can register at /register, and affiliate partners can join at /affiliate-register.",
-    ],
+      "1. Add your products and services from the product pages.",
+      "2. Add staff and assign permissions if you have a team.",
+      "3. Start sales from POS and generate customer invoices when needed.",
+      "4. Monitor analytics and reports to understand revenue, inventory, and customer behavior.",
+      "5. Customize your business profile and branding in Settings."
+    ]
   },
   {
-    title: "Dashboard",
+    title: "The most useful pages in the app",
     content: [
-      "The dashboard displays your live business summary, trend metrics, and quick actions.",
-      "Use the dashboard refresh button to resync analytics when sales or inventory changes occur.",
-    ],
-  },
-  {
-    title: "Sales & POS",
-    content: [
-      "Open the POS from /app/pos to search products, add items to cart, select a customer, and complete checkout.",
-      "The POS supports both products and services, branch inventory selection, and customer receipts.",
-      "Completed sales appear in /app/sales, where you can search by receipt, customer, staff, or item.",
-    ],
-  },
-  {
-    title: "Products & Inventory",
-    content: [
-      "Manage product stock, pricing, categories, and SKUs from /app/inventory.",
-      "Add, edit, delete, and bulk-import products with the available import template.",
-      "Filter products by category and use search to locate items quickly.",
-    ],
-  },
-  {
-    title: "Service Management",
-    content: [
-      "Create and update service offerings in /app/services.",
-      "Services can be toggled active or inactive and filtered by category.",
-    ],
-  },
-  {
-    title: "Customer Relationship Management",
-    content: [
-      "Add and manage customer records in /app/customers.",
-      "Search by name, phone, email, or address, and filter active accounts or owing balances.",
-    ],
-  },
-  {
-    title: "Branch Management",
-    content: [
-      "Create and manage branches from /app/branches.",
-      "Each branch stores its own address, phone, and status information.",
-    ],
-  },
-  {
-    title: "Staff & Permissions",
-    content: [
-      "Use /app/staff to invite team members, assign roles, and set permissions.",
-      "Roles are a quick way to apply a standard access profile: Staff for basic cashier-like access, Cashier for sales-focused work, and Manager for operational administration.",
-      "Permissions control the real access level. Examples include POS access, product management, customer access, sales reporting, branch inventory permissions, and settings access.",
-      "Only permissions the user already has can be granted to another person. This prevents one staff member from creating a higher-privilege access level than they themselves hold.",
-      "Open /app/settings?tab=access to review and manage access control centrally, or go to /app/staff for team and role assignment.",
-      "Branch access is also permission-driven: team members can usually work only in their assigned branch unless cross-branch inventory permissions are explicitly granted.",
-    ],
-  },
-  {
-    title: "Analytics & Reports",
-    content: [
-      "View business performance trends at /app/analytics.",
-      "Track revenue, profit, average order value, top products, and customer retention.",
-    ],
-  },
-  {
-    title: "Billing & Subscription",
-    content: [
-      "Manage subscription status and upgrade your plan at /app/billing.",
-      "Pay monthly or yearly, and complete payment verification through the portal.",
-    ],
-  },
-  {
-    title: "Settings & Access Control",
-    content: [
-      "Update your business profile, receipt footer, receipt theme, and logo in /app/settings.",
-      "Use the Access Control tab in /app/settings?tab=access to review permission categories, understand role intent, and assign team access more safely.",
-      "Role presets provide a recommended baseline, but the actual security rule is enforced by the backend: a user can only grant permissions they already hold.",
-      "Logo upload and custom themes are available on Pro plans.",
-    ],
-  },
-  {
-    title: "Affiliate & Super Admin Portals",
-    content: [
-      "Affiliate partners use /partners/dashboard, /partners/profile, and /partners/referrals.",
-      "Super admins access /admin for tenant management, payout controls, operation logs, and affiliate settings.",
-    ],
-  },
+      "Dashboard: your live operational summary from /app.",
+      "POS: sales and customer checkout from /app/pos.",
+      "Sales: completed transactions and receipts from /app/sales.",
+      "Invoices: customer billing and payment tracking from /app/invoices.",
+      "Products: catalog management from /app/products.",
+      "Inventory: stock control and branch view from /app/inventory.",
+      "Customers: client records and account notes from /app/customers.",
+      "Staff: team management and permissions from /app/staff.",
+      "Reports: deeper business insights from /app/reports or /app/analytics."
+    ]
+  }
 ];
 
 const UserGuide = () => {
@@ -113,7 +118,7 @@ const UserGuide = () => {
   }, []);
 
   const handleDownload = () => {
-    const blob = new Blob([`# Marthington BMS User Guide\n\n${markdown}`], { type: "text/markdown;charset=utf-8" });
+    const blob = new Blob([`# Marthington BMS User Guide\n\n${markdown}\n\n${tasks.map((task) => `## ${task.title}\n\n${task.steps.map((step) => `- ${step}`).join("\n")}`).join("\n\n")}`], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -131,59 +136,94 @@ const UserGuide = () => {
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-600">User Guide</p>
             <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-              Marthington BMS Quick Start & Reference
+              Marthington BMS: How to actually use it
             </h1>
             <p className="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300">
-              Explore workflows for sales, inventory, customers, staff, analytics, billing, and administration. Download a copy for offline reference.
+              This guide is built around the real tasks people do every day: brand updates, sales, invoices, stock control, and day-to-day operations.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              Download Guide
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            Download Guide
+          </button>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <div className="space-y-6 rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+        <div className="space-y-6">
           {sections.map((section) => (
-            <div key={section.title} className="space-y-3">
+            <div key={section.title} className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-950">
               <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{section.title}</h2>
-              <div className="space-y-2 text-slate-600 dark:text-slate-300">
+              <div className="mt-4 space-y-2 text-slate-600 dark:text-slate-300">
                 {section.content.map((line) => (
                   <p key={line} className="leading-7">{line}</p>
                 ))}
               </div>
             </div>
           ))}
+
+          <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Task guides</p>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-900 dark:text-slate-100">Most common workflows</h2>
+
+            <div className="mt-6 grid gap-5">
+              {tasks.map((task) => (
+                <div key={task.title} className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900/80">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{task.icon}</span>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{task.title}</h3>
+                    </div>
+                    <Link
+                      to={task.route}
+                      className="inline-flex items-center rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                    >
+                      {task.routeLabel}
+                    </Link>
+                  </div>
+
+                  <ol className="mt-4 space-y-2 text-sm leading-7 text-slate-600 dark:text-slate-300">
+                    {task.steps.map((step) => (
+                      <li key={step} className="flex gap-3">
+                        <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          {task.steps.indexOf(step) + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         <aside className="space-y-6 rounded-[32px] border border-slate-200 bg-slate-50 p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Guide highlights</p>
-            <h3 className="mt-3 text-xl font-bold text-slate-900 dark:text-slate-100">What you can do here</h3>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">At a glance</p>
+            <h3 className="mt-3 text-xl font-bold text-slate-900 dark:text-slate-100">What this system is built for</h3>
             <ul className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
-              <li>Navigate the app from the sidebar</li>
-              <li>Open POS and complete sales</li>
-              <li>Manage products, customers, and staff</li>
-              <li>Track analytics and billing status</li>
-              <li>Download this guide for offline use</li>
+              <li>• Sell faster with POS and customer checkout</li>
+              <li>• Track stock and products without chaos</li>
+              <li>• Build invoices and collect payments cleanly</li>
+              <li>• Understand the business through live analytics</li>
+              <li>• Keep your branding and settings polished</li>
             </ul>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-950">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quick links</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Fast navigation</p>
             <div className="mt-4 space-y-3 text-sm text-slate-700 dark:text-slate-200">
-              <p><span className="font-semibold">Dashboard:</span> /app</p>
-              <p><span className="font-semibold">POS:</span> /app/pos</p>
-              <p><span className="font-semibold">Inventory:</span> /app/inventory</p>
-              <p><span className="font-semibold">Settings:</span> /app/settings</p>
+              <Link to="/app" className="block font-medium hover:text-emerald-600">Dashboard</Link>
+              <Link to="/app/pos" className="block font-medium hover:text-emerald-600">Point of Sale</Link>
+              <Link to="/app/products" className="block font-medium hover:text-emerald-600">Products</Link>
+              <Link to="/app/invoices" className="block font-medium hover:text-emerald-600">Invoices</Link>
+              <Link to="/app/reports" className="block font-medium hover:text-emerald-600">Reports</Link>
+              <Link to="/app/settings" className="block font-medium hover:text-emerald-600">Settings</Link>
             </div>
           </div>
         </aside>
