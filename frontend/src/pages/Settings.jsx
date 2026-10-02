@@ -4,6 +4,7 @@ import { updateBusiness } from "../api/business.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
 import { getOfflineSnapshotMeta, saveOfflineSnapshot } from "../api/offlineDb.js";
+import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 
 const Settings = () => {
   const location = useLocation();
@@ -457,6 +458,18 @@ const Settings = () => {
                   Leave blank to show: Welcome to {business?.name || "Your Business Name"}
                 </p>
               </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white shadow-sm dark:border-slate-700">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-300">Display preview</p>
+                <div className="mt-4 rounded-2xl bg-white/5 p-5 ring-1 ring-white/10">
+                  <p className="text-2xl font-black tracking-tight">
+                    {resolveCustomerDisplayTitle(form.name || business?.name || "", form.customerDisplayMessage)}
+                  </p>
+                  <p className="mt-3 text-base text-slate-300">Please hold</p>
+                  <p className="text-sm text-slate-300">Your orders will display here.</p>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Type</label>
                 <select className="input-field" name="businessType" value={form.businessType} onChange={handleChange}>
