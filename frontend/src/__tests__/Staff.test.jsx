@@ -1,6 +1,6 @@
 import React from 'react'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import Staff from '../pages/Staff.jsx'
 import Sidebar from '../components/layout/Sidebar.jsx'
@@ -14,9 +14,14 @@ vi.mock('../api/client.js', () => {
   }
 })
 
+beforeEach(() => {
+  vi.useRealTimers()
+})
+
 afterEach(() => {
   cleanup()
   localStorage.removeItem('bms_user')
+  vi.useRealTimers()
 })
 
 describe('Staff page', () => {
@@ -27,10 +32,35 @@ describe('Staff page', () => {
       </MemoryRouter>
     )
 
+    const sidebar = document.querySelector('aside')
+    fireEvent.mouseEnter(sidebar)
+
     expect(screen.getByText('Team & Access')).toBeTruthy()
     expect(screen.getByText('Staff')).toBeTruthy()
     expect(screen.getByText('Roles & Permissions')).toBeTruthy()
     expect(screen.getByText('Branches')).toBeTruthy()
+  })
+
+  it('collapses the sidebar back to its compact rail after a short idle period', () => {
+    vi.useFakeTimers()
+
+    render(
+      <MemoryRouter initialEntries={['/app']}>
+        <Sidebar />
+      </MemoryRouter>
+    )
+
+    const sidebar = document.querySelector('aside')
+    expect(sidebar).toBeTruthy()
+
+    fireEvent.mouseEnter(sidebar)
+    expect(screen.getByText('Dashboard')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(2200)
+    })
+
+    expect(screen.queryByText('Dashboard')).toBeNull()
   })
 
   it('renders Add Team Member button and opens drawer', async () => {
@@ -66,6 +96,9 @@ describe('Staff page', () => {
         <Sidebar />
       </MemoryRouter>
     )
+
+    const sidebar = document.querySelector('aside')
+    fireEvent.mouseEnter(sidebar)
 
     expect(screen.getByText('POS')).toBeTruthy()
     expect(screen.getByText('Sales')).toBeTruthy()

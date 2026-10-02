@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
@@ -80,7 +80,50 @@ export default function Sidebar({
 }) {
   const { pathname } = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const collapseTimerRef = useRef(null);
   const user = getStoredUser();
+
+  const clearCollapseTimer = () => {
+    if (collapseTimerRef.current) {
+      clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+  };
+
+  const expandSidebar = () => {
+    if (mobileOpen) return;
+    clearCollapseTimer();
+    setIsCollapsed(false);
+    collapseTimerRef.current = setTimeout(() => {
+      setIsCollapsed(true);
+    }, 1800);
+  };
+
+  const scheduleCollapse = () => {
+    if (mobileOpen) return;
+    clearCollapseTimer();
+    setIsCollapsed(true);
+  };
+
+  useEffect(() => {
+    return () => clearCollapseTimer();
+  }, []);
+
+  useEffect(() => {
+    if (mobileOpen) {
+      clearCollapseTimer();
+      return;
+    }
+
+    if (!isCollapsed) {
+      collapseTimerRef.current = setTimeout(() => {
+        setIsCollapsed(true);
+      }, 1800);
+    }
+
+    return () => clearCollapseTimer();
+  }, [isCollapsed, mobileOpen]);
+
   const canAccessItem = (item) => {
     if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;
     return user?.permissions?.[item.permission] === true;
@@ -140,15 +183,11 @@ export default function Sidebar({
       />
 
       <aside
-        onMouseEnter={() => {
-          if (!mobileOpen) setIsCollapsed(false);
-        }}
-        onMouseLeave={() => {
-          if (!mobileOpen) setIsCollapsed(true);
-        }}
+        onMouseEnter={expandSidebar}
+        onMouseLeave={scheduleCollapse}
         onClick={() => {
           if (!mobileOpen && isCollapsed) {
-            setIsCollapsed(false);
+            expandSidebar();
           }
         }}
         className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-slate-200 bg-white/95 backdrop-blur transition-all duration-200 dark:border-slate-800 dark:bg-slate-950/95 ${
@@ -227,7 +266,7 @@ export default function Sidebar({
                   >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center text-base">{item.icon}</span>
                     {!isCollapsed && (
-                      <span className="truncate whitespace-nowrap">{item.label}</span>
+                      <span className="overflow-visible whitespace-nowrap text-left">{item.label}</span>
                     )}
                   </NavLink>
                 ))}
