@@ -1,0 +1,462 @@
+import BranchInventory from "./branchInventory.model.js";
+import Branch from "./branch.model.js";
+import Product from "../products/product.model.js";
+import mongoose from "mongoose";
+import Business from "../businesses/business.model.js";
+import InventoryMovement from "../inventory/inventory.model.js";
+import User from "../users/user.model.js";
+import OperationLog from "../../models/operationLog.model.js";
+import importQueue from "../../queues/importQueue.js";
+import { canAccessBranch as canAccessBranchForUser, isPrivileged } from "../../utils/branchAccess.js";
+
+const isObjectId = (value) => mongoose.isValidObjectId(value);
+
+export const canAccessBranch = (req, branchId, action = "view") => {
+  return canAccessBranchForUser(req.user, branchId, action);
+};
+
+const assertBranchAccess = (req, res, branchId, action) => {
+  if (branchId === "headOffice") {
+    if (!canAccessBranch(req, branchId, action)) {
+      res.status(403).json({ message: "You do not have access to head office inventory" });
+      return false;
+    }
+    return true;
+  }
+
+  if (!canAccessBranch(req, branchId, action)) {
+    res.status(403).json({ message: "You do not have access to this branch inventory" });
+    return false;
+  }
+
+  return true;
+};
+
+const importProductToBranch = async (req, res) => {
+  let session;
+  try {
+    const {
+      branchId,
+      productId,
+      quantity,
+      branchPrice,
+      sourceType = "headOffice",
+      sourceBranchId
+    } = req.body;
+    const businessId = req.user.businessId;
+
+    if (!branchId) {
+      return res.status(400).json({ message: "branchId is required" });
+    }
+
+    if (!isObjectId(branchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
+    }
+
+    if (sourceType !== "headOffice" && sourceType !== "branch") {
+      return res.status(400).json({ message: "sourceType must be either 'headOffice' or 'branch'" });
+    }
+
+    const branch = await Branch.findOne({ _id: branchId, business: businessId });
+    if (!branch) {
+      return res.status(404).json({ message: "Branch not found" });
+    }
+
+    if (!assertBranchAccess(req, res, branchId, "manage")) return;
+
+    // BULK IMPORT: when no productId supplied, register branch inventory items
+    // in the target branch without changing head office stock.
+    if (!productId) {
+      if (sourceType === "branch") {
+        if (!sourceBranchId) {
+          return res.status(400).json({ message: "sourceBranchId is required when importing from another branch" });
+        }
+        if (sourceBranchId.toString() === branchId.toString()) {
+          return res.status(400).json({ message: "sourceBranchId must be different from target branchId" });
+        }
+
+        const sourceBranch = await Branch.findOne({ _id: sourceBranchId, business: businessId });
+        if (!sourceBranch) {
+          return res.status(404).json({ message: "Source branch not found" });
+        }
+
+        if (!assertBranchAccess(req, res, sourceBranchId, "manage")) return;
+      }
+
+      // Create an operation log and enqueue a background job for processing.
+      const jobDoc = await OperationLog.create({
+        business: businessId,
+        branch: branchId,
+        operationType: "branch_bulk_import",
+        user: req.user.id,
+        status: "pending",
+        metadata: { sourceType, sourceBranchId }
+      });
+
+      try {
+        await importQueue.add({
+          jobId: jobDoc._id.toString(),
+          businessId,
+          branchId,
+          userId: req.user.id,
+          sourceType,
+          sourceBranchId
+        });
+      } catch (err) {
+        console.error("Branch import enqueue failed; falling back to inline processing:", err.message || err);
+        if (importQueue.addInline) {
+          await importQueue.addInline({
+            jobId: jobDoc._id.toString(),
+            businessId,
+            branchId,
+            userId: req.user.id,
+            sourceType,
+            sourceBranchId
+          });
+        }
+      }
+
+      return res.json({ jobId: jobDoc._id });
+    }
+
+    // SINGLE PRODUCT TRANSFER: move stock from the valid source to the target branch
+    const transferQuantity = Number(quantity || 0);
+
+    if (!Number.isFinite(transferQuantity) || transferQuantity <= 0) {
+      return res.status(400).json({ message: "Quantity must be a positive number" });
+    }
+
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const product = await Product.findOne({ _id: productId, business: businessId }).session(session);
+    if (!product) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    let sourceBranchIdForTransfer = null;
+    let sourceStockBefore = null;
+
+    if (sourceType === "branch") {
+      if (!sourceBranchId) {
+        return res.status(400).json({ message: "sourceBranchId is required when transferring from another branch" });
+      }
+
+      if (sourceBranchId.toString() === branchId.toString()) {
+        return res.status(400).json({ message: "sourceBranchId must be different from target branchId" });
+      }
+
+      const sourceBranch = await Branch.findOne({ _id: sourceBranchId, business: businessId });
+      if (!sourceBranch) {
+        return res.status(404).json({ message: "Source branch not found" });
+      }
+
+      if (!assertBranchAccess(req, res, sourceBranchId, "manage")) {
+        await session.abortTransaction();
+        session.endSession();
+        return;
+      }
+
+      sourceBranchIdForTransfer = sourceBranch._id;
+
+      const sourceInventory = await BranchInventory.findOne({
+        business: businessId,
+        branch: sourceBranchIdForTransfer,
+        product: productId
+      }).session(session);
+
+      if (!sourceInventory || sourceInventory.quantity < transferQuantity) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: "Insufficient stock in source branch for transfer" });
+      }
+
+      sourceStockBefore = sourceInventory.quantity;
+      sourceInventory.quantity -= transferQuantity;
+      await sourceInventory.save({ session });
+
+      await InventoryMovement.create([{
+        business: businessId,
+        branch: sourceBranchIdForTransfer,
+        product: productId,
+        type: "transfer",
+        quantity: transferQuantity,
+        previousStock: sourceStockBefore,
+        newStock: sourceInventory.quantity,
+        note: `Transferred to branch ${branch.name}`,
+        createdBy: req.user.id
+      }], { session });
+    } else {
+      if (product.stock < transferQuantity) {
+        return res.status(400).json({ message: "Insufficient central stock for transfer" });
+      }
+
+      sourceStockBefore = product.stock;
+      product.stock -= transferQuantity;
+      await product.save({ session });
+
+      await InventoryMovement.create([{
+        business: businessId,
+        product: productId,
+        branch: branchId,
+        type: "transfer",
+        quantity: transferQuantity,
+        previousStock: sourceStockBefore,
+        newStock: product.stock,
+        note: `Transferred to branch ${branch.name}`,
+        createdBy: req.user.id
+      }], { session });
+    }
+
+    const targetInventory = await BranchInventory.findOne({ business: businessId, branch: branchId, product: productId }).session(session);
+    const targetPreviousStock = targetInventory ? targetInventory.quantity : 0;
+    const sourceUnitCost = sourceType === "branch"
+      ? Number((await BranchInventory.findOne({ business: businessId, branch: sourceBranchIdForTransfer, product: productId }).session(session))?.unitCost || product.costPrice || 0)
+      : Number(product.costPrice || 0);
+
+    const inventory = await BranchInventory.findOneAndUpdate(
+      { business: businessId, branch: branchId, product: productId },
+      {
+        $setOnInsert: {
+          business: businessId,
+          branch: branchId,
+          product: productId,
+          createdBy: req.user.id
+        },
+        $inc: { quantity: transferQuantity },
+        $set: {
+          unitCost: targetInventory && targetInventory.quantity > 0
+            ? ((targetInventory.quantity * Number(targetInventory.unitCost || 0)) + (transferQuantity * sourceUnitCost)) / (targetInventory.quantity + transferQuantity)
+            : sourceUnitCost,
+          ...(branchPrice !== undefined ? { branchPrice: Number(branchPrice) } : {})
+        },
+      },
+      { upsert: true, new: true, session }
+    );
+
+    await InventoryMovement.create([{
+      business: businessId,
+      branch: branchId,
+      product: productId,
+      type: "transfer",
+      quantity: transferQuantity,
+      previousStock: targetPreviousStock,
+      newStock: inventory.quantity,
+      note: sourceType === "branch"
+        ? `Received from branch ${sourceBranchIdForTransfer}`
+        : "Received from head office",
+      createdBy: req.user.id
+    }], { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json(inventory);
+  } catch (err) {
+    if (session) {
+      await session.abortTransaction();
+      session.endSession();
+    }
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getBranchInventory = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    let branchId = req.query.branchId || req.user.branchId;
+
+    if (!branchId) {
+      return res.status(400).json({ message: "branchId is required" });
+    }
+
+    if (branchId !== "headOffice" && !isObjectId(branchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
+    }
+
+    if (!assertBranchAccess(req, res, branchId, "view")) return;
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const requestedLimit = Number(req.query.limit) || 20;
+    const limit = Math.min(Math.max(requestedLimit, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = String(req.query.search || "").trim();
+
+    if (branchId === "headOffice") {
+      const filter = { business: businessId };
+      if (search) {
+        filter.$or = [
+          { name: { $regex: search, $options: "i" } },
+          { sku: { $regex: search, $options: "i" } }
+        ];
+      }
+
+      const totalItems = await Product.countDocuments(filter);
+      const products = await Product.find(filter)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const inventory = products.map((product) => ({
+        _id: `head-office-${product._id}`,
+        product: {
+          _id: product._id,
+          name: product.name,
+          sku: product.sku,
+          category: product.category,
+          price: product.price,
+          costPrice: product.costPrice
+        },
+        quantity: Number(product.stock || 0),
+        branchPrice: Number(product.price || 0),
+        isHeadOffice: true,
+        sourceLocation: "headOffice"
+      }));
+
+      return res.json({
+        inventory,
+        pagination: {
+          currentPage: page,
+          totalPages: Math.ceil(totalItems / limit),
+          totalItems,
+          hasNextPage: page * limit < totalItems,
+          hasPrevPage: page > 1
+        }
+      });
+    }
+
+    const branch = await Branch.findOne({ _id: branchId, business: businessId });
+    if (!branch) {
+      return res.status(404).json({ message: "Branch not found" });
+    }
+
+    const inventoryRecords = await BranchInventory.find({ business: businessId, branch: branchId })
+      .populate("product", "name sku category price costPrice")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const filtered = search
+      ? inventoryRecords.filter((entry) => {
+          const name = entry.product?.name || "";
+          const sku = entry.product?.sku || "";
+          return [name, sku].some((value) => value.toLowerCase().includes(search.toLowerCase()));
+        })
+      : inventoryRecords;
+
+    const paged = filtered.slice(skip, skip + limit);
+
+    res.json({
+      inventory: paged,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(filtered.length / limit),
+        totalItems: filtered.length,
+        hasNextPage: page * limit < filtered.length,
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateBranchInventory = async (req, res) => {
+  try {
+    const businessId = req.user.businessId;
+    const branchId = req.body.branchId || req.user.branchId;
+    const { productId, quantity, branchPrice } = req.body;
+    const normalizedBranchId = typeof branchId === "object" ? branchId?._id : branchId;
+    const normalizedProductId = typeof productId === "object" ? productId?._id : productId;
+
+    if (!normalizedBranchId || !normalizedProductId) {
+      return res.status(400).json({ message: "branchId and productId are required" });
+    }
+
+    if (!isObjectId(normalizedProductId)) {
+      return res.status(400).json({ message: "Invalid productId" });
+    }
+
+    if (normalizedBranchId !== "headOffice" && !isObjectId(normalizedBranchId)) {
+      return res.status(400).json({ message: "Invalid branchId" });
+    }
+
+    const numericQuantity = quantity === undefined ? undefined : Number(quantity);
+    const numericPrice = branchPrice === undefined ? undefined : Number(branchPrice);
+    if (numericQuantity !== undefined && (!Number.isFinite(numericQuantity) || numericQuantity < 0)) {
+      return res.status(400).json({ message: "Quantity must be a valid non-negative number" });
+    }
+    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0)) {
+      return res.status(400).json({ message: "Branch price must be a valid non-negative number" });
+    }
+
+    if (!assertBranchAccess(req, res, normalizedBranchId, "manage")) return;
+
+    if (normalizedBranchId === "headOffice") {
+      const product = await Product.findOne({ _id: normalizedProductId, business: businessId });
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (numericQuantity !== undefined) {
+        product.stock = numericQuantity;
+      }
+      if (numericPrice !== undefined) {
+        product.price = numericPrice;
+      }
+
+      await product.save();
+      return res.json(product);
+    }
+
+    const branch = await Branch.findOne({ _id: normalizedBranchId, business: businessId });
+    if (!branch) {
+      return res.status(404).json({ message: "Branch not found" });
+    }
+
+    const inventory = await BranchInventory.findOne({ business: businessId, branch: normalizedBranchId, product: normalizedProductId });
+    if (!inventory) {
+      return res.status(404).json({ message: "Branch inventory entry not found" });
+    }
+
+    if (quantity !== undefined) {
+      inventory.quantity = numericQuantity;
+    }
+    if (branchPrice !== undefined) {
+      inventory.branchPrice = numericPrice;
+    }
+
+    await inventory.save();
+    res.json(inventory);
+  } catch (err) {
+    console.error("UPDATE BRANCH INVENTORY ERROR", {
+      message: err.message,
+      stack: err.stack,
+      userId: req.user?.id,
+      branchId: req.body?.branchId || req.user?.branchId,
+      productId: req.body?.productId
+    });
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getImportStatus = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const job = await OperationLog.findById(id).lean();
+    if (!job) return res.status(404).json({ message: "Job not found" });
+    if (job.business?.toString() !== req.user.businessId || !assertBranchAccess(req, res, job.branch?.toString(), "manage")) return;
+    res.json({ status: job.status, metadata: job.metadata, error: job.error });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export default {
+  importProductToBranch,
+  getBranchInventory,
+  updateBranchInventory,
+  getImportStatus
+};

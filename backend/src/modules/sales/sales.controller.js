@@ -1,0 +1,1047 @@
+import Sale from "./sale.model.js";
+import Product from "../products/product.model.js";
+import Business from "../businesses/business.model.js";
+import Customer from "../customers/customer.model.js";
+import InventoryMovement from "../inventory/inventory.model.js";
+import BranchInventory from "../branches/branchInventory.model.js";
+import Invoice from "../invoices/invoice.model.js";
+import InvoiceCounter from "../invoices/invoiceCounter.model.js";
+import Transaction from "../transactions/transaction.model.js";
+import User from "../users/user.model.js";
+import mongoose from "mongoose";
+import {
+  canDeleteSale,
+  buildSalesQuery,
+  buildPaymentApprovalMessage,
+  buildProductCompensationEntries,
+  buildSaleLedgerEntry,
+  getCustomerSaleImpact,
+  normalizePaymentMethod,
+  isCreditPayment,
+  shouldCreateInvoiceForSale,
+  isDuplicateKeyError,
+  isTransactionAbortedError,
+  normalizeSaleErrorMessage
+} from "./sales.utils.js";
+import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
+import { sendWhatsAppText } from "../whatsapp/whatsapp.service.js";
+
+// 🔥 GENERATE RECEIPT ID
+const generateReceiptId = () => {
+  return Math.random().toString(36).substring(2, 10).toUpperCase();
+};
+
+export const buildInvoiceCounterUpdate = ({ businessId }) => ({
+  $setOnInsert: {
+    business: businessId,
+    prefix: "INV"
+  },
+  $inc: { lastNumber: 1 }
+});
+
+const generateInvoiceNumber = async ({ businessId }) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+
+  const counter = await InvoiceCounter.findOneAndUpdate(
+    { business: businessId },
+    buildInvoiceCounterUpdate({ businessId }),
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true
+    }
+  );
+
+  const nextNumber = Number(counter?.lastNumber || 1);
+  return `${counter?.prefix || "INV"}-${year}-${month}-${String(nextNumber).padStart(6, "0")}`;
+};
+
+const reserveStockAtomically = async ({ businessId, branchId, productId, quantity, userId, session }) => {
+  if (branchId) {
+    const branchInventory = await BranchInventory.findOneAndUpdate(
+      {
+        business: businessId,
+        branch: branchId,
+        product: productId,
+        quantity: { $gte: quantity }
+      },
+      {
+        $inc: { quantity: -quantity }
+      },
+      {
+        new: true,
+        session
+      }
+    );
+
+    if (!branchInventory) {
+      throw new Error(`Insufficient branch stock for product ${productId}.`);
+    }
+
+    return {
+      stockRecord: branchInventory,
+      previousStock: Number(branchInventory.quantity || 0) + quantity,
+      newStock: Number(branchInventory.quantity || 0),
+      stockKey: "branch"
+    };
+  }
+
+  const product = await Product.findOneAndUpdate(
+    {
+      _id: productId,
+      business: businessId,
+      stock: { $gte: quantity }
+    },
+    {
+      $inc: { stock: -quantity }
+    },
+    {
+      new: true,
+      session
+    }
+  );
+
+  if (!product) {
+    throw new Error(`Insufficient stock for product ${productId}.`);
+  }
+
+  return {
+    stockRecord: product,
+    previousStock: Number(product.stock || 0) + quantity,
+    newStock: Number(product.stock || 0),
+    stockKey: "product"
+  };
+};
+
+// 🔥 CREATE SALE
+const createSale = async (req, res) => {
+  const clientOperationId = req.get("X-Operation-Id");
+  const businessId = req.user.businessId;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (clientOperationId) {
+      const existingSale = await Sale.findOne({ business: businessId, clientOperationId });
+      if (existingSale) {
+        return res.json({ message: "Sale already completed", sale: existingSale, duplicate: true });
+      }
+    }
+
+    const session = await mongoose.startSession();
+    let transactionStarted = false;
+
+    try {
+      session.startTransaction();
+      transactionStarted = true;
+      const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
+      const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+      const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
+      if (branchId === undefined) {
+        throw new Error("You can only create sales for your assigned branch unless cross-branch management is enabled.");
+      }
+
+      // 1. Fetch Business & Check Subscription
+      const business = await Business.findById(businessId).session(session);
+      if (!business) throw new Error("Business not found");
+
+const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
+    const isPro = business?.subscription?.status === "active";
+    const isTrial = business?.subscription?.status === "trial" && new Date() <= new Date(business.trialEndsAt);
+
+    if (!isOwner && !isPro && !isTrial) {
+      throw new Error("Subscription inactive. Please renew to process sales.");
+    }
+
+    if (autoSend && !isPro && !isOwner) {
+        return res.status(403).json({ message: "Auto WhatsApp is a Pro feature" });
+      }
+
+      // 2. Handle Customer Logic
+      let customer = null;
+      if (customerPhone) {
+        const normalizedPhone = Customer.normalizePhoneNumber(customerPhone);
+        customer = await Customer.findOne({
+          business: businessId,
+          ...(branchId ? { branch: branchId } : {}),
+          phoneNormalized: normalizedPhone
+        }).session(session);
+
+        if (!customer) {
+          customer = await Customer.create([{
+            business: businessId,
+            name: customerName || "Walk-in Customer",
+            phone: normalizedPhone,
+            phoneNormalized: normalizedPhone,
+            branch: branchId
+          }], { session }).then(res => res[0]);
+        }
+      }
+
+      let totalAmount = 0;
+      const saleItems = [];
+
+      // 3. Process Items (Products & Services)
+      for (const item of items) {
+        if (item.itemType === "product" || !item.itemType) {
+          const product = await Product.findById(item.product).session(session);
+
+          if (!product) throw new Error(`Product ${item.name || 'not found'} missing.`);
+          
+          // Security Check
+          if (req.user.role !== "super_admin" && product.business.toString() !== businessId) {
+            throw new Error("Unauthorized product access");
+          }
+
+          const basePrice = Math.round(Number(product.price));
+          const incomingPrice = Math.round(Number(item.sellingPrice ?? product.price));
+          
+          // Price Override Permission Check
+          const canOverride = req.user.role === "owner" || 
+                              req.user.role === "super_admin" || 
+                              req.user.permissions?.canOverridePrice;
+
+          if (incomingPrice !== basePrice && !canOverride) {
+            throw new Error(`Unauthorized price override for ${product.name}`);
+          }
+
+          const finalPrice = incomingPrice;
+          const quantity = Math.round(Number(item.quantity));
+          const itemTotal = finalPrice * quantity;
+          totalAmount += itemTotal;
+
+          const stockState = await reserveStockAtomically({
+            businessId,
+            branchId,
+            productId: product._id,
+            quantity,
+            userId: req.user.id,
+            session
+          });
+
+          await InventoryMovement.create([{
+            business: businessId,
+            ...(branchId ? { branch: branchId } : {}),
+            product: product._id,
+            type: "sale",
+            quantity,
+            previousStock: stockState.previousStock,
+            newStock: stockState.newStock,
+            createdBy: req.user.id
+          }], { session });
+
+          saleItems.push({
+            itemType: "product",
+            product: product._id,
+            name: product.name,
+            quantity,
+            costPrice: Number(product.costPrice) || 0,
+            sellingPrice: finalPrice,
+            total: itemTotal
+          });
+
+        } else if (item.itemType === "service") {
+          const quantity = Math.round(Number(item.quantity || 1));
+          const sellingPrice = Math.round(Number(item.sellingPrice || 0));
+          const itemTotal = quantity * sellingPrice;
+          totalAmount += itemTotal;
+
+          saleItems.push({
+            itemType: "service",
+            name: item.name || "Service",
+            quantity,
+            costPrice: 0,
+            sellingPrice,
+            total: itemTotal
+          });
+        }
+      }
+
+      // 4. Create Sale Record
+      const sale = await Sale.create([{
+        items: saleItems,
+        totalAmount,
+        paymentMethod: normalizedPaymentMethod,
+        paymentReference: paymentReference || "",
+        business: businessId,
+        branch: branchId || null,
+        createdBy: req.user.id,
+        ...(clientOperationId ? { clientOperationId } : {}),
+        customer: customer?._id || null,
+        customerName: customerName || customer?.name || "Walk-in",
+        customerPhone: customerPhone || "",
+        receiptId: generateReceiptId()
+      }], { session });
+
+      // 5. Update Customer Loyalty/History
+      if (customer) {
+        customer.totalSpent += totalAmount;
+        customer.totalOrders += 1;
+        customer.lastPurchaseAt = new Date();
+        customer.loyaltyPoints += Math.floor(totalAmount / 1000);
+        await customer.save({ session });
+      }
+
+      if (shouldCreateInvoiceForSale(normalizedPaymentMethod)) {
+        try {
+        const invoiceItems = items.map(item => ({
+          product: item.product || null,
+          name: item.name,
+          quantity: Number(item.quantity || 0),
+          price: Number(item.sellingPrice || 0),
+          total: Number(item.total || 0),
+          returned: false,
+          returnQuantity: 0,
+          returnAmount: 0,
+          receivedQuantity: 0,
+          soldQuantity: Number(item.quantity || 0),
+          supplierCreditStatus: null,
+          supplierBatchLabel: ""
+        }));
+
+        let invoiceNumber = null;
+        let lastInvoiceError = null;
+
+        for (let invoiceAttempt = 0; invoiceAttempt < 3; invoiceAttempt += 1) {
+          try {
+            invoiceNumber = await generateInvoiceNumber({ businessId });
+            const invoice = await Invoice.create([{
+              business: businessId,
+              branch: branchId,
+              createdBy: req.user.id,
+              source: "pos",
+              transactionType: "outgoing",
+              customer: customer?._id || null,
+              customerName: customerName || customer?.name || "Walk-in",
+              customerPhone: customerPhone || "",
+              items: invoiceItems,
+              subtotal: totalAmount,
+              tax: 0,
+              discount: 0,
+              totalAmount: totalAmount,
+              amountPaid: isCreditPayment(normalizedPaymentMethod) ? 0 : totalAmount,
+              balance: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+              balanceDue: isCreditPayment(normalizedPaymentMethod) ? totalAmount : 0,
+              returnedAmount: 0,
+              paymentStatus: isCreditPayment(normalizedPaymentMethod) ? "Unpaid" : "Fully Paid",
+              status: isCreditPayment(normalizedPaymentMethod) ? "draft" : "paid",
+              fulfillmentStatus: "collected",
+              fulfilledAt: new Date(),
+              fulfilledBy: req.user.id,
+              linkedSale: sale[0]._id,
+              stockFinalized: true,
+              invoiceType: "invoice",
+              invoiceNumber
+            }], { session }).then(res => res[0]);
+
+            sale[0].invoice = invoice._id;
+            await sale[0].save({ session });
+
+            if (customer && isCreditPayment(normalizedPaymentMethod)) {
+              customer.outstandingBalance = (customer.outstandingBalance || 0) + totalAmount;
+              await customer.save({ session });
+            }
+
+            break;
+          } catch (invoiceErr) {
+            lastInvoiceError = invoiceErr;
+            if (invoiceErr?.code !== 11000) {
+              throw invoiceErr;
+            }
+          }
+        }
+
+        if (!invoiceNumber && lastInvoiceError) {
+          throw lastInvoiceError;
+        }
+        } catch (invoiceErr) {
+          console.error("Failed to create linked invoice:", invoiceErr);
+          // Don't fail the sale if invoice creation fails.
+        }
+      }
+
+      if (transactionStarted && session.inTransaction()) {
+        await session.commitTransaction();
+        transactionStarted = false;
+      }
+      return res.json({ message: "Sale completed", sale: sale[0] });
+
+    } catch (error) {
+      try {
+        if (transactionStarted && session && session.inTransaction()) {
+          await session.abortTransaction();
+        }
+      } catch (abortErr) {
+        console.error("Failed to abort transaction:", abortErr);
+      } finally {
+        transactionStarted = false;
+      }
+
+      if (isDuplicateKeyError(error)) {
+        return res.status(409).json({ message: normalizeSaleErrorMessage(error) });
+      }
+
+      const shouldRetry = isTransactionAbortedError(error) && attempt < 3;
+      if (shouldRetry) {
+        continue;
+      }
+
+      return res.status(500).json({ message: normalizeSaleErrorMessage(error) });
+    } finally {
+      if (session) {
+        session.endSession();
+      }
+    }
+  }
+
+  return res.status(500).json({ message: "The sale transaction was aborted by the database. Please retry the sale." });
+};
+
+const bulkUpdateSaleStatus = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
+    if (!["pending", "posted", "reversed"].includes(nextStatus)) {
+      return res.status(400).json({ message: "Invalid sale status" });
+    }
+
+    const saleIds = Array.isArray(req.body?.saleIds) ? req.body.saleIds.filter(Boolean) : [];
+    if (!saleIds.length) {
+      return res.status(400).json({ message: "No sales selected" });
+    }
+
+    const sales = await Sale.find({
+      _id: { $in: saleIds },
+      business: req.user.businessId,
+      isDeleted: { $ne: true }
+    });
+
+    if (!sales.length) {
+      return res.status(404).json({ message: "No matching sales found" });
+    }
+
+    const updatedSales = [];
+
+    for (const sale of sales) {
+      sale.status = nextStatus;
+      await sale.save();
+
+      const ledgerEntry = await Transaction.findOne({
+        businessId: req.user.businessId,
+        sourceModel: "Sale",
+        sourceId: sale._id
+      });
+
+      if (ledgerEntry) {
+        ledgerEntry.status = nextStatus;
+        await ledgerEntry.save();
+      } else {
+        await Transaction.create({
+          ...buildSaleLedgerEntry({
+            sale,
+            businessId: req.user.businessId,
+            createdBy: req.user.id,
+            status: nextStatus,
+            notePrefix: "Bulk sale status update"
+          })
+        });
+      }
+
+      updatedSales.push({ ...sale.toObject(), status: nextStatus });
+    }
+
+    res.json({
+      message: "Sale statuses updated",
+      status: nextStatus,
+      updatedCount: updatedSales.length,
+      sales: updatedSales
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateSaleStatus = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const sale = await Sale.findOne({ _id: req.params.id, business: req.user.businessId, isDeleted: { $ne: true } });
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    const nextStatus = String(req.body?.status || "").trim().toLowerCase();
+    if (!["pending", "posted", "reversed"].includes(nextStatus)) {
+      return res.status(400).json({ message: "Invalid sale status" });
+    }
+
+    sale.status = nextStatus;
+    await sale.save();
+
+    const ledgerEntry = await Transaction.findOne({
+      businessId: req.user.businessId,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    });
+
+    if (ledgerEntry) {
+      ledgerEntry.status = nextStatus;
+      await ledgerEntry.save();
+    } else {
+      await Transaction.create({
+        ...buildSaleLedgerEntry({
+          sale,
+          businessId: req.user.businessId,
+          createdBy: req.user.id,
+          status: nextStatus,
+          notePrefix: "Sale status update"
+        })
+      });
+    }
+
+    res.json({ message: "Sale status updated", sale: { ...sale.toObject(), status: nextStatus } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyPaymentProof = async (req, res) => {
+  try {
+    const isAuthorized = req.user.role === "owner" || req.user.role === "super_admin" || req.user.permissions?.canManagePayments === true;
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const sale = await Sale.findOne({ _id: req.params.id, business: req.user.businessId, isDeleted: { $ne: true } });
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    const approved = String(req.body?.approved ?? "").toLowerCase() === "true";
+    const note = String(req.body?.note || "").trim();
+
+    sale.paymentStatus = approved ? "verified" : "rejected";
+    sale.paymentVerifiedAt = new Date();
+    sale.paymentVerifiedBy = req.user.id;
+    sale.paymentReference = req.body?.paymentReference || sale.paymentReference || "";
+    sale.paymentProof = req.body?.paymentProof || sale.paymentProof || "";
+
+    if (approved) {
+      sale.status = "posted";
+      sale.paymentMethod = sale.paymentMethod || "bank_transfer";
+      if (note) {
+        sale.notes = [sale.notes, `Payment approved: ${note}`].filter(Boolean).join(" | ");
+      }
+    } else {
+      sale.status = "pending";
+      if (note) {
+        sale.notes = [sale.notes, `Payment rejected: ${note}`].filter(Boolean).join(" | ");
+      }
+    }
+
+    await sale.save();
+
+    let customerNotification = { sent: false };
+    if (approved && sale.customerPhone && process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+      try {
+        const business = await Business.findById(sale.business).select("name").lean();
+        const frontendUrl = String(process.env.FRONTEND_URL || process.env.APP_URL || "").replace(/\/$/, "");
+        const receiptUrl = frontendUrl && sale.receiptId
+          ? `${frontendUrl}/#/r/${encodeURIComponent(sale.receiptId)}`
+          : "";
+
+        await sendWhatsAppText({
+          to: sale.customerPhone,
+          message: buildPaymentApprovalMessage({
+            businessName: business?.name || "Business",
+            sale,
+            receiptUrl
+          })
+        });
+        customerNotification = { sent: true };
+      } catch (notificationError) {
+        customerNotification = {
+          sent: false,
+          error: notificationError.message
+        };
+      }
+    }
+
+    return res.json({
+      message: approved ? "Payment verified and order approved" : "Payment rejected",
+      paymentStatus: sale.paymentStatus,
+      customerNotification,
+      sale: sale.toObject()
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const updatePaymentMethod = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: "Only owners can correct payment methods" });
+    }
+
+    const sale = await Sale.findById(req.params.id).session(session);
+    if (!sale || sale.isDeleted) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Sale not found" });
+    }
+    if (req.user.role !== "super_admin" && sale.business.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const nextPaymentMethod = normalizePaymentMethod(req.body.paymentMethod);
+    const previousCredit = isCreditPayment(sale.paymentMethod);
+    const nextCredit = isCreditPayment(nextPaymentMethod);
+
+    if (sale.customer && previousCredit !== nextCredit) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const balanceDelta = nextCredit ? sale.totalAmount : -sale.totalAmount;
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + balanceDelta);
+        await customer.save({ session });
+      }
+    }
+
+    sale.paymentMethod = nextPaymentMethod;
+    sale.paymentReference = req.body.paymentReference || "";
+    sale.paymentUpdatedAt = new Date();
+    sale.paymentUpdatedBy = req.user.id;
+    await sale.save({ session });
+
+    if (sale.invoice) {
+      const invoice = await Invoice.findById(sale.invoice).session(session);
+      if (invoice) {
+        invoice.amountPaid = nextCredit ? 0 : sale.totalAmount;
+        invoice.balance = nextCredit ? sale.totalAmount : 0;
+        invoice.balanceDue = nextCredit ? sale.totalAmount : 0;
+        invoice.paymentStatus = nextCredit ? "Unpaid" : "Fully Paid";
+        invoice.status = nextCredit ? "draft" : "paid";
+        await invoice.save({ session });
+      }
+    }
+
+    await session.commitTransaction();
+    res.json({ message: "Payment method updated", sale });
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(500).json({ message: error.message });
+  } finally {
+    session.endSession();
+  }
+};
+
+// 🔥 GET ALL SALES
+const getSales = async (req, res) => {
+  try {
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(10, Number.parseInt(req.query.limit, 10) || 25));
+    const search = String(req.query.search || "").trim();
+    const query = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin"
+    });
+    if (req.query.paymentStatus) {
+      query.paymentStatus = String(req.query.paymentStatus).trim();
+    }
+    if (req.query.status) {
+      query.status = String(req.query.status).trim();
+    }
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
+    Object.assign(query, branchQuery);
+
+    if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const matchingUsers = await User.find({
+        ...(req.user.role === "super_admin" ? {} : { business: req.user.businessId }),
+        name: { $regex: escapedSearch, $options: "i" },
+      }).select("_id").lean();
+      query.$or = [
+        { receiptId: { $regex: escapedSearch, $options: "i" } },
+        { customerName: { $regex: escapedSearch, $options: "i" } },
+        { "items.name": { $regex: escapedSearch, $options: "i" } },
+        { createdBy: { $in: matchingUsers.map((user) => user._id) } },
+      ];
+    }
+
+    const [sales, total] = await Promise.all([
+      Sale.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("createdBy", "name")
+      .populate("branch", "name")
+      .populate("items.product", "name price"),
+      Sale.countDocuments(query)
+    ]);
+
+    res.json({ sales, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getDeletedSales = async (req, res) => {
+  try {
+    if (!canDeleteSale(req.user)) {
+      return res.status(403).json({ message: "Only owners can view archived sales" });
+    }
+
+    const query = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin",
+      includeDeleted: true,
+      canAccessDeleted: true
+    });
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
+    Object.assign(query, branchQuery);
+
+    const sales = await Sale.find(query)
+      .sort({ deletedAt: -1, createdAt: -1 })
+      .populate("createdBy", "name")
+      .populate("items.product", "name price")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+
+    res.json(sales);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 🔥 GET SINGLE SALE
+const getSaleById = async (req, res) => {
+  try {
+    const sale = await Sale.findById(req.params.id)
+      .populate("createdBy", "name")
+      .populate("branch", "name")
+      .populate("items.product", "name price")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+
+    if (!sale) return res.status(404).json({ message: "Sale not found" });
+
+    if (req.user.role !== "super_admin" && sale.business._id.toString() !== req.user.businessId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, sale.branch?.toString());
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to this sale" });
+
+    res.json(sale);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteSale = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "Only owners can delete sales" });
+    }
+
+    const sale = await Sale.findById(req.params.id).session(session);
+    if (!sale) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    for (const item of sale.items) {
+      if (item.itemType !== "product" && item.itemType !== undefined) continue;
+      if (!item.product || Number(item.quantity || 0) <= 0) continue;
+
+      const quantity = Number(item.quantity || 0);
+      if (sale.branch) {
+        const branchInventory = await BranchInventory.findOne({
+          business: sale.business,
+          branch: sale.branch,
+          product: item.product
+        }).session(session);
+
+        if (branchInventory) {
+          const previousStock = Number(branchInventory.quantity || 0);
+          branchInventory.quantity = previousStock + quantity;
+          await branchInventory.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: branchInventory.quantity,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        } else {
+          const createdInventory = await BranchInventory.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            quantity,
+            createdBy: req.user.id
+          }], { session }).then(res => res[0]);
+
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock: 0,
+            newStock: createdInventory.quantity,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      } else {
+        const product = await Product.findById(item.product).session(session);
+        if (product) {
+          const previousStock = Number(product.stock || 0);
+          product.stock = previousStock + quantity;
+          await product.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            product: item.product,
+            type: "return",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: product.stock,
+            note: `Sale reversal ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      }
+    }
+
+    const saleLedgerEntry = buildSaleLedgerEntry({
+      sale,
+      businessId: sale.business,
+      createdBy: req.user.id,
+      status: "reversed",
+      notePrefix: "Sale reversal"
+    });
+
+    const existingLedger = await Transaction.findOne({
+      businessId: sale.business,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    }).session(session);
+
+    if (existingLedger) {
+      existingLedger.status = "reversed";
+      existingLedger.deletedAt = null;
+      existingLedger.deletedBy = null;
+      existingLedger.isDeleted = false;
+      await existingLedger.save({ session });
+    } else {
+      await Transaction.create([saleLedgerEntry], { session });
+    }
+
+    if (sale.customer) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const impact = getCustomerSaleImpact({
+          paymentMethod: sale.paymentMethod,
+          totalAmount: sale.totalAmount,
+          action: "delete"
+        });
+
+        customer.totalSpent = Math.max(0, Number(customer.totalSpent || 0) + impact.totalSpentDelta);
+        customer.totalOrders = Math.max(0, Number(customer.totalOrders || 0) + impact.totalOrdersDelta);
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + impact.outstandingBalanceDelta);
+        await customer.save({ session });
+      }
+    }
+
+    sale.isDeleted = true;
+    sale.deletedAt = new Date();
+    sale.deletedBy = req.user.id;
+    await sale.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ message: "Sale archived", sale });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const restoreSale = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    if (!canDeleteSale(req.user)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "Only owners can restore sales" });
+    }
+
+    const sale = await Sale.findById(req.params.id).session(session);
+    if (!sale) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Sale not found" });
+    }
+
+    if (req.user.role !== "super_admin" && sale.business?.toString() !== req.user.businessId) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    for (const item of sale.items) {
+      if (item.itemType !== "product" && item.itemType !== undefined) continue;
+      if (!item.product || Number(item.quantity || 0) <= 0) continue;
+
+      const quantity = Number(item.quantity || 0);
+      if (sale.branch) {
+        const branchInventory = await BranchInventory.findOne({
+          business: sale.business,
+          branch: sale.branch,
+          product: item.product
+        }).session(session);
+
+        if (branchInventory) {
+          const previousStock = Number(branchInventory.quantity || 0);
+          branchInventory.quantity = Math.max(0, previousStock - quantity);
+          await branchInventory.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            branch: sale.branch,
+            product: item.product,
+            type: "sale",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: branchInventory.quantity,
+            note: `Sale restored ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      } else {
+        const product = await Product.findById(item.product).session(session);
+        if (product) {
+          const previousStock = Number(product.stock || 0);
+          product.stock = Math.max(0, previousStock - quantity);
+          await product.save({ session });
+          await InventoryMovement.create([{
+            business: sale.business,
+            product: item.product,
+            type: "sale",
+            quantity,
+            unitCost: Number(item.costPrice || 0),
+            previousStock,
+            newStock: product.stock,
+            note: `Sale restored ${sale._id}`,
+            createdBy: req.user.id
+          }], { session });
+        }
+      }
+    }
+
+    const existingLedger = await Transaction.findOne({
+      businessId: sale.business,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    }).session(session);
+
+    if (existingLedger) {
+      existingLedger.status = "posted";
+      existingLedger.deletedAt = null;
+      existingLedger.deletedBy = null;
+      existingLedger.isDeleted = false;
+      await existingLedger.save({ session });
+    } else {
+      await Transaction.create([buildSaleLedgerEntry({
+        sale,
+        businessId: sale.business,
+        createdBy: req.user.id,
+        status: "posted",
+        notePrefix: "Sale restored"
+      })], { session });
+    }
+
+    if (sale.customer) {
+      const customer = await Customer.findById(sale.customer).session(session);
+      if (customer) {
+        const impact = getCustomerSaleImpact({
+          paymentMethod: sale.paymentMethod,
+          totalAmount: sale.totalAmount,
+          action: "restore"
+        });
+
+        customer.totalSpent = Math.max(0, Number(customer.totalSpent || 0) + impact.totalSpentDelta);
+        customer.totalOrders = Math.max(0, Number(customer.totalOrders || 0) + impact.totalOrdersDelta);
+        customer.outstandingBalance = Math.max(0, Number(customer.outstandingBalance || 0) + impact.outstandingBalanceDelta);
+        await customer.save({ session });
+      }
+    }
+
+    sale.isDeleted = false;
+    sale.deletedAt = null;
+    sale.deletedBy = null;
+    await sale.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json({ message: "Sale restored", sale });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// 🔥 PUBLIC RECEIPT
+const getPublicSale = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sale = await Sale.findOne({ $or: [{ _id: id }, { receiptId: id }] })
+      .populate("branch", "name")
+      .populate("items.product", "name price")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+
+    if (!sale) return res.status(404).json({ message: "Receipt not found" });
+    res.json(sale);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, verifyPaymentProof };

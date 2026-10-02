@@ -1,0 +1,803 @@
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import request from "../api/client.js";
+import { getBranches } from "../api/branches.js";
+import "../styles.css";
+import { FiEye, FiEyeOff, FiEdit2, FiMapPin, FiPower, FiSearch, FiShield, FiTrash2, FiUserCheck, FiUsers, FiX } from 'react-icons/fi';
+
+const initialForm = {
+  name: "",
+  email: "",
+  password: "",
+  role: "staff",
+  branch: "",
+  permissions: {
+    canViewDashboard: false,
+    canManageProducts: false,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: false,
+    canOverridePrice: false,
+    canManageStaff: false,
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
+    canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
+    canViewCustomers: false,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  }
+};
+
+const permissionLabels = {
+  canViewDashboard: {
+    label: "View dashboard",
+    description: "Allow access to the main business dashboard overview."
+  },
+  canManageProducts: {
+    label: "Manage products & services",
+    description: "Create, edit, and delete products or services."
+  },
+  canViewProducts: {
+    label: "View products & services",
+    description: "See products and services inside the POS catalog."
+  },
+  canMakeSale: {
+    label: "Create sales",
+    description: "Process sales and complete checkout in POS."
+  },
+  canViewSales: {
+    label: "View sales records",
+    description: "Access invoices, orders, and sales history."
+  },
+  canViewReports: {
+    label: "View reports",
+    description: "Open analytics, revenue, and profit reports."
+  },
+  canOverridePrice: {
+    label: "Override prices",
+    description: "Allow price adjustments during checkout."
+  },
+  canManageStaff: {
+    label: "Manage staff",
+    description: "Create, update, and remove staff accounts."
+  },
+  canManageSettings: {
+    label: "Manage settings",
+    description: "Change business settings, billing, and integrations."
+  },
+  canViewBranches: {
+    label: "View branches",
+    description: "See branch listings and branch details."
+  },
+  canManageBranches: {
+    label: "Manage branches",
+    description: "Create, update, and delete branch locations."
+  },
+  canViewBranchInventory: {
+    label: "View branch inventory",
+    description: "See inventory quantities for branch locations."
+  },
+  canViewAllBranchInventory: {
+    label: "View all branch inventory",
+    description: "See inventory quantities outside the assigned branch."
+  },
+  canManageBranchInventory: {
+    label: "Manage branch inventory",
+    description: "Import and edit branch-specific inventory and pricing."
+  },
+  canManageAllBranchInventory: {
+    label: "Manage all branch inventory",
+    description: "Import and edit inventory outside the assigned branch."
+  },
+  canViewPurchaseOrders: {
+    label: "View purchase orders",
+    description: "See purchase orders and receiving history."
+  },
+  canManagePurchaseOrders: {
+    label: "Manage purchase orders",
+    description: "Create and update purchase orders."
+  },
+  canReceiveInventory: {
+    label: "Receive inventory",
+    description: "Record delivered stock against purchase orders."
+  },
+  canViewCustomers: {
+    label: "View customers",
+    description: "See customer records and order history."
+  },
+  canManageCustomers: {
+    label: "Manage customers",
+    description: "Create and update customer records."
+  },
+  canViewInvoices: {
+    label: "View invoices",
+    description: "See invoices and sales receipts."
+  },
+  canManageInvoices: {
+    label: "Manage invoices",
+    description: "Create, update, and delete invoices."
+  },
+  canViewExpenses: {
+    label: "View expenses",
+    description: "See expense records and reports."
+  },
+  canManageExpenses: {
+    label: "Manage expenses",
+    description: "Create, update, and delete expense entries."
+  },
+  canViewPayments: {
+    label: "View payments",
+    description: "See payment records and transaction details."
+  },
+  canManagePayments: {
+    label: "Manage payments",
+    description: "Process and reconcile payment transactions."
+  },
+  canAccessPOS: {
+    label: "Access POS",
+    description: "Open and use the POS interface."
+  },
+  canApplyDiscounts: {
+    label: "Apply discounts",
+    description: "Allow discount or promotion application during checkout."
+  },
+  canProcessReturns: {
+    label: "Process returns",
+    description: "Handle returned items and refunds in sales."
+  },
+  canViewSalesReports: {
+    label: "View sales reports",
+    description: "See detailed sales performance analytics."
+  },
+  canViewFinancialReports: {
+    label: "View financial reports",
+    description: "See financial performance and profit analytics."
+  },
+  canViewStaffReports: {
+    label: "View staff reports",
+    description: "See team performance and staff activity reports."
+  },
+  canInviteStaff: {
+    label: "Invite staff",
+    description: "Create new staff accounts and invite team members."
+  },
+  canEditStaffPermissions: {
+    label: "Edit staff permissions",
+    description: "Change staff permissions and role settings."
+  },
+  canDeactivateStaff: {
+    label: "Deactivate staff",
+    description: "Disable or remove staff accounts."
+  },
+  canManageBilling: {
+    label: "Manage billing",
+    description: "Change billing details and subscription plans."
+  },
+  canManageBusinessProfile: {
+    label: "Manage business profile",
+    description: "Edit business details and company profile."
+  },
+  canManageIntegrations: {
+    label: "Manage integrations",
+    description: "Configure external services and integrations."
+  }
+};
+
+const rolePermissionPresets = {
+  staff: {
+    canViewDashboard: false,
+    canManageProducts: false,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: false,
+    canOverridePrice: false,
+    canManageStaff: false,
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
+    canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
+    canViewCustomers: false,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  },
+  cashier: {
+    canViewDashboard: false,
+    canManageProducts: false,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: false,
+    canOverridePrice: false,
+    canManageStaff: false,
+    canManageSettings: false,
+    canViewBranches: false,
+    canManageBranches: false,
+    canViewBranchInventory: false,
+    canViewAllBranchInventory: false,
+    canManageBranchInventory: false,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: false,
+    canManagePurchaseOrders: false,
+    canReceiveInventory: false,
+    canViewCustomers: true,
+    canManageCustomers: false,
+    canViewInvoices: false,
+    canManageInvoices: false,
+    canViewExpenses: false,
+    canManageExpenses: false,
+    canViewPayments: false,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: false,
+    canViewFinancialReports: false,
+    canViewStaffReports: false,
+    canInviteStaff: false,
+    canEditStaffPermissions: false,
+    canDeactivateStaff: false,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  },
+  manager: {
+    canViewDashboard: true,
+    canManageProducts: true,
+    canViewProducts: true,
+    canMakeSale: true,
+    canViewSales: true,
+    canViewReports: true,
+    canOverridePrice: false,
+    canManageStaff: true,
+    canManageSettings: false,
+    canViewBranches: true,
+    canManageBranches: true,
+    canViewBranchInventory: true,
+    canViewAllBranchInventory: false,
+    canManageBranchInventory: true,
+    canManageAllBranchInventory: false,
+    canViewPurchaseOrders: true,
+    canManagePurchaseOrders: true,
+    canReceiveInventory: true,
+    canViewCustomers: true,
+    canManageCustomers: true,
+    canViewInvoices: true,
+    canManageInvoices: false,
+    canViewExpenses: true,
+    canManageExpenses: false,
+    canViewPayments: true,
+    canManagePayments: false,
+    canAccessPOS: true,
+    canApplyDiscounts: false,
+    canProcessReturns: false,
+    canViewSalesReports: true,
+    canViewFinancialReports: true,
+    canViewStaffReports: true,
+    canInviteStaff: true,
+    canEditStaffPermissions: true,
+    canDeactivateStaff: true,
+    canManageBilling: false,
+    canManageBusinessProfile: false,
+    canManageIntegrations: false
+  }
+};
+
+const permissionGroups = {
+  access: { label: "Basic access", description: "Choose the core workspace areas this person can open.", permissions: ["canViewDashboard", "canAccessPOS", "canMakeSale", "canViewSales"] },
+  products: { label: "Products & services", description: "Control catalog visibility and changes.", permissions: ["canViewProducts", "canManageProducts"] },
+  inventory: { label: "Inventory", description: "Control stock visibility, branch scope, and stock changes.", permissions: ["canViewBranchInventory", "canViewAllBranchInventory", "canManageBranchInventory", "canManageAllBranchInventory", "canReceiveInventory"] },
+  purchasing: { label: "Purchasing", description: "Control purchase orders and receiving.", permissions: ["canViewPurchaseOrders", "canManagePurchaseOrders"] },
+  expenses: { label: "Expenses", description: "Control expense visibility and entry management.", permissions: ["canViewExpenses", "canManageExpenses"] },
+  customers: { label: "Customers", description: "Control customer records and updates.", permissions: ["canViewCustomers", "canManageCustomers"] },
+  invoices: { label: "Invoices & payments", description: "Control billing records and payment review.", permissions: ["canViewInvoices", "canManageInvoices", "canViewPayments", "canManagePayments"] },
+  reports: { label: "Reports & analytics", description: "Control business reporting and sensitive reporting views.", permissions: ["canViewReports", "canViewSalesReports", "canViewFinancialReports", "canViewStaffReports"] },
+  branches: { label: "Branches", description: "Control branch visibility and branch administration.", permissions: ["canViewBranches", "canManageBranches"] },
+  staff: { label: "Staff management", description: "Control team administration and account actions.", permissions: ["canManageStaff", "canInviteStaff", "canEditStaffPermissions", "canDeactivateStaff"] },
+  settings: { label: "Business settings", description: "Sensitive organization, billing, and integration controls.", permissions: ["canManageSettings", "canManageBilling", "canManageBusinessProfile", "canManageIntegrations"] },
+  pos: { label: "Sales controls", description: "Additional controls for checkout behavior.", permissions: ["canOverridePrice", "canApplyDiscounts", "canProcessReturns"] }
+};
+
+const getStoredCurrentUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_user")) || null;
+  } catch {
+    return null;
+  }
+};
+
+const Staff = () => {
+  const currentUser = getStoredCurrentUser();
+  const [staff, setStaff] = useState([]);
+  const [form, setForm] = useState(initialForm);
+  const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [isDrawerMounted, setIsDrawerMounted] = useState(false);
+  const [showDetails, setShowDetails] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [permissionSearch, setPermissionSearch] = useState("");
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const drawerRef = useRef(null);
+
+  const canDeleteStaff = currentUser?.role === "owner"
+    || currentUser?.role === "super_admin"
+    || currentUser?.permissions?.canDeactivateStaff === true;
+
+  const teamStats = useMemo(() => ({
+    total: staff.length,
+    active: staff.filter((user) => user.isActive !== false).length,
+    managers: staff.filter((user) => user.role === "manager").length,
+    assigned: staff.filter((user) => user.branch?._id || user.branch).length
+  }), [staff]);
+
+  const filteredStaff = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return staff.filter((user) => {
+      const branchId = user.branch?._id || user.branch || "head-office";
+      const matchesSearch = !normalizedSearch || [user.name, user.email]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesBranch = branchFilter === "all" || branchId === branchFilter;
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "active" && user.isActive !== false)
+        || (statusFilter === "disabled" && user.isActive === false);
+
+      return matchesSearch && matchesRole && matchesBranch && matchesStatus;
+    });
+  }, [branchFilter, roleFilter, search, staff, statusFilter]);
+
+  // =====================================
+  // LOAD BRANCHES
+  // =====================================
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const data = await getBranches();
+        setBranches(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load branches", err);
+      }
+    };
+
+    loadBranches();
+  }, []);
+
+  // =====================================
+  // LOAD STAFF
+  // =====================================
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await request("/staff");
+        setStaff(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  // =====================================
+  // CHANGE
+  // =====================================
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === "role" && !editingId) {
+      setForm((prev) => ({
+        ...prev,
+        role: value,
+        permissions: {
+          ...rolePermissionPresets[value]
+        }
+      }));
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // =====================================
+  // PERMISSIONS
+  // =====================================
+  const togglePermission = (permission) => {
+    setForm((prev) => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [permission]: !prev.permissions[permission]
+      }
+    }));
+  };
+
+  const toggleShowDetail = (permission) => {
+    setShowDetails((prev) => ({ ...prev, [permission]: !prev[permission] }));
+  };
+
+  const togglePermissionGroup = (permissions) => {
+    const shouldEnable = permissions.some((permission) => !form.permissions[permission]);
+    setForm((prev) => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        ...Object.fromEntries(permissions.map((permission) => [permission, shouldEnable]))
+      }
+    }));
+  };
+
+  const enabledPermissionCount = Object.values(form.permissions).filter(Boolean).length;
+  const normalizedPermissionSearch = permissionSearch.trim().toLowerCase();
+
+  // =====================================
+  // SUBMIT
+  // =====================================
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      setSaving(true);
+      if (!editingId) {
+        const res = await request("/staff", {
+          method: "POST",
+          body: JSON.stringify(form)
+        });
+      } else {
+        await request(`/staff/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify(form)
+        });
+        setEditingId(null);
+      }
+      const refreshedStaff = await request("/staff");
+      setStaff(Array.isArray(refreshedStaff) ? refreshedStaff : []);
+      setForm(initialForm);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // =====================================
+  // EDIT
+  // =====================================
+  const handleEdit = (user) => {
+    setEditingId(user._id);
+    setForm({
+      name: user.name || "",
+      email: user.email || "",
+      password: "",
+      role: user.role || "staff",
+      branch: user.branch?._id || user.branch || "",
+      permissions: user.permissions || initialForm.permissions
+    });
+    setShowDrawer(true);
+  };
+
+  // keep drawer mounted while animating close
+  useEffect(() => {
+    if (showDrawer) setIsDrawerMounted(true);
+  }, [showDrawer]);
+
+  useEffect(() => {
+    if (!showDrawer && isDrawerMounted) {
+      const t = setTimeout(() => setIsDrawerMounted(false), 300);
+      return () => clearTimeout(t);
+    }
+  }, [showDrawer, isDrawerMounted]);
+
+  const closeDrawer = () => setShowDrawer(false);
+
+  // =====================================
+  // DELETE
+  // =====================================
+  const handleDelete = async (id) => {
+    const confirmed = window.confirm("Delete staff member?");
+    if (!confirmed) return;
+    try {
+      await request(`/staff/${id}`, { method: "DELETE" });
+      setStaff((prev) => prev.filter((u) => u._id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleToggleStatus = async (user) => {
+    const nextStatus = user.isActive === false ? "enable" : "disable";
+    if (!window.confirm(`${nextStatus === "disable" ? "Disable" : "Enable"} ${user.name}'s account?`)) return;
+
+    try {
+      const response = await request(`/staff/${user._id}/status`, { method: "PATCH" });
+      const updatedUser = response.staff;
+      setStaff((prev) => prev.map((item) => (item._id === user._id ? updatedUser : item)));
+      setOpenMenuId(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setRoleFilter("all");
+    setBranchFilter("all");
+    setStatusFilter("all");
+  };
+
+  return (
+    <section className="staff-workspace products-layout single-column dark:text-slate-100">
+      {/* STAFF LIST */}
+      <div className="w-full">
+        <div className="staff-hero page-heading flex items-center justify-between dark:border-slate-700 dark:bg-slate-900/80">
+          <div>
+            <span className="section-eyebrow"><span className="status-dot" /> Team management</span>
+            <h1 className="dark:text-slate-100">Staff Workspace</h1>
+            <p className="mt-3">Manage people, branch assignments, and access levels from one calm workspace.</p>
+          </div>
+          <div className="page-actions">
+            <button onClick={() => { setShowDrawer(true); setEditingId(null); setForm(initialForm); }} className="add-team-btn"><FiUsers /> + Add Team Member</button>
+          </div>
+        </div>
+
+        <div className="staff-metrics" aria-label="Team overview">
+          <div className="staff-metric-card"><span className="staff-metric-icon"><FiUsers /></span><div><strong>{teamStats.total}</strong><span>Total team</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--green"><FiUserCheck /></span><div><strong>{teamStats.active}</strong><span>Active accounts</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--blue"><FiShield /></span><div><strong>{teamStats.managers}</strong><span>Managers</span></div></div>
+          <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--amber"><FiMapPin /></span><div><strong>{teamStats.assigned}</strong><span>Branch assigned</span></div></div>
+        </div>
+
+        <div className="staff-toolbar" role="search">
+          <div className="staff-search"><FiSearch /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name or email" aria-label="Search staff" /></div>
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} aria-label="Filter by role"><option value="all">All roles</option><option value="manager">Managers</option><option value="cashier">Cashiers</option><option value="staff">Staff</option></select>
+          <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} aria-label="Filter by branch"><option value="all">All branches</option><option value="head-office">Head office</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}</select>
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} aria-label="Filter by status"><option value="all">Any status</option><option value="active">Active</option><option value="disabled">Disabled</option></select>
+          {(search || roleFilter !== "all" || branchFilter !== "all" || statusFilter !== "all") && <button type="button" className="staff-clear-filter" onClick={clearFilters}><FiX /> Clear</button>}
+        </div>
+
+        <div className="staff-table-shell product-table mt-4 w-full dark:border-slate-700 dark:bg-slate-900">
+          <div className="product-row product-row-head table-header dark:border-slate-700 dark:bg-slate-800">
+            <span className="dark:text-slate-100">TEAM MEMBER</span>
+            <span className="dark:text-slate-100">ROLE</span>
+            <span className="dark:text-slate-100">BRANCH</span>
+            <span className="dark:text-slate-100">ACCOUNT STATUS</span>
+            <span />
+          </div>
+
+          {loading && <div className="empty-state">Syncing team data...</div>}
+          {!loading && !filteredStaff.length && <div className="empty-state"><div><strong>{staff.length ? "No team members match these filters" : "Your team workspace is ready"}</strong><span>{staff.length ? "Try clearing a filter or changing your search." : "Add your first team member to start assigning access."}</span>{staff.length ? <button type="button" className="staff-empty-action" onClick={clearFilters}>Clear filters</button> : null}</div></div>}
+
+          {filteredStaff.map((user, index) => (
+            <div key={user._id} className={`product-row staff-row ${openMenuId === user._id ? 'staff-row-menu-open' : ''} dark:border-slate-700 dark:hover:bg-slate-800`}>
+              <span>
+                <div className="flex items-center gap-3">
+                  <div className="staff-avatar">{(user.name || "").split(" ").map(s=>s[0]).slice(0,2).join("")}</div>
+                  <div>
+                    <div className="font-semibold dark:text-slate-100">{user.name}</div>
+                    <div className="email-muted dark:text-slate-400">{user.email}</div>
+                  </div>
+                </div>
+              </span>
+              <span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${user.role === 'owner' ? 'bg-slate-800 text-white dark:bg-emerald-600 dark:text-white' : user.role === 'manager' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300' : user.role === 'cashier' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-200'}`}>{user.role}</span>
+              </span>
+              <span>
+                <span className="staff-branch"><FiMapPin /> {user.branch?.name || user.branch || 'Head office'}</span>
+              </span>
+              <span>
+                <div className="flex items-center gap-2">
+                  <span className={`staff-status-dot ${user.isActive !== false ? 'is-active' : 'is-disabled'}`} />
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{user.isActive !== false ? 'Active' : 'Disabled'}</span>
+                </div>
+              </span>
+              <span className="flex gap-4 items-center justify-end">
+                <div className="relative">
+                  <button aria-label={`Actions for ${user.name}`} aria-haspopup="menu" aria-expanded={openMenuId === user._id} onClick={() => setOpenMenuId(openMenuId === user._id ? null : user._id)} className="more-options-button">⋯</button>
+                  {openMenuId === user._id && (
+                    <div className={`dropdown-menu ${index >= filteredStaff.length - 2 ? 'dropdown-menu-up' : ''}`}>
+                      <button onClick={() => { setOpenMenuId(null); handleEdit(user); }} className="dropdown-item"><FiEdit2 /> Edit access</button>
+                      <button onClick={() => handleToggleStatus(user)} className="dropdown-item"><FiPower /> {user.isActive === false ? "Enable account" : "Disable account"}</button>
+                      <button onClick={() => { setOpenMenuId(null); handleDelete(user._id); }} className="dropdown-item danger"><FiTrash2 /> Delete permanently</button>
+                    </div>
+                  )}
+                </div>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ACCESS MODAL */}
+      {isDrawerMounted && (
+        <div className={`staff-modal-backdrop ${showDrawer ? 'open' : ''}`}>
+          <div className="staff-modal-scrim" onClick={closeDrawer} />
+          <div ref={drawerRef} role="dialog" aria-modal="true" aria-labelledby="staff-modal-title" className={`staff-modal dark:border-slate-700 dark:bg-slate-900 ${showDrawer ? 'open' : ''}`}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <span className="section-eyebrow"><FiShield /> Team access</span>
+                <h2 id="staff-modal-title" className="text-2xl font-bold dark:text-slate-100">{editingId ? 'Modify Staff' : 'New Team Member'}</h2>
+              </div>
+              <button aria-label="Close staff access dialog" onClick={() => setShowDrawer(false)} className="staff-modal-close text-gray-500 dark:text-slate-400">✕</button>
+            </div>
+
+            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Full name</label>
+                <input className="input-field" name="name" value={form.name} onChange={handleChange} placeholder="John Doe" required />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Email address</label>
+                <input className="input-field" name="email" type="email" value={form.email} onChange={handleChange} required disabled={editingId} />
+              </div>
+
+              {!editingId && (
+                <div className="space-y-1 relative">
+                  <label className="text-sm font-semibold text-slate-700">Default password</label>
+                    <div className="relative">
+                    <input className="input-field pr-10" name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={handleChange} required />
+                    <button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">{showPassword ? <FiEyeOff /> : <FiEye />}</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Role preset</label>
+                <select className="input-field capitalize" name="role" value={form.role} onChange={handleChange}>
+                  <option value="staff">Staff</option>
+                  <option value="cashier">Cashier</option>
+                  <option value="manager">Manager</option>
+                </select>
+                <p className="text-xs text-slate-500">Choose a role preset to preload default permissions for this team member.</p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Assigned branch</label>
+                <select className="input-field" name="branch" value={form.branch} onChange={handleChange}>
+                  <option value="">Head office</option>
+                  {branches.map((branch) => (
+                    <option key={branch._id} value={branch._id}>{branch.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="permission-editor">
+                <div className="permission-editor-heading">
+                  <div>
+                    <span className="section-eyebrow"><FiShield /> Access setup</span>
+                    <h3>Permissions</h3>
+                    <p>Give this person only the workspace areas and actions they need.</p>
+                  </div>
+                  <span className="permission-count">{enabledPermissionCount} enabled</span>
+                </div>
+
+                <div className="permission-search">
+                  <FiSearch />
+                  <input value={permissionSearch} onChange={(event) => setPermissionSearch(event.target.value)} placeholder="Search permissions" aria-label="Search permissions" />
+                  {permissionSearch && <button type="button" onClick={() => setPermissionSearch("")} aria-label="Clear permission search"><FiX /></button>}
+                </div>
+
+                <div className="permission-section-list">
+                  {Object.entries(permissionGroups).map(([groupKey, group]) => {
+                    const visiblePermissions = group.permissions.filter((permission) => {
+                      if (!normalizedPermissionSearch) return true;
+                      const meta = permissionLabels[permission];
+                      return `${meta.label} ${meta.description} ${group.label}`.toLowerCase().includes(normalizedPermissionSearch);
+                    });
+
+                    if (!visiblePermissions.length) return null;
+                    const allEnabled = group.permissions.every((permission) => form.permissions[permission]);
+
+                    return (
+                      <div key={groupKey} className="permission-section">
+                        <div className="permission-section-header">
+                          <div><strong>{group.label}</strong><span>{group.description}</span></div>
+                          <button type="button" onClick={() => togglePermissionGroup(group.permissions)} className="permission-select-all">{allEnabled ? "Clear section" : "Select all"}</button>
+                        </div>
+                        <div className="permission-grid">
+                          {visiblePermissions.map((permission) => {
+                            const meta = permissionLabels[permission];
+                            return (
+                              <div key={permission} className="permission-card">
+                                <div className="permission-card-copy">
+                                  <strong>{meta.label}</strong>
+                                  <button type="button" onClick={() => toggleShowDetail(permission)} aria-label={`Explain ${meta.label}`}>i</button>
+                                  {showDetails[permission] && <span>{meta.description}</span>}
+                                </div>
+                                <button type="button" onClick={() => togglePermission(permission)} aria-pressed={Boolean(form.permissions[permission])} className={`permission-switch ${form.permissions[permission] ? 'is-enabled' : ''}`} aria-label={`${meta.label}: ${form.permissions[permission] ? 'enabled' : 'disabled'}`}>
+                                  <span />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button type="submit" disabled={saving} className="w-full bg-black text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition-all shadow-lg active:scale-95 disabled:bg-gray-400">
+                {saving ? "Saving..." : editingId ? "Update Account" : "Create Account"}
+              </button>
+
+              {editingId && canDeleteStaff && (
+                <button
+                  type="button"
+                  className="staff-drawer-delete"
+                  onClick={() => {
+                    const id = editingId;
+                    closeDrawer();
+                    handleDelete(id);
+                  }}
+                >
+                  <FiTrash2 /> Delete permanently
+                </button>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default Staff;

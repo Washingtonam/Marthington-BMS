@@ -1,0 +1,107 @@
+import { useEffect, useState } from "react";
+import { Outlet } from "react-router-dom";
+import Sidebar from "./Sidebar.jsx";
+import Topbar from "./Topbar.jsx";
+
+const defaultNavGroups = [
+  {
+    label: "Main",
+    items: [{ to: "/app", label: "Dashboard", icon: "◉", permission: "canViewDashboard" }],
+  },
+  {
+    label: "Sales & Operations",
+    items: [
+      { to: "/app/pos", label: "POS", icon: "🛒", permission: "canAccessPOS" },
+      { to: "/app/sales", label: "Sales", icon: "▣", permission: "canViewSales" },
+      { to: "/app/invoices", label: "Invoices", icon: "◫", permission: "canViewInvoices" },
+      { to: "/app/payments", label: "Payments", icon: "💳", permission: "canViewPayments" },
+      { to: "/app/customers", label: "Customers / CRM", icon: "◌", permission: "canViewCustomers" },
+    ],
+  },
+  {
+    label: "Catalog & Inventory",
+    items: [
+      { to: "/app/products", label: "Products", icon: "📦", permission: "canViewProducts" },
+      { to: "/app/services", label: "Services", icon: "🛠️", permission: "canViewProducts" },
+      { to: "/app/inventory", label: "Inventory", icon: "◧", permission: "canViewBranchInventory" },
+      { to: "/app/suppliers", label: "Suppliers", icon: "🏭", permission: "canViewPurchaseOrders" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾", permission: "canViewPurchaseOrders" },
+    ],
+  },
+  {
+    label: "Finance & Control",
+    items: [
+      { to: "/app/expenses", label: "Expenses", icon: "💸", permission: "canViewExpenses" },
+      { to: "/app/billing", label: "Billing", icon: "⬡", permission: "canManageBilling" },
+      { to: "/app/reports", label: "Reports", icon: "📊", permission: "canViewReports" },
+      { to: "/app/analytics", label: "Analytics", icon: "⬢", permission: "canViewReports" },
+    ],
+  },
+  {
+    label: "Team & Access",
+    items: [
+      { to: "/app/staff", label: "Staff", icon: "◎", permission: "canManageStaff" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️", permission: "canManageSettings" },
+    ],
+  },
+  {
+    label: "People & Locations",
+    items: [
+      { to: "/app/branches", label: "Branches", icon: "🏢", permission: "canViewBranches" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { to: "/app/settings", label: "Settings", icon: "⚙", permission: "canManageSettings" },
+      { to: "/app/user-guide", label: "User Guide", icon: "📘" },
+    ],
+  },
+];
+
+export default function AppShell({ children, navigationGroups = defaultNavGroups }) {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === "undefined") return "light";
+    return localStorage.getItem("theme") || "light";
+  });
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", theme === "dark");
+      document.documentElement.classList.toggle("light", theme === "light");
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", theme);
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50/90 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
+      <Sidebar
+        navigationGroups={navigationGroups}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+        theme={theme}
+        toggleTheme={toggleTheme}
+      />
+
+      <div className="lg:pl-0">
+        <Topbar
+          onMenuClick={() => setMobileOpen(true)}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+
+        <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+          {children ?? <Outlet />}
+        </main>
+      </div>
+    </div>
+  );
+}

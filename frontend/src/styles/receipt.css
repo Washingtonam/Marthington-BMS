@@ -1,0 +1,591 @@
+/* =========================================
+   RECEIPT ENGINE
+========================================= */
+
+.receipt {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  background: #ffffff;
+  border-radius: 28px;
+  padding: 24px;
+  overflow: hidden;
+
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.08);
+
+  color: #111827;
+
+  font-family:
+    Inter,
+    sans-serif;
+
+  isolation: isolate;
+}
+
+/* =========================================
+   WATERMARK
+========================================= */
+
+.receipt-watermark {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+.receipt-watermark img {
+  width: 65%;
+  object-fit: contain;
+
+  opacity: 0.05;
+
+  filter:
+    grayscale(100%);
+}
+
+/* =========================================
+   LOGO
+========================================= */
+
+.receipt-logo {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  justify-content: center;
+
+  margin-bottom: 18px;
+}
+
+.receipt-logo img {
+  display: block;
+
+  max-height: 70px;
+  max-width: 180px;
+
+  object-fit: contain;
+}
+
+/* =========================================
+   BUSINESS
+========================================= */
+
+.receipt-business {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-business h1 {
+  margin: 0;
+
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.1;
+
+  text-transform: uppercase;
+}
+
+.receipt-business p {
+  margin: 6px 0 0;
+
+  font-size: 13px;
+  color: #000000;
+}
+
+/* =========================================
+   DIVIDER
+========================================= */
+
+.receipt-divider {
+  border-top: 2px dashed #000000;
+
+  margin: 14px 0;
+}
+
+/* =========================================
+   META
+========================================= */
+
+.receipt-meta {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  gap: 10px;
+}
+
+.receipt-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dotted rgba(17, 24, 39, 0.18);
+
+  font-size: 14px;
+}
+
+.receipt-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.receipt-row-label {
+  color: #111827;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.receipt-row-value {
+  color: #111827;
+  font-weight: 700;
+  text-align: right;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* =========================================
+   ITEMS
+========================================= */
+
+.receipt-items {
+  position: relative;
+  z-index: 2;
+
+  display: grid;
+  gap: 16px;
+}
+
+.receipt-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.receipt-item-details {
+  min-width: 0;
+}
+
+.receipt-item h4 {
+  margin: 0;
+
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.receipt-item-meta {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #111827;
+  opacity: 0.76;
+}
+
+.receipt-item-total {
+  white-space: nowrap;
+
+  font-size: 15px;
+  font-weight: 900;
+}
+
+/* =========================================
+   TOTAL
+========================================= */
+
+.receipt-total {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-top: 2px double #000000;
+  border-bottom: 2px double #000000;
+  padding: 14px 0;
+  margin: 18px 0;
+}
+
+.receipt-total span {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.receipt-total strong {
+  font-size: 28px;
+  font-weight: 900;
+}
+
+/* =========================================
+   NOTES
+========================================= */
+
+.receipt-notes {
+  position: relative;
+  z-index: 2;
+}
+
+.receipt-notes h4 {
+  margin: 0 0 6px;
+
+  font-size: 14px;
+}
+
+.receipt-notes p {
+  margin: 0;
+
+  font-size: 13px;
+  line-height: 1.5;
+
+  color: #111827;
+  opacity: 0.78;
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.receipt-footer {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+}
+
+.receipt-footer p {
+  margin: 6px 0;
+
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #111827;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.receipt-footer .thank-you {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+
+  color: #111827;
+}
+
+/* =========================================
+   THEMES
+========================================= */
+
+/* MODERN */
+
+.receipt-modern {
+  border: 1px solid #f1f5f9;
+}
+
+/* MINIMAL */
+
+.receipt-minimal {
+  border: 1px solid #e5e7eb;
+
+  box-shadow: none;
+}
+
+/* CLASSIC */
+
+.receipt-classic {
+  border-radius: 0;
+
+  box-shadow: none;
+
+  font-family:
+    "Courier New",
+    monospace;
+}
+
+/* PREMIUM */
+
+.receipt-premium::before {
+  content: "";
+
+  position: absolute;
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 6px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #111827,
+      #16a34a
+    );
+}
+
+.receipt-premium {
+  position: relative;
+  border: 1px solid rgba(17,24,39,0.04);
+  border-radius: 12px;
+  padding-top: 10px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(2,6,23,0.06);
+}
+
+.receipt-premium .receipt-business h1 {
+  letter-spacing: 0.04em;
+  font-weight: 900;
+}
+
+.receipt-premium .receipt-business p,
+.receipt-premium .receipt-row-label {
+  color: #111827;
+}
+
+.receipt-premium .receipt-divider {
+  border-top: 1px dashed rgba(0,0,0,0.9);
+}
+
+/* =========================================
+   PRINT ENGINE
+========================================= */
+
+@media print {
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: white !important;
+
+    width: 100% !important;
+    height: auto !important;
+
+    overflow: visible !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt,
+  .receipt * {
+    visibility: visible !important;
+    font-weight: 700 !important;
+    color: #000000 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    background: transparent !important;
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .receipt span,
+  .receipt strong,
+  .receipt h1,
+  .receipt h4,
+  .receipt p {
+    font-weight: 700 !important;
+    color: #000000 !important;
+  }
+
+  .receipt .text-gray-500,
+  .receipt .text-gray-700,
+  .receipt .text-gray-900,
+  .receipt .opacity-80,
+  .receipt .opacity-50 {
+    color: #000000 !important;
+    opacity: 1 !important;
+  }
+
+  .receipt {
+    position: absolute !important;
+
+    left: 50% !important;
+    top: 0 !important;
+
+    transform: translateX(-50%) !important;
+
+    width: 80mm !important;
+    max-width: 80mm !important;
+
+    padding: 12px !important;
+
+    margin: 0 !important;
+
+    border-radius: 0 !important;
+
+    box-shadow: none !important;
+
+    overflow: hidden !important;
+
+    background: white !important;
+
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .receipt::before {
+    display: block !important;
+  }
+
+  .receipt-logo {
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .receipt-logo img {
+    display: block !important;
+
+    max-width: 120px !important;
+    max-height: 55px !important;
+
+    object-fit: contain !important;
+  }
+
+  .receipt-watermark {
+    display: flex !important;
+  }
+
+  .receipt-watermark img {
+    opacity: 0.05 !important;
+  }
+
+  .receipt-total {
+    background: #111827 !important;
+    color: white !important;
+
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  .receipt-total span,
+  .receipt-total strong {
+    color: white !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 640px) {
+
+  .receipt {
+    max-width: 100%;
+
+    border-radius: 22px;
+
+    padding: 18px;
+  }
+
+  .receipt-business h1 {
+    font-size: 24px;
+  }
+
+  .receipt-total strong {
+    font-size: 24px;
+  }
+}
+
+/* =========================================
+   ULTRA PRINT FIX
+========================================= */
+
+body.printing-receipt {
+  background: white !important;
+}
+
+body.printing-receipt .app-shell,
+body.printing-receipt .sidebar,
+body.printing-receipt .topbar,
+body.printing-receipt .no-print {
+  display: none !important;
+}
+
+body.printing-receipt .content-area {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.printing-receipt .receipt {
+  position: fixed !important;
+
+  top: 0 !important;
+  left: 50% !important;
+
+  transform: translateX(-50%) !important;
+
+  width: 80mm !important;
+  max-width: 80mm !important;
+
+  margin: 0 !important;
+
+  border-radius: 0 !important;
+
+  box-shadow: none !important;
+
+  background: white !important;
+
+  z-index: 999999 !important;
+
+  print-color-adjust: exact !important;
+  -webkit-print-color-adjust: exact !important;
+}
+
+body.printing-receipt .receipt-total {
+  background: #111827 !important;
+  color: white !important;
+
+  print-color-adjust: exact !important;
+  -webkit-print-color-adjust: exact !important;
+}
+
+body.printing-receipt .receipt-total span,
+body.printing-receipt .receipt-total strong {
+  color: white !important;
+}
+
+body.printing-receipt .receipt-watermark img {
+  opacity: 0.05 !important;
+}
+
+@media print {
+
+  html,
+  body {
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: white !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+}
+

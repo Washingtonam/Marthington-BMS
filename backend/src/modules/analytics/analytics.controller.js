@@ -1,0 +1,214 @@
+import mongoose from "mongoose";
+import Business from "../businesses/business.model.js";
+import Sale from "../sales/sale.model.js";
+import Product from "../products/product.model.js";
+import Invoice from "../invoices/invoice.model.js";
+import Expense from "../expenses/expense.model.js";
+import School from "../schools/School.js";
+import Student from "../schools/Student.js";
+import BranchInventory from "../branches/branchInventory.model.js";
+import { getScopedBranchQuery, isPrivileged } from "../../utils/branchAccess.js";
+
+const retailSalesFilter = (businessId) => ({
+  $and: [
+    {
+      $or: [
+        { business: businessId },
+        { businessId: businessId }
+      ]
+    },
+    {
+      $or: [
+        { industryType: "retail" },
+        { industryType: { $exists: false } }
+      ]
+    }
+  ]
+});
+
+const getAnalytics = async (req, res) => {
+  try {
+    // 1. Fetch business and check industry type safely
+    const business = await Business.findById(req.user?.businessId).lean();
+    const industry = business?.industryType?.trim() || "retail";
+
+    if (industry !== "retail") {
+      return res.status(200).json({
+        success: true,
+        data: {
+          totalSales: 0,
+          productsCount: 0
+        }
+      });
+    }
+
+    const businessObjectId = new mongoose.Types.ObjectId(req.user.businessId);
+    const branchQuery = getScopedBranchQuery(req.user, businessObjectId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these analytics" });
+
+    // 2. Original retail metrics calculation logic goes here...
+    const sales = await Sale.find({
+      ...retailSalesFilter(businessObjectId),
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
+    }).lean();
+    const products = isPrivileged(req.user) || !branchQuery.branch
+      ? await Product.find({ business: businessObjectId }).lean()
+      : [];
+    const branchInventory = branchQuery.branch
+      ? await BranchInventory.find({ business: businessObjectId, branch: branchQuery.branch })
+        .populate("product", "name price")
+        .lean()
+      : [];
+
+    const totalSales = sales.length;
+    const productsCount = products.length;
+
+    const totalRevenue = sales.reduce(
+      (sum, sale) => sum + (sale.totalAmount || 0),
+      0
+    );
+
+    const grossProfit = sales.reduce((salesTotal, sale) => {
+      const saleProfit = sale.totalProfit !== undefined && sale.totalProfit !== null
+        ? Number(sale.totalProfit) || 0
+        : (sale.items || []).reduce((itemsTotal, item) => {
+          const sellingPrice = Number(item.sellingPrice ?? item.price ?? 0);
+          const costPrice = Number(item.costPrice ?? item.cost ?? 0);
+          const quantity = Number(item.quantity ?? 0);
+          return itemsTotal + (sellingPrice - costPrice) * quantity;
+        }, 0);
+      return salesTotal + saleProfit;
+    }, 0);
+
+    const approvedExpenses = await Expense.find({
+      business: businessObjectId,
+      status: "approved",
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
+    }).lean();
+
+    const totalOperatingExpenses = approvedExpenses.reduce(
+      (sum, expense) => sum + (Number(expense.amount) || 0),
+      0
+    );
+
+    // 🔥 NET PROFIT = GROSS PROFIT - OPERATING EXPENSES
+    const totalProfit = grossProfit - totalOperatingExpenses;
+
+    const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+
+    const inventoryValue = branchInventory.length
+      ? branchInventory.reduce(
+        (sum, item) => sum + (Number(item.branchPrice ?? item.product?.price) || 0) * (Number(item.quantity) || 0),
+        0
+      )
+      : products.reduce(
+      (sum, product) => sum + (Number(product.price) || 0) * (Number(product.stock) || 0),
+      0
+    );
+
+    const lowStockCount = branchInventory.length
+      ? branchInventory.filter((item) => Number(item.quantity) <= 5).length
+      : products.filter((product) => Number(product.stock) <= 5).length;
+
+    // 🔥 ADD AR/AP METRICS
+    const invoices = await Invoice.find({ business: businessObjectId }).lean();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const sixtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const ninetyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+
+    const receivables = invoices.filter(inv => inv.transactionType === "outgoing");
+    const payables = invoices.filter(inv => inv.transactionType === "incoming");
+
+    const totalReceivable = receivables.reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const totalPayable = payables.reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const overdueReceivables = receivables
+      .filter(inv => inv.status === "overdue" || (inv.dueDate && new Date(inv.dueDate) < new Date()))
+      .reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const overduePayables = payables
+      .filter(inv => inv.status === "overdue" || (inv.dueDate && new Date(inv.dueDate) < new Date()))
+      .reduce((sum, inv) => sum + (inv.balanceDue || 0), 0);
+    const pendingInvoices = invoices.filter(inv => inv.status === "pending" || inv.status === "draft").length;
+
+    const map = {};
+    sales.forEach((sale) => {
+      (sale.items || []).forEach((item) => {
+        if (!item?.name) return;
+        if (!map[item.name]) {
+          map[item.name] = {
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        map[item.name].quantity += Number(item.quantity) || 0;
+        map[item.name].revenue += Number(item.total) || 0;
+      });
+    });
+
+    const topProducts = Object.values(map)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+
+    const salesTrendMap = {};
+    sales.forEach((sale) => {
+      const date = new Date(sale.createdAt).toLocaleDateString();
+      salesTrendMap[date] = (salesTrendMap[date] || 0) + (sale.totalAmount || 0);
+    });
+
+    const salesTrend = Object.entries(salesTrendMap).map(([date, revenue]) => ({ date, revenue }));
+
+    const metrics = {
+      totalSales,
+      productsCount,
+      totalRevenue,
+      grossProfit,
+      totalOperatingExpenses,
+      totalProfit,
+      averageOrderValue,
+      inventoryValue,
+      lowStockCount,
+      totalReceivable,
+      totalPayable,
+      overdueReceivables,
+      overduePayables,
+      pendingInvoices
+    };
+
+    return res.status(200).json({
+      success: true,
+      metrics,
+      salesTrend,
+      topProducts,
+      lowStockProducts: []
+    });
+  } catch (err) {
+    console.error("Restoration analytics block failed:", err);
+    return res.status(200).json({
+      success: true,
+      metrics: {
+        totalSales: 0,
+        productsCount: 0,
+        totalRevenue: 0,
+        grossProfit: 0,
+        totalOperatingExpenses: 0,
+        totalProfit: 0,
+        averageOrderValue: 0,
+        inventoryValue: 0,
+        lowStockCount: 0,
+        totalReceivable: 0,
+        totalPayable: 0,
+        overdueReceivables: 0,
+        overduePayables: 0,
+        pendingInvoices: 0
+      },
+      salesTrend: [],
+      topProducts: [],
+      lowStockProducts: []
+    });
+  }
+};
+
+export default {
+  getAnalytics
+};
