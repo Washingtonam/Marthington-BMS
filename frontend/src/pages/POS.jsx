@@ -474,7 +474,7 @@ useEffect(() => {
           ))}
         </div>
 
-        <div className="grid max-h-[calc(100vh-180px)] grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar md:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid max-h-[calc(100vh-180px)] grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar">
           {activeTab === "products" ? (
             filteredProducts.map(p => {
               const pulseActive = pulseId === p._id && pulseType === "product";
