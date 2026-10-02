@@ -247,14 +247,7 @@ const App = () => {
             />
 
             {/* CUSTOMER VIEW (STANDALONE) */}
-            <Route 
-              path="/app/customer-view" 
-              element={
-                <ProtectedRoute>
-                  <CustomerView />
-                </ProtectedRoute>
-              } 
-            />
+            <Route path="/app/customer-view" element={<CustomerView />} />
 
             {/* ================= NORMAL APP ================= */}
             <Route
