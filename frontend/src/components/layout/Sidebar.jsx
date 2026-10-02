@@ -78,6 +78,7 @@ export default function Sidebar({
   setMobileOpen,
   theme,
   toggleTheme,
+  onCollapseChange,
 }) {
   const { pathname } = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(true);
@@ -124,6 +125,12 @@ export default function Sidebar({
 
     return () => clearCollapseTimer();
   }, [isCollapsed, mobileOpen]);
+
+  useEffect(() => {
+    if (typeof onCollapseChange === "function") {
+      onCollapseChange(isCollapsed);
+    }
+  }, [isCollapsed, onCollapseChange]);
 
   const canAccessItem = (item) => {
     if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;

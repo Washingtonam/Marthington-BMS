@@ -65,6 +65,7 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
     return localStorage.getItem("theme") || "light";
   });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -89,9 +90,10 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
         setMobileOpen={setMobileOpen}
         theme={theme}
         toggleTheme={toggleTheme}
+        onCollapseChange={setSidebarCollapsed}
       />
 
-      <div className="lg:pl-0">
+      <div className={mobileOpen ? "" : sidebarCollapsed ? "lg:pl-20" : "lg:pl-72"}>
         <Topbar
           onMenuClick={() => setMobileOpen(true)}
           theme={theme}
