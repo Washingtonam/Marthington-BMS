@@ -5,7 +5,7 @@ import { getServices } from "../api/services.js";
 import { getBranches, getBranchInventory } from "../api/branches.js";
 import { getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
-import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
+import { buildCustomerDisplayUrl, resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const formatDisplayText = (value = "") => {
@@ -337,7 +337,7 @@ useEffect(() => {
   const openCustomerDisplay = useCallback(() => {
     if (typeof window === "undefined") return;
 
-    const displayUrl = `${window.location.origin}/app/customer-view`;
+    const displayUrl = buildCustomerDisplayUrl(window.location.href);
     const displayWindow = window.open(
       displayUrl,
       "marthington_customer_display",

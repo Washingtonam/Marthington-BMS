@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCustomerDisplayTitle } from '../utils/customerDisplay.js';
+import { buildCustomerDisplayUrl, resolveCustomerDisplayTitle } from '../utils/customerDisplay.js';
 
 describe('resolveCustomerDisplayTitle', () => {
   it('uses the custom display message when one is set', () => {
@@ -12,5 +12,11 @@ describe('resolveCustomerDisplayTitle', () => {
 
   it('falls back to a generic welcome when no business name is available', () => {
     expect(resolveCustomerDisplayTitle('', '   ')).toBe('Welcome');
+  });
+});
+
+describe('buildCustomerDisplayUrl', () => {
+  it('routes to the hash-based customer view page', () => {
+    expect(buildCustomerDisplayUrl('https://example.com/app')).toBe('https://example.com/#/app/customer-view');
   });
 });
