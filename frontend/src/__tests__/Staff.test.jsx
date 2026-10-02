@@ -41,7 +41,7 @@ describe('Staff page', () => {
     expect(screen.getByText('Branches')).toBeTruthy()
   })
 
-  it('collapses the sidebar back to its compact rail after a short idle period', () => {
+  it('collapses the sidebar back to its compact rail after a longer idle period', () => {
     vi.useFakeTimers()
 
     render(
@@ -57,7 +57,13 @@ describe('Staff page', () => {
     expect(screen.getByText('Dashboard')).toBeTruthy()
 
     act(() => {
-      vi.advanceTimersByTime(2200)
+      vi.advanceTimersByTime(9000)
+    })
+
+    expect(screen.getByText('Dashboard')).toBeTruthy()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
     })
 
     expect(screen.queryByText('Dashboard')).toBeNull()

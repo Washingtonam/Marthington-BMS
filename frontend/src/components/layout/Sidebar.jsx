@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
+const SIDEBAR_AUTO_COLLAPSE_MS = 10000;
 
 const getStoredUser = () => {
   try {
@@ -96,7 +97,7 @@ export default function Sidebar({
     setIsCollapsed(false);
     collapseTimerRef.current = setTimeout(() => {
       setIsCollapsed(true);
-    }, 1800);
+    }, SIDEBAR_AUTO_COLLAPSE_MS);
   };
 
   const scheduleCollapse = () => {
@@ -118,7 +119,7 @@ export default function Sidebar({
     if (!isCollapsed) {
       collapseTimerRef.current = setTimeout(() => {
         setIsCollapsed(true);
-      }, 1800);
+      }, SIDEBAR_AUTO_COLLAPSE_MS);
     }
 
     return () => clearCollapseTimer();
@@ -194,25 +195,42 @@ export default function Sidebar({
           mobileOpen ? "w-72 translate-x-0" : "-translate-x-full lg:translate-x-0"
         } ${!mobileOpen ? (isCollapsed ? "lg:w-20" : "lg:w-72") : ""}`}
       >
-        <div className={`flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 ${isCollapsed ? "lg:justify-center lg:px-2" : ""}`}>
-          {!isCollapsed && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
-                Marthington
-              </p>
-              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Business Hub
-              </p>
+        <div className={`flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 ${isCollapsed ? "lg:justify-center lg:px-2 lg:py-3" : ""}`}>
+          {isCollapsed ? (
+            <div className="flex items-center justify-center">
+              <img
+                src="/logo-icon.png"
+                alt="Marthington"
+                className="h-8 w-8 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+              />
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <img
+                src="/logo-icon.png"
+                alt="Marthington"
+                className="h-9 w-9 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+              />
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
+                  Marthington
+                </p>
+                <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                  Business Hub
+                </p>
+              </div>
             </div>
           )}
 
-          <button
-            className={`rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 ${isCollapsed ? "lg:hidden" : ""}`}
-            onClick={() => setMobileOpen(false)}
-            type="button"
-          >
-            ✕
-          </button>
+          {!isCollapsed && (
+            <button
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              onClick={() => setMobileOpen(false)}
+              type="button"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
