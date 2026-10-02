@@ -1,5 +1,8 @@
 import Business from "./business.model.js";
+import User from "../users/user.model.js";
+import ReportSubscription from "../admin/reportSubscription.model.js";
 import cloudinary from "../../utils/cloudinary.js";
+import { normalizeReportDeliveryTime } from "../../utils/reportDeliverySettings.js";
 
 // 🔥 NORMALIZE BUSINESS RESPONSE (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -56,6 +59,8 @@ export const getBusiness = async (req, res) => {
         address: "",
         phone: "",
         email: "",
+        reportNotificationsEnabled: true,
+        reportDeliveryTime: "18:00",
         receiptFooter: "",
         receiptTheme: "",
         logo: "",
@@ -99,6 +104,8 @@ export const getBusiness = async (req, res) => {
       address: rawBusiness?.address || "",
       phone: rawBusiness?.phone || "",
       email: rawBusiness?.email || "",
+      reportNotificationsEnabled: rawBusiness?.reportNotificationsEnabled !== false,
+      reportDeliveryTime: normalizeReportDeliveryTime(rawBusiness?.reportDeliveryTime),
       receiptFooter: rawBusiness?.receiptFooter || "",
       receiptTheme: rawBusiness?.receiptTheme || "",
       logo: rawBusiness?.logo || "",
@@ -152,6 +159,8 @@ export const getBusiness = async (req, res) => {
       address: "",
       phone: "",
       email: "",
+      reportNotificationsEnabled: true,
+      reportDeliveryTime: "18:00",
       receiptFooter: "",
       receiptTheme: "",
       logo: "",
@@ -180,6 +189,54 @@ export const getBusiness = async (req, res) => {
 };
 
 // 🔥 UPDATE BUSINESS SETTINGS (HARDENED)
+const syncBusinessReportDeliverySettings = async (business, actorId) => {
+  const recipient = await User.findOne({ businessId: business._id }).select("_id name email").lean();
+  const recipientEmail = recipient?.email || business.email || "";
+
+  if (!recipientEmail) {
+    return null;
+  }
+
+  const normalizedTime = normalizeReportDeliveryTime(business.reportDeliveryTime);
+  const nextStatus = business.reportNotificationsEnabled === false ? "admin_disabled" : "enabled";
+  const upsertPayload = {
+    recipientEmail: recipientEmail.toLowerCase(),
+    recipientName: recipient?.name || "",
+    reportType: "overview",
+    reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
+    frequency: "daily",
+    sendTime: normalizedTime,
+    timezone: "Africa/Lagos",
+    weeklyDay: 1,
+    monthlyDay: "last",
+    status: nextStatus,
+    isRemoved: false,
+    updatedBy: actorId
+  };
+
+  const existingSubscription = await ReportSubscription.findOne({
+    business: business._id,
+    reportType: "overview",
+    frequency: "daily"
+  }).lean();
+
+  if (existingSubscription) {
+    await ReportSubscription.findByIdAndUpdate(existingSubscription._id, upsertPayload, { new: true, runValidators: true });
+    return existingSubscription._id;
+  }
+
+  if (business.reportNotificationsEnabled === false) {
+    return null;
+  }
+
+  return ReportSubscription.create({
+    ...upsertPayload,
+    business: business._id,
+    createdBy: actorId,
+    updatedBy: actorId
+  });
+};
+
 export const updateBusiness = async (req, res) => {
   try {
     if (!req.user?.businessId) {
@@ -209,6 +266,7 @@ export const updateBusiness = async (req, res) => {
       businessType,
       industryType,
       reportNotificationsEnabled,
+      reportDeliveryTime,
       logo,
       approvalRules,
       whatsappEnabled,
@@ -244,9 +302,16 @@ export const updateBusiness = async (req, res) => {
     business.website = website ?? business.website;
     business.supportEmail = supportEmail ?? business.supportEmail;
     business.supportPhone = supportPhone ?? business.supportPhone;
-    business.reportNotificationsEnabled = reportNotificationsEnabled !== undefined
+    const nextReportNotificationsEnabled = reportNotificationsEnabled !== undefined
       ? String(reportNotificationsEnabled) !== "false"
       : business.reportNotificationsEnabled !== false;
+
+    const nextReportDeliveryTime = normalizeReportDeliveryTime(
+      reportDeliveryTime !== undefined ? reportDeliveryTime : business.reportDeliveryTime
+    );
+
+    business.reportNotificationsEnabled = nextReportNotificationsEnabled;
+    business.reportDeliveryTime = nextReportDeliveryTime;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;
@@ -303,6 +368,7 @@ export const updateBusiness = async (req, res) => {
     }
 
     await business.save();
+    await syncBusinessReportDeliverySettings(business, req.user.id || req.user._id);
     return res.json(formatBusiness(business));
   } catch (err) {
     console.error("❌ UPDATE BUSINESS ERROR:", err);

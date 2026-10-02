@@ -28,6 +28,7 @@ const Settings = () => {
     supportEmail: "",
     supportPhone: "",
     reportNotificationsEnabled: true,
+    reportDeliveryTime: "18:00",
     businessType: "general_services",
     receiptFooter: "",
     receiptTheme: "modern",
@@ -69,6 +70,7 @@ const Settings = () => {
       supportEmail: business.supportEmail || "",
       supportPhone: business.supportPhone || "",
       reportNotificationsEnabled: business.reportNotificationsEnabled !== false,
+      reportDeliveryTime: business.reportDeliveryTime || "18:00",
       businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
       receiptTheme: business.receiptTheme || "modern",
@@ -423,10 +425,23 @@ const Settings = () => {
                   <input className="input-field" name="supportPhone" value={form.supportPhone} onChange={handleChange} placeholder="+234..." />
                 </div>
               </div>
-              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800">
-                <input type="checkbox" name="reportNotificationsEnabled" checked={form.reportNotificationsEnabled} onChange={(event) => setForm((prev) => ({ ...prev, reportNotificationsEnabled: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600" />
-                <span><strong className="block text-slate-800 dark:text-slate-100">Receive scheduled business reports</strong><span className="text-xs text-slate-500 dark:text-slate-400">Turn off email delivery for this business without changing the schedules.</span></span>
-              </label>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800">
+                <label className="flex items-start gap-3 text-sm">
+                  <input type="checkbox" name="reportNotificationsEnabled" checked={form.reportNotificationsEnabled} onChange={(event) => setForm((prev) => ({ ...prev, reportNotificationsEnabled: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                  <span><strong className="block text-slate-800 dark:text-slate-100">Receive scheduled business reports</strong><span className="text-xs text-slate-500 dark:text-slate-400">Turn the daily business email on or off without deleting the schedule.</span></span>
+                </label>
+
+                <div className="mt-4 flex flex-col gap-1 md:max-w-xs">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Daily report time</label>
+                  <input
+                    type="time"
+                    value={form.reportDeliveryTime}
+                    disabled={!form.reportNotificationsEnabled}
+                    onChange={(event) => setForm((prev) => ({ ...prev, reportDeliveryTime: event.target.value }))}
+                    className="input-field disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                </div>
+              </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Type</label>
                 <select className="input-field" name="businessType" value={form.businessType} onChange={handleChange}>

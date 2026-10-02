@@ -4,6 +4,7 @@ import ReportSubscription from "../modules/admin/reportSubscription.model.js";
 import ReportDeliveryLog from "../modules/admin/reportDeliveryLog.model.js";
 import { getReportSnapshot } from "../modules/admin/reportSnapshot.js";
 import { sendReportEmail } from "../utils/emailService.js";
+import { normalizeReportDeliveryTime } from "../utils/reportDeliverySettings.js";
 import cron from "node-cron";
 
 export const getLocalScheduleParts = (date, timezone) => {
@@ -123,7 +124,7 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
         reportType: "overview",
         reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
         frequency: "daily",
-        sendTime: "18:00",
+        sendTime: normalizeReportDeliveryTime(business.reportDeliveryTime),
         weeklyDay: 1,
         monthlyDay: "last",
         timezone: "Africa/Lagos",
@@ -148,7 +149,7 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
 
     try {
       const business = await Business.findById(subscription.business)
-        .select("name address phone email website supportEmail supportPhone logo reportNotificationsEnabled")
+        .select("name address phone email website supportEmail supportPhone logo reportNotificationsEnabled reportDeliveryTime")
         .lean();
       if (!business) throw new Error("Business not found");
       if (business.reportNotificationsEnabled === false) continue;

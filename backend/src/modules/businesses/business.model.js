@@ -15,6 +15,7 @@ const businessSchema = new mongoose.Schema(
     supportEmail: { type: String, default: "" },
     supportPhone: { type: String, default: "" },
     reportNotificationsEnabled: { type: Boolean, default: true },
+    reportDeliveryTime: { type: String, default: "18:00" },
 
     logo: { type: String, default: "" },
 
