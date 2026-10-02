@@ -198,11 +198,11 @@ export default function Sidebar({
             expandSidebar();
           }
         }}
-        className={`fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-slate-200 bg-white/95 backdrop-blur transition-all duration-200 dark:border-slate-800 dark:bg-slate-950/95 ${
+        className={`fixed left-0 top-0 z-40 flex h-screen flex-col overflow-hidden border-r border-slate-200/80 bg-white/70 bg-gradient-to-b from-white/80 via-white/70 to-slate-50/75 shadow-[12px_0_32px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-200 ring-1 ring-white/60 dark:border-slate-700/80 dark:bg-slate-950/70 dark:from-slate-950/80 dark:via-slate-950/75 dark:to-slate-900/80 dark:ring-slate-800/80 ${
           mobileOpen ? "w-72 translate-x-0" : "-translate-x-full lg:translate-x-0"
         } ${!mobileOpen ? (isCollapsed ? "lg:w-20" : "lg:w-72") : ""}`}
       >
-        <div className={`flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800 ${isCollapsed ? "lg:justify-center lg:px-2 lg:py-3" : ""}`}>
+        <div className={`flex items-center justify-between border-b border-slate-200/80 bg-white/20 px-5 py-4 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-950/15 ${isCollapsed ? "lg:justify-center lg:px-2 lg:py-3" : ""}`}>
           {isCollapsed ? (
             <div className="flex items-center justify-center">
               <img
@@ -240,7 +240,7 @@ export default function Sidebar({
           )}
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin scrollbar-thumb-slate-200/80 scrollbar-track-transparent dark:scrollbar-thumb-slate-700/80">
           {visibleGroups.map((group, groupIndex) => {
             const isPermanent = groupIndex === 0;
             const isOpen = isPermanent || openGroups[group.label] !== false;
@@ -279,12 +279,12 @@ export default function Sidebar({
                       if (!mobileOpen) setIsCollapsed(true);
                     }}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-150 active:scale-[0.99] ${
+                      `flex items-center gap-3 rounded-xl border border-transparent text-sm font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all duration-150 active:scale-[0.99] ${
                         isCollapsed ? "justify-center px-0 py-2.5" : "justify-start px-3 py-2.5"
                       } ${
                         isActive
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
-                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                          ? "border-emerald-200 bg-emerald-50/90 text-emerald-700 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-400"
+                          : "text-slate-600 hover:border-slate-200/80 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-300 dark:hover:border-slate-700/70 dark:hover:bg-slate-800/80 dark:hover:text-slate-100"
                       }`
                     }
                     title={item.label}
@@ -301,10 +301,10 @@ export default function Sidebar({
           })}
         </nav>
 
-        <div className={`border-t border-slate-200 p-3 dark:border-slate-800 ${isCollapsed ? "lg:px-2" : ""}`}>
+        <div className={`border-t border-slate-200/80 bg-white/15 p-3 backdrop-blur-sm dark:border-slate-700/80 ${isCollapsed ? "lg:px-2" : ""}`}>
           <button
             onClick={toggleTheme}
-            className={`flex w-full items-center rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 ${isCollapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"}`}
+            className={`flex w-full items-center rounded-xl border border-slate-200/80 bg-white/70 text-sm font-medium text-slate-700 shadow-sm shadow-slate-200/50 transition-all duration-150 hover:bg-slate-50/90 active:scale-[0.99] dark:border-slate-700/80 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800/80 ${isCollapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"}`}
             type="button"
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
