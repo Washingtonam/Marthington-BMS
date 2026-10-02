@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInvoiceSummary } from "../utils/invoiceSummary.js";
+import { buildInvoiceSummary, resolveInvoiceSummary } from "../utils/invoiceSummary.js";
 
 describe("invoice summary", () => {
   it("totals collected, pending, and overdue amounts from loaded invoices", () => {
@@ -29,5 +29,26 @@ describe("invoice summary", () => {
 
     expect(summary.totalAmount).toBe(1000);
     expect(summary.totalCollected).toBe(1000);
+  });
+
+  it("prefers the computed invoice totals when the server summary is empty or zero", () => {
+    const summary = resolveInvoiceSummary([
+      { status: "draft", paymentStatus: "Unpaid", totalAmount: 5000, amountPaid: 2000, balanceDue: 3000, dueDate: "2026-09-01" },
+      { status: "paid", paymentStatus: "Fully Paid", totalAmount: 4000, amountPaid: 4000, balanceDue: 0 }
+    ], {
+      totalBalanceDue: 0,
+      totalAmount: 0,
+      totalCollected: 0,
+      pendingAmount: 0,
+      overdueAmount: 0,
+      paidCount: 0,
+      pendingCount: 0,
+      overdueCount: 0
+    }, new Date("2026-09-29T00:00:00.000Z"));
+
+    expect(summary.totalAmount).toBe(9000);
+    expect(summary.totalCollected).toBe(6000);
+    expect(summary.pendingAmount).toBe(3000);
+    expect(summary.overdueAmount).toBe(3000);
   });
 });

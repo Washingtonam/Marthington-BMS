@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
 import { getInvoices, getInvoice, createInvoice, updateInvoicePayment, completeInvoicePickup, updateInvoiceItemProgress, getInvoicePayments, updateInvoice, deleteInvoice, shareInvoice, getInvoiceEmailHistory, bulkUpdateInvoiceStatus, bulkDeleteInvoices } from "../api/invoices.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { resolveInvoiceSummary } from "../utils/invoiceSummary.js";
 import { getBranches } from "../api/branches.js";
 import { getProducts } from "../api/products.js";
 import { getServices } from "../api/services.js";
@@ -158,16 +159,9 @@ const Invoices = () => {
         setInvoices(processedInvoices);
         if (data?.pagination) setPagination(data.pagination);
         else setPagination({ page, limit: pageSize, totalItems: invoiceList.length, totalPages: invoiceList.length ? 1 : 0 });
-        setServerSummary(data?.summary || {
-          totalBalanceDue: invoiceList.reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          totalAmount: invoiceList.reduce((sum, invoice) => sum + Number(invoice.totalAmount || 0), 0),
-          totalCollected: invoiceList.reduce((sum, invoice) => sum + Number(invoice.amountPaid || 0), 0),
-          pendingAmount: invoiceList.filter(invoice => !["Fully Paid", "Returned"].includes(invoice.paymentStatus)).reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          overdueAmount: invoiceList.filter(invoice => invoice.status === "overdue").reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
-          paidCount: invoiceList.filter(invoice => invoice.paymentStatus === "Fully Paid").length,
-          pendingCount: invoiceList.filter(invoice => invoice.paymentStatus !== "Fully Paid").length,
-          overdueCount: invoiceList.filter(invoice => invoice.status === "overdue").length
-        });
+
+        const resolvedSummary = resolveInvoiceSummary(processedInvoices, data?.summary || {});
+        setServerSummary(resolvedSummary);
       } catch (err) {
         console.error("Failed to load invoices:", err);
         setInvoices([]);

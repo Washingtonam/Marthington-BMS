@@ -33,3 +33,16 @@ export const buildInvoiceSummary = (invoices = [], now = new Date()) => {
     overdueCount: 0
   });
 };
+
+export const resolveInvoiceSummary = (invoices = [], serverSummary = {}, now = new Date()) => {
+  const computedSummary = buildInvoiceSummary(invoices, now);
+
+  return Object.keys(computedSummary).reduce((summary, key) => {
+    const serverValue = Number(serverSummary?.[key] ?? Number.NaN);
+    const computedValue = Number(computedSummary[key] ?? 0);
+    const hasMeaningfulServerValue = Number.isFinite(serverValue) && (serverValue > 0 || computedValue === 0);
+
+    summary[key] = hasMeaningfulServerValue ? serverValue : computedValue;
+    return summary;
+  }, { ...computedSummary });
+};
