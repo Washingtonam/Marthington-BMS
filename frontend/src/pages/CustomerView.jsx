@@ -30,7 +30,17 @@ const CustomerView = () => {
 
     bc.addEventListener("message", handleMessage);
 
-    // NEW: Ask the POS to send the current data immediately upon opening
+    const launchFullScreen = async () => {
+      try {
+        if (document.fullscreenEnabled) {
+          await document.documentElement.requestFullscreen?.();
+        }
+      } catch (err) {
+        // Browser may block fullscreen if not allowed; the external display still opens normally.
+      }
+    };
+
+    launchFullScreen();
     bc.postMessage({ type: "REQUEST_SYNC" });
 
     return () => {

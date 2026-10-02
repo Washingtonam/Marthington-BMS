@@ -334,8 +334,40 @@ useEffect(() => {
 
   const openCustomerDisplay = useCallback(() => {
     if (typeof window === "undefined") return;
+
     const displayUrl = `${window.location.origin}/app/customer-view`;
-    window.open(displayUrl, "_blank", "noopener,noreferrer");
+    const displayWindow = window.open(
+      displayUrl,
+      "marthington_customer_display",
+      "popup=yes,noopener,noreferrer,width=1200,height=800"
+    );
+
+    if (!displayWindow) return;
+
+    try {
+      const currentLeft = Number.isFinite(window.screenLeft) ? window.screenLeft : (window.screenX ?? 0);
+      const currentTop = Number.isFinite(window.screenTop) ? window.screenTop : (window.screenY ?? 0);
+      const primaryWidth = window.screen?.width || window.innerWidth || 1280;
+      const secondaryLeft = currentLeft >= 0
+        ? currentLeft + (window.outerWidth || window.innerWidth || 1280) + 24
+        : currentLeft - 1280;
+
+      displayWindow.moveTo(Math.max(secondaryLeft, currentLeft >= 0 ? currentLeft + 40 : -2000), currentTop);
+      displayWindow.resizeTo(Math.max(1200, primaryWidth), Math.max(700, window.screen?.availHeight || window.innerHeight || 768));
+      displayWindow.focus();
+
+      setTimeout(() => {
+        try {
+          if (displayWindow.document?.fullscreenEnabled) {
+            displayWindow.document.documentElement.requestFullscreen?.().catch(() => {});
+          }
+        } catch (err) {
+          console.warn("Customer display fullscreen request failed:", err);
+        }
+      }, 250);
+    } catch (err) {
+      console.warn("Customer display positioning failed:", err);
+    }
   }, []);
 
   const scrollToCart = useCallback(() => {
