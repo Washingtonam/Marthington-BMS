@@ -157,59 +157,61 @@ const Dashboard = () => {
         ]
       : [
           { label: "Revenue", value: formatCurrency(metrics.totalRevenue), detail: "Today", tone: "emerald" },
-          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), detail: "Today · before expenses", tone: "blue" },
-          { label: "Approved Expenses", value: formatCurrency(metrics.totalOperatingExpenses), detail: "Today's approved expenses", tone: "amber" },
-          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), detail: "Today's net result", tone: "slate" },
+          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), detail: "Sales profit before expenses · all time", tone: "blue" },
+          { label: "Approved Expenses", value: formatCurrency(metrics.totalOperatingExpenses), detail: "Approved expense records · all time", tone: "amber" },
+          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), detail: "Net operating result · all time", tone: "slate" },
         ];
 
   const quickActions = [
     {
       title: "Open POS / New Sale",
-      description: "Start a transaction quickly for retail or service collection.",
+      description: "New checkout transaction",
       action: () => navigate("/app/pos"),
       accent: true,
       icon: "🛒",
+      badge: null,
     },
     {
       title: "Create Invoice",
-      description: "Raise and send an invoice without leaving the dashboard.",
+      description: "Raise customer bill",
       action: () => navigate("/app/invoices"),
       accent: false,
       icon: "🧾",
+      badge: null,
     },
     {
       title: "Add Customer / Entity",
-      description: "Create a client, student, or patient profile instantly.",
+      description: "Create client profile",
       action: () => navigate("/app/customers"),
       accent: false,
       icon: "👤",
+      badge: null,
     },
     ...(canReviewPayments ? [{
       title: `Review Payments${pendingPayments ? ` (${pendingPayments})` : ""}`,
-      description: pendingPayments
-        ? "Confirm customer transfers and release verified orders."
-        : "No manual payment approvals are waiting right now.",
+      description: pendingPayments ? "Confirm transfers" : "No approvals pending",
       action: () => navigate("/app/payments"),
       accent: pendingPayments > 0,
       icon: "✓",
+      badge: pendingPayments > 0 ? String(pendingPayments) : null,
     }] : []),
     ...(canReviewExpenses ? [{
       title: `Expense Approvals${pendingExpenseCount ? ` (${pendingExpenseCount})` : ""}`,
-      description: pendingExpenseCount
-        ? "Open the pending expense queue to review submissions."
-        : "No expense approvals are waiting right now.",
+      description: pendingExpenseCount ? "Review queue" : "No approvals pending",
       action: () => navigate("/app/expenses"),
       accent: pendingExpenseCount > 0,
       icon: "◷",
+      badge: pendingExpenseCount > 0 ? String(pendingExpenseCount) : null,
     }] : []),
   ];
 
   const moduleTiles = [
-    { label: "Inventory", to: "/app/inventory", icon: "📦" },
-    { label: "Staff", to: "/app/staff", icon: "👥" },
-    { label: "CRM", to: "/app/customers", icon: "🧾" },
-    { label: "Analytics", to: "/app/analytics", icon: "📊" },
-    { label: "Expenses", to: "/app/expenses", icon: "🧾" },
+    { label: "Inventory", description: "Stock & Catalog", to: "/app/inventory", icon: "📦" },
+    { label: "Staff Management", description: "Roles & Access", to: "/app/staff", icon: "👥" },
+    { label: "CRM & Clients", description: "Customer Directory", to: "/app/customers", icon: "🧾" },
+    { label: "Analytics", description: "Sales & Growth", to: "/app/analytics", icon: "📊" },
+    { label: "Expenses", description: "Claims & Payouts", to: "/app/expenses", icon: "🧾" },
+    { label: "System Settings", description: "Branding & Profile", to: "/app/settings", icon: "⚙️" },
   ];
 
   const openOutstandingPerson = (transactionType, person) => {
@@ -301,18 +303,23 @@ const Dashboard = () => {
         {executiveCards.map((card) => (
           <div
             key={card.label}
-            className={`rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardToneStyles[card.tone] || cardToneStyles.slate}`}
+            className={`rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${cardToneStyles[card.tone] || cardToneStyles.slate}`}
           >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">{card.label}</p>
-              <span className="rounded-full border border-current/20 bg-white/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] dark:bg-slate-900/30">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.25em] opacity-75">{card.label}</p>
+              <span className="rounded-full border border-current/20 bg-white/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] dark:bg-slate-900/30">
                 Live
               </span>
             </div>
-            <p className="mt-4 text-2xl font-semibold tracking-tight">
-              {card.value}
-            </p>
-            {card.detail && <p className="mt-2 text-xs opacity-75">{card.detail}</p>}
+            <div className="mt-4 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-2xl font-semibold tracking-tight">{card.value}</p>
+                {card.detail && <p className="mt-2 text-[11px] opacity-75">{card.detail}</p>}
+              </div>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-current/10 bg-white/50 text-lg dark:bg-slate-900/20">
+                {card.tone === "emerald" ? "↗" : card.tone === "blue" ? "▣" : card.tone === "amber" ? "◌" : "◎"}
+              </span>
+            </div>
           </div>
         ))}
       </div>
@@ -361,52 +368,60 @@ const Dashboard = () => {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Quick actions</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Start the most common workflows faster.</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Quick workflows</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Fast action triggers</p>
             </div>
           </div>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {quickActions.map((action) => (
               <button
                 key={action.title}
                 onClick={action.action}
                 type="button"
-                className={`rounded-2xl border p-4 text-left transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.99] ${
+                className={`relative rounded-2xl border p-4 text-left transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.99] ${
                   action.accent
                     ? "border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
                 }`}
               >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-lg shadow-sm dark:bg-slate-900/80">
-                  {action.icon}
+                {action.badge && (
+                  <span className="absolute right-3 top-3 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    {action.badge}
+                  </span>
+                )}
+                <div className="mb-3 flex items-center gap-3">
+                  <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-lg shadow-sm ${action.accent ? "bg-white/20 text-emerald-700 dark:text-emerald-200" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>
+                    {action.icon}
+                  </span>
                 </div>
                 <p className="text-sm font-semibold">{action.title}</p>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{action.description}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{action.description}</p>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Module launchers</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Jump to the main operational areas.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Main operational areas</p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid grid-cols-2 gap-3">
             {moduleTiles.map((tile) => (
               <button
                 key={tile.label}
                 onClick={() => navigate(tile.to)}
                 type="button"
-                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm font-medium text-slate-700 transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-100 active:scale-[0.99] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-100 active:scale-[0.99] dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800"
               >
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-lg shadow-sm dark:bg-slate-900">
                   {tile.icon}
                 </span>
-                <span>{tile.label}</span>
+                <span className="mt-3 block text-xs font-semibold text-slate-800 dark:text-slate-200">{tile.label}</span>
+                <span className="mt-1 block text-[10px] text-slate-500 dark:text-slate-400">{tile.description}</span>
               </button>
             ))}
           </div>
@@ -424,7 +439,37 @@ const Dashboard = () => {
           </span>
         </div>
 
-        <div className="mt-5 overflow-x-auto">
+        <div className="mt-5 md:hidden">
+          {recentActivity.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400">
+              No recent transactions available right now.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      ✓
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{activity.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{activity.customerName}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(activity.amount)}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {activity.timestamp ? new Date(activity.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 hidden overflow-x-auto md:block">
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
             <thead>
               <tr className="text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">

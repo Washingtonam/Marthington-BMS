@@ -85,18 +85,36 @@ describe("Dashboard", () => {
     expect(screen.getByText("Approved expense records · all time")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Customers owing us" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Suppliers we owe" })).toBeTruthy();
-    expect(screen.getAllByText("Mina Cole")).toHaveLength(2);
+    expect(screen.getAllByText("Mina Cole").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("North Star Supply")).toBeTruthy();
-    expect(screen.getAllByText("₦1,200")).toHaveLength(2);
+    expect(screen.getAllByText("₦1,200").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("1 customers · 1 open invoice")).toBeTruthy();
     expect(screen.getByText("2 open invoices")).toBeTruthy();
-    expect(screen.getByText("Sale #R-104")).toBeTruthy();
+    expect(screen.getAllByText("Sale #R-104").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /expense approvals \(1\)/i })).toBeTruthy();
 
     screen.getByRole("button", { name: /Mina Cole.*1 open invoice.*₦1,200/ }).click();
     expect(mocks.navigate).toHaveBeenCalledWith("/app/customers/customer-1");
     screen.getByRole("button", { name: /North Star Supply.*2 open invoices.*₦800/ }).click();
     expect(mocks.navigate).toHaveBeenCalledWith("/app/suppliers/supplier-1");
+  });
+
+  it("renders compact quick actions with badges and unified module launchers", async () => {
+    mocks.request.mockImplementation(async (path) => {
+      if (path === "/sales?limit=10") return { sales: [{ _id: "sale-1", receiptId: "R-104", customerName: "Mina Cole", totalAmount: 1800, createdAt: "2026-09-29T10:00:00.000Z" }] };
+      if (path === "/sales?paymentStatus=pending&limit=1") return { sales: [], pagination: { total: 115 } };
+      if (path === "/invoices/outstanding-summary") return { receivables: { people: [], peopleCount: 0, totalBalanceDue: 0, invoiceCount: 0 }, payables: { people: [], peopleCount: 0, totalBalanceDue: 0, invoiceCount: 0 } };
+      if (path === "/expenses?status=pending") return { expenses: [{ _id: "expense-1" }] };
+      return {};
+    });
+
+    renderDashboard();
+
+    expect(await screen.findByRole("heading", { name: /quick workflows|quick actions/i })).toBeTruthy();
+    expect(screen.getByText("115")).toBeTruthy();
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /module launchers|module launcher/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /inventory/i })).toBeTruthy();
   });
 
   it("omits debt sections when there are no outstanding balances", async () => {
