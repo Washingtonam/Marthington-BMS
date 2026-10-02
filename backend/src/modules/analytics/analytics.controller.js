@@ -28,6 +28,13 @@ const retailSalesFilter = (businessId) => ({
 
 const getAnalytics = async (req, res) => {
   try {
+    const range = req.query.range || req.query.period || "all";
+    const isTodayOnly = range === "today" || range === "day";
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
     // 1. Fetch business and check industry type safely
     const business = await Business.findById(req.user?.businessId).lean();
     const industry = business?.industryType?.trim() || "retail";
@@ -49,7 +56,8 @@ const getAnalytics = async (req, res) => {
     // 2. Original retail metrics calculation logic goes here...
     const sales = await Sale.find({
       ...retailSalesFilter(businessObjectId),
-      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {}),
+      ...(isTodayOnly ? { createdAt: { $gte: todayStart, $lte: todayEnd } } : {})
     }).lean();
     const products = isPrivileged(req.user) || !branchQuery.branch
       ? await Product.find({ business: businessObjectId }).lean()
@@ -83,7 +91,8 @@ const getAnalytics = async (req, res) => {
     const approvedExpenses = await Expense.find({
       business: businessObjectId,
       status: "approved",
-      ...(branchQuery.branch ? { branch: branchQuery.branch } : {})
+      ...(branchQuery.branch ? { branch: branchQuery.branch } : {}),
+      ...(isTodayOnly ? { createdAt: { $gte: todayStart, $lte: todayEnd } } : {})
     }).lean();
 
     const totalOperatingExpenses = approvedExpenses.reduce(
@@ -111,7 +120,10 @@ const getAnalytics = async (req, res) => {
       : products.filter((product) => Number(product.stock) <= 5).length;
 
     // 🔥 ADD AR/AP METRICS
-    const invoices = await Invoice.find({ business: businessObjectId }).lean();
+    const invoices = await Invoice.find({
+      business: businessObjectId,
+      ...(isTodayOnly ? { createdAt: { $gte: todayStart, $lte: todayEnd } } : {})
+    }).lean();
     const now = new Date();
     const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
     const sixtyDaysAgo = new Date(now.setDate(now.getDate() - 30));

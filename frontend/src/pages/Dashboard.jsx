@@ -68,7 +68,7 @@ const Dashboard = () => {
       try {
         setLoading(true);
         const [data, salesData, outstandingData, expenseData] = await Promise.all([
-          getAnalytics(),
+          getAnalytics("today"),
           request("/sales?limit=10").catch(() => ({ sales: [] })),
           canViewInvoices ? request("/invoices/outstanding-summary").catch(() => null) : Promise.resolve(null),
           canReviewExpenses ? request("/expenses?status=pending").catch(() => ({ expenses: [] })) : Promise.resolve({ expenses: [] }),
@@ -156,10 +156,10 @@ const Dashboard = () => {
           { label: "Overdue AR", value: formatCurrency(metrics.overdueReceivables), tone: "amber" },
         ]
       : [
-          { label: "Revenue", value: formatCurrency(metrics.totalRevenue), detail: "All-time sales", tone: "emerald" },
-          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), detail: "Sales profit before expenses · all time", tone: "blue" },
-          { label: "Approved Expenses", value: formatCurrency(metrics.totalOperatingExpenses), detail: "Approved expense records · all time", tone: "amber" },
-          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), detail: "Gross profit minus approved expenses", tone: "slate" },
+          { label: "Revenue", value: formatCurrency(metrics.totalRevenue), detail: "Today", tone: "emerald" },
+          { label: "Gross Profit", value: formatCurrency(metrics.grossProfit), detail: "Today · before expenses", tone: "blue" },
+          { label: "Approved Expenses", value: formatCurrency(metrics.totalOperatingExpenses), detail: "Today's approved expenses", tone: "amber" },
+          { label: "Net Profit", value: formatCurrency(metrics.totalProfit), detail: "Today's net result", tone: "slate" },
         ];
 
   const quickActions = [
