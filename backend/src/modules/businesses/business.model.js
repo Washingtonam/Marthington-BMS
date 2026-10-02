@@ -30,6 +30,11 @@ const businessSchema = new mongoose.Schema(
       default: "Thank you for your business!"
     },
 
+    customerDisplayMessage: {
+      type: String,
+      default: ""
+    },
+
     brandSettings: {
 
       primaryColor: {

@@ -44,7 +44,8 @@ const formatBusiness = (business) => {
       walletName: obj.paymentSettings?.walletName || "",
       walletNumber: obj.paymentSettings?.walletNumber || "",
       transferInstructions: obj.paymentSettings?.transferInstructions || ""
-    }
+    },
+    customerDisplayMessage: obj.customerDisplayMessage || ""
   };
 };
 
@@ -62,6 +63,7 @@ export const getBusiness = async (req, res) => {
         reportNotificationsEnabled: true,
         reportDeliveryTime: "18:00",
         receiptFooter: "",
+        customerDisplayMessage: "",
         receiptTheme: "",
         logo: "",
         products: [],
@@ -107,6 +109,7 @@ export const getBusiness = async (req, res) => {
       reportNotificationsEnabled: rawBusiness?.reportNotificationsEnabled !== false,
       reportDeliveryTime: normalizeReportDeliveryTime(rawBusiness?.reportDeliveryTime),
       receiptFooter: rawBusiness?.receiptFooter || "",
+      customerDisplayMessage: rawBusiness?.customerDisplayMessage || "",
       receiptTheme: rawBusiness?.receiptTheme || "",
       logo: rawBusiness?.logo || "",
       products: Array.isArray(rawBusiness?.products) ? rawBusiness.products : [],
@@ -162,6 +165,7 @@ export const getBusiness = async (req, res) => {
       reportNotificationsEnabled: true,
       reportDeliveryTime: "18:00",
       receiptFooter: "",
+      customerDisplayMessage: "",
       receiptTheme: "",
       logo: "",
       products: [],
@@ -267,6 +271,7 @@ export const updateBusiness = async (req, res) => {
       industryType,
       reportNotificationsEnabled,
       reportDeliveryTime,
+      customerDisplayMessage,
       logo,
       approvalRules,
       whatsappEnabled,
@@ -313,6 +318,7 @@ export const updateBusiness = async (req, res) => {
     business.reportNotificationsEnabled = nextReportNotificationsEnabled;
     business.reportDeliveryTime = nextReportDeliveryTime;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
+    business.customerDisplayMessage = customerDisplayMessage !== undefined ? customerDisplayMessage : business.customerDisplayMessage;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
     business.businessType = businessType ?? business.businessType;
     business.industryType = industryType || business.industryType || "retail";

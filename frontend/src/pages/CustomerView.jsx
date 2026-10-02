@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { formatCurrency } from "../utils/formatters.js";
+import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 
 const CustomerView = () => {
   const [data, setData] = useState({
     items: [],
     total: 0,
-    businessName: "Welcome",
+    businessName: "",
+    customerDisplayMessage: "",
     customerName: "",
     notes: "",
     status: "pending"
   });
 
   const idleState = !data.items.length && data.status !== "complete";
+  const displayTitle = resolveCustomerDisplayTitle(data.businessName, data.customerDisplayMessage);
 
   useEffect(() => {
     const bc = new BroadcastChannel('marthington_customer_display');
@@ -21,6 +24,8 @@ const CustomerView = () => {
         setData((prev) => ({
           ...prev,
           ...event.data,
+          notes: event.data.customerNotes ?? event.data.notes ?? prev.notes,
+          customerDisplayMessage: event.data.customerDisplayMessage ?? prev.customerDisplayMessage ?? "",
           status: "pending"
         }));
       }
@@ -70,7 +75,7 @@ const CustomerView = () => {
       <div className="flex justify-between items-end border-b-4 border-blue-600 pb-6 mb-6">
         <div>
           <h1 className="text-5xl font-black text-gray-900 uppercase tracking-tighter">
-            {data.businessName || "Steve Computer Warehouse"}
+            {displayTitle}
           </h1>
           {data.customerName && (
             <p className="text-blue-600 text-2xl font-bold mt-2">

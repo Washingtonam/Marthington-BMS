@@ -5,6 +5,7 @@ import { getServices } from "../api/services.js";
 import { getBranches, getBranchInventory } from "../api/branches.js";
 import { getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const formatDisplayText = (value = "") => {
@@ -118,6 +119,7 @@ const POS = () => {
         bc.current.postMessage({
           type: "UPDATE_CART",
           businessName: business?.name,
+          customerDisplayMessage: business?.customerDisplayMessage || resolveCustomerDisplayTitle(business?.name, ""),
           items: cart.map(i => ({
             name: i.name,
             quantity: i.quantity,

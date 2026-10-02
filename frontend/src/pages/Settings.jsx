@@ -31,6 +31,7 @@ const Settings = () => {
     reportDeliveryTime: "18:00",
     businessType: "general_services",
     receiptFooter: "",
+    customerDisplayMessage: "",
     receiptTheme: "modern",
     logo: "",
     whatsappEnabled: false,
@@ -73,6 +74,7 @@ const Settings = () => {
       reportDeliveryTime: business.reportDeliveryTime || "18:00",
       businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
+      customerDisplayMessage: business.customerDisplayMessage || "",
       receiptTheme: business.receiptTheme || "modern",
       logo: "",
       whatsappEnabled: Boolean(business.whatsapp?.enabled),
@@ -441,6 +443,19 @@ const Settings = () => {
                     className="input-field disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase">External Display Message</label>
+                <input
+                  className="input-field"
+                  name="customerDisplayMessage"
+                  value={form.customerDisplayMessage}
+                  onChange={handleChange}
+                  placeholder="Welcome to Marthington"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Leave blank to show: Welcome to {business?.name || "Your Business Name"}
+                </p>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Type</label>
