@@ -81,13 +81,15 @@ export default function Sidebar({
 }) {
   const { pathname } = useLocation();
   const user = getStoredUser();
-  const isCollapsed = false;
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (typeof onCollapseChange === "function") {
-      onCollapseChange(false);
+      onCollapseChange(isCollapsed);
     }
-  }, [onCollapseChange]);
+  }, [isCollapsed, onCollapseChange]);
+
+  const toggleSidebar = () => setIsCollapsed((current) => !current);
 
   const canAccessItem = (item) => {
     if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;
@@ -152,13 +154,13 @@ export default function Sidebar({
           mobileOpen ? "w-72 translate-x-0" : "-translate-x-full lg:translate-x-0"
         } ${!mobileOpen ? (isCollapsed ? "lg:w-20" : "lg:w-72") : ""}`}
       >
-        <div className={`flex items-center justify-between border-b border-slate-200/80 bg-white/20 px-5 py-4 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-950/15 ${isCollapsed ? "lg:justify-center lg:px-2 lg:py-3" : ""}`}>
+        <div className={`flex items-center justify-between border-b border-slate-200/80 bg-white/20 px-5 py-4 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-950/15 ${isCollapsed ? "lg:justify-between lg:px-1 lg:py-3" : ""}`}>
           {isCollapsed ? (
             <div className="flex items-center justify-center">
               <img
                 src="/logo-icon.png"
                 alt="Marthington"
-                className="h-8 w-8 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
               />
             </div>
           ) : (
@@ -179,15 +181,28 @@ export default function Sidebar({
             </div>
           )}
 
-          {!isCollapsed && (
+          <div className="flex items-center gap-2">
             <button
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
-              onClick={() => setMobileOpen(false)}
+              className="hidden rounded-lg border border-slate-200 p-1.5 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:inline-flex"
+              onClick={toggleSidebar}
               type="button"
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!isCollapsed}
             >
-              ✕
+              {isCollapsed ? "›" : "‹"}
             </button>
-          )}
+            {!isCollapsed && (
+              <button
+                className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
+                onClick={() => setMobileOpen(false)}
+                type="button"
+                aria-label="Close sidebar"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-4 scrollbar-thin scrollbar-thumb-slate-200/80 scrollbar-track-transparent dark:scrollbar-thumb-slate-700/80">

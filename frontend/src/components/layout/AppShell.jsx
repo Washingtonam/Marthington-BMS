@@ -65,7 +65,7 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
     return localStorage.getItem("theme") || "light";
   });
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
