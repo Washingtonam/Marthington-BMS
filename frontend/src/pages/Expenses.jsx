@@ -7,6 +7,10 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { getBranches } from "../api/branches.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
 import { createInvoice } from "../api/invoices.js";
+import { createSupplier } from "../api/suppliers.js";
+
+const suggestSellingPrice = (costPrice, markup = 30) =>
+  Math.round(Number(costPrice || 0) * (1 + markup / 100) * 100) / 100;
 
 const EXPENSE_CATEGORIES = [
   { value: "inventory", label: "Inventory/Stock Procurement" },
@@ -80,7 +84,9 @@ const Expenses = () => {
     category: "",
     quantity: "",
     unitCost: "",
-    currentStock: 0
+    sellingPrice: "",
+    sellingPriceEdited: false,
+    currentStock: null
   });
 
   // Product suggestions for autocomplete
@@ -90,6 +96,7 @@ const Expenses = () => {
   // Supplier suggestions for autocomplete
   const [supplierSuggestions, setSupplierSuggestions] = useState([]);
   const [loadingSupplierSuggestions, setLoadingSupplierSuggestions] = useState(false);
+  const [creatingSupplier, setCreatingSupplier] = useState(false);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -312,9 +319,21 @@ const Expenses = () => {
       category: product.category,
       quantity: "",
       unitCost: product.costPrice || product.price,
+      sellingPrice: product.sellingPrice || product.price || "",
+      sellingPriceEdited: true,
       currentStock: product.stock
     });
     setProductSuggestions([]);
+  };
+
+  const handleInventoryCostChange = (unitCost) => {
+    setInventoryForm((current) => ({
+      ...current,
+      unitCost,
+      sellingPrice: current.productId || current.sellingPriceEdited
+        ? current.sellingPrice
+        : suggestSellingPrice(unitCost)
+    }));
   };
 
   // 🔥 FETCH SUPPLIER SUGGESTIONS FOR AUTOCOMPLETE
@@ -347,18 +366,60 @@ const Expenses = () => {
     setSupplierSuggestions([]);
   };
 
+  const handleCreateSupplier = async () => {
+    const name = formData.supplierName.trim();
+    if (!name) return;
+
+    try {
+      setCreatingSupplier(true);
+      const supplier = await createSupplier({
+        name,
+        phone: formData.supplierPhone.trim()
+      });
+      setFormData((current) => ({
+        ...current,
+        supplierName: supplier.name,
+        supplierPhone: supplier.phone || current.supplierPhone,
+        supplierId: supplier._id
+      }));
+      setSupplierSuggestions([supplier]);
+      setStatusMsg({ type: "success", text: `Supplier "${supplier.name}" created.` });
+    } catch (err) {
+      setStatusMsg({ type: "error", text: err.message || "Could not create supplier." });
+    } finally {
+      setCreatingSupplier(false);
+    }
+  };
+
   const addInventoryItem = () => {
-    if (!inventoryForm.productName || !inventoryForm.quantity || !inventoryForm.unitCost) {
+    if (!inventoryForm.productName.trim() || !inventoryForm.quantity || inventoryForm.unitCost === "") {
       setStatusMsg({ type: "error", text: "All inventory fields are required" });
+      return;
+    }
+    if (
+      !Number.isFinite(Number(inventoryForm.quantity)) ||
+      Number(inventoryForm.quantity) <= 0 ||
+      !Number.isFinite(Number(inventoryForm.unitCost)) ||
+      Number(inventoryForm.unitCost) < 0
+    ) {
+      setStatusMsg({ type: "error", text: "Enter a valid quantity and unit cost." });
+      return;
+    }
+    const sellingPrice = inventoryForm.sellingPrice === ""
+      ? suggestSellingPrice(inventoryForm.unitCost)
+      : Number(inventoryForm.sellingPrice);
+    if (!Number.isFinite(sellingPrice) || sellingPrice < 0) {
+      setStatusMsg({ type: "error", text: "Enter a valid selling price." });
       return;
     }
 
     const newItem = {
-      productId: inventoryForm.productId || null, // null if new product
-      productName: inventoryForm.productName,
+      productId: inventoryForm.productId || null,
+      productName: inventoryForm.productName.trim(),
       category: inventoryForm.category || "General",
       quantity: Number(inventoryForm.quantity),
-      unitCost: Number(inventoryForm.unitCost)
+      unitCost: Number(inventoryForm.unitCost),
+      sellingPrice
     };
 
     setFormData(prev => ({
@@ -366,7 +427,7 @@ const Expenses = () => {
       inventoryItems: [...prev.inventoryItems, newItem]
     }));
 
-    setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
+    setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", sellingPrice: "", sellingPriceEdited: false, currentStock: null });
     setStatusMsg({ type: "success", text: "Inventory item added" });
     setTimeout(() => setStatusMsg({ type: "", text: "" }), 2000);
   };
@@ -379,21 +440,11 @@ const Expenses = () => {
   };
 
   // 🔥 REFRESH RELATED DATA AFTER INVENTORY CHANGES
-  const refreshInventoryRelatedData = async () => {
-    try {
-      const [productsData, branchInventoryData] = await Promise.all([
-        request("/products"),
-        request("/branch-inventory")
-      ]);
-      
-      // Optionally emit event for POS to refresh
-      if (window.BroadcastChannel) {
-        const channel = new BroadcastChannel("inventory-updates");
-        channel.postMessage({ type: "inventory-changed", timestamp: Date.now() });
-        channel.close();
-      }
-    } catch (err) {
-      console.error("Failed to refresh inventory data:", err);
+  const refreshInventoryRelatedData = () => {
+    if (window.BroadcastChannel) {
+      const channel = new BroadcastChannel("inventory-updates");
+      channel.postMessage({ type: "inventory-changed", timestamp: Date.now() });
+      channel.close();
     }
   };
 
@@ -414,8 +465,25 @@ const Expenses = () => {
       return;
     }
 
+    if (formData.recordAsSupplierInvoice && formData.inventoryItems.length === 0) {
+      setStatusMsg({ type: "error", text: "Add at least one inventory item to the supplier invoice." });
+      return;
+    }
+
     if (formData.recordAsSupplierInvoice && !formData.supplierId) {
       setStatusMsg({ type: "error", text: "Select a supplier to create an Accounts Payable invoice." });
+      return;
+    }
+
+    const invoiceItemsTotal = formData.inventoryItems.reduce(
+      (sum, item) => sum + Number(item.quantity || 0) * Number(item.unitCost || 0),
+      0
+    );
+    if (formData.recordAsSupplierInvoice && Math.abs(invoiceItemsTotal - Number(formData.amount)) > 0.01) {
+      setStatusMsg({
+        type: "error",
+        text: "The expense amount must match the total of the supplier invoice items."
+      });
       return;
     }
 
@@ -441,12 +509,16 @@ const Expenses = () => {
             transactionType: "incoming",
             branch: formData.branch || null,
             supplier: formData.supplierId,
-            items: [{
-              name: formData.description,
-              quantity: 1,
-              price: payload.amount,
-              total: payload.amount
-            }],
+            items: payload.inventoryItems.map((item) => ({
+              product: item.productId || undefined,
+              createProduct: !item.productId,
+              name: item.productName,
+              category: item.category,
+              quantity: item.quantity,
+              price: item.unitCost,
+              sellingPrice: item.sellingPrice,
+              total: item.quantity * item.unitCost
+            })),
             amountPaid: formData.paymentMethod === "store_credit" ? 0 : payload.amount,
             notes: formData.notes,
             expenseCategory: formData.category,
@@ -454,7 +526,10 @@ const Expenses = () => {
             expenseDate: formData.date,
             expenseDescription: formData.description,
             expenseBudgetAllocation: payload.budgetAllocation,
-            expenseInventoryItems: payload.inventoryItems
+            expenseInventoryItems: payload.inventoryItems.map((item) => ({
+              ...item,
+              inventoryUpdated: true
+            }))
           })
         : await request("/expenses", {
             method: "POST",
@@ -480,7 +555,7 @@ const Expenses = () => {
           recordAsSupplierInvoice: false,
           inventoryItems: []
         });
-        setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", currentStock: 0 });
+        setInventoryForm({ productId: "", productName: "", category: "", quantity: "", unitCost: "", sellingPrice: "", sellingPriceEdited: false, currentStock: null });
         setIsFormOpen(false);
         setStatusMsg({
           type: "success",
@@ -491,7 +566,7 @@ const Expenses = () => {
         notifySalesUpdated();
         
         // 🔥 REFRESH INVENTORY DATA IF THIS WAS AN INVENTORY EXPENSE
-        if (formData.category === "inventory") {
+        if (formData.category === "inventory" || formData.recordAsSupplierInvoice) {
           refreshInventoryRelatedData();
         }
         
@@ -928,11 +1003,21 @@ const Expenses = () => {
         </div>
 
         {isFormOpen && (
-          <div className="rounded-[30px] border border-slate-200 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+            onClick={() => setIsFormOpen(false)}
+          >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="expense-dialog-title"
+            className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-slate-200 bg-white p-5 shadow-[0_30px_80px_rgba(15,23,42,0.2)] dark:border-slate-700 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="mb-6 flex items-center justify-between gap-3 rounded-[24px] bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 p-5 text-white">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-sky-300">New expense entry</p>
-                <h2 className="mt-2 text-2xl font-black tracking-tight">Record operating spend</h2>
+                <h2 id="expense-dialog-title" className="mt-2 text-2xl font-black tracking-tight">Record operating spend</h2>
               </div>
               <button
                 type="button"
@@ -942,6 +1027,18 @@ const Expenses = () => {
                 Close
               </button>
             </div>
+
+            {statusMsg.text && (
+              <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                statusMsg.type === "error"
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : statusMsg.type === "warning"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}>
+                {statusMsg.text}
+              </div>
+            )}
 
             <div className="space-y-5 rounded-[24px] border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-950/50">
               <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700">
@@ -1049,21 +1146,31 @@ const Expenses = () => {
                   />
                 </label>
 
-                {formData.category === "inventory" && (
+                {(formData.category === "inventory" || formData.recordAsSupplierInvoice) && (
                   <div className="space-y-3 rounded-[24px] border border-sky-200 bg-sky-50/60 p-4 md:col-span-2">
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-black uppercase tracking-[0.18em] text-sky-700">Inventory line items</h4>
                       <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-sky-700">Procurement</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 relative">
+                    <div className="grid grid-cols-1 gap-3 relative sm:grid-cols-2 xl:grid-cols-4">
                       <div className="relative">
                         <input
                           type="text"
-                          placeholder="Product Name or SKU"
+                          placeholder="Existing product or new product name"
                           value={inventoryForm.productName}
                           onChange={e => {
-                            setInventoryForm({...inventoryForm, productName: e.target.value});
+                            setInventoryForm({
+                              ...inventoryForm,
+                              productId: "",
+                              productName: e.target.value,
+                              category: "",
+                              quantity: "",
+                              unitCost: "",
+                              sellingPrice: "",
+                              sellingPriceEdited: false,
+                              currentStock: null
+                            });
                             fetchProductSuggestions(e.target.value);
                           }}
                           onFocus={() => {
@@ -1101,6 +1208,25 @@ const Expenses = () => {
                             Loading products...
                           </div>
                         )}
+                        {!inventoryForm.productId &&
+                          inventoryForm.productName.trim() &&
+                          !loadingSuggestions &&
+                          !productSuggestions.some((product) => product.name.trim().toLowerCase() === inventoryForm.productName.trim().toLowerCase()) && (
+                          <button
+                            type="button"
+                            onClick={() => setInventoryForm((current) => ({
+                              ...current,
+                              productId: "",
+                              category: current.category || "General",
+                              sellingPrice: current.unitCost ? suggestSellingPrice(current.unitCost) : "",
+                              sellingPriceEdited: false,
+                              currentStock: null
+                            }))}
+                            className="mt-2 text-left text-xs font-bold text-sky-700 hover:text-sky-800"
+                          >
+                            + Add "{inventoryForm.productName.trim()}" as a new catalog product
+                          </button>
+                        )}
                       </div>
 
                       <input
@@ -1118,12 +1244,26 @@ const Expenses = () => {
                         step="0.01"
                         placeholder="Unit Cost"
                         value={inventoryForm.unitCost}
-                        onChange={e => setInventoryForm({...inventoryForm, unitCost: e.target.value})}
+                        onChange={e => handleInventoryCostChange(e.target.value)}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                      />
+
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Selling Price"
+                        value={inventoryForm.sellingPrice}
+                        onChange={e => setInventoryForm({
+                          ...inventoryForm,
+                          sellingPrice: e.target.value,
+                          sellingPriceEdited: true
+                        })}
                         className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                       />
                     </div>
 
-                    {inventoryForm.currentStock !== undefined && inventoryForm.quantity && (
+                    {inventoryForm.currentStock !== null && inventoryForm.quantity && (
                       <div className={`rounded-2xl px-3 py-2 text-sm font-semibold ${Number(inventoryForm.quantity) > inventoryForm.currentStock ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"}`}>
                         Current stock: {inventoryForm.currentStock} units
                         {Number(inventoryForm.quantity) > inventoryForm.currentStock && <span> ⚠️ above available stock</span>}
@@ -1207,6 +1347,19 @@ const Expenses = () => {
                             Loading suppliers...
                           </div>
                         )}
+                        {!loadingSupplierSuggestions &&
+                          formData.supplierName.trim() &&
+                          !formData.supplierId &&
+                          !supplierSuggestions.some((supplier) => supplier.name.trim().toLowerCase() === formData.supplierName.trim().toLowerCase()) && (
+                            <button
+                              type="button"
+                              onClick={handleCreateSupplier}
+                              disabled={creatingSupplier}
+                              className="mt-2 text-left text-xs font-bold text-violet-700 hover:text-violet-800 disabled:opacity-60"
+                            >
+                              {creatingSupplier ? "Creating supplier..." : `+ Create "${formData.supplierName.trim()}"`}
+                            </button>
+                          )}
                       </div>
 
                       <input
@@ -1274,6 +1427,7 @@ const Expenses = () => {
                 </button>
               </div>
             </div>
+          </div>
           </div>
         )}
 

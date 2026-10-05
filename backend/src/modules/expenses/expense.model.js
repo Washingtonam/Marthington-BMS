@@ -107,6 +107,7 @@ const expenseSchema = new mongoose.Schema(
         productName: String,
         quantity: Number,
         unitCost: Number,
+        sellingPrice: Number,
         inventoryUpdated: {
           type: Boolean,
           default: false

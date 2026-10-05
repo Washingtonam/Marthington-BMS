@@ -12,6 +12,9 @@ const initialForm = {
   sku: ""
 };
 
+const suggestSellingPrice = (costPrice, markup = 30) =>
+  Math.round(Number(costPrice || 0) * (1 + Number(markup || 0) / 100) * 100) / 100;
+
 const Products = () => {
   const { business, isPro, user } = useAuth(); // Using the boolean from context
   const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
@@ -31,6 +34,8 @@ const Products = () => {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [form, setForm] = useState(initialForm);
+  const [markup, setMarkup] = useState(30);
+  const [customSellingPrice, setCustomSellingPrice] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,7 +116,37 @@ const Products = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "sellingPrice") {
+      setCustomSellingPrice(true);
+      if (Number(form.costPrice) > 0) {
+        setMarkup(((Number(value || 0) / Number(form.costPrice)) - 1) * 100);
+      }
+      setForm((prev) => ({ ...prev, sellingPrice: value }));
+      return;
+    }
+
+    if (name === "costPrice") {
+      if (customSellingPrice && Number(value) > 0) {
+        setMarkup(((Number(form.sellingPrice || 0) / Number(value)) - 1) * 100);
+      }
+      setForm((prev) => ({
+        ...prev,
+        costPrice: value,
+        sellingPrice: customSellingPrice ? prev.sellingPrice : suggestSellingPrice(value, markup)
+      }));
+      return;
+    }
+
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleMarkupChange = (value) => {
+    setMarkup(value);
+    setCustomSellingPrice(false);
+    setForm((prev) => ({
+      ...prev,
+      sellingPrice: suggestSellingPrice(prev.costPrice, value)
+    }));
   };
 
   // ====================================
@@ -141,6 +176,8 @@ const Products = () => {
 
       setSuccess(`Product ${editingId ? "updated" : "added"} successfully`);
       setForm(initialForm);
+      setMarkup(30);
+      setCustomSellingPrice(false);
       setEditingId(null);
       setDrawerOpen(false);
       loadProducts();
@@ -161,12 +198,18 @@ const Products = () => {
       category: product.category || "",
       sku: product.sku || ""
     });
+    const costPrice = Number(product.costPrice || 0);
+    const sellingPrice = Number(product.sellingPrice || product.price || 0);
+    setMarkup(costPrice > 0 ? ((sellingPrice / costPrice) - 1) * 100 : 30);
+    setCustomSellingPrice(true);
     setDrawerOpen(true);
   };
 
   const openNewProductDrawer = () => {
     setEditingId(null);
     setForm(initialForm);
+    setMarkup(30);
+    setCustomSellingPrice(false);
     setDrawerOpen(true);
   };
 
@@ -174,6 +217,8 @@ const Products = () => {
     setDrawerOpen(false);
     setEditingId(null);
     setForm(initialForm);
+    setMarkup(30);
+    setCustomSellingPrice(false);
   };
 
   const handleDelete = async (id) => {
@@ -472,20 +517,34 @@ const Products = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700">Cost Price</label>
                     <div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
                       <span className="mr-2 text-slate-500">₦</span>
                       <input
                         type="number"
+                        min="0"
+                        step="0.01"
                         name="costPrice"
                         value={form.costPrice}
                         onChange={handleChange}
                         placeholder="0.00"
+                        required
                         className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">Markup (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={markup}
+                      onChange={(event) => handleMarkupChange(event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700">Selling Price</label>
@@ -493,14 +552,17 @@ const Products = () => {
                       <span className="mr-2 text-slate-500">₦</span>
                       <input
                         type="number"
+                        min="0"
+                        step="0.01"
                         name="sellingPrice"
                         value={form.sellingPrice}
                         onChange={handleChange}
-                        placeholder="0.00"
+                        placeholder="Suggested from cost + markup"
                         required
                         className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none"
                       />
                     </div>
+                    <p className="mt-1 text-xs text-slate-500">Suggested from cost and markup; you can enter a custom price.</p>
                   </div>
                 </div>
 
@@ -536,7 +598,12 @@ const Products = () => {
                 {editingId && (
                   <button
                     type="button"
-                    onClick={() => { setEditingId(null); setForm(initialForm); }}
+                    onClick={() => {
+                      setEditingId(null);
+                      setForm(initialForm);
+                      setMarkup(30);
+                      setCustomSellingPrice(false);
+                    }}
                     className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     Cancel Edit

@@ -633,6 +633,12 @@ const Invoices = () => {
         discount: Number(discount || 0)
       });
 
+      if (transactionType === "incoming" && window.BroadcastChannel) {
+        const channel = new BroadcastChannel("inventory-updates");
+        channel.postMessage({ type: "inventory-changed", timestamp: Date.now() });
+        channel.close();
+      }
+
       setInvoices([invoice, ...invoices]);
       setNewInvoiceModalOpen(false);
       setNewInvoiceDraft({

@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
-const SIDEBAR_AUTO_COLLAPSE_MS = 10000;
 
 const getStoredUser = () => {
   try {
@@ -81,56 +80,14 @@ export default function Sidebar({
   onCollapseChange,
 }) {
   const { pathname } = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(true);
-  const collapseTimerRef = useRef(null);
   const user = getStoredUser();
-
-  const clearCollapseTimer = () => {
-    if (collapseTimerRef.current) {
-      clearTimeout(collapseTimerRef.current);
-      collapseTimerRef.current = null;
-    }
-  };
-
-  const expandSidebar = () => {
-    if (mobileOpen) return;
-    clearCollapseTimer();
-    setIsCollapsed(false);
-    collapseTimerRef.current = setTimeout(() => {
-      setIsCollapsed(true);
-    }, SIDEBAR_AUTO_COLLAPSE_MS);
-  };
-
-  const scheduleCollapse = () => {
-    if (mobileOpen) return;
-    clearCollapseTimer();
-    setIsCollapsed(true);
-  };
-
-  useEffect(() => {
-    return () => clearCollapseTimer();
-  }, []);
-
-  useEffect(() => {
-    if (mobileOpen) {
-      clearCollapseTimer();
-      return;
-    }
-
-    if (!isCollapsed) {
-      collapseTimerRef.current = setTimeout(() => {
-        setIsCollapsed(true);
-      }, SIDEBAR_AUTO_COLLAPSE_MS);
-    }
-
-    return () => clearCollapseTimer();
-  }, [isCollapsed, mobileOpen]);
+  const isCollapsed = false;
 
   useEffect(() => {
     if (typeof onCollapseChange === "function") {
-      onCollapseChange(isCollapsed);
+      onCollapseChange(false);
     }
-  }, [isCollapsed, onCollapseChange]);
+  }, [onCollapseChange]);
 
   const canAccessItem = (item) => {
     if (!user || !item.permission || user.role === "owner" || user.role === "super_admin") return true;
@@ -191,13 +148,6 @@ export default function Sidebar({
       />
 
       <aside
-        onMouseEnter={expandSidebar}
-        onMouseLeave={scheduleCollapse}
-        onClick={() => {
-          if (!mobileOpen && isCollapsed) {
-            expandSidebar();
-          }
-        }}
         className={`fixed left-0 top-0 z-40 flex h-screen flex-col overflow-hidden border-r border-slate-200/80 bg-white/70 bg-gradient-to-b from-white/80 via-white/70 to-slate-50/75 shadow-[12px_0_32px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-200 ring-1 ring-white/60 dark:border-slate-700/80 dark:bg-slate-950/70 dark:from-slate-950/80 dark:via-slate-950/75 dark:to-slate-900/80 dark:ring-slate-800/80 ${
           mobileOpen ? "w-72 translate-x-0" : "-translate-x-full lg:translate-x-0"
         } ${!mobileOpen ? (isCollapsed ? "lg:w-20" : "lg:w-72") : ""}`}
@@ -231,7 +181,7 @@ export default function Sidebar({
 
           {!isCollapsed && (
             <button
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
               onClick={() => setMobileOpen(false)}
               type="button"
             >
@@ -276,7 +226,6 @@ export default function Sidebar({
                     end={normalizeTarget(item.to) === "/app"}
                     onClick={() => {
                       setMobileOpen(false);
-                      if (!mobileOpen) setIsCollapsed(true);
                     }}
                     className={({ isActive }) =>
                       `flex items-center gap-3 rounded-xl border border-transparent text-sm font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] transition-all duration-150 active:scale-[0.99] ${

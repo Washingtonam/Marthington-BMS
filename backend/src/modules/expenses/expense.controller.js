@@ -33,6 +33,7 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
     const targetName = item.productName || "";
     const quantity = Number(item.quantity || 0);
     const unitCost = Number(item.unitCost || 0);
+    const sellingPrice = Number(item.sellingPrice || 0);
 
     if (!product && targetName) {
       const items = await Product.find({ business: businessId }).select("_id name stock price costPrice").lean();
@@ -44,9 +45,11 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
       product = await Product.create({
         business: businessId,
         name: targetName,
-        category: "Inventory",
-        stock: quantity,
-        price: unitCost || 0,
+        category: item.category || "Inventory",
+        stock: 0,
+        price: item.sellingPrice !== undefined && item.sellingPrice !== null
+          ? sellingPrice
+          : Math.round(unitCost * 1.3 * 100) / 100,
         costPrice: unitCost || 0,
         sku: `INV-${Date.now()}`
       });
