@@ -1,5 +1,36 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import {
+  FiActivity,
+  FiArchive,
+  FiArrowUpRight,
+  FiBarChart2,
+  FiBell,
+  FiBookOpen,
+  FiBriefcase,
+  FiChevronLeft,
+  FiChevronRight,
+  FiClipboard,
+  FiCreditCard,
+  FiDollarSign,
+  FiFileText,
+  FiHome,
+  FiMapPin,
+  FiMoon,
+  FiPackage,
+  FiPieChart,
+  FiSettings,
+  FiShield,
+  FiShoppingBag,
+  FiSun,
+  FiTarget,
+  FiTool,
+  FiTrendingDown,
+  FiTrendingUp,
+  FiTruck,
+  FiUserCheck,
+  FiUsers,
+} from "react-icons/fi";
 
 const SIDEBAR_GROUPS_STORAGE_KEY = "marthington-sidebar-groups";
 
@@ -14,59 +45,59 @@ const getStoredUser = () => {
 const defaultNavGroups = [
   {
     label: "Main",
-    items: [{ to: "/app", label: "Dashboard", icon: "◉", permission: "canViewDashboard" }],
+    items: [{ to: "/app", label: "Dashboard", icon: <FiHome />, permission: "canViewDashboard" }],
   },
   {
     label: "Sales & Operations",
     items: [
-      { to: "/app/pos", label: "POS", icon: "🛒", permission: "canAccessPOS" },
-      { to: "/app/sales", label: "Sales", icon: "▣", permission: "canViewSales" },
-      { to: "/app/invoices", label: "Invoices", icon: "◫", permission: "canViewInvoices" },
-      { to: "/app/payments", label: "Payments", icon: "💳", permission: "canViewPayments" },
-      { to: "/app/customers", label: "Customers / CRM", icon: "◌", permission: "canViewCustomers" },
+      { to: "/app/pos", label: "POS", icon: <FiShoppingBag />, permission: "canAccessPOS" },
+      { to: "/app/sales", label: "Sales", icon: <FiTrendingUp />, permission: "canViewSales" },
+      { to: "/app/invoices", label: "Invoices", icon: <FiFileText />, permission: "canViewInvoices" },
+      { to: "/app/payments", label: "Payments", icon: <FiDollarSign />, permission: "canViewPayments" },
+      { to: "/app/customers", label: "Customers / CRM", icon: <FiUsers />, permission: "canViewCustomers" },
     ],
   },
   {
     label: "Catalog & Inventory",
     items: [
-      { to: "/app/products", label: "Products", icon: "📦", permission: "canViewProducts" },
-      { to: "/app/services", label: "Services", icon: "🛠️", permission: "canViewProducts" },
-      { to: "/app/inventory", label: "Inventory", icon: "◧", permission: "canViewBranchInventory" },
-      { to: "/app/suppliers", label: "Suppliers", icon: "🏭", permission: "canViewPurchaseOrders" },
-      { to: "/app/supplier-performance", label: "Supplier Performance", icon: "📈", permission: "canViewPurchaseOrders" },
-      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾", permission: "canViewPurchaseOrders" },
+      { to: "/app/products", label: "Products", icon: <FiPackage />, permission: "canViewProducts" },
+      { to: "/app/services", label: "Services", icon: <FiTool />, permission: "canViewProducts" },
+      { to: "/app/inventory", label: "Inventory", icon: <FiArchive />, permission: "canViewBranchInventory" },
+      { to: "/app/suppliers", label: "Suppliers", icon: <FiTruck />, permission: "canViewPurchaseOrders" },
+      { to: "/app/supplier-performance", label: "Supplier Performance", icon: <FiActivity />, permission: "canViewPurchaseOrders" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: <FiClipboard />, permission: "canViewPurchaseOrders" },
     ],
   },
   {
     label: "Finance & Control",
     items: [
-      { to: "/app/expenses", label: "Expenses", icon: "💸", permission: "canViewExpenses" },
-      { to: "/app/budget-management", label: "Budget Management", icon: "💰", permission: "canViewExpenses" },
-      { to: "/app/budget-alerts", label: "Budget Alerts", icon: "🔔", permission: "canViewExpenses" },
-      { to: "/app/cost-trends", label: "Cost Trends", icon: "📉", permission: "canViewExpenses" },
-      { to: "/app/billing", label: "Billing", icon: "⬡", permission: "canManageBilling" },
-      { to: "/app/reports", label: "Reports", icon: "📊", permission: "canViewReports" },
-      { to: "/app/analytics", label: "Analytics", icon: "⬢", permission: "canViewReports" },
+      { to: "/app/expenses", label: "Expenses", icon: <FiArrowUpRight />, permission: "canViewExpenses" },
+      { to: "/app/budget-management", label: "Budget Management", icon: <FiTarget />, permission: "canViewExpenses" },
+      { to: "/app/budget-alerts", label: "Budget Alerts", icon: <FiBell />, permission: "canViewExpenses" },
+      { to: "/app/cost-trends", label: "Cost Trends", icon: <FiTrendingDown />, permission: "canViewExpenses" },
+      { to: "/app/billing", label: "Billing", icon: <FiCreditCard />, permission: "canManageBilling" },
+      { to: "/app/reports", label: "Reports", icon: <FiBarChart2 />, permission: "canViewReports" },
+      { to: "/app/analytics", label: "Analytics", icon: <FiPieChart />, permission: "canViewReports" },
     ],
   },
   {
     label: "Team & Access",
     items: [
-      { to: "/app/staff", label: "Staff", icon: "◎", permission: "canManageStaff" },
-      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️", permission: "canManageSettings" },
+      { to: "/app/staff", label: "Staff", icon: <FiUserCheck />, permission: "canManageStaff" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: <FiShield />, permission: "canManageSettings" },
     ],
   },
   {
     label: "People & Locations",
     items: [
-      { to: "/app/branches", label: "Branches", icon: "🏢", permission: "canViewBranches" },
+      { to: "/app/branches", label: "Branches", icon: <FiMapPin />, permission: "canViewBranches" },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/app/settings", label: "Settings", icon: "⚙", permission: "canManageSettings" },
-      { to: "/app/user-guide", label: "User Guide", icon: "📘" },
+      { to: "/app/settings", label: "Settings", icon: <FiSettings />, permission: "canManageSettings" },
+      { to: "/app/user-guide", label: "User Guide", icon: <FiBookOpen /> },
     ],
   },
 ];
@@ -156,20 +187,14 @@ export default function Sidebar({
       >
         <div className={`flex items-center justify-between border-b border-slate-200/80 bg-white/20 px-5 py-4 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-950/15 ${isCollapsed ? "lg:justify-between lg:px-1 lg:py-3" : ""}`}>
           {isCollapsed ? (
-            <div className="flex items-center justify-center">
-              <img
-                src="/logo-icon.png"
-                alt="Marthington"
-                className="h-7 w-7 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-              />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" aria-label="Marthington Business Hub">
+              <FiBriefcase className="h-5 w-5" aria-hidden="true" />
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <img
-                src="/logo-icon.png"
-                alt="Marthington"
-                className="h-9 w-9 rounded-lg object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-              />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-400 dark:ring-emerald-900/60">
+                <FiBriefcase className="h-6 w-6" aria-hidden="true" />
+              </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
                   Marthington
@@ -190,18 +215,18 @@ export default function Sidebar({
               aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               aria-expanded={!isCollapsed}
             >
-              {isCollapsed ? "›" : "‹"}
+              {isCollapsed
+                ? <FiChevronRight className="h-4 w-4" aria-hidden="true" />
+                : <FiChevronLeft className="h-4 w-4" aria-hidden="true" />}
             </button>
-            {!isCollapsed && (
-              <button
-                className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
-                onClick={() => setMobileOpen(false)}
-                type="button"
-                aria-label="Close sidebar"
-              >
-                ✕
-              </button>
-            )}
+            <button
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden"
+              onClick={() => setMobileOpen(false)}
+              type="button"
+              aria-label="Close sidebar"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
@@ -253,7 +278,7 @@ export default function Sidebar({
                     }
                     title={item.label}
                   >
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center text-base">{item.icon}</span>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center [&>svg]:h-[18px] [&>svg]:w-[18px]" aria-hidden="true">{item.icon}</span>
                     {!isCollapsed && (
                       <span className="overflow-visible whitespace-nowrap text-left">{item.label}</span>
                     )}
@@ -272,7 +297,9 @@ export default function Sidebar({
             type="button"
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
-            <span>{theme === "dark" ? "☀️" : "🌙"}</span>
+            <span className="[&>svg]:h-4 [&>svg]:w-4">
+              {theme === "dark" ? <FiSun aria-hidden="true" /> : <FiMoon aria-hidden="true" />}
+            </span>
             {!isCollapsed && <span className="text-xs text-slate-400">Toggle</span>}
           </button>
         </div>

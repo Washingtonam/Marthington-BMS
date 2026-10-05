@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import Staff from '../pages/Staff.jsx'
@@ -41,9 +41,7 @@ describe('Staff page', () => {
     expect(screen.getByText('Branches')).toBeTruthy()
   })
 
-  it('collapses the sidebar back to its compact rail after a longer idle period', () => {
-    vi.useFakeTimers()
-
+  it('allows the desktop sidebar to be collapsed and expanded with its toggle', () => {
     render(
       <MemoryRouter initialEntries={['/app']}>
         <Sidebar />
@@ -53,20 +51,12 @@ describe('Staff page', () => {
     const sidebar = document.querySelector('aside')
     expect(sidebar).toBeTruthy()
 
-    fireEvent.mouseEnter(sidebar)
     expect(screen.getByText('Dashboard')).toBeTruthy()
-
-    act(() => {
-      vi.advanceTimersByTime(9000)
-    })
-
-    expect(screen.getByText('Dashboard')).toBeTruthy()
-
-    act(() => {
-      vi.advanceTimersByTime(1000)
-    })
-
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(screen.queryByText('Dashboard')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }))
+    expect(screen.getByText('Dashboard')).toBeTruthy()
   })
 
   it('renders Add Team Member button and opens drawer', async () => {

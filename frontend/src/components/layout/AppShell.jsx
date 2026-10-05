@@ -1,60 +1,83 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
+import {
+  FiActivity,
+  FiArchive,
+  FiArrowUpRight,
+  FiBarChart2,
+  FiBookOpen,
+  FiClipboard,
+  FiCreditCard,
+  FiDollarSign,
+  FiFileText,
+  FiHome,
+  FiMapPin,
+  FiPackage,
+  FiPieChart,
+  FiSettings,
+  FiShield,
+  FiShoppingBag,
+  FiTool,
+  FiTrendingUp,
+  FiTruck,
+  FiUserCheck,
+  FiUsers,
+} from "react-icons/fi";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 
 const defaultNavGroups = [
   {
     label: "Main",
-    items: [{ to: "/app", label: "Dashboard", icon: "◉", permission: "canViewDashboard" }],
+    items: [{ to: "/app", label: "Dashboard", icon: <FiHome />, permission: "canViewDashboard" }],
   },
   {
     label: "Sales & Operations",
     items: [
-      { to: "/app/pos", label: "POS", icon: "🛒", permission: "canAccessPOS" },
-      { to: "/app/sales", label: "Sales", icon: "▣", permission: "canViewSales" },
-      { to: "/app/invoices", label: "Invoices", icon: "◫", permission: "canViewInvoices" },
-      { to: "/app/payments", label: "Payments", icon: "💳", permission: "canViewPayments" },
-      { to: "/app/customers", label: "Customers / CRM", icon: "◌", permission: "canViewCustomers" },
+      { to: "/app/pos", label: "POS", icon: <FiShoppingBag />, permission: "canAccessPOS" },
+      { to: "/app/sales", label: "Sales", icon: <FiTrendingUp />, permission: "canViewSales" },
+      { to: "/app/invoices", label: "Invoices", icon: <FiFileText />, permission: "canViewInvoices" },
+      { to: "/app/payments", label: "Payments", icon: <FiDollarSign />, permission: "canViewPayments" },
+      { to: "/app/customers", label: "Customers / CRM", icon: <FiUsers />, permission: "canViewCustomers" },
     ],
   },
   {
     label: "Catalog & Inventory",
     items: [
-      { to: "/app/products", label: "Products", icon: "📦", permission: "canViewProducts" },
-      { to: "/app/services", label: "Services", icon: "🛠️", permission: "canViewProducts" },
-      { to: "/app/inventory", label: "Inventory", icon: "◧", permission: "canViewBranchInventory" },
-      { to: "/app/suppliers", label: "Suppliers", icon: "🏭", permission: "canViewPurchaseOrders" },
-      { to: "/app/purchase-orders", label: "Purchase Orders", icon: "🧾", permission: "canViewPurchaseOrders" },
+      { to: "/app/products", label: "Products", icon: <FiPackage />, permission: "canViewProducts" },
+      { to: "/app/services", label: "Services", icon: <FiTool />, permission: "canViewProducts" },
+      { to: "/app/inventory", label: "Inventory", icon: <FiArchive />, permission: "canViewBranchInventory" },
+      { to: "/app/suppliers", label: "Suppliers", icon: <FiTruck />, permission: "canViewPurchaseOrders" },
+      { to: "/app/purchase-orders", label: "Purchase Orders", icon: <FiClipboard />, permission: "canViewPurchaseOrders" },
     ],
   },
   {
     label: "Finance & Control",
     items: [
-      { to: "/app/expenses", label: "Expenses", icon: "💸", permission: "canViewExpenses" },
-      { to: "/app/billing", label: "Billing", icon: "⬡", permission: "canManageBilling" },
-      { to: "/app/reports", label: "Reports", icon: "📊", permission: "canViewReports" },
-      { to: "/app/analytics", label: "Analytics", icon: "⬢", permission: "canViewReports" },
+      { to: "/app/expenses", label: "Expenses", icon: <FiArrowUpRight />, permission: "canViewExpenses" },
+      { to: "/app/billing", label: "Billing", icon: <FiCreditCard />, permission: "canManageBilling" },
+      { to: "/app/reports", label: "Reports", icon: <FiBarChart2 />, permission: "canViewReports" },
+      { to: "/app/analytics", label: "Analytics", icon: <FiPieChart />, permission: "canViewReports" },
     ],
   },
   {
     label: "Team & Access",
     items: [
-      { to: "/app/staff", label: "Staff", icon: "◎", permission: "canManageStaff" },
-      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: "🛡️", permission: "canManageSettings" },
+      { to: "/app/staff", label: "Staff", icon: <FiUserCheck />, permission: "canManageStaff" },
+      { to: "/app/settings?tab=access", label: "Roles & Permissions", icon: <FiShield />, permission: "canManageSettings" },
     ],
   },
   {
     label: "People & Locations",
     items: [
-      { to: "/app/branches", label: "Branches", icon: "🏢", permission: "canViewBranches" },
+      { to: "/app/branches", label: "Branches", icon: <FiMapPin />, permission: "canViewBranches" },
     ],
   },
   {
     label: "System",
     items: [
-      { to: "/app/settings", label: "Settings", icon: "⚙", permission: "canManageSettings" },
-      { to: "/app/user-guide", label: "User Guide", icon: "📘" },
+      { to: "/app/settings", label: "Settings", icon: <FiSettings />, permission: "canManageSettings" },
+      { to: "/app/user-guide", label: "User Guide", icon: <FiBookOpen /> },
     ],
   },
 ];
