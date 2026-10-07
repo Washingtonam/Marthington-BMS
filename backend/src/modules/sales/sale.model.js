@@ -28,6 +28,16 @@ const saleItemSchema = new mongoose.Schema(
       required: true
     },
 
+    serialNumber: {
+      type: String,
+      default: ""
+    },
+
+    note: {
+      type: String,
+      default: ""
+    },
+
     quantity: {
       type: Number,
       required: true,

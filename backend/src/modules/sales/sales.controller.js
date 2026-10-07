@@ -193,8 +193,9 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
             throw new Error("Unauthorized product access");
           }
 
-          const basePrice = Math.round(Number(product.price));
-          const incomingPrice = Math.round(Number(item.sellingPrice ?? product.price));
+          const basePrice = Number(product.price);
+          const incomingPrice = Number(item.sellingPrice ?? product.price);
+          if (!Number.isFinite(incomingPrice)) throw new Error(`Invalid selling price for ${product.name}`);
           
           // Price Override Permission Check
           const canOverride = req.user.role === "owner" || 
@@ -234,6 +235,8 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
             itemType: "product",
             product: product._id,
             name: product.name,
+            serialNumber: String(item.serialNumber || "").trim(),
+            note: String(item.note || "").trim(),
             quantity,
             costPrice: Number(product.costPrice) || 0,
             sellingPrice: finalPrice,
@@ -242,13 +245,16 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
 
         } else if (item.itemType === "service") {
           const quantity = Math.round(Number(item.quantity || 1));
-          const sellingPrice = Math.round(Number(item.sellingPrice || 0));
+          const sellingPrice = Number(item.sellingPrice || 0);
+          if (!Number.isFinite(sellingPrice)) throw new Error(`Invalid selling price for ${item.name || "service"}`);
           const itemTotal = quantity * sellingPrice;
           totalAmount += itemTotal;
 
           saleItems.push({
             itemType: "service",
             name: item.name || "Service",
+            serialNumber: String(item.serialNumber || "").trim(),
+            note: String(item.note || "").trim(),
             quantity,
             costPrice: 0,
             sellingPrice,
@@ -270,6 +276,7 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         customer: customer?._id || null,
         customerName: customerName || customer?.name || "Walk-in",
         customerPhone: customerPhone || "",
+        notes: String(notes || "").trim(),
         receiptId: generateReceiptId()
       }], { session });
 
@@ -287,9 +294,11 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         const invoiceItems = items.map(item => ({
           product: item.product || null,
           name: item.name,
+          serialNumber: item.serialNumber || "",
+          note: item.note || "",
           quantity: Number(item.quantity || 0),
           price: Number(item.sellingPrice || 0),
-          total: Number(item.total || 0),
+          total: Number(item.total ?? (Number(item.sellingPrice || 0) * Number(item.quantity || 0))),
           returned: false,
           returnQuantity: 0,
           returnAmount: 0,

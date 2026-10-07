@@ -14,3 +14,14 @@ export const normalizeReportDeliveryTime = (value, fallback = DEFAULT_REPORT_DEL
 
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 };
+
+export const normalizeReportDay = (value) => (
+  value === "previous" ? "previous" : "current"
+);
+
+export const normalizeReportScheduleTime = (value, reportDay = "current") => {
+  const fallback = reportDay === "previous" ? "06:00" : DEFAULT_REPORT_DELIVERY_TIME;
+  const normalized = normalizeReportDeliveryTime(value, fallback);
+  if (reportDay === "previous" && Number(normalized.slice(0, 2)) >= 12) return "06:00";
+  return normalized;
+};

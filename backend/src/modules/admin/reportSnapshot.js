@@ -40,11 +40,14 @@ const localParts = (date, timezone) => new Intl.DateTimeFormat("en-US", {
 
 const localDateToUtc = (date, timezone) => {
   const [year, month, day] = date.split("-").map(Number);
-  let result = new Date(Date.UTC(year, month - 1, day));
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const targetTime = Date.UTC(year, month - 1, day);
+  let result = new Date(targetTime);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const parts = localParts(result, timezone);
     const asUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
-    result = new Date(result.getTime() - (asUtc - result.getTime()));
+    const adjustedTime = targetTime - (asUtc - result.getTime());
+    if (adjustedTime === result.getTime()) break;
+    result = new Date(adjustedTime);
   }
   return result;
 };
@@ -55,8 +58,18 @@ const addDays = (date, amount) => {
   return result.toISOString().slice(0, 10);
 };
 
-export const getCompletedReportRange = (now = new Date(), timezone = "Africa/Lagos", frequency = "daily") => {
+export const getCompletedReportRange = (now = new Date(), timezone = "Africa/Lagos", frequency = "daily", reportDay = "previous") => {
   const currentDate = getLocalDate(now, timezone);
+  if (frequency === "daily") {
+    const reportDate = addDays(currentDate, reportDay === "previous" ? -1 : 0);
+    const nextDate = addDays(reportDate, 1);
+    return {
+      startDate: localDateToUtc(reportDate, timezone),
+      endDate: localDateToUtc(nextDate, timezone),
+      startLocalDate: reportDate,
+      endLocalDate: reportDate
+    };
+  }
   const endDate = frequency === "monthly"
     ? `${currentDate.slice(0, 8)}01`
     : addDays(currentDate, 0);
@@ -80,9 +93,14 @@ export const formatReportPeriodLabel = (range, frequency) => {
   return frequency === "daily" ? `${title} report for ${start}` : `${title} report: ${start} - ${end}`;
 };
 
-export const getReportSnapshot = async (subscription, businessId) => {
+export const getReportSnapshot = async (subscription, businessId, now = new Date()) => {
   const timezone = subscription.timezone || "Africa/Lagos";
-  const dateRange = getCompletedReportRange(new Date(), timezone, subscription.frequency || "daily");
+  const dateRange = getCompletedReportRange(
+    now,
+    timezone,
+    subscription.frequency || "daily",
+    subscription.reportDay || "current"
+  );
   const sales = await Sale.find(salesFilter(businessId))
     .select("items totalAmount totalProfit paymentMethod paymentReference branch createdBy createdAt receiptId customerName status")
     .populate("createdBy", "name email")

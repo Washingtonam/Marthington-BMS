@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import request from "../api/client.js";
 
 const mockNavigate = vi.fn();
 
@@ -63,7 +64,9 @@ import POS from "../pages/POS.jsx";
 
 describe("POS checkout", () => {
   beforeEach(() => {
+    cleanup();
     mockNavigate.mockReset();
+    request.mockClear();
   });
 
   it("navigates to the receipt page with a print trigger after confirming the cart", async () => {
@@ -83,6 +86,31 @@ describe("POS checkout", () => {
           })
         })
       );
+    });
+  });
+
+  it("opens the cart modal and includes optional item serials and notes in checkout", async () => {
+    render(<POS />);
+
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Open cart" }));
+
+    expect(screen.getByRole("dialog", { name: "Cart checkout" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "Laptop serial number" }), {
+      target: { value: "SN-100" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Laptop note" }), {
+      target: { value: "Warranty included" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(salesCall).toBeTruthy();
+      expect(JSON.parse(salesCall[1].body).items[0]).toMatchObject({
+        serialNumber: "SN-100",
+        note: "Warranty included"
+      });
     });
   });
 });

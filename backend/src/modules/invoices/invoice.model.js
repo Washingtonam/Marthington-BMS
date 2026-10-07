@@ -20,6 +20,16 @@ const invoiceItemSchema =
       required: true
     },
 
+    serialNumber: {
+      type: String,
+      default: ""
+    },
+
+    note: {
+      type: String,
+      default: ""
+    },
+
     quantity: {
       type: Number,
       default: 1

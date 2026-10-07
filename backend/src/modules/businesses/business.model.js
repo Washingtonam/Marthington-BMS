@@ -16,6 +16,7 @@ const businessSchema = new mongoose.Schema(
     supportPhone: { type: String, default: "" },
     reportNotificationsEnabled: { type: Boolean, default: true },
     reportDeliveryTime: { type: String, default: "18:00" },
+    reportDay: { type: String, enum: ["current", "previous"], default: "current" },
 
     logo: { type: String, default: "" },
 

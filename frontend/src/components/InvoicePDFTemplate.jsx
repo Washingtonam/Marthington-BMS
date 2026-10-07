@@ -160,6 +160,8 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
                       Product ID: {typeof item.product === 'object' ? item.product._id : item.product}
                     </div>
                   )}
+                  {item.serialNumber && <div className="item-product">Serial number: {item.serialNumber}</div>}
+                  {item.note && <div className="item-product">Note: {item.note}</div>}
                 </td>
                 <td className="qty-col">{item.quantity}</td>
                 <td className="price-col">{formatCurrency(item.price)}</td>

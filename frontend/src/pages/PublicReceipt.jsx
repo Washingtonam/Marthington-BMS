@@ -98,6 +98,12 @@ const PublicReceipt = () => {
               <div className="text-xs opacity-60">
                 {item.quantity} × {formatCurrency(item.sellingPrice)}
               </div>
+              {item.serialNumber && (
+                <div className="text-xs opacity-70">Serial number: {item.serialNumber}</div>
+              )}
+              {item.note && (
+                <div className="text-xs opacity-70">Note: {item.note}</div>
+              )}
             </div>
           ))}
         </div>

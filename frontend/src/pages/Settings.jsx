@@ -30,6 +30,7 @@ const Settings = () => {
     supportPhone: "",
     reportNotificationsEnabled: true,
     reportDeliveryTime: "18:00",
+    reportDay: "current",
     businessType: "general_services",
     receiptFooter: "",
     customerDisplayMessage: "",
@@ -73,6 +74,7 @@ const Settings = () => {
       supportPhone: business.supportPhone || "",
       reportNotificationsEnabled: business.reportNotificationsEnabled !== false,
       reportDeliveryTime: business.reportDeliveryTime || "18:00",
+      reportDay: business.reportDay === "previous" ? "previous" : "current",
       businessType: business.businessType || "general_services",
       receiptFooter: business.receiptFooter || "",
       customerDisplayMessage: business.customerDisplayMessage || "",
@@ -435,14 +437,39 @@ const Settings = () => {
                 </label>
 
                 <div className="mt-4 flex flex-col gap-1 md:max-w-xs">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Report day</label>
+                  <select
+                    value={form.reportDay}
+                    disabled={!form.reportNotificationsEnabled}
+                    onChange={(event) => setForm((prev) => ({
+                      ...prev,
+                      reportDay: event.target.value,
+                      reportDeliveryTime: event.target.value === "previous" && prev.reportDeliveryTime >= "12:00"
+                        ? "06:00"
+                        : prev.reportDeliveryTime
+                    }))}
+                    className="input-field disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <option value="current">Current day (includes sales so far today)</option>
+                    <option value="previous">Previous day (completed day)</option>
+                  </select>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-1 md:max-w-xs">
                   <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Daily report time</label>
                   <input
                     type="time"
                     value={form.reportDeliveryTime}
                     disabled={!form.reportNotificationsEnabled}
+                    max={form.reportDay === "previous" ? "11:59" : undefined}
                     onChange={(event) => setForm((prev) => ({ ...prev, reportDeliveryTime: event.target.value }))}
                     className="input-field disabled:cursor-not-allowed disabled:opacity-60"
                   />
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {form.reportDay === "previous"
+                      ? "Previous-day reports are delivered before noon."
+                      : "Current-day reports include sales recorded up to the delivery time."}
+                  </span>
                 </div>
               </div>
               <div className="flex flex-col gap-1">

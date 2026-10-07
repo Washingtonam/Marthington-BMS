@@ -1440,8 +1440,12 @@ export const buildOutstandingPeoplePipeline = ({ businessId, branchQuery = {}, t
   const entityField = transactionType === "incoming" ? "$supplier" : "$customer";
   const collection = transactionType === "incoming" ? "suppliers" : "customers";
   const snapshotName = transactionType === "incoming" ? "" : "$customerName";
-  const query = buildInvoiceListQuery({ businessId, branchQuery, filters: { transactionType } });
-  query.status = { $ne: "cancelled" };
+  const query = {
+    business: businessId,
+    ...branchQuery,
+    transactionType,
+    status: { $ne: "cancelled" }
+  };
 
   return [
     { $match: query },

@@ -39,7 +39,6 @@ const POS = () => {
   const bc = useRef(null);
   const isInitialMount = useRef(true);
   const customersLoaded = useRef(false);
-  const cartPanelRef = useRef(null);
 
   // ====================================
   // STATE MANAGEMENT
@@ -323,6 +322,8 @@ useEffect(() => {
         name: item.name,
         quantity: 1,
         sellingPrice: Number(item.sellingPrice || item.price || 0),
+        serialNumber: "",
+        note: "",
         ...(type === "service" && { serviceId: item._id }),
         ...(isProduct && { maxStock: selectedStock ?? item.stock })
       }];
@@ -372,10 +373,6 @@ useEffect(() => {
     }
   }, []);
 
-  const scrollToCart = useCallback(() => {
-    cartPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, []);
-
   const updateQty = (id, newQty) => {
     if (newQty <= 0) {
       setCart(curr => curr.filter(i => i._id !== id));
@@ -400,7 +397,9 @@ useEffect(() => {
           product: i.itemType === "product" ? i._id : undefined,
           name: i.name,
           quantity: i.quantity,
-          sellingPrice: i.sellingPrice
+          sellingPrice: i.sellingPrice,
+          serialNumber: i.serialNumber,
+          note: i.note
         }))
       };
 
@@ -574,13 +573,26 @@ useEffect(() => {
       </div>
 
       {/* RIGHT COLUMN: CART */}
-      <div ref={cartPanelRef} className={`${cartOpen ? "block" : "hidden"} fixed inset-x-2 bottom-20 z-40 max-h-[calc(100dvh-6rem)] min-w-0 overflow-hidden scroll-mt-4 lg:block lg:sticky lg:top-4 lg:h-[calc(100dvh-2rem)] lg:max-h-none`}>
+      <div
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setCartOpen(false);
+        }}
+        className={cartOpen
+          ? "fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 pt-16 lg:sticky lg:top-4 lg:block lg:h-[calc(100dvh-2rem)] lg:overflow-visible lg:bg-transparent lg:p-0"
+          : "hidden lg:sticky lg:top-4 lg:block lg:h-[calc(100dvh-2rem)]"}
+      >
         {selectedBranch && branchInventory.length === 0 && (
           <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
             No inventory has been imported for the selected branch yet. Import stock before selling products from this location.
           </div>
         )}
-        <div className="flex h-full min-h-0 flex-col rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] dark:border-slate-700 dark:bg-slate-900">
+        <div
+          role={cartOpen ? "dialog" : undefined}
+          aria-modal={cartOpen ? "true" : undefined}
+          aria-label={cartOpen ? "Cart checkout" : undefined}
+          onClick={(event) => event.stopPropagation()}
+          className="flex max-h-[calc(100dvh-5rem)] min-h-0 w-full max-w-xl flex-col rounded-[28px] border border-slate-100 bg-white p-5 shadow-[0_22px_60px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-slate-900 lg:h-full lg:max-h-none lg:w-auto lg:max-w-none"
+        >
           <div className="mb-6 flex shrink-0 items-center justify-between">
             <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">Cart</h2>
             <div className="flex items-center gap-2">
@@ -620,6 +632,26 @@ useEffect(() => {
                           className="w-20 rounded-xl border border-slate-200 bg-white p-1 text-right text-xs font-black text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                         />
                       )}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <input
+                        value={item.serialNumber}
+                        onChange={(event) => setCart((current) => current.map((cartItem) => (
+                          cartItem._id === item._id ? { ...cartItem, serialNumber: event.target.value } : cartItem
+                        )))}
+                        placeholder="Serial number (optional)"
+                        aria-label={`${item.name} serial number`}
+                        className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400"
+                      />
+                      <input
+                        value={item.note}
+                        onChange={(event) => setCart((current) => current.map((cartItem) => (
+                          cartItem._id === item._id ? { ...cartItem, note: event.target.value } : cartItem
+                        )))}
+                        placeholder="Item note (optional)"
+                        aria-label={`${item.name} note`}
+                        className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400"
+                      />
                     </div>
                   </div>
                 ))
@@ -731,18 +763,19 @@ useEffect(() => {
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => {
-          setCartOpen(true);
-          scrollToCart();
-        }}
-        className="fixed inset-x-3 bottom-3 z-20 flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-left text-white shadow-[0_14px_32px_rgba(15,23,42,0.28)] lg:hidden"
-        aria-label="Open cart"
-      >
-        <span className="text-xs font-bold uppercase tracking-[0.16em]">Cart · {cart.length} {cart.length === 1 ? "item" : "items"}</span>
-        <span className="text-sm font-black">{formatCurrency(total)}</span>
-      </button>
+      {!cartOpen && (
+        <button
+          type="button"
+          onClick={() => setCartOpen(true)}
+          className="fixed right-4 top-20 z-50 flex items-center gap-3 rounded-full bg-slate-900 px-4 py-3 text-left text-white shadow-[0_14px_32px_rgba(15,23,42,0.28)] lg:hidden"
+          aria-label="Open cart"
+        >
+          <span className="text-xs font-bold uppercase tracking-[0.16em]">Cart</span>
+          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-1.5 text-xs font-black text-slate-900">
+            {cart.reduce((count, item) => count + item.quantity, 0)}
+          </span>
+        </button>
+      )}
     </div>
   );
 };

@@ -262,6 +262,8 @@ const SaleDetails = () => {
                   <div className="receipt-item-details">
                     <h4 className="text-base font-black text-black">{item.name}</h4>
                     <p className="receipt-item-meta font-mono text-sm text-black">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
+                    {item.serialNumber && <p className="text-xs font-semibold text-black">Serial number: {item.serialNumber}</p>}
+                    {item.note && <p className="text-xs font-semibold text-black">Note: {item.note}</p>}
                   </div>
                   <strong className="receipt-item-total text-base font-black text-black">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
                 </div>

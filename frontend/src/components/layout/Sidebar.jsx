@@ -187,14 +187,18 @@ export default function Sidebar({
       >
         <div className={`flex items-center justify-between border-b border-slate-200/80 bg-white/20 px-5 py-4 backdrop-blur-sm dark:border-slate-700/80 dark:bg-slate-950/15 ${isCollapsed ? "lg:justify-between lg:px-1 lg:py-3" : ""}`}>
           {isCollapsed ? (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400" aria-label="Marthington Business Hub">
-              <FiBriefcase className="h-5 w-5" aria-hidden="true" />
-            </div>
+            <img
+              src="/logo-icon.png"
+              alt="Marthington"
+              className="h-8 w-8 rounded-lg object-contain"
+            />
           ) : (
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-400 dark:ring-emerald-900/60">
-                <FiBriefcase className="h-6 w-6" aria-hidden="true" />
-              </div>
+              <img
+                src="/logo-icon.png"
+                alt="Marthington"
+                className="h-11 w-11 shrink-0 rounded-xl object-contain"
+              />
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
                   Marthington

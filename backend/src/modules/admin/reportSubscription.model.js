@@ -37,6 +37,11 @@ const reportSubscriptionSchema = new mongoose.Schema(
       type: String,
       default: "18:00"
     },
+    reportDay: {
+      type: String,
+      enum: ["current", "previous"],
+      default: "current"
+    },
     weeklyDay: {
       type: Number,
       min: 0,

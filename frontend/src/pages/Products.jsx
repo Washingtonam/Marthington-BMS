@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import {
+  calculateMarkup,
+  DEFAULT_PRODUCT_MARKUP,
+  suggestSellingPrice
+} from "../utils/productPricing.js";
 
 const initialForm = {
   name: "",
@@ -11,9 +16,6 @@ const initialForm = {
   category: "",
   sku: ""
 };
-
-const suggestSellingPrice = (costPrice, markup = 30) =>
-  Math.round(Number(costPrice || 0) * (1 + Number(markup || 0) / 100) * 100) / 100;
 
 const Products = () => {
   const { business, isPro, user } = useAuth(); // Using the boolean from context
@@ -34,7 +36,7 @@ const Products = () => {
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
   const [form, setForm] = useState(initialForm);
-  const [markup, setMarkup] = useState(30);
+  const [markup, setMarkup] = useState(String(DEFAULT_PRODUCT_MARKUP));
   const [customSellingPrice, setCustomSellingPrice] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -118,17 +120,13 @@ const Products = () => {
     const { name, value } = e.target;
     if (name === "sellingPrice") {
       setCustomSellingPrice(true);
-      if (Number(form.costPrice) > 0) {
-        setMarkup(((Number(value || 0) / Number(form.costPrice)) - 1) * 100);
-      }
+      setMarkup(calculateMarkup(form.costPrice, value));
       setForm((prev) => ({ ...prev, sellingPrice: value }));
       return;
     }
 
     if (name === "costPrice") {
-      if (customSellingPrice && Number(value) > 0) {
-        setMarkup(((Number(form.sellingPrice || 0) / Number(value)) - 1) * 100);
-      }
+      if (customSellingPrice) setMarkup(calculateMarkup(value, form.sellingPrice));
       setForm((prev) => ({
         ...prev,
         costPrice: value,
@@ -176,7 +174,7 @@ const Products = () => {
 
       setSuccess(`Product ${editingId ? "updated" : "added"} successfully`);
       setForm(initialForm);
-      setMarkup(30);
+      setMarkup(String(DEFAULT_PRODUCT_MARKUP));
       setCustomSellingPrice(false);
       setEditingId(null);
       setDrawerOpen(false);
@@ -200,7 +198,7 @@ const Products = () => {
     });
     const costPrice = Number(product.costPrice || 0);
     const sellingPrice = Number(product.sellingPrice || product.price || 0);
-    setMarkup(costPrice > 0 ? ((sellingPrice / costPrice) - 1) * 100 : 30);
+    setMarkup(costPrice > 0 ? calculateMarkup(costPrice, sellingPrice) : String(DEFAULT_PRODUCT_MARKUP));
     setCustomSellingPrice(true);
     setDrawerOpen(true);
   };
@@ -208,7 +206,7 @@ const Products = () => {
   const openNewProductDrawer = () => {
     setEditingId(null);
     setForm(initialForm);
-    setMarkup(30);
+    setMarkup(String(DEFAULT_PRODUCT_MARKUP));
     setCustomSellingPrice(false);
     setDrawerOpen(true);
   };
@@ -524,8 +522,7 @@ const Products = () => {
                       <span className="mr-2 text-slate-500">₦</span>
                       <input
                         type="number"
-                        min="0"
-                        step="0.01"
+                        step="any"
                         name="costPrice"
                         value={form.costPrice}
                         onChange={handleChange}
@@ -539,8 +536,7 @@ const Products = () => {
                     <label className="block text-sm font-semibold text-slate-700">Markup (%)</label>
                     <input
                       type="number"
-                      min="0"
-                      step="0.01"
+                      step="any"
                       value={markup}
                       onChange={(event) => handleMarkupChange(event.target.value)}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none"
@@ -553,7 +549,7 @@ const Products = () => {
                       <input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="any"
                         name="sellingPrice"
                         value={form.sellingPrice}
                         onChange={handleChange}

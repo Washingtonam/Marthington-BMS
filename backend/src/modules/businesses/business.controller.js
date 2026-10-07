@@ -2,7 +2,10 @@ import Business from "./business.model.js";
 import User from "../users/user.model.js";
 import ReportSubscription from "../admin/reportSubscription.model.js";
 import cloudinary from "../../utils/cloudinary.js";
-import { normalizeReportDeliveryTime } from "../../utils/reportDeliverySettings.js";
+import {
+  normalizeReportDay,
+  normalizeReportScheduleTime
+} from "../../utils/reportDeliverySettings.js";
 
 // 🔥 NORMALIZE BUSINESS RESPONSE (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -22,6 +25,8 @@ const formatBusiness = (business) => {
 
   return {
     ...obj,
+    reportDay: normalizeReportDay(obj.reportDay),
+    reportDeliveryTime: normalizeReportScheduleTime(obj.reportDeliveryTime, obj.reportDay),
     referredBy: obj.referredBy || null,
     industryType,
     businessType,
@@ -62,6 +67,7 @@ export const getBusiness = async (req, res) => {
         email: "",
         reportNotificationsEnabled: true,
         reportDeliveryTime: "18:00",
+        reportDay: "current",
         receiptFooter: "",
         customerDisplayMessage: "",
         receiptTheme: "",
@@ -107,7 +113,8 @@ export const getBusiness = async (req, res) => {
       phone: rawBusiness?.phone || "",
       email: rawBusiness?.email || "",
       reportNotificationsEnabled: rawBusiness?.reportNotificationsEnabled !== false,
-      reportDeliveryTime: normalizeReportDeliveryTime(rawBusiness?.reportDeliveryTime),
+      reportDeliveryTime: normalizeReportScheduleTime(rawBusiness?.reportDeliveryTime, rawBusiness?.reportDay),
+      reportDay: normalizeReportDay(rawBusiness?.reportDay),
       receiptFooter: rawBusiness?.receiptFooter || "",
       customerDisplayMessage: rawBusiness?.customerDisplayMessage || "",
       receiptTheme: rawBusiness?.receiptTheme || "",
@@ -164,6 +171,7 @@ export const getBusiness = async (req, res) => {
       email: "",
       reportNotificationsEnabled: true,
       reportDeliveryTime: "18:00",
+      reportDay: "current",
       receiptFooter: "",
       customerDisplayMessage: "",
       receiptTheme: "",
@@ -201,7 +209,8 @@ const syncBusinessReportDeliverySettings = async (business, actorId) => {
     return null;
   }
 
-  const normalizedTime = normalizeReportDeliveryTime(business.reportDeliveryTime);
+  const reportDay = normalizeReportDay(business.reportDay);
+  const normalizedTime = normalizeReportScheduleTime(business.reportDeliveryTime, reportDay);
   const nextStatus = business.reportNotificationsEnabled === false ? "admin_disabled" : "enabled";
   const upsertPayload = {
     recipientEmail: recipientEmail.toLowerCase(),
@@ -210,6 +219,7 @@ const syncBusinessReportDeliverySettings = async (business, actorId) => {
     reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
     frequency: "daily",
     sendTime: normalizedTime,
+    reportDay,
     timezone: "Africa/Lagos",
     weeklyDay: 1,
     monthlyDay: "last",
@@ -271,6 +281,7 @@ export const updateBusiness = async (req, res) => {
       industryType,
       reportNotificationsEnabled,
       reportDeliveryTime,
+      reportDay,
       customerDisplayMessage,
       logo,
       approvalRules,
@@ -311,12 +322,15 @@ export const updateBusiness = async (req, res) => {
       ? String(reportNotificationsEnabled) !== "false"
       : business.reportNotificationsEnabled !== false;
 
-    const nextReportDeliveryTime = normalizeReportDeliveryTime(
-      reportDeliveryTime !== undefined ? reportDeliveryTime : business.reportDeliveryTime
+    const nextReportDay = normalizeReportDay(reportDay !== undefined ? reportDay : business.reportDay);
+    const nextReportDeliveryTime = normalizeReportScheduleTime(
+      reportDeliveryTime !== undefined ? reportDeliveryTime : business.reportDeliveryTime,
+      nextReportDay
     );
 
     business.reportNotificationsEnabled = nextReportNotificationsEnabled;
     business.reportDeliveryTime = nextReportDeliveryTime;
+    business.reportDay = nextReportDay;
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.customerDisplayMessage = customerDisplayMessage !== undefined ? customerDisplayMessage : business.customerDisplayMessage;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
