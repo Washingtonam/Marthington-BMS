@@ -1,13 +1,13 @@
 # Marthington BMS - API Documentation
 
-## Public Marketing Shop
+## Marthington Shop
 
-### Browse published products
+### Browse marketplace products
 ```http
 GET /api/shop?page=1&limit=24&search=notebook&category=Stationery
 ```
 
-This endpoint is public and returns only products explicitly published by active businesses that have enabled their shop. Results include product names, categories, selling prices, stock availability, and public business contact details. Cost prices and exact stock quantities are never returned.
+This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden a listing. New BMS products appear automatically. Results include product names, categories, selling prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -16,7 +16,43 @@ This endpoint is public and returns only products explicitly published by active
 | `search` | string | — | Match product name or category |
 | `category` | string | — | Exact category filter |
 
-Businesses opt in through their settings; products are published individually from the product editor. Both are hidden by default.
+New products are listed automatically. Marthington super admins can hide a listing or add a shop image from the protected marketplace admin. Businesses do not receive marketplace orders directly.
+
+### Shopper account and address endpoints
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `POST` | `/api/shop/customers/register` | Public | Create a separate shopper account |
+| `POST` | `/api/shop/customers/login` | Public | Sign in to the shop |
+| `GET` | `/api/shop/customers/me` | Shop customer token | Read account and saved addresses |
+| `POST` | `/api/shop/customers/addresses` | Shop customer token | Save a delivery address |
+| `PATCH` | `/api/shop/customers/addresses/:addressId` | Shop customer token | Edit a saved delivery address |
+| `DELETE` | `/api/shop/customers/addresses/:addressId` | Shop customer token | Remove a saved delivery address |
+
+### Marketplace checkout and orders
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `POST` | `/api/shop/orders` | Shop customer token | Create a multi-supplier order and initialize a Paystack payment to Marthington |
+| `POST` | `/api/shop/orders/verify-payment` | Shop customer token | Verify product payment after redirect |
+| `GET` | `/api/shop/orders` | Shop customer token | Read own order history |
+| `POST` | `/api/shop/orders/:id/delivery-fee/initialize` | Shop customer token | Pay a delivery fee confirmed later by Marthington |
+| `POST` | `/api/shop/orders/verify-delivery-payment` | Shop customer token | Verify delivery-fee payment |
+
+Orders retain price and supplier snapshots and reserve stock while product payment is pending. Unpaid reservations expire after 30 minutes and are released. Product payment goes to the Marthington Paystack account; Marthington receives the single order, contacts suppliers and coordinates delivery. The delivery fee is confirmed after checkout and paid separately.
+
+Paid orders cannot be marked cancelled through the shop admin API; refund processing must be completed in Paystack first. Product stock for unpaid checkouts is reserved for 30 minutes and released by the shop expiry job if checkout is abandoned.
+
+### Shop administration
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `GET` | `/api/shop/admin/products` | BMS super-admin token | Search all BMS products |
+| `PATCH` | `/api/shop/admin/products/:id` | BMS super-admin token | Upload a marketplace image and/or hide a listing |
+| `GET` | `/api/shop/admin/orders` | BMS super-admin token | Review all customer orders and supplier contact details |
+| `PATCH` | `/api/shop/admin/orders/:id` | BMS super-admin token | Set delivery fee, status and internal note |
+
+Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access.
 
 ## Expense Module - Phase 3 Endpoints
 

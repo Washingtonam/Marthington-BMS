@@ -105,6 +105,7 @@ export const verifyPayment = async (reference) => {
 
     // 🔥 EXPLICIT METADATA EXTRACTION FROM RESPONSE
     const extractedMetadata = transactionData.metadata || {};
+    const isShopPayment = ["shop_order", "shop_delivery_fee"].includes(extractedMetadata.type);
     const { businessId, billingCycle } = extractedMetadata;
 
     console.log("[paystack.verifyPayment] ✅ Transaction verified", {
@@ -112,13 +113,16 @@ export const verifyPayment = async (reference) => {
       status: transactionData.status,
       amount: transactionData.amount,
       amountInNaira: `${(transactionData.amount / 100).toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}`,
-      metadataExtracted: {
-        businessId: businessId ? "✅ Present" : "❌ Missing",
-        billingCycle: billingCycle ? `✅ ${billingCycle}` : "❌ Missing"
-      }
+      metadataType: extractedMetadata.type || "subscription",
+      ...(isShopPayment ? {} : {
+        metadataExtracted: {
+          businessId: businessId ? "✅ Present" : "❌ Missing",
+          billingCycle: billingCycle ? `✅ ${billingCycle}` : "❌ Missing"
+        }
+      })
     });
 
-    if (!businessId || !billingCycle) {
+    if (!isShopPayment && (!businessId || !billingCycle)) {
       console.error("❌ [paystack.verifyPayment] CRITICAL: Metadata keys missing from response", {
         reference,
         businessId: businessId || "MISSING",

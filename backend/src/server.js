@@ -10,6 +10,7 @@ import runSubscriptionCheck from "./jobs/subscription.job.js";
 import startOverdueEmailCron from "./jobs/overduEmailReminder.job.js";
 import startReportEmailCron from "./jobs/reportEmail.job.js";
 import startEmailCampaignCron from "./jobs/emailCampaign.job.js";
+import { expireUnpaidShopOrders } from "./modules/shop/shop.jobs.js";
 // workers are now run in a separate process via src/worker.js
 
 const PORT = process.env.PORT || 5000;
@@ -51,6 +52,13 @@ const startServer = async () => {
     startOverdueEmailCron();
     startReportEmailCron();
     startEmailCampaignCron();
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        await expireUnpaidShopOrders();
+      } catch (error) {
+        console.error("❌ Shop reservation expiry failed:", error.message);
+      }
+    });
 
     // �🔥 HEALTH CHECK (IMPORTANT FOR DEPLOYMENT)
     app.get("/health", (req, res) => {

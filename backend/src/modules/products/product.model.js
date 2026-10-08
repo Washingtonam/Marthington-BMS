@@ -38,9 +38,14 @@ const productSchema = new mongoose.Schema(
       default: ""
     },
 
-    publishedToShop: {
+    shopVisible: {
       type: Boolean,
-      default: false
+      default: true
+    },
+
+    shopImage: {
+      type: String,
+      default: ""
     },
 
     business: {

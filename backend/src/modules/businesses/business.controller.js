@@ -295,9 +295,7 @@ export const updateBusiness = async (req, res) => {
       paymentAccountNumber,
       paymentWalletName,
       paymentWalletNumber,
-      paymentTransferInstructions,
-      shopEnabled,
-      shopDescription
+      paymentTransferInstructions
     } = req.body;
 
     if (req.file) {
@@ -320,10 +318,6 @@ export const updateBusiness = async (req, res) => {
     business.website = website ?? business.website;
     business.supportEmail = supportEmail ?? business.supportEmail;
     business.supportPhone = supportPhone ?? business.supportPhone;
-    if (shopEnabled !== undefined) {
-      business.shopEnabled = String(shopEnabled) === "true";
-    }
-    business.shopDescription = shopDescription ?? business.shopDescription;
     const nextReportNotificationsEnabled = reportNotificationsEnabled !== undefined
       ? String(reportNotificationsEnabled) !== "false"
       : business.reportNotificationsEnabled !== false;

@@ -5,6 +5,7 @@ import {
   verifyPayment
 } from "./paystack.service.js";
 import { creditAffiliate } from "../affiliates/affiliate.utils.js";
+import { processShopPaymentEvent } from "../shop/shop.controller.js";
 
 // ======================================
 // GET SUBSCRIPTION STATUS
@@ -772,6 +773,19 @@ const handlePaystackWebhook = async (req, res) => {
 
     // ✅ STEP 3: EXTRACT METADATA
     const metadata = event.data.metadata || {};
+    if (["shop_order", "shop_delivery_fee"].includes(metadata.type)) {
+      try {
+        const order = await processShopPaymentEvent(event.data);
+        return res.status(200).json({
+          message: "Shop payment processed successfully.",
+          orderNumber: order.orderNumber
+        });
+      } catch (shopError) {
+        console.error("[webhook] Shop payment processing failed:", shopError.message);
+        return res.status(500).json({ message: "Shop payment could not yet be reconciled." });
+      }
+    }
+
     const { businessId, billingCycle } = metadata;
 
     console.log("[webhook] 🔒 Metadata extracted", {

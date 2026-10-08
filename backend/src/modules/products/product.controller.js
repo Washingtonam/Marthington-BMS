@@ -32,7 +32,7 @@ const createProduct = async (req, res) => {
     const currentCount = await Product.countDocuments({ business: business._id });
     if (currentCount >= limits.products) return res.status(403).json({ message: "Product limit reached for your plan." });
 
-    const { name, sellingPrice, costPrice, stock, category, sku, publishedToShop } = req.body;
+    const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ message: "Product name is required" });
@@ -55,8 +55,7 @@ const createProduct = async (req, res) => {
           price: Number(merged.price) || 0,
           costPrice: Number(merged.costPrice) || 0,
           stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
-          sku: merged.sku || `SKU-${Date.now()}`,
-          ...(publishedToShop === true ? { publishedToShop: true } : {})
+          sku: merged.sku || `SKU-${Date.now()}`
         }
       }, { new: true });
 
@@ -70,7 +69,6 @@ const createProduct = async (req, res) => {
       costPrice: Number(costPrice) || 0,
       stock: isPrivileged(req.user) ? Number(stock) || 0 : 0,
       sku: sku || `SKU-${Date.now()}`,
-      publishedToShop: publishedToShop === true,
       business: business._id
     });
 
@@ -222,7 +220,7 @@ const getProducts = async (req, res) => {
 // 🔥 UPDATE PRODUCT
 const updateProduct = async (req, res) => {
   try {
-    const { name, sellingPrice, costPrice, stock, category, sku, publishedToShop } = req.body;
+    const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
     const updateData = {};
 
     if (name !== undefined) {
@@ -243,8 +241,7 @@ const updateProduct = async (req, res) => {
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
             stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(duplicate.stock || 0),
-            sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`,
-            ...(publishedToShop !== undefined ? { publishedToShop: publishedToShop === true } : {})
+            sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`
           }
         });
 
@@ -259,7 +256,6 @@ const updateProduct = async (req, res) => {
     if (costPrice !== undefined) updateData.costPrice = Number(costPrice);
     if (stock !== undefined && isPrivileged(req.user)) updateData.stock = Number(stock);
     if (sku !== undefined) updateData.sku = sku;
-    if (publishedToShop !== undefined) updateData.publishedToShop = publishedToShop === true;
 
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, business: req.user.businessId },

@@ -9,12 +9,20 @@ import AppShell from "./components/layout/AppShell.jsx";
 import AdminLayout from "./components/AdminLayout.jsx";
 import PartnerLayout from "./components/PartnerLayout.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import ShopLayout from "./components/shop/ShopLayout.jsx";
+import { ShopCartProvider } from "./context/ShopCartContext.jsx";
 
 // ====================================
 // LAZY LOADED PAGES (Fixes Initialization Race)
 // ====================================
 const Landing = lazy(() => import("./pages/Landing.jsx"));
 const Shop = lazy(() => import("./pages/Shop.jsx"));
+const ShopAccount = lazy(() => import("./pages/ShopAccount.jsx"));
+const ShopProduct = lazy(() => import("./pages/ShopProduct.jsx"));
+const ShopCart = lazy(() => import("./pages/ShopCart.jsx"));
+const ShopCheckout = lazy(() => import("./pages/ShopCheckout.jsx"));
+const ShopOrders = lazy(() => import("./pages/ShopOrders.jsx"));
+const ShopAdmin = lazy(() => import("./pages/ShopAdmin.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
 const AffiliateRegister = lazy(() => import("./pages/AffiliateRegister.jsx"));
@@ -187,11 +195,27 @@ const App = () => {
     <HashRouter>
       <AuthProvider>
         {/* Suspense handles the waiting period while a page is being downloaded */}
+        <ShopCartProvider>
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* LANDING */}
             <Route path="/" element={<Landing />} />
-            <Route path="/shop" element={<Shop />} />
+            <Route path="/shop" element={<ShopLayout />}>
+              <Route index element={<Shop />} />
+              <Route path="account" element={<ShopAccount />} />
+              <Route path="product/:id" element={<ShopProduct />} />
+              <Route path="cart" element={<ShopCart />} />
+              <Route path="checkout" element={<ShopCheckout />} />
+              <Route path="orders" element={<ShopOrders />} />
+              <Route
+                path="admin"
+                element={
+                  <ProtectedRoute requiredRole="super_admin">
+                    <ShopAdmin />
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
 
             {/* AUTH */}
             <Route path="/login" element={<Login />} />
@@ -347,6 +371,7 @@ const App = () => {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </ShopCartProvider>
       </AuthProvider>
     </HashRouter>
   );

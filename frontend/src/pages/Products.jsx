@@ -14,8 +14,7 @@ const initialForm = {
   costPrice: "",
   stock: "",
   category: "",
-  sku: "",
-  publishedToShop: false
+  sku: ""
 };
 
 const Products = () => {
@@ -165,8 +164,7 @@ const Products = () => {
         ...form,
         sellingPrice: Number(form.sellingPrice),
         costPrice: Number(form.costPrice),
-        stock: Number(form.stock),
-        publishedToShop: Boolean(form.publishedToShop)
+        stock: Number(form.stock)
       };
 
       await request(url, {
@@ -196,8 +194,7 @@ const Products = () => {
       costPrice: product.costPrice || "",
       stock: product.stock || "",
       category: product.category || "",
-      sku: product.sku || "",
-      publishedToShop: Boolean(product.publishedToShop)
+      sku: product.sku || ""
     });
     const costPrice = Number(product.costPrice || 0);
     const sellingPrice = Number(product.sellingPrice || product.price || 0);
@@ -416,9 +413,6 @@ const Products = () => {
                     <td className="px-6 py-4 align-top">
                       <div className="font-semibold capitalize text-slate-900">{p.name}</div>
                       <div className="mt-1 text-xs text-slate-500">SKU: {p.sku || "N/A"}</div>
-                      {p.publishedToShop && (
-                        <div className="mt-1 text-xs font-semibold text-emerald-700">Published to shop</div>
-                      )}
                     </td>
                     <td className="px-6 py-4 align-top max-w-[200px] truncate text-slate-700">{p.category || "-"}</td>
                     <td className="px-6 py-4 align-top text-slate-900">{formatCurrency(p.sellingPrice || p.price || 0)}</td>
@@ -588,20 +582,6 @@ const Products = () => {
                     </p>
                   )}
                 </div>
-
-                <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <input
-                    type="checkbox"
-                    name="publishedToShop"
-                    checked={form.publishedToShop}
-                    onChange={(event) => setForm((prev) => ({ ...prev, publishedToShop: event.target.checked }))}
-                    className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600"
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-800">Publish in Marketing Shop</span>
-                    <span className="mt-1 block text-xs text-slate-500">Visible only while your business is opted into the shop and this item is in stock.</span>
-                  </span>
-                </label>
 
                 <button
                   type="submit"
