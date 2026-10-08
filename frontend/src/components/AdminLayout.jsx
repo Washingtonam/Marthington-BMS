@@ -26,6 +26,7 @@ const AdminLayout = () => {
               <div className="space-y-1">
 
                 <NavLink to="/admin" end className={navItem}>Dashboard</NavLink>
+                <NavLink to="/admin/shop" className={navItem}>Shop Management</NavLink>
                 <NavLink to="/admin/tenants" className={navItem}>Tenant Directory</NavLink>
                 <NavLink to="/admin/affiliate-network" className={navItem}>Affiliate Network</NavLink>
                 <NavLink to="/admin/affiliates" className={navItem}>Affiliate Ledger</NavLink>

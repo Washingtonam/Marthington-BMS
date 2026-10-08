@@ -15,6 +15,7 @@ const AdminDashboard = () => {
 
   const affiliateSummary = stats?.affiliateSummary || {};
   const cards = [
+    ["Shop management", "Open", "/admin/shop", "Manage shop products, images, listings, and orders"],
     ["Businesses", stats?.totalBusinesses || 0, "/admin/tenants", "Manage workspaces and access"],
     ["Registered users", stats?.totalUsers || 0, "/admin/tenants", "Review the tenant directory"],
     ["Active subscriptions", stats?.activeSubscriptions || 0, "/admin/tenants", "Monitor plan activity"],

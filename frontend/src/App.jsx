@@ -351,6 +351,7 @@ const App = () => {
               }
             >
               <Route index element={<AdminDashboard />} />
+              <Route path="shop" element={<ShopAdmin />} />
               <Route path="tenants" element={<AdminTenantDirectory />} />
               <Route path="businesses" element={<AdminBusinesses />} />
               <Route path="affiliate-network" element={<AdminAffiliateNetwork />} />
