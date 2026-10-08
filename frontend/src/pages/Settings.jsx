@@ -15,7 +15,9 @@ const Settings = () => {
     business,
     isPro,
     refreshBusiness,
-    loadingBusiness
+    loadingBusiness,
+    user,
+    logout
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState("business");
@@ -187,6 +189,11 @@ const Settings = () => {
       return;
     }
 
+    if (tab === "profile") {
+      setActiveTab("profile");
+      return;
+    }
+
     if (tab === "shop") {
       setActiveTab("shop");
       return;
@@ -327,6 +334,7 @@ const Settings = () => {
 
         {[
           { key: "business", label: "Business" },
+          { key: "profile", label: "Profile" },
           { key: "shop", label: "Shop" },
           { key: "access", label: "Access Control" },
           { key: "receipt", label: "Receipts" },
@@ -340,6 +348,11 @@ const Settings = () => {
               if (tab.key === "access") {
                 setSearchParams({ tab: "access" });
                 setActiveTab("access");
+                return;
+              }
+              if (tab.key === "profile") {
+                setSearchParams({ tab: "profile" });
+                setActiveTab("profile");
                 return;
               }
               if (tab.key === "shop") {
@@ -522,6 +535,33 @@ const Settings = () => {
                 </select>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "profile" && (
+          <div className="tool-panel space-y-5 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Your Profile</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Account details for the signed-in BMS user.</p>
+            </div>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</dt>
+                <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{user?.name || "Not provided"}</dd>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Email</dt>
+                <dd className="mt-1 break-all font-semibold text-slate-900 dark:text-slate-100">{user?.email || "Not provided"}</dd>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Role</dt>
+                <dd className="mt-1 font-semibold capitalize text-slate-900 dark:text-slate-100">{(user?.role || "user").replace(/_/g, " ")}</dd>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Business</dt>
+                <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{business?.name || user?.businessName || "Not linked"}</dd>
+              </div>
+            </dl>
           </div>
         )}
 
@@ -857,9 +897,21 @@ const Settings = () => {
           </div>
         )}
 
-        <div className="flex justify-end pt-4">
-          <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-gray-800 transition disabled:bg-gray-400">
-            {loading ? "Saving Changes..." : "Save Settings"}
+        {activeTab !== "profile" && (
+          <div className="flex justify-end pt-4">
+            <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-2xl font-bold shadow-lg hover:bg-gray-800 transition disabled:bg-gray-400">
+              {loading ? "Saving Changes..." : "Save Settings"}
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-end border-t border-slate-200 pt-5 dark:border-slate-700">
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-xl border border-rose-200 px-5 py-3 text-sm font-bold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+          >
+            Log out
           </button>
         </div>
 

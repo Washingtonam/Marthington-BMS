@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 
@@ -18,7 +18,8 @@ const getPageTitle = (pathname) => {
 export default function Topbar({ businessName: businessNameProp, onMenuClick, theme, toggleTheme }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, business } = useAuth();
+  const { user, business, logout } = useAuth();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const pageTitle = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
   const businessName = businessNameProp || business?.name || user?.businessName || "Marthington";
@@ -40,9 +41,9 @@ export default function Topbar({ businessName: businessNameProp, onMenuClick, th
 
           <button
             type="button"
-            onClick={() => navigate("/app/settings")}
             className="text-left"
-            aria-label="Open settings"
+            onClick={() => navigate("/app")}
+            aria-label="Go to dashboard"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
               {businessName}
@@ -60,20 +61,66 @@ export default function Topbar({ businessName: businessNameProp, onMenuClick, th
             {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
           </button>
 
-          <button
-            onClick={() => navigate("/app/settings")}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-            type="button"
-            aria-label="Open settings"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-              {userName.charAt(0).toUpperCase()}
-            </div>
-            <div className="hidden text-left sm:block">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{userName}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{roleBadge}</p>
-            </div>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setAccountMenuOpen((open) => !open)}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+              type="button"
+              aria-label="Open account menu"
+              aria-haspopup="menu"
+              aria-expanded={accountMenuOpen}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
+                {userName.charAt(0).toUpperCase()}
+              </div>
+              <div className="hidden text-left sm:block">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{userName}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{roleBadge}</p>
+              </div>
+            </button>
+            {accountMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Account options"
+                className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+              >
+                <div className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{userName}</p>
+                  <p className="truncate text-xs capitalize text-slate-500 dark:text-slate-400">{roleBadge}</p>
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    navigate("/app/settings?tab=profile");
+                  }}
+                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    navigate("/app/settings");
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={logout}
+                  className="mt-1 block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                >
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>
