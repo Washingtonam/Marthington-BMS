@@ -103,6 +103,9 @@ const Landing = () => {
           </div>
 
           <div className="flex items-center gap-6">
+            <Link to="/shop" className="text-sm font-semibold text-emerald-700 hover:text-emerald-900 transition-colors">
+              Shop
+            </Link>
             <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               Login
             </Link>

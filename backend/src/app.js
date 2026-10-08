@@ -4,6 +4,7 @@ import express from "express";
 import authRoutes from "./modules/auth/auth.routes.js";
 import affiliateAuthRoutes from "./modules/auth/affiliate.routes.js";
 import productRoutes from "./modules/products/product.routes.js";
+import shopRoutes from "./modules/shop/shop.routes.js";
 import salesRoutes from "./modules/sales/sales.routes.js";
 import userRoutes from "./modules/users/users.routes.js";
 import businessRoutes from "./modules/businesses/business.routes.js";
@@ -86,6 +87,7 @@ app.use(express.json({
 app.use("/api/auth", authRoutes);
 app.use("/api/affiliate-auth", affiliateAuthRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/shop", shopRoutes);
 app.use("/api/sales", salesRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);

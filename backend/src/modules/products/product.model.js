@@ -38,6 +38,11 @@ const productSchema = new mongoose.Schema(
       default: ""
     },
 
+    publishedToShop: {
+      type: Boolean,
+      default: false
+    },
+
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",

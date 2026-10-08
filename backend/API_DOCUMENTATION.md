@@ -1,5 +1,23 @@
 # Marthington BMS - API Documentation
 
+## Public Marketing Shop
+
+### Browse published products
+```http
+GET /api/shop?page=1&limit=24&search=notebook&category=Stationery
+```
+
+This endpoint is public and returns only products explicitly published by active businesses that have enabled their shop. Results include product names, categories, selling prices, stock availability, and public business contact details. Cost prices and exact stock quantities are never returned.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | number | 1 | Results page |
+| `limit` | number | 24 | Results per page (maximum 48) |
+| `search` | string | — | Match product name or category |
+| `category` | string | — | Exact category filter |
+
+Businesses opt in through their settings; products are published individually from the product editor. Both are hidden by default.
+
 ## Expense Module - Phase 3 Endpoints
 
 Complete reference for advanced expense management features implemented in Phase 3.
@@ -824,4 +842,3 @@ For issues or questions:
 3. Check parameter validation
 4. Review business/branch scope
 5. Contact: support@marthingtonbms.com
-

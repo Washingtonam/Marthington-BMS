@@ -14,6 +14,7 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 // LAZY LOADED PAGES (Fixes Initialization Race)
 // ====================================
 const Landing = lazy(() => import("./pages/Landing.jsx"));
+const Shop = lazy(() => import("./pages/Shop.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
 const AffiliateRegister = lazy(() => import("./pages/AffiliateRegister.jsx"));
@@ -190,6 +191,7 @@ const App = () => {
           <Routes>
             {/* LANDING */}
             <Route path="/" element={<Landing />} />
+            <Route path="/shop" element={<Shop />} />
 
             {/* AUTH */}
             <Route path="/login" element={<Login />} />

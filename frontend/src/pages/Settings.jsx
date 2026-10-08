@@ -26,6 +26,8 @@ const Settings = () => {
     phone: "",
     email: "",
     website: "",
+    shopEnabled: false,
+    shopDescription: "",
     supportEmail: "",
     supportPhone: "",
     reportNotificationsEnabled: true,
@@ -70,6 +72,8 @@ const Settings = () => {
       phone: business.phone || "",
       email: business.email || "",
       website: business.website || "",
+      shopEnabled: Boolean(business.shopEnabled),
+      shopDescription: business.shopDescription || "",
       supportEmail: business.supportEmail || "",
       supportPhone: business.supportPhone || "",
       reportNotificationsEnabled: business.reportNotificationsEnabled !== false,
@@ -180,6 +184,11 @@ const Settings = () => {
     const tab = searchParams.get("tab");
     if (tab === "access") {
       setActiveTab("access");
+      return;
+    }
+
+    if (tab === "shop") {
+      setActiveTab("shop");
       return;
     }
 
@@ -318,6 +327,7 @@ const Settings = () => {
 
         {[
           { key: "business", label: "Business" },
+          { key: "shop", label: "Shop" },
           { key: "access", label: "Access Control" },
           { key: "receipt", label: "Receipts" },
           { key: "whatsapp", label: "WhatsApp" },
@@ -330,6 +340,11 @@ const Settings = () => {
               if (tab.key === "access") {
                 setSearchParams({ tab: "access" });
                 setActiveTab("access");
+                return;
+              }
+              if (tab.key === "shop") {
+                setSearchParams({ tab: "shop" });
+                setActiveTab("shop");
                 return;
               }
               if (tab.key === "receipt") {
@@ -507,6 +522,47 @@ const Settings = () => {
                 </select>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "shop" && (
+          <div className="tool-panel space-y-5 rounded-2xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Marketing Shop</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Choose whether customers can discover this business and its selected products in the public Marthington shop.
+              </p>
+            </div>
+            <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60">
+              <input
+                type="checkbox"
+                checked={form.shopEnabled}
+                onChange={(event) => setForm((prev) => ({ ...prev, shopEnabled: event.target.checked }))}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">Show my business in the shop</span>
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                  Only products you explicitly publish will be visible. Turn this off to remove all your listings.
+                </span>
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase text-slate-500">Shop introduction</span>
+              <textarea
+                className="input-field mt-1"
+                rows={3}
+                maxLength={500}
+                value={form.shopDescription}
+                onChange={(event) => setForm((prev) => ({ ...prev, shopDescription: event.target.value }))}
+                placeholder="Tell customers what your business offers."
+              />
+            </label>
+            {form.shopEnabled && (
+              <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+                Your store is opted in. Publish individual products from the Products page to make them appear.
+              </p>
+            )}
           </div>
         )}
 

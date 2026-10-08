@@ -14,6 +14,8 @@ const businessSchema = new mongoose.Schema(
     website: { type: String, default: "" },
     supportEmail: { type: String, default: "" },
     supportPhone: { type: String, default: "" },
+    shopEnabled: { type: Boolean, default: false },
+    shopDescription: { type: String, default: "", trim: true },
     reportNotificationsEnabled: { type: Boolean, default: true },
     reportDeliveryTime: { type: String, default: "18:00" },
     reportDay: { type: String, enum: ["current", "previous"], default: "current" },
