@@ -139,3 +139,49 @@ export const verifyPayment = async (reference) => {
     throw new Error(`Payment Verification Failed: ${message}`);
   }
 };
+
+export const createRefund = async ({ transaction, amount, merchantNote, customerNote }) => {
+  validateConfig();
+  if (!transaction || !Number.isSafeInteger(amount) || amount <= 0) {
+    throw new Error("A valid Paystack transaction reference and refund amount are required.");
+  }
+
+  try {
+    const response = await axios.post(
+      "https://api.paystack.co/refund",
+      { transaction, amount, merchant_note: merchantNote, customer_note: customerNote },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+    return response.data.data;
+  } catch (error) {
+    const refundError = new Error(error.response?.data?.message || error.message || "Paystack refund request failed.");
+    refundError.statusCode = error.response?.status;
+    throw refundError;
+  }
+};
+
+export const getRefund = async (refundId) => {
+  validateConfig();
+  if (!refundId) throw new Error("A Paystack refund ID is required.");
+
+  try {
+    const response = await axios.get(
+      `https://api.paystack.co/refund/${encodeURIComponent(refundId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`
+        }
+      }
+    );
+    return response.data.data;
+  } catch (error) {
+    const refundError = new Error(error.response?.data?.message || error.message || "Could not retrieve Paystack refund status.");
+    refundError.statusCode = error.response?.status;
+    throw refundError;
+  }
+};

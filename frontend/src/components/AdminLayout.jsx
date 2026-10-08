@@ -1,9 +1,44 @@
+import { useCallback, useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getNotifications, markNotificationAsRead } from "../api/notifications.js";
 
 const AdminLayout = () => {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationError, setNotificationError] = useState("");
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await getNotifications("limit=8&isRead=false");
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+      setNotificationError("");
+    } catch (error) {
+      setNotificationError(error.message || "Could not load notifications.");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 30000);
+    return () => window.clearInterval(timer);
+  }, [loadNotifications]);
+
+  const openNotification = async (notification) => {
+    try {
+      await markNotificationAsRead(notification._id);
+      setNotifications((current) => current.filter((item) => item._id !== notification._id));
+      setUnreadCount((current) => Math.max(0, current - 1));
+      setNotificationsOpen(false);
+      if (notification.actionUrl) navigate(notification.actionUrl);
+    } catch (error) {
+      setNotificationError(error.message || "Could not open notification.");
+    }
+  };
 
   const navItem = ({ isActive }) =>
     `block px-3 py-2 rounded-md text-sm transition ${
@@ -90,9 +125,44 @@ const AdminLayout = () => {
 
           <div className="flex items-center gap-4">
 
-            {/* 🔔 FUTURE NOTIFICATIONS */}
             <div className="text-sm text-gray-500 hidden md:block">
               {user?.email}
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                aria-expanded={notificationsOpen}
+                aria-label={`Notifications, ${unreadCount} unread`}
+                onClick={() => {
+                  setNotificationsOpen((open) => !open);
+                  if (!notificationsOpen) loadNotifications();
+                }}
+                className="relative rounded-md border border-gray-200 px-3 py-2 text-sm font-semibold text-slate-700"
+              >
+                Notifications
+                {unreadCount > 0 && <span className="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-xs text-white">{unreadCount}</span>}
+              </button>
+              {notificationsOpen && (
+                <div className="absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-2 text-slate-900 shadow-xl">
+                  <p className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500">Unread notifications</p>
+                  {notificationError && <p role="alert" className="px-3 py-2 text-xs text-rose-700">{notificationError}</p>}
+                  {notifications.length === 0 && !notificationError && <p className="px-3 py-4 text-sm text-slate-500">You’re all caught up.</p>}
+                  {notifications.map((notification) => (
+                    <button
+                      key={notification._id}
+                      type="button"
+                      onClick={() => openNotification(notification)}
+                      className="block w-full rounded-lg px-3 py-3 text-left hover:bg-slate-50"
+                    >
+                      <span className="block text-sm font-bold">{notification.title}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-600">{notification.message}</span>
+                      <span className="mt-1 block text-[11px] text-slate-400">{new Date(notification.createdAt).toLocaleString()}</span>
+                    </button>
+                  ))}
+                  {unreadCount > notifications.length && <p className="px-3 py-2 text-xs text-slate-500">Showing the latest {notifications.length} of {unreadCount} unread.</p>}
+                </div>
+              )}
             </div>
 
             <button

@@ -241,6 +241,10 @@ const businessSchema = new mongoose.Schema(
       enum: ["active", "suspended", "archived", "deleted"],
       default: "active",
       index: true
+    },
+    shopVisible: {
+      type: Boolean,
+      default: true
     }
   },
   {

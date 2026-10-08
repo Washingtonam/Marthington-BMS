@@ -6,10 +6,17 @@ import protectShopCustomer from "./shopCustomer.middleware.js";
 import {
   addShopCustomerAddress,
   createShopOrder,
+  createShopAdminCategory,
+  createShopAdminDeliveryArea,
+  createShopAdminRefund,
   deleteShopCustomerAddress,
   getCustomerOrders,
+  getShopAdminBusinesses,
+  getShopAdminCategories,
+  getShopAdminDeliveryAreas,
   getShopAdminOrders,
   getShopAdminProducts,
+  refreshShopAdminRefund,
   getShopCustomer,
   getShopListings,
   getShopProduct,
@@ -17,6 +24,11 @@ import {
   loginShopCustomer,
   registerShopCustomer,
   updateShopAdminOrder,
+  updateShopAdminBusiness,
+  updateShopAdminCategory,
+  updateShopAdminCategoryMapping,
+  updateShopAdminDeliveryArea,
+  deleteShopAdminDeliveryArea,
   updateShopAdminProduct,
   updateShopCustomerAddress,
   verifyDeliveryFeePayment,
@@ -54,7 +66,19 @@ router.post("/orders/:id/delivery-fee/initialize", protectShopCustomer, initiali
 
 router.get("/admin/products", protect, authorize("super_admin"), getShopAdminProducts);
 router.patch("/admin/products/:id", protect, authorize("super_admin"), upload.single("image"), updateShopAdminProduct);
+router.get("/admin/categories", protect, authorize("super_admin"), getShopAdminCategories);
+router.post("/admin/categories", protect, authorize("super_admin"), createShopAdminCategory);
+router.patch("/admin/categories/:id", protect, authorize("super_admin"), updateShopAdminCategory);
+router.patch("/admin/category-mappings", protect, authorize("super_admin"), updateShopAdminCategoryMapping);
+router.get("/admin/businesses", protect, authorize("super_admin"), getShopAdminBusinesses);
+router.patch("/admin/businesses/:id", protect, authorize("super_admin"), updateShopAdminBusiness);
+router.get("/admin/delivery-areas", protect, authorize("super_admin"), getShopAdminDeliveryAreas);
+router.post("/admin/delivery-areas", protect, authorize("super_admin"), createShopAdminDeliveryArea);
+router.patch("/admin/delivery-areas/:id", protect, authorize("super_admin"), updateShopAdminDeliveryArea);
+router.delete("/admin/delivery-areas/:id", protect, authorize("super_admin"), deleteShopAdminDeliveryArea);
 router.get("/admin/orders", protect, authorize("super_admin"), getShopAdminOrders);
+router.post("/admin/orders/:id/refunds", protect, authorize("super_admin"), createShopAdminRefund);
+router.post("/admin/orders/:id/refunds/:requestKey/refresh", protect, authorize("super_admin"), refreshShopAdminRefund);
 router.patch("/admin/orders/:id", protect, authorize("super_admin"), updateShopAdminOrder);
 
 export default router;

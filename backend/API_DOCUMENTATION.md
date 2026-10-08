@@ -7,7 +7,7 @@
 GET /api/shop?page=1&limit=24&search=notebook&category=Stationery
 ```
 
-This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden a listing. New BMS products appear automatically. Results include product names, categories, selling prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
+This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden the business or an individual product. New BMS businesses and products appear automatically by default. Results include product names, shop-normalized categories, selling prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -16,7 +16,7 @@ This public endpoint automatically lists products from every active BMS business
 | `search` | string | — | Match product name or category |
 | `category` | string | — | Exact category filter |
 
-New products are listed automatically. Marthington super admins can hide a listing or add a shop image from the protected marketplace admin. Businesses do not receive marketplace orders directly.
+New products are listed automatically. Marthington super admins can hide a business or an individual product, create shop categories, and map source BMS category labels to those canonical names. Case and repeated-whitespace variants are mapped together. These mappings only affect the shop display and do not change category values in business BMS accounts. Businesses do not receive marketplace orders directly.
 
 ### Shopper account and address endpoints
 
@@ -49,10 +49,22 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 |--------|----------|---------------|-------------|
 | `GET` | `/api/shop/admin/products` | BMS super-admin token | Search all BMS products |
 | `PATCH` | `/api/shop/admin/products/:id` | BMS super-admin token | Upload a marketplace image and/or hide a listing |
+| `GET` | `/api/shop/admin/categories` | BMS super-admin token | List shop categories and distinct BMS categories with product counts |
+| `POST` | `/api/shop/admin/categories` | BMS super-admin token | Create a canonical shop category (`{ "name": "Perfumes" }`) |
+| `PATCH` | `/api/shop/admin/categories/:id` | BMS super-admin token | Rename a canonical shop category |
+| `PATCH` | `/api/shop/admin/category-mappings` | BMS super-admin token | Map a BMS category label to a shop category (`{ "sourceCategory": "giftset", "categoryId": "..." }`); send an empty `categoryId` to unmap |
+| `GET` | `/api/shop/admin/businesses` | BMS super-admin token | List BMS businesses and shop visibility |
+| `PATCH` | `/api/shop/admin/businesses/:id` | BMS super-admin token | Show or hide a business in the shop (`{ "shopVisible": false }`) |
+| `GET` | `/api/shop/admin/delivery-areas` | BMS super-admin token | List configured delivery-area fee presets |
+| `POST` | `/api/shop/admin/delivery-areas` | BMS super-admin token | Add a state/city fee preset (`{ "state": "Lagos", "city": "Ikeja", "fee": 2500 }`) |
+| `PATCH` | `/api/shop/admin/delivery-areas/:id` | BMS super-admin token | Edit, activate or deactivate a delivery-area fee preset |
+| `DELETE` | `/api/shop/admin/delivery-areas/:id` | BMS super-admin token | Remove a delivery-area fee preset |
 | `GET` | `/api/shop/admin/orders` | BMS super-admin token | Review all customer orders and supplier contact details |
-| `PATCH` | `/api/shop/admin/orders/:id` | BMS super-admin token | Set delivery fee, status and internal note |
+| `POST` | `/api/shop/admin/orders/:id/refunds` | BMS super-admin token | Request a full or partial Paystack refund (`{ "source": "products", "amount": 2500, "reason": "Item unavailable" }`); amounts are whole naira |
+| `POST` | `/api/shop/admin/orders/:id/refunds/:requestKey/refresh` | BMS super-admin token | Refresh an in-progress refund from Paystack |
+| `PATCH` | `/api/shop/admin/orders/:id` | BMS super-admin token | Set delivery fee, status and internal note; cancellation is only allowed after refunds cover all money paid |
 
-Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access.
+Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access. Hiding a business or product only affects the marketplace storefront and checkout; it does not alter or remove the source BMS business or product. Admins can mark products as featured; featured products are sorted before other products in public listings. A configured delivery-area rate is only a suggestion for the admin: delivery fees remain confirmed after product checkout and are paid separately. Successful product-payment verification creates one in-app `shop_order_received` notification for each active super admin, visible from the BMS admin header. Refunds are recorded per Paystack transaction, support partial amounts, and remain pending until Paystack reports them processed. An unresolved refund blocks another refund request to prevent duplicate payouts. A delivery fee marked paid manually can be recorded as externally refunded only after the admin confirms completion and supplies the external reference; this action does not move money. Cancellation is enabled only when recorded refunds cover the total amount paid.
 
 ## Expense Module - Phase 3 Endpoints
 

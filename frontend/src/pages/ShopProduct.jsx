@@ -29,7 +29,7 @@ const ShopProduct = () => {
           {product.image ? <img src={product.image} alt={product.name} className="h-full max-h-[520px] w-full object-cover" /> : <span className="text-7xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
         </div>
         <div className="flex flex-col justify-center">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">{product.category}</p>
+          <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">{product.category}</p>{product.featured && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Featured</span>}</div>
           <h1 className="mt-3 text-4xl font-black">{product.name}</h1>
           <p className="mt-3 text-sm text-slate-500">Supplied by {product.business.name}</p>
           {product.business.description && <p className="mt-5 leading-7 text-slate-600">{product.business.description}</p>}

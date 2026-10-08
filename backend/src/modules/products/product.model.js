@@ -43,6 +43,11 @@ const productSchema = new mongoose.Schema(
       default: true
     },
 
+    shopFeatured: {
+      type: Boolean,
+      default: false
+    },
+
     shopImage: {
       type: String,
       default: ""

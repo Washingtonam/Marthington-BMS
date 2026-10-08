@@ -99,10 +99,11 @@ const Shop = () => {
             {catalog.products.map((product) => (
               <article key={product.id} className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
                 <Link to={`/shop/product/${product.id}`} className="group">
-                  <div className="flex h-48 items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100">
+                  <div className="relative flex h-48 items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100">
                     {product.image
                       ? <img src={product.image} alt={product.name} className="h-full w-full object-cover transition group-hover:scale-[1.02]" />
                       : <span className="text-5xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
+                    {product.featured && <span className="absolute left-3 top-3 rounded-full bg-amber-400 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-amber-950">Featured</span>}
                   </div>
                 </Link>
                 <div className="flex flex-1 flex-col p-5">

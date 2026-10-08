@@ -11,7 +11,7 @@ const notificationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["payout_approved", "payout_rejected", "payout_settled", "branch_transfer_requested", "branch_transfer_approved", "branch_transfer_rejected", "profile_update", "general"],
+      enum: ["payout_approved", "payout_rejected", "payout_settled", "branch_transfer_requested", "branch_transfer_approved", "branch_transfer_rejected", "profile_update", "shop_order_received", "general"],
       default: "general",
       index: true
     },
@@ -43,6 +43,12 @@ const notificationSchema = new mongoose.Schema(
       default: null
     },
 
+    shopOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ShopOrder",
+      default: null
+    },
+
     isRead: {
       type: Boolean,
       default: false,
@@ -65,6 +71,14 @@ const notificationSchema = new mongoose.Schema(
     }
   },
   { timestamps: true }
+);
+
+notificationSchema.index(
+  { recipient: 1, type: 1, shopOrderId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { type: "shop_order_received", shopOrderId: { $type: "objectId" } }
+  }
 );
 
 const Notification = mongoose.model("Notification", notificationSchema);

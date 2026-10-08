@@ -83,7 +83,7 @@ const ShopOrders = () => {
             </div>
             <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
               <div><p className="text-xs font-semibold uppercase text-slate-500">Delivery address</p><p className="mt-1">{order.deliveryAddress.recipientName}<br />{order.deliveryAddress.addressLine}, {order.deliveryAddress.city}, {order.deliveryAddress.state}</p></div>
-              <div className="sm:text-right"><p>Products: <strong>{formatCurrency(order.subtotal)}</strong></p><p className="mt-1">Paid to date: <strong>{formatCurrency(order.totalPaid)}</strong></p>{order.deliveryFee > 0 && <p className="mt-1">Delivery: <strong>{formatCurrency(order.deliveryFee)}</strong> ({statusLabel(order.deliveryFeePaymentStatus)})</p>}</div>
+              <div className="sm:text-right"><p>Products: <strong>{formatCurrency(order.subtotal)}</strong></p><p className="mt-1">Paid to date: <strong>{formatCurrency(order.totalPaid)}</strong></p>{order.totalRefunded > 0 && <p className="mt-1 text-amber-700">Refunded: <strong>{formatCurrency(order.totalRefunded)}</strong></p>}{order.deliveryFee > 0 && <p className="mt-1">Delivery: <strong>{formatCurrency(order.deliveryFee)}</strong> ({statusLabel(order.deliveryFeePaymentStatus)})</p>}</div>
             </div>
             {order.deliveryFee > 0 && order.deliveryFeePaymentStatus === "pending" && order.paymentStatus !== "pending" && (
               <button type="button" disabled={busyId === order.id} onClick={() => payDelivery(order)} className="mt-5 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
