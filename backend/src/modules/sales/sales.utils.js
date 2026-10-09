@@ -146,7 +146,7 @@ export const buildSalesQuery = ({
   paymentStatus = null,
   status = null
 } = {}) => {
-  const query = {};
+  const query = {  };
 
   if (!isSuperAdmin) {
     query.business = businessId;
@@ -168,6 +168,35 @@ export const buildSalesQuery = ({
   }
 
   return { ...query, isDeleted: { $ne: true } };
+};
+
+export const buildSalesDateFilter = ({ startDate, endDate, timezoneOffset = 0 } = {}) => {
+  if (!startDate && !endDate) return null;
+
+  if (!Number.isInteger(timezoneOffset) || Math.abs(timezoneOffset) > 840) {
+    return { error: "Timezone offset must be a whole number of minutes within 14 hours of UTC." };
+  }
+
+  const parseDate = (value) => {
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date;
+  };
+
+  const start = startDate ? parseDate(startDate) : null;
+  const end = endDate ? parseDate(endDate) : null;
+  if ((startDate && !start) || (endDate && !end)) {
+    return { error: "Dates must use the YYYY-MM-DD format and be valid calendar dates." };
+  }
+  if (start && end && start > end) {
+    return { error: "Start date must be on or before end date." };
+  }
+
+  const createdAt = {};
+  const offsetMilliseconds = timezoneOffset * 60 * 1000;
+  if (start) createdAt.$gte = new Date(start.getTime() + offsetMilliseconds);
+  if (end) createdAt.$lt = new Date(end.getTime() + 24 * 60 * 60 * 1000 + offsetMilliseconds);
+  return { createdAt };
 };
 
 export const getCustomerSaleImpact = ({ paymentMethod = 'cash', totalAmount = 0, action = 'delete' } = {}) => {

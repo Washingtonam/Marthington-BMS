@@ -5,6 +5,19 @@ import request from "../api/client.js";
 import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
+import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
+
+const localDateInputValue = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const getLocalDateOffset = (days) => {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return localDateInputValue(date);
+};
 
 const STATUS_META = {
   pending: {
@@ -32,6 +45,16 @@ const Sales = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState(staffFilter);
   const deferredSearch = useDeferredValue(search);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [reconciliation, setReconciliation] = useState({
+    transactionCount: 0,
+    totalAmount: 0,
+    pendingCount: 0,
+    postedCount: 0,
+    reversedCount: 0
+  });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
   const [openActionId, setOpenActionId] = useState(null);
@@ -57,6 +80,15 @@ const Sales = () => {
   );
 
   const normalizeSaleStatus = (value) => (value && ["pending", "posted", "reversed"].includes(value)) ? value : "pending";
+  const saleSearchSuggestions = useMemo(
+    () => [...new Set(sales.flatMap((sale) => [
+      sale.receiptId,
+      sale.customerName,
+      sale.createdBy?.name,
+      ...(sale.items || []).map((item) => item?.name)
+    ]).filter(Boolean))],
+    [sales]
+  );
 
   const salesSummary = useMemo(() => {
     const totalRevenue = sales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
@@ -287,13 +319,21 @@ const Sales = () => {
       });
       const query = new URLSearchParams({ page: String(page), limit: "25" });
       if (deferredSearch.trim()) query.set("search", deferredSearch.trim());
+      if (startDate) query.set("startDate", startDate);
+      if (endDate) query.set("endDate", endDate);
+      if (startDate || endDate) query.set("timezoneOffset", String(new Date().getTimezoneOffset()));
+      if (statusFilter) query.set("status", statusFilter);
 
       const data = await request(`/sales?${query.toString()}`, { signal });
       const nextSales = Array.isArray(data) ? data : data?.sales || [];
       setSales(nextSales.map((sale) => ({ ...sale, status: normalizeSaleStatus(sale.status) })));
       if (data?.pagination) setPagination(data.pagination);
+      setReconciliation((current) => ({ ...current, ...(data?.reconciliation || {}) }));
     } catch (err) {
-      if (err.name !== "AbortError") console.error(err);
+      if (err.name !== "AbortError") {
+        console.error(err);
+        setStatusMessage(err.message || "Unable to load sales");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -304,11 +344,12 @@ const Sales = () => {
     const controller = new AbortController();
     loadSales(controller.signal);
     return () => controller.abort();
-  }, [page, deferredSearch]);
+  }, [page, deferredSearch, startDate, endDate, statusFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch]);
+    setSelectedSaleIds(new Set());
+  }, [deferredSearch, startDate, endDate, statusFilter]);
 
   useEffect(() => {
     if (isOwner && viewMode === "archived") {
@@ -381,6 +422,7 @@ const Sales = () => {
       setSales((currentSales) => currentSales.map((sale) => (sale._id === saleId ? { ...sale, status: savedStatus } : sale)));
       setStatusMessage(`Sale status updated to ${STATUS_META[savedStatus].label}.`);
       notifySalesUpdated();
+      await loadSales();
     } catch (err) {
       setStatusMessage(err.message || "Unable to update sale status");
     } finally {
@@ -443,6 +485,7 @@ const Sales = () => {
       setStatusMessage(`Updated ${response?.updatedCount || selectedSaleIds.size} sales to ${STATUS_META[normalizedStatus].label}.`);
       setSelectedSaleIds(new Set());
       notifySalesUpdated();
+      await loadSales();
     } catch (err) {
       setStatusMessage(err.message || "Unable to update selected sale statuses");
     } finally {
@@ -694,16 +737,109 @@ const Sales = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400">Review sales, payment status, and operational activity</p>
             </div>
             <div className="flex w-full max-w-xl items-center gap-2">
-              <div className="relative flex-1">
-                <input
+              <AutocompleteSearch
+                  id="sales-search"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={setSearch}
+                  suggestions={saleSearchSuggestions}
                   placeholder="Search receipt, staff, customer or item..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-emerald-500 dark:focus:bg-slate-900 dark:focus:ring-emerald-500/20"
+                  className="min-w-0 flex-1"
+                  inputClassName="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-emerald-500 dark:focus:bg-slate-900 dark:focus:ring-emerald-500/20"
                 />
-              </div>
             </div>
           </div>
+
+          {viewMode === "active" && (
+            <>
+              <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-950/40 lg:grid-cols-[1fr_auto] lg:items-end">
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Filter by date</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "All dates", from: "", to: "" },
+                      { label: "Today", from: getLocalDateOffset(0), to: getLocalDateOffset(0) },
+                      { label: "Yesterday", from: getLocalDateOffset(-1), to: getLocalDateOffset(-1) }
+                    ].map((preset) => {
+                      const selected = startDate === preset.from && endDate === preset.to;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => {
+                            setStartDate(preset.from);
+                            setEndDate(preset.to);
+                          }}
+                          className={`rounded-full px-3 py-2 text-xs font-bold transition ${
+                            selected
+                              ? "bg-emerald-600 text-white"
+                              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    From
+                    <input
+                      aria-label="Sales from date"
+                      type="date"
+                      value={startDate}
+                      max={endDate || undefined}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    To
+                    <input
+                      aria-label="Sales to date"
+                      type="date"
+                      value={endDate}
+                      min={startDate || undefined}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Status
+                    <select
+                      aria-label="Filter sales by status"
+                      value={statusFilter}
+                      onChange={(event) => setStatusFilter(event.target.value)}
+                      className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      <option value="">All statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="posted">Posted</option>
+                      <option value="reversed">Reversed</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Matching transactions</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{reconciliation.transactionCount}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Matching sales total</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{formatCurrency(reconciliation.totalAmount)}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Pending · Posted · Reversed</p>
+                  <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">
+                    {reconciliation.pendingCount} · {reconciliation.postedCount} · {reconciliation.reversedCount}
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
           {canManageSaleStatus && viewMode === "active" && selectedSaleIds.size > 0 && (
             <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-950/60 sm:flex-row sm:items-center sm:justify-between">

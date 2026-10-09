@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import {
   calculateMarkup,
@@ -52,6 +53,10 @@ const Products = () => {
 
   const productSuggestions = useMemo(
     () => [...new Set(products.map((product) => product.name).filter(Boolean))],
+    [products]
+  );
+  const productSearchSuggestions = useMemo(
+    () => [...new Set(products.flatMap((product) => [product.name, product.sku]).filter(Boolean))],
     [products]
   );
 
@@ -332,12 +337,14 @@ const Products = () => {
           <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
             <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:shadow-none">
               <span className="text-slate-400 dark:text-slate-400">🔎</span>
-              <input
-                type="text"
-                placeholder="Search by name or SKU..."
+              <AutocompleteSearch
+                id="product-search"
                 value={search}
-                onChange={(e) => { setPage(1); setSearch(e.target.value); }}
-                className="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400"
+                onChange={(value) => { setPage(1); setSearch(value); }}
+                suggestions={productSearchSuggestions}
+                placeholder="Search by name or SKU..."
+                className="min-w-0 flex-1"
+                inputClassName="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400"
               />
             </label>
             <select

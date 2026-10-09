@@ -19,6 +19,7 @@ import {
   normalizePaymentMethod,
   isCreditPayment,
   shouldCreateInvoiceForSale,
+  buildSalesDateFilter,
   isDuplicateKeyError,
   isTransactionAbortedError,
   normalizeSaleErrorMessage
@@ -661,6 +662,10 @@ const getSales = async (req, res) => {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(10, Number.parseInt(req.query.limit, 10) || 25));
     const search = String(req.query.search || "").trim();
+    const status = String(req.query.status || "").trim();
+    if (status && !["pending", "posted", "reversed"].includes(status)) {
+      return res.status(400).json({ message: "Invalid sale status filter" });
+    }
     const query = buildSalesQuery({
       businessId: req.user.businessId,
       isSuperAdmin: req.user.role === "super_admin"
@@ -668,9 +673,16 @@ const getSales = async (req, res) => {
     if (req.query.paymentStatus) {
       query.paymentStatus = String(req.query.paymentStatus).trim();
     }
-    if (req.query.status) {
-      query.status = String(req.query.status).trim();
+    if (status) {
+      query.status = status;
     }
+    const dateFilter = buildSalesDateFilter({
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      timezoneOffset: req.query.timezoneOffset === undefined ? 0 : Number(req.query.timezoneOffset)
+    });
+    if (dateFilter?.error) return res.status(400).json({ message: dateFilter.error });
+    if (dateFilter) query.createdAt = dateFilter.createdAt;
     const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
     if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
     Object.assign(query, branchQuery);
@@ -689,7 +701,7 @@ const getSales = async (req, res) => {
       ];
     }
 
-    const [sales, total] = await Promise.all([
+    const [sales, total, reconciliationRows] = await Promise.all([
       Sale.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -697,10 +709,38 @@ const getSales = async (req, res) => {
       .populate("createdBy", "name")
       .populate("branch", "name")
       .populate("items.product", "name price"),
-      Sale.countDocuments(query)
+      Sale.countDocuments(query),
+      Sale.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            transactionCount: { $sum: 1 },
+            totalAmount: { $sum: { $ifNull: ["$totalAmount", 0] } },
+            pendingCount: {
+              $sum: {
+                $cond: [{ $eq: [{ $ifNull: ["$status", "pending"] }, "pending"] }, 1, 0]
+              }
+            },
+            postedCount: { $sum: { $cond: [{ $eq: ["$status", "posted"] }, 1, 0] } },
+            reversedCount: { $sum: { $cond: [{ $eq: ["$status", "reversed"] }, 1, 0] } }
+          }
+        }
+      ])
     ]);
 
-    res.json({ sales, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    const reconciliation = reconciliationRows[0] || {
+      transactionCount: 0,
+      totalAmount: 0,
+      pendingCount: 0,
+      postedCount: 0,
+      reversedCount: 0
+    };
+    res.json({
+      sales,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      reconciliation
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

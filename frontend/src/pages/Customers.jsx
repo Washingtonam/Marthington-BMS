@@ -4,6 +4,7 @@ import { FiEdit2, FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-
 import { createCustomer, getCustomers, updateCustomer } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 
 const createEmptyForm = () => ({
   name: "",
@@ -266,12 +267,14 @@ const Customers = () => {
             </label>
             <div className="relative">
               <FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+              <AutocompleteSearch
                 id="customer-search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={setSearch}
+                suggestions={customers.map((customer) => customer.name)}
                 placeholder="Search by name, phone, or email"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none ring-0 transition-all duration-150 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="w-full"
+                inputClassName="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none ring-0 transition-all duration-150 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>

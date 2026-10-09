@@ -2,9 +2,42 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildSalesDateFilter,
   buildProductCompensationEntries,
   buildSaleLedgerEntry
 } from '../src/modules/sales/sales.utils.js';
+
+test('sales date filter includes the complete selected UTC day', () => {
+  const filter = buildSalesDateFilter({ startDate: '2026-10-09', endDate: '2026-10-09' });
+
+  assert.deepEqual(filter, {
+    createdAt: {
+      $gte: new Date('2026-10-09T00:00:00.000Z'),
+      $lt: new Date('2026-10-10T00:00:00.000Z')
+    }
+  });
+});
+
+test('sales date filter respects the browser timezone offset', () => {
+  const filter = buildSalesDateFilter({
+    startDate: '2026-10-10',
+    endDate: '2026-10-10',
+    timezoneOffset: -60
+  });
+
+  assert.deepEqual(filter, {
+    createdAt: {
+      $gte: new Date('2026-10-09T23:00:00.000Z'),
+      $lt: new Date('2026-10-10T23:00:00.000Z')
+    }
+  });
+});
+
+test('sales date filter rejects invalid and reversed date ranges', () => {
+  assert.equal(buildSalesDateFilter({ startDate: '2026-02-30' }).error, 'Dates must use the YYYY-MM-DD format and be valid calendar dates.');
+  assert.equal(buildSalesDateFilter({ startDate: '2026-10-10', endDate: '2026-10-09' }).error, 'Start date must be on or before end date.');
+  assert.equal(buildSalesDateFilter({ startDate: '2026-10-10', timezoneOffset: 841 }).error, 'Timezone offset must be a whole number of minutes within 14 hours of UTC.');
+});
 
 test('sale compensation entries keep original unit cost and return type', () => {
   const entries = buildProductCompensationEntries({

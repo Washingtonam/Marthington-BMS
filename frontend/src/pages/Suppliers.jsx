@@ -4,6 +4,7 @@ import { FiMail, FiPackage, FiPhone, FiPlus, FiSearch, FiTruck, FiBox } from "re
 import { createSupplier, getSuppliers, updateSupplier } from "../api/suppliers.js";
 import { formatCurrency } from "../utils/formatters.js";
 import RecordReceiptModal from "../components/RecordReceiptModal.jsx";
+import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 
 const emptyForm = () => ({
   name: "",
@@ -191,12 +192,14 @@ const Suppliers = () => {
             <label className="sr-only" htmlFor="supplier-search">Search suppliers</label>
             <div className="relative">
               <FiSearch className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+              <AutocompleteSearch
                 id="supplier-search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={setSearch}
+                suggestions={suppliers.map((supplier) => supplier.name)}
                 placeholder="Search by name, phone, or email"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition-all duration-150 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="w-full"
+                inputClassName="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm outline-none transition-all duration-150 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
           </div>
