@@ -44,6 +44,9 @@ const Services = () => {
   const [search, setSearch] =
     useState("");
 
+  const [serviceSort, setServiceSort] =
+    useState("added");
+
   const [selectedCategory, setSelectedCategory] =
     useState("All");
 
@@ -131,7 +134,7 @@ const Services = () => {
 
   const filteredServices = useMemo(() => {
 
-    return servicesList.filter(
+    const filtered = servicesList.filter(
       (service) => {
 
         const matchSearch =
@@ -154,10 +157,20 @@ const Services = () => {
       }
     );
 
+    if (serviceSort === "added") return filtered;
+
+    const direction = serviceSort === "name-desc" ? -1 : 1;
+    return [...filtered].sort((a, b) =>
+      direction * String(a?.name || "").localeCompare(String(b?.name || ""), undefined, {
+        numeric: true,
+        sensitivity: "base"
+      })
+    );
   }, [
     services,
     search,
-    selectedCategory
+    selectedCategory,
+    serviceSort
   ]);
 
   // =====================================
@@ -459,22 +472,37 @@ const Services = () => {
 
           </div>
 
-          <label className="service-search-field">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-              <circle cx="11" cy="11" r="6"></circle>
-              <path d="M20 20L16.5 16.5"></path>
-            </svg>
-            <input
-              type="text"
-              placeholder="Search services"
-              value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
-            />
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="service-search-field">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                <circle cx="11" cy="11" r="6"></circle>
+                <path d="M20 20L16.5 16.5"></path>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search services"
+                value={search}
+                onChange={(e) =>
+                  setSearch(
+                    e.target.value
+                  )
+                }
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+              <span>Sort by</span>
+              <select
+                aria-label="Sort services"
+                value={serviceSort}
+                onChange={(e) => setServiceSort(e.target.value)}
+                className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="added">Added order</option>
+                <option value="name-asc">Name (A to Z)</option>
+                <option value="name-desc">Name (Z to A)</option>
+              </select>
+            </label>
+          </div>
 
         </div>
 

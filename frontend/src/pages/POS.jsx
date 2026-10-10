@@ -51,6 +51,7 @@ const POS = () => {
   const [processing, setProcessing] = useState(false);
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [search, setSearch] = useState("");
+  const [productSort, setProductSort] = useState("added");
   const [activeTab, setActiveTab] = useState("products");
   const [pulseId, setPulseId] = useState(null);
   const [pulseType, setPulseType] = useState("product");
@@ -267,12 +268,22 @@ useEffect(() => {
       }
     }
 
-    return source.filter((p) =>
+    const filtered = source.filter((p) =>
       p?.name?.toLowerCase().includes(keyword) ||
       p?.sku?.toLowerCase().includes(keyword) ||
       p?.category?.toLowerCase().includes(keyword)
     );
-  }, [products, search, selectedBranch, branchInventory]);
+
+    if (productSort === "added") return filtered;
+
+    const direction = productSort === "name-desc" ? -1 : 1;
+    return [...filtered].sort((a, b) =>
+      direction * String(a?.name || "").localeCompare(String(b?.name || ""), undefined, {
+        numeric: true,
+        sensitivity: "base"
+      })
+    );
+  }, [products, search, selectedBranch, branchInventory, productSort]);
 
   const filteredServices = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -475,6 +486,21 @@ useEffect(() => {
               /
             </span>
           </label>
+          {activeTab === "products" && (
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+              <span>Sort by</span>
+              <select
+                aria-label="Sort products"
+                value={productSort}
+                onChange={(e) => setProductSort(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700 focus:ring-2 focus:ring-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <option value="added">Added order</option>
+                <option value="name-asc">Name (A to Z)</option>
+                <option value="name-desc">Name (Z to A)</option>
+              </select>
+            </label>
+          )}
           <button 
             onClick={openCustomerDisplay}
             className="rounded-2xl border border-slate-200 bg-white p-3 text-slate-600 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"

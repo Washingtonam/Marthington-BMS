@@ -33,7 +33,11 @@ vi.mock("../context/AuthContext.jsx", () => ({
 vi.mock("../api/client.js", () => ({
   default: vi.fn((path) => {
     if (path === "/products?limit=500") {
-      return Promise.resolve([{ _id: "p1", name: "Laptop", category: "Tech", sellingPrice: 2500, stock: 10 }]);
+      return Promise.resolve([
+        { _id: "p1", name: "Laptop", category: "Tech", sellingPrice: 2500, stock: 10 },
+        { _id: "p2", name: "Apple", category: "Tech", sellingPrice: 1200, stock: 8 },
+        { _id: "p3", name: "Keyboard", category: "Tech", sellingPrice: 800, stock: 12 }
+      ]);
     }
     if (path === "/sales") {
       return Promise.resolve({
@@ -67,6 +71,24 @@ describe("POS checkout", () => {
     cleanup();
     mockNavigate.mockReset();
     request.mockClear();
+  });
+
+  it("keeps the added order by default and sorts products by name in either direction", async () => {
+    render(<POS />);
+
+    const productNames = () => screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
+    expect(await screen.findByText("Laptop")).toBeTruthy();
+    expect(productNames()).toEqual(["Laptop", "Apple", "Keyboard"]);
+
+    const sortProducts = screen.getByRole("combobox", { name: "Sort products" });
+    fireEvent.change(sortProducts, { target: { value: "name-asc" } });
+    expect(productNames()).toEqual(["Apple", "Keyboard", "Laptop"]);
+
+    fireEvent.change(sortProducts, { target: { value: "name-desc" } });
+    expect(productNames()).toEqual(["Laptop", "Keyboard", "Apple"]);
+
+    fireEvent.change(sortProducts, { target: { value: "added" } });
+    expect(productNames()).toEqual(["Laptop", "Apple", "Keyboard"]);
   });
 
   it("navigates to the receipt page with a print trigger after confirming the cart", async () => {

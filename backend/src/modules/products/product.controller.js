@@ -170,9 +170,15 @@ const getProducts = async (req, res) => {
     }
     if (req.query.category) filter.category = req.query.category;
 
+    const sort = req.query.sort === "name-asc"
+      ? { name: 1, _id: 1 }
+      : req.query.sort === "name-desc"
+        ? { name: -1, _id: -1 }
+        : { createdAt: -1 };
+
     const totalProducts = await Product.countDocuments(filter);
     const products = await Product.find(filter)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(limit)
       .lean();
