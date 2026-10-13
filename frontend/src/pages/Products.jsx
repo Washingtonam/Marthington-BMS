@@ -3,6 +3,7 @@ import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import { downloadSpreadsheet } from "../utils/spreadsheet.js";
 import {
   calculateMarkup,
   DEFAULT_PRODUCT_MARKUP,
@@ -43,6 +44,7 @@ const Products = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [error, setError] = useState("");
@@ -290,19 +292,79 @@ const Products = () => {
       const formData = new FormData();
       formData.append("file", file);
 
-      await request("/products/bulk-import", {
+      const result = await request("/products/bulk-import", {
         method: "POST",
         body: formData,
         isFormData: true
       });
 
-      setSuccess("Products imported successfully");
+      setSuccess(result.message || "Products imported successfully");
       loadProducts();
     } catch (err) {
       setError(err.message || "Upload failed");
     } finally {
       setUploading(false);
       e.target.value = null; // Clear input
+    }
+  };
+
+  const handleExportProducts = async () => {
+    try {
+      setExporting(true);
+      setError("");
+      setSuccess("");
+
+      const allProducts = [];
+      let currentPage = 1;
+      let totalPages = 1;
+
+      do {
+        const query = new URLSearchParams({ page: currentPage, limit: 5000 });
+        const data = await request(`/products?${query.toString()}`);
+        allProducts.push(...(data.products || []));
+        totalPages = Number(data.pagination?.totalPages) || 1;
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      if (!allProducts.length) {
+        setError("There are no products to export.");
+        return;
+      }
+
+      const headers = [
+        "name",
+        "category",
+        "sellingPrice",
+        "costPrice",
+        "stock",
+        "sku",
+        "shopVisible",
+        "shopFeatured",
+        "shopImage"
+      ];
+      const rows = allProducts.map((product) => ({
+        name: product.name || "",
+        category: product.category || "General",
+        sellingPrice: Number(product.sellingPrice ?? product.price) || 0,
+        costPrice: Number(product.costPrice) || 0,
+        stock: Number(product.stock) || 0,
+        sku: product.sku || "",
+        shopVisible: product.shopVisible !== false,
+        shopFeatured: Boolean(product.shopFeatured),
+        shopImage: product.shopImage || ""
+      }));
+
+      downloadSpreadsheet(
+        `products-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Products",
+        headers,
+        rows
+      );
+      setSuccess(`${allProducts.length} product(s) exported successfully.`);
+    } catch (err) {
+      setError(err.message || "Failed to export products.");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -318,6 +380,14 @@ const Products = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleExportProducts}
+              disabled={exporting}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              {exporting ? "Exporting..." : "Export Products"}
+            </button>
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
               {uploading ? "Uploading..." : "Upload Excel"}
               <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileUpload} />

@@ -11,6 +11,7 @@ import {
 import {
   formatCurrency
 } from "../utils/formatters.js";
+import { downloadSpreadsheet } from "../utils/spreadsheet.js";
 
 const defaultForm = {
   name: "",
@@ -38,7 +39,13 @@ const Services = () => {
   const [saving, setSaving] =
     useState(false);
 
+  const [exporting, setExporting] =
+    useState(false);
+
   const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
     useState("");
 
   const [search, setSearch] =
@@ -380,6 +387,52 @@ const Services = () => {
       }
     };
 
+  const handleExportServices = () => {
+    try {
+      setExporting(true);
+      setError("");
+      setSuccess("");
+
+      if (!servicesList.length) {
+        setError("There are no services to export.");
+        return;
+      }
+
+      const headers = [
+        "name",
+        "category",
+        "price",
+        "costPrice",
+        "duration",
+        "code",
+        "description",
+        "isActive"
+      ];
+      const rows = servicesList.map((service) => ({
+        name: service.name || "",
+        category: service.category || "General",
+        price: Number(service.price) || 0,
+        costPrice: Number(service.costPrice) || 0,
+        duration: Number(service.duration) || 0,
+        code: service.code || "",
+        description: service.description || "",
+        isActive: service.isActive !== false
+      }));
+
+      downloadSpreadsheet(
+        `services-${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Services",
+        headers,
+        rows
+      );
+      setSuccess(`${servicesList.length} service(s) exported successfully.`);
+    } catch (err) {
+      setError(err.message || "Failed to export services.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
 
     <section className="page-stack dark:text-slate-100">
@@ -400,14 +453,24 @@ const Services = () => {
 
         </div>
 
-        <button
-          type="button"
-          className="primary-button"
-          onClick={handleCreateNew}
-        >
-          <span className="text-lg leading-none">+</span>
-          Create Service
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            onClick={handleExportServices}
+            disabled={exporting}
+          >
+            {exporting ? "Exporting..." : "Export Services"}
+          </button>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={handleCreateNew}
+          >
+            <span className="text-lg leading-none">+</span>
+            Create Service
+          </button>
+        </div>
 
       </div>
 
@@ -418,6 +481,16 @@ const Services = () => {
         <div className="form-error dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">
 
           {error}
+
+        </div>
+
+      )}
+
+      {success && (
+
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+
+          {success}
 
         </div>
 

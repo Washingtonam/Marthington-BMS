@@ -89,7 +89,10 @@ const bulkImportProducts = async (req, res) => {
     if (!rows.length) return res.status(400).json({ message: "File is empty" });
 
     const productsToInsert = [];
-    const existingProducts = await Product.find({ business: business._id }).select("_id name stock price costPrice sku").lean();
+    const existingProducts = await Product.find({ business: business._id })
+      .select("_id name category stock price costPrice sku shopVisible shopFeatured shopImage")
+      .lean();
+    let updatedCount = 0;
 
     for (const row of rows) {
       if (!row.name) continue;
@@ -107,12 +110,21 @@ const bulkImportProducts = async (req, res) => {
         await Product.findByIdAndUpdate(existing._id, {
           $set: {
             name: merged.name,
+            category: row.category || existing.category || "General",
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
             stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
-            sku: merged.sku || existing.sku || `SKU-${Date.now()}`
+            sku: merged.sku || existing.sku || `SKU-${Date.now()}`,
+            shopVisible: row.shopVisible === undefined
+              ? existing.shopVisible
+              : row.shopVisible === true || String(row.shopVisible).toLowerCase() === "true",
+            shopFeatured: row.shopFeatured === undefined
+              ? existing.shopFeatured
+              : row.shopFeatured === true || String(row.shopFeatured).toLowerCase() === "true",
+            ...(row.shopImage !== undefined ? { shopImage: String(row.shopImage) } : {})
           }
         });
+        updatedCount += 1;
         continue;
       }
 
@@ -123,14 +135,27 @@ const bulkImportProducts = async (req, res) => {
         costPrice: Number(row.costPrice || 0),
         stock: isPrivileged(req.user) ? Number(row.stock || 0) : 0,
         sku: row.sku || `SKU-${Math.random().toString(36).substr(2, 9)}`,
+        shopVisible: row.shopVisible === undefined
+          ? true
+          : row.shopVisible === true || String(row.shopVisible).toLowerCase() === "true",
+        shopFeatured: row.shopFeatured === true || String(row.shopFeatured).toLowerCase() === "true",
+        shopImage: row.shopImage ? String(row.shopImage) : "",
         business: business._id
       });
     }
 
-    if (!productsToInsert.length) return res.status(400).json({ message: "No new valid products found" });
+    if (productsToInsert.length) {
+      await Product.insertMany(productsToInsert);
+    }
+    if (!productsToInsert.length && !updatedCount) {
+      return res.status(400).json({ message: "No valid products found" });
+    }
 
-    await Product.insertMany(productsToInsert);
-    res.json({ message: `${productsToInsert.length} products imported.` });
+    res.json({
+      message: `${productsToInsert.length} product(s) imported, ${updatedCount} existing product(s) updated.`,
+      imported: productsToInsert.length,
+      updated: updatedCount
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

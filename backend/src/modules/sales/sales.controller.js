@@ -778,7 +778,7 @@ const getDeletedSales = async (req, res) => {
 const getSaleById = async (req, res) => {
   try {
     const sale = await Sale.findById(req.params.id)
-      .populate("createdBy", "name")
+      .populate("createdBy", "role")
       .populate("branch", "name")
       .populate("items.product", "name price")
       .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");

@@ -21,7 +21,8 @@
     "react-dom": "^19.1.1",
     "react-icons": "^4.11.0",
     "react-router-dom": "^7.9.3",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.0.0",

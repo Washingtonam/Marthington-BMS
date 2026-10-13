@@ -195,6 +195,11 @@ const SaleDetails = () => {
 
   const business = sale.business || {};
   const theme = business.receiptTheme || "modern";
+  const sellerTitle = sale.createdBy?.role === "owner"
+    ? "Owner"
+    : sale.createdBy?.role === "manager"
+      ? "Manager"
+      : "Staff";
 
   return (
     <section className="min-h-screen bg-gray-50 py-8 px-4 font-bold">
@@ -237,8 +242,8 @@ const SaleDetails = () => {
                 <strong className="receipt-row-value font-mono text-right">{new Date(sale.createdAt).toLocaleString()}</strong>
               </div>
               <div className="receipt-row">
-                <span className="receipt-row-label">Cashier</span>
-                <strong className="receipt-row-value font-mono text-right">{sale.createdBy?.name || "Staff"}</strong>
+                <span className="receipt-row-label">Sold by</span>
+                <strong className="receipt-row-value font-mono text-right">{sellerTitle}</strong>
               </div>
               {sale.branch?.name && (
                 <div className="receipt-row">
