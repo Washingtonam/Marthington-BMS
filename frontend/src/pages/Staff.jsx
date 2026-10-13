@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import request from "../api/client.js";
 import { getBranches } from "../api/branches.js";
+import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 import "../styles.css";
 import { FiEye, FiEyeOff, FiEdit2, FiMapPin, FiPower, FiSearch, FiShield, FiTrash2, FiUserCheck, FiUsers, FiX } from 'react-icons/fi';
 
@@ -353,7 +354,21 @@ const getStoredCurrentUser = () => {
   }
 };
 
+const getStoredBusiness = () => {
+  try {
+    return JSON.parse(localStorage.getItem("bms_business")) || null;
+  } catch {
+    return null;
+  }
+};
+
 const Staff = () => {
+  const currentBusiness = getStoredBusiness();
+  const isPro = currentBusiness?.isPro === true || (
+    currentBusiness?.subscription?.plan === "pro" &&
+    currentBusiness?.subscription?.status === "active"
+  );
+  const currentMode = isPro ? "Pro mode" : "Free mode";
   const currentUser = getStoredCurrentUser();
   const [staff, setStaff] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -361,6 +376,7 @@ const Staff = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [upgradePrompt, setUpgradePrompt] = useState("");
   const [showDrawer, setShowDrawer] = useState(false);
   const [isDrawerMounted, setIsDrawerMounted] = useState(false);
   const [showDetails, setShowDetails] = useState({});
@@ -492,6 +508,7 @@ const Staff = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setUpgradePrompt("");
     try {
       setSaving(true);
       if (!editingId) {
@@ -510,7 +527,8 @@ const Staff = () => {
       setStaff(Array.isArray(refreshedStaff) ? refreshedStaff : []);
       setForm(initialForm);
     } catch (err) {
-      setError(err.message);
+      if (isPlanAccessMessage(err.message)) setUpgradePrompt(err.message);
+      else setError(err.message);
     } finally {
       setSaving(false);
     }
@@ -596,6 +614,8 @@ const Staff = () => {
           </div>
         </div>
 
+        {upgradePrompt && !showDrawer && <div className="my-4"><PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} /></div>}
+
         <div className="staff-metrics" aria-label="Team overview">
           <div className="staff-metric-card"><span className="staff-metric-icon"><FiUsers /></span><div><strong>{teamStats.total}</strong><span>Total team</span></div></div>
           <div className="staff-metric-card"><span className="staff-metric-icon staff-metric-icon--green"><FiUserCheck /></span><div><strong>{teamStats.active}</strong><span>Active accounts</span></div></div>
@@ -676,6 +696,7 @@ const Staff = () => {
               <button aria-label="Close staff access dialog" onClick={() => setShowDrawer(false)} className="staff-modal-close text-gray-500 dark:text-slate-400">✕</button>
             </div>
 
+            {upgradePrompt && <div className="mb-4"><PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => { setUpgradePrompt(""); setShowDrawer(false); }} /></div>}
             {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-4 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50">{error}</div>}
 
             <form onSubmit={handleSubmit} className="space-y-5">

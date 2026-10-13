@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getNotifications, markNotificationAsRead } from "../api/notifications.js";
+import AdminModeToggle from "./AdminModeToggle.jsx";
 
 const AdminLayout = () => {
   const { logout, user } = useAuth();
@@ -125,6 +126,8 @@ const AdminLayout = () => {
           </div>
 
           <div className="flex items-center gap-4">
+
+            <AdminModeToggle />
 
             <div className="text-sm text-gray-500 hidden md:block">
               {user?.email}

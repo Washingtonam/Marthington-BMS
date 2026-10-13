@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import request from "../api/client.js";
 import { getOfflineSnapshotMeta, saveOfflineSnapshot } from "../api/offlineDb.js";
 import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
+import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 
 const Settings = () => {
   const location = useLocation();
@@ -380,9 +381,9 @@ const Settings = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {upgradeMsg && (
-          <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm border border-blue-100 animate-pulse">
-            {upgradeMsg}
-          </div>
+          isPlanAccessMessage(upgradeMsg)
+            ? <PlanUpgradeNotice mode={isPro ? "Pro mode" : "Free mode"} message={upgradeMsg} onDismiss={() => setUpgradeMsg("")} />
+            : <div className="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm border border-blue-100">{upgradeMsg}</div>
         )}
 
         {verifying && (

@@ -3,8 +3,22 @@ import { useNavigate, useParams } from "react-router-dom";
 import { FiArrowLeft, FiBox, FiMail, FiPhone, FiMapPin, FiPackage, FiPlus, FiTruck } from "react-icons/fi";
 import { getSupplierById } from "../api/suppliers.js";
 import { createPurchaseOrder, updatePurchaseOrder } from "../api/purchaseOrders.js";
-import { getProducts } from "../api/products.js";
+import { createProduct, getProducts } from "../api/products.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { DEFAULT_PRODUCT_MARKUP, calculateMarkup, suggestSellingPrice } from "../utils/productPricing.js";
+
+const createDraftItem = () => ({
+  product: "",
+  name: "",
+  quantity: 1,
+  costPrice: 0,
+  saveAsProduct: false,
+  category: "",
+  sku: "",
+  markup: String(DEFAULT_PRODUCT_MARKUP),
+  sellingPrice: "",
+  customSellingPrice: false
+});
 
 const SupplierDetail = () => {
   const { id } = useParams();
@@ -17,9 +31,7 @@ const SupplierDetail = () => {
   const [draft, setDraft] = useState({
     status: "pending",
     notes: "",
-    items: [
-      { product: "", name: "", quantity: 1, costPrice: 0 }
-    ]
+    items: [createDraftItem()]
   });
 
   const loadSupplier = async () => {
@@ -101,6 +113,34 @@ const SupplierDetail = () => {
         const chosen = products.find((product) => product._id === value);
         nextItems[index].name = chosen?.name || nextItems[index].name || "";
         nextItems[index].costPrice = Number(chosen?.costPrice ?? nextItems[index].costPrice ?? 0);
+        nextItems[index].saveAsProduct = false;
+      }
+
+      if (field === "saveAsProduct" && value) {
+        nextItems[index].product = "";
+        nextItems[index].sellingPrice = suggestSellingPrice(
+          nextItems[index].costPrice,
+          nextItems[index].markup
+        );
+        nextItems[index].customSellingPrice = false;
+      }
+
+      if (field === "costPrice" && nextItems[index].saveAsProduct) {
+        if (nextItems[index].customSellingPrice) {
+          nextItems[index].markup = calculateMarkup(value, nextItems[index].sellingPrice);
+        } else {
+          nextItems[index].sellingPrice = suggestSellingPrice(value, nextItems[index].markup);
+        }
+      }
+
+      if (field === "sellingPrice" && nextItems[index].saveAsProduct) {
+        nextItems[index].customSellingPrice = true;
+        nextItems[index].markup = calculateMarkup(nextItems[index].costPrice, value);
+      }
+
+      if (field === "markup" && nextItems[index].saveAsProduct) {
+        nextItems[index].customSellingPrice = false;
+        nextItems[index].sellingPrice = suggestSellingPrice(nextItems[index].costPrice, value);
       }
 
       if (field === "quantity" || field === "costPrice") {
@@ -116,7 +156,7 @@ const SupplierDetail = () => {
   const addDraftItem = () => {
     setDraft((current) => ({
       ...current,
-      items: [...current.items, { product: "", name: "", quantity: 1, costPrice: 0 }]
+      items: [...current.items, createDraftItem()]
     }));
   };
 
@@ -128,18 +168,64 @@ const SupplierDetail = () => {
   };
 
   const submitPurchaseOrder = async () => {
+    const createdProductNames = [];
     try {
       setCreating(true);
 
-      const validItems = draft.items
-        .filter((item) => item.name || item.product)
-        .map((item) => ({
-          product: item.product || null,
-          name: item.name || "Item",
+      const draftItems = draft.items.filter((item) => item.name.trim() || item.product);
+      const validItems = [];
+
+      for (const item of draftItems) {
+        let productId = item.product || null;
+        let name = item.name.trim() || "Item";
+        const costPrice = Number(item.costPrice || 0);
+
+        if (item.saveAsProduct) {
+          const sellingPrice = Number(item.sellingPrice);
+          if (!item.name.trim()) {
+            alert("Enter a product name before saving it to the product catalog.");
+            return;
+          }
+          if (
+            item.costPrice === "" ||
+            item.sellingPrice === "" ||
+            !Number.isFinite(costPrice) ||
+            costPrice < 0 ||
+            !Number.isFinite(sellingPrice) ||
+            sellingPrice < 0
+          ) {
+            alert("Enter a valid unit cost and selling price for the new product.");
+            return;
+          }
+
+          const createdProduct = await createProduct({
+            name: item.name.trim(),
+            category: item.category.trim() || "General",
+            sku: item.sku.trim(),
+            costPrice,
+            sellingPrice
+          });
+          if (!createdProduct?._id) {
+            throw new Error(`Could not confirm that "${item.name.trim()}" was saved to the product catalog.`);
+          }
+
+          productId = createdProduct._id;
+          name = createdProduct.name || name;
+          createdProductNames.push(name);
+          setProducts((current) => [
+            createdProduct,
+            ...current.filter((product) => product._id !== createdProduct._id)
+          ]);
+        }
+
+        validItems.push({
+          product: productId,
+          name,
           quantity: Number(item.quantity || 0),
-          costPrice: Number(item.costPrice || 0),
-          total: Number(item.quantity || 0) * Number(item.costPrice || 0)
-        }));
+          costPrice,
+          total: Number(item.quantity || 0) * costPrice
+        });
+      }
 
       if (!validItems.length) {
         alert("Add at least one item to the purchase order.");
@@ -157,12 +243,15 @@ const SupplierDetail = () => {
       setDraft({
         status: "pending",
         notes: "",
-        items: [{ product: "", name: "", quantity: 1, costPrice: 0 }]
+        items: [createDraftItem()]
       });
       await loadSupplier();
     } catch (err) {
       console.error("Failed to create purchase order:", err);
-      alert(err.message || "Failed to create purchase order");
+      const partialSaveNotice = createdProductNames.length
+        ? ` Product${createdProductNames.length > 1 ? "s" : ""} saved to the catalog: ${createdProductNames.join(", ")}.`
+        : "";
+      alert(`${err.message || "Failed to create purchase order"}${partialSaveNotice}`);
     } finally {
       setCreating(false);
     }
@@ -283,7 +372,39 @@ const SupplierDetail = () => {
                         placeholder="Item name"
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
                       />
+                      <label className="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={item.saveAsProduct}
+                          onChange={(event) => updateDraftItem(index, "saveAsProduct", event.target.checked)}
+                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        Save as a new product in the catalog
+                      </label>
                     </div>
+
+                    {item.saveAsProduct ? (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Category</label>
+                          <input
+                            value={item.category}
+                            onChange={(event) => updateDraftItem(index, "category", event.target.value)}
+                            placeholder="General"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">SKU</label>
+                          <input
+                            value={item.sku}
+                            onChange={(event) => updateDraftItem(index, "sku", event.target.value)}
+                            placeholder="Leave blank to auto-generate"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
+                          />
+                        </div>
+                      </>
+                    ) : null}
 
                     <div>
                       <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Quantity</label>
@@ -307,6 +428,34 @@ const SupplierDetail = () => {
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
                       />
                     </div>
+
+                    {item.saveAsProduct ? (
+                      <>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Markup (%)</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={item.markup}
+                            onChange={(event) => updateDraftItem(index, "markup", event.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">Suggested selling price</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={item.sellingPrice}
+                            onChange={(event) => updateDraftItem(index, "sellingPrice", event.target.value)}
+                            placeholder="Suggested from cost + markup"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900"
+                          />
+                          <p className="mt-1 text-xs text-slate-500">Suggested from unit cost and markup; you can enter a custom price.</p>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
 
                   <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">

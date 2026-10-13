@@ -31,9 +31,6 @@ const createProduct = async (req, res) => {
                      (business.subscription?.status === "trial" && new Date() > business.trialEndsAt);
     if (isExpired) return res.status(403).json({ message: "Subscription expired. Please upgrade." });
 
-    // 2. Limit Check
-    await assertBusinessProductCapacity(business, 1);
-
     const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -42,9 +39,11 @@ const createProduct = async (req, res) => {
 
     const existing = await findExistingProductMatch(business._id, name);
     if (existing) {
+      const existingStock = Number(existing.stock || 0);
+      const requestedStock = stock === undefined ? existingStock : Number(stock) || 0;
       const merged = mergeCatalogValues(existing, {
         name,
-        stock: isPrivileged(req.user) ? Number(stock) || 0 : Number(existing.stock || 0),
+        stock: isPrivileged(req.user) ? requestedStock : existingStock,
         price: Number(sellingPrice) || Number(existing.price) || 0,
         costPrice: Number(costPrice) || Number(existing.costPrice) || 0,
         sku: sku || existing.sku || ""
@@ -56,13 +55,15 @@ const createProduct = async (req, res) => {
           category: category || existing.category || "General",
           price: Number(merged.price) || 0,
           costPrice: Number(merged.costPrice) || 0,
-          stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
+          stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : existingStock,
           sku: merged.sku || `SKU-${Date.now()}`
         }
       }, { new: true });
 
       return res.status(200).json({ ...product.toObject(), merged: true, duplicateOf: existing._id });
     }
+
+    await assertBusinessProductCapacity(business, 1);
 
     const product = await Product.create({
       name: String(name).trim(),

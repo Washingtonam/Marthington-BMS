@@ -113,7 +113,6 @@ export default function Sidebar({
   const { pathname } = useLocation();
   const user = getStoredUser();
   const [isCollapsed, setIsCollapsed] = useState(false);
-
   useEffect(() => {
     if (typeof onCollapseChange === "function") {
       onCollapseChange(isCollapsed);

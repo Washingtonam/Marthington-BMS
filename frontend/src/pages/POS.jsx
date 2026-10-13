@@ -7,6 +7,7 @@ import { getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { buildCustomerDisplayUrl, resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import PlanUpgradeNotice from "../components/PlanUpgradeNotice.jsx";
 
 const formatDisplayText = (value = "") => {
   const raw = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -50,6 +51,8 @@ const POS = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [upgradeMsg, setUpgradeMsg] = useState("");
+  const [posLimitNotice, setPosLimitNotice] = useState("");
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
   const [search, setSearch] = useState("");
   const [productSort, setProductSort] = useState("added");
   const [activeTab, setActiveTab] = useState("products");
@@ -176,10 +179,13 @@ const POS = () => {
           ? prodRes
           : (prodRes?.products || prodRes?.data?.products || []);
         setProducts(cleanProducts);
+        const pagination = prodRes?.pagination || prodRes?.data?.pagination;
+        setHasMoreProducts(Boolean(pagination?.hasNextPage));
       } catch (err) {
         console.error("POS Load Error:", err);
         setUpgradeMsg("Failed to load inventory.");
         setProducts([]);
+        setHasMoreProducts(false);
       } finally {
         setLoading(false);
       }
@@ -284,6 +290,11 @@ useEffect(() => {
       })
     );
   }, [products, search, selectedBranch, branchInventory, productSort]);
+
+  useEffect(() => {
+    if (isPro || selectedBranch || !search.trim() || filteredProducts.length > 0 || !hasMoreProducts) return;
+    setPosLimitNotice("This product may be outside the number of products currently shown in POS. Pro mode can provide a higher display limit.");
+  }, [filteredProducts.length, hasMoreProducts, isPro, search, selectedBranch]);
 
   const filteredServices = useMemo(() => {
     const keyword = search.toLowerCase();
@@ -473,6 +484,7 @@ useEffect(() => {
     <div className="flex min-h-[calc(100vh-2rem)] flex-col gap-4 bg-gray-50 p-2 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start lg:p-4 dark:bg-slate-950">
       {/* LEFT COLUMN: INVENTORY */}
       <div className="flex-1 space-y-4">
+        {posLimitNotice && <PlanUpgradeNotice mode="Free mode" message={posLimitNotice} onDismiss={() => setPosLimitNotice("")} />}
         <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <label className="relative flex-1 min-w-[220px]">
             <input
@@ -764,16 +776,24 @@ useEffect(() => {
             <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
                 <button
                   type="button"
-                  onClick={() => setAutoSend(prev => !prev)}
+                  onClick={() => {
+                    if (!isPro) {
+                      setPosLimitNotice("WhatsApp receipts are available in Pro mode.");
+                      return;
+                    }
+                    setAutoSend(prev => !prev);
+                    setPosLimitNotice("");
+                  }}
                   className={`flex h-6 w-12 items-center rounded-full border border-slate-200 p-1 transition-all ${autoSend ? "justify-end bg-slate-900" : "justify-start bg-slate-200"}`}
                   aria-label="Toggle WhatsApp receipt"
+                  aria-pressed={autoSend}
                 >
                   <span className="h-4 w-4 rounded-full bg-white shadow-sm"></span>
                 </button>
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">WhatsApp</span>
             </div>
 
-            {upgradeMsg && <p className="rounded-2xl bg-rose-50 p-2 text-center text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">{upgradeMsg}</p>}
+            {upgradeMsg && <p role="alert" className="rounded-2xl bg-rose-50 p-2 text-center text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">{upgradeMsg}</p>}
 
             <button
               onClick={checkout}

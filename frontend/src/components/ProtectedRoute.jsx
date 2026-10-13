@@ -1,3 +1,4 @@
+import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -12,7 +13,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPerm
     return <Navigate to="/partners/dashboard" replace />;
   }
 
-  if (user?.role === "super_admin" && !impersonatedBusiness && requiredRole !== "super_admin") {
+  if (user?.role === "super_admin" && !impersonatedBusiness && !user?.business && requiredRole !== "super_admin") {
     return <Navigate to="/admin" replace />;
   }
 

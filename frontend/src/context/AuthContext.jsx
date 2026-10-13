@@ -158,7 +158,7 @@ export const AuthProvider = ({ children }) => {
       return;
     }
 
-    if (user?.role === "super_admin" && !impersonatedBusiness) {
+    if (user?.role === "super_admin" && !impersonatedBusiness && !user?.business) {
       setBusiness(null);
       setLoadingBusiness(false);
       return;

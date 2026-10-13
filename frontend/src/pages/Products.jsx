@@ -9,6 +9,7 @@ import {
   DEFAULT_PRODUCT_MARKUP,
   suggestSellingPrice
 } from "../utils/productPricing.js";
+import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 
 const initialForm = {
   name: "",
@@ -21,6 +22,7 @@ const initialForm = {
 
 const Products = () => {
   const { business, isPro, user } = useAuth(); // Using the boolean from context
+  const currentMode = isPro ? "Pro mode" : "Free mode";
   const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
 
   // ====================================
@@ -48,6 +50,7 @@ const Products = () => {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [error, setError] = useState("");
+  const [upgradePrompt, setUpgradePrompt] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
   const [productSort, setProductSort] = useState("added");
@@ -162,6 +165,7 @@ const Products = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setUpgradePrompt("");
     setSuccess("");
 
     try {
@@ -189,7 +193,8 @@ const Products = () => {
       setDrawerOpen(false);
       loadProducts();
     } catch (err) {
-      setError(err.message);
+      if (isPlanAccessMessage(err.message)) setUpgradePrompt(err.message);
+      else setError(err.message);
     } finally {
       setSaving(false);
     }
@@ -289,6 +294,7 @@ const Products = () => {
     try {
       setUploading(true);
       setError("");
+      setUpgradePrompt("");
       const formData = new FormData();
       formData.append("file", file);
 
@@ -301,7 +307,8 @@ const Products = () => {
       setSuccess(result.message || "Products imported successfully");
       loadProducts();
     } catch (err) {
-      setError(err.message || "Upload failed");
+      if (isPlanAccessMessage(err.message)) setUpgradePrompt(err.message);
+      else setError(err.message || "Upload failed");
     } finally {
       setUploading(false);
       e.target.value = null; // Clear input
@@ -404,6 +411,8 @@ const Products = () => {
             </button>
           </div>
         </div>
+
+        {upgradePrompt && !drawerOpen && <PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} />}
 
         <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
@@ -563,6 +572,7 @@ const Products = () => {
 
             <div className="flex-1 overflow-y-auto px-6 py-6">
               {success && <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">{success}</div>}
+              {upgradePrompt && <div className="mb-4"><PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} /></div>}
               {error && <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
               <form onSubmit={handleSubmit} className="grid gap-4">

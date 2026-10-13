@@ -13,6 +13,7 @@ import { getSuppliers } from "../api/suppliers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
 import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiEye, FiFileText, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
+import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 
 const tabOptions = [
   {
@@ -45,6 +46,7 @@ const Invoices = () => {
   const [bulkUpdating, setBulkUpdating] = useState(false);
   const [invoiceRefreshKey, setInvoiceRefreshKey] = useState(0);
   const [creatingInvoice, setCreatingInvoice] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState("");
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -340,10 +342,11 @@ const Invoices = () => {
 
   const openNewInvoiceModal = async () => {
     if (!canCreateInvoices && !loadingBusiness) {
-      navigate("/app/billing");
+      setUpgradePrompt("Creating invoices is not available on your current plan.");
       return;
     }
 
+    setUpgradePrompt("");
     setNewInvoiceDraft({
       transactionType: "outgoing",
       branch: userBranchId || "",
@@ -662,7 +665,12 @@ const Invoices = () => {
       alert("Invoice created successfully.");
     } catch (err) {
       console.error("Failed to create invoice:", err);
-      alert(err.message || "Failed to create invoice. Please try again.");
+      if (isPlanAccessMessage(err.message)) {
+        setUpgradePrompt(err.message);
+        setNewInvoiceModalOpen(false);
+      } else {
+        alert(err.message || "Failed to create invoice. Please try again.");
+      }
     } finally {
       setCreatingInvoice(false);
     }
@@ -1108,6 +1116,14 @@ const Invoices = () => {
             </button>
           </div>
         </div>
+
+        {upgradePrompt && (
+          <PlanUpgradeNotice
+            mode={isPro ? "Pro mode" : "Free mode"}
+            message={upgradePrompt}
+            onDismiss={() => setUpgradePrompt("")}
+          />
+        )}
 
         {/* TABS */}
         <div className="border-b border-slate-200 dark:border-slate-800">
