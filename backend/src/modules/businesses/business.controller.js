@@ -214,13 +214,20 @@ export const ensureSuperAdminWorkspace = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const user = await User.findById(req.user.id).populate("business");
+    const user = await User.findById(req.user.id).select("business name email role");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if (user.role !== "super_admin") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     if (user.business) {
-      return res.status(200).json({ business: formatBusiness(user.business) });
+      const linkedBusiness = await Business.findById(user.business);
+      if (linkedBusiness) {
+        return res.status(200).json({ business: formatBusiness(linkedBusiness) });
+      }
     }
 
     const business = await Business.create({
@@ -230,18 +237,23 @@ export const ensureSuperAdminWorkspace = async (req, res) => {
     });
 
     const linkedUser = await User.findOneAndUpdate(
-      { _id: user._id, business: null },
+      { _id: user._id, role: "super_admin", business: user.business || null },
       { $set: { business: business._id } },
       { new: true }
     ).populate("business");
 
     if (!linkedUser?.business) {
       await Business.findByIdAndDelete(business._id);
-      const latestUser = await User.findById(user._id).populate("business");
-      if (!latestUser?.business) {
-        return res.status(409).json({ message: "Could not create the BMS workspace. Please try again." });
+      const latestUser = await User.findById(user._id).select("business");
+      const latestBusiness = latestUser?.business
+        ? await Business.findById(latestUser.business)
+        : null;
+      if (!latestBusiness) {
+        return res.status(409).json({
+          message: "Your BMS workspace link changed while it was being created. Please try again."
+        });
       }
-      return res.status(200).json({ business: formatBusiness(latestUser.business) });
+      return res.status(200).json({ business: formatBusiness(latestBusiness) });
     }
 
     return res.status(201).json({ business: formatBusiness(linkedUser.business) });
