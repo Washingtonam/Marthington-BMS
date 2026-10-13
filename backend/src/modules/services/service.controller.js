@@ -1,13 +1,18 @@
 import Service from "./service.model.js";
 import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
 
+const durationUnits = ["seconds", "minutes", "hours", "days"];
+const serviceFrequencies = ["once", "daily", "weekly", "monthly", "twice_yearly", "yearly"];
+
 const findExistingServiceMatch = async (businessId, name, excludeId = null) => {
   if (!name || !String(name).trim()) return null;
 
   const query = { business: businessId };
   if (excludeId) query._id = { $ne: excludeId };
 
-  const items = await Service.find(query).select("_id name price costPrice category isActive").lean();
+  const items = await Service.find(query)
+    .select("_id name price costPrice category isActive duration durationUnit frequency description code")
+    .lean();
   return findCatalogMatch(items, name);
 };
 
@@ -34,6 +39,16 @@ const createService = async (req, res) => {
       return res.status(400).json({
         message: "Service name is required"
       });
+    }
+
+    if (duration !== undefined && (!Number.isFinite(Number(duration)) || Number(duration) < 0)) {
+      return res.status(400).json({ message: "Duration must be a non-negative number" });
+    }
+    if (durationUnit !== undefined && !durationUnits.includes(durationUnit)) {
+      return res.status(400).json({ message: "Invalid duration unit" });
+    }
+    if (frequency !== undefined && !serviceFrequencies.includes(frequency)) {
+      return res.status(400).json({ message: "Invalid service frequency" });
     }
 
     const existing = await findExistingServiceMatch(req.user.businessId, name);
@@ -252,6 +267,16 @@ const updateService = async (
       code,
       isActive
     } = req.body;
+
+    if (duration !== undefined && (!Number.isFinite(Number(duration)) || Number(duration) < 0)) {
+      return res.status(400).json({ message: "Duration must be a non-negative number" });
+    }
+    if (durationUnit !== undefined && !durationUnits.includes(durationUnit)) {
+      return res.status(400).json({ message: "Invalid duration unit" });
+    }
+    if (frequency !== undefined && !serviceFrequencies.includes(frequency)) {
+      return res.status(400).json({ message: "Invalid service frequency" });
+    }
 
     if (name !== undefined) {
       const duplicate = await findExistingServiceMatch(req.user.businessId, name, req.params.id);

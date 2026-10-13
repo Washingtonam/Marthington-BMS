@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   createService,
@@ -19,8 +19,51 @@ const defaultForm = {
   price: "",
   costPrice: "",
   duration: "",
+  durationUnit: "minutes",
+  frequency: "once",
   code: "",
   description: ""
+};
+
+const durationInSeconds = {
+  seconds: 1,
+  minutes: 60,
+  hours: 60 * 60,
+  days: 24 * 60 * 60
+};
+
+const formatDurationEquivalent = (duration, unit) => {
+  let remainingSeconds = Math.round(Number(duration) * durationInSeconds[unit] * 1000) / 1000;
+  const seconds = remainingSeconds;
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+
+  const units = [
+    ["day", 86400],
+    ["hour", 3600],
+    ["minute", 60]
+  ];
+  const parts = [];
+  units.forEach(([name, size]) => {
+    const amount = Math.floor(remainingSeconds / size);
+    if (amount > 0) {
+      parts.push(`${amount.toLocaleString()} ${name}${amount === 1 ? "" : "s"}`);
+      remainingSeconds = Math.round((remainingSeconds - amount * size) * 1000) / 1000;
+    }
+  });
+  if (remainingSeconds > 0) {
+    const amount = remainingSeconds;
+    parts.push(`${amount.toLocaleString(undefined, { maximumFractionDigits: 3 })} second${amount === 1 ? "" : "s"}`);
+  }
+  return parts.join(" ");
+};
+
+const frequencyLabels = {
+  once: "One-time",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  twice_yearly: "Twice a year",
+  yearly: "Yearly"
 };
 
 const Services = () => {
@@ -247,6 +290,10 @@ const Services = () => {
             form.duration
           ) || 0,
 
+        durationUnit: form.durationUnit,
+
+        frequency: form.frequency,
+
         code:
           form.code,
 
@@ -321,6 +368,12 @@ const Services = () => {
       duration:
         service.duration ||
         "",
+
+      durationUnit:
+        service.durationUnit || "minutes",
+
+      frequency:
+        service.frequency || "once",
 
       code:
         service.code || "",
@@ -404,6 +457,8 @@ const Services = () => {
         "price",
         "costPrice",
         "duration",
+        "durationUnit",
+        "frequency",
         "code",
         "description",
         "isActive"
@@ -414,6 +469,8 @@ const Services = () => {
         price: Number(service.price) || 0,
         costPrice: Number(service.costPrice) || 0,
         duration: Number(service.duration) || 0,
+        durationUnit: service.durationUnit || "minutes",
+        frequency: service.frequency || "once",
         code: service.code || "",
         description: service.description || "",
         isActive: service.isActive !== false
@@ -638,6 +695,14 @@ const Services = () => {
                       service.category || "General"
                     )}
 
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span>
+                      {Number(service.duration) > 0
+                        ? `${service.duration} ${service.durationUnit || "minutes"}`
+                        : "Duration not set"}
+                    </span>
+                    <span>{frequencyLabels[service.frequency] || "One-time"}</span>
                   </div>
 
                 </div>
@@ -875,23 +940,55 @@ const Services = () => {
 
           <label>
 
-            Duration (Minutes)
+            Duration
 
-            <input
-              type="number"
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(120px,0.8fr)] gap-2">
+              <input
+                type="number"
+                min="0"
+                step="any"
+                name="duration"
+                aria-label="Duration amount"
+                value={form.duration}
+                onChange={handleChange}
+                placeholder="Enter amount"
+              />
+              <select
+                name="durationUnit"
+                aria-label="Duration unit"
+                value={form.durationUnit}
+                onChange={handleChange}
+              >
+                <option value="seconds">Seconds</option>
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+                <option value="days">Days</option>
+              </select>
+            </div>
+            {formatDurationEquivalent(form.duration, form.durationUnit) && (
+              <span className="mt-1 block text-xs font-medium text-slate-500">
+                Equivalent duration: {formatDurationEquivalent(form.duration, form.durationUnit)}
+              </span>
+            )}
+          </label>
 
-              name="duration"
+          <label>
 
-              value={
-                form.duration
-              }
+            Service frequency
 
-              onChange={
-                handleChange
-              }
-
-              placeholder="Duration in minutes"
-            />
+            <select
+              name="frequency"
+              aria-label="Service frequency"
+              value={form.frequency}
+              onChange={handleChange}
+            >
+              <option value="once">One-time</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="twice_yearly">Twice a year (every 6 months)</option>
+              <option value="yearly">Yearly</option>
+            </select>
 
           </label>
 
