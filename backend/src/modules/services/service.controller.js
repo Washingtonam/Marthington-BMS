@@ -23,6 +23,8 @@ const createService = async (req, res) => {
       price,
       costPrice,
       duration,
+      durationUnit,
+      frequency,
       description,
       code
     } = req.body;
@@ -49,7 +51,9 @@ const createService = async (req, res) => {
           category: merged.category || "General",
           price: Number(merged.price) || 0,
           costPrice: Number(merged.costPrice) || 0,
-          duration: Number(duration) || Number(existing.duration) || 0,
+          duration: duration !== undefined ? Number(duration) : Number(existing.duration) || 0,
+          durationUnit: durationUnit || existing.durationUnit || "minutes",
+          frequency: frequency || existing.frequency || "once",
           description: description || existing.description || "",
           code: code || existing.code || ""
         }
@@ -74,6 +78,12 @@ const createService = async (req, res) => {
 
         duration:
           Number(duration) || 0,
+
+        durationUnit:
+          durationUnit || "minutes",
+
+        frequency:
+          frequency || "once",
 
         description:
           description || "",
@@ -236,6 +246,8 @@ const updateService = async (
       price,
       costPrice,
       duration,
+      durationUnit,
+      frequency,
       description,
       code,
       isActive
@@ -257,6 +269,8 @@ const updateService = async (
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
             duration: Number(duration ?? duplicate.duration ?? 0),
+            durationUnit: durationUnit || duplicate.durationUnit || "minutes",
+            frequency: frequency || duplicate.frequency || "once",
             description: description || duplicate.description || "",
             code: code || duplicate.code || ""
           }
@@ -284,6 +298,14 @@ const updateService = async (
     if (duration !== undefined) {
       service.duration =
         Number(duration);
+    }
+
+    if (durationUnit !== undefined) {
+      service.durationUnit = durationUnit;
+    }
+
+    if (frequency !== undefined) {
+      service.frequency = frequency;
     }
 
     service.description =

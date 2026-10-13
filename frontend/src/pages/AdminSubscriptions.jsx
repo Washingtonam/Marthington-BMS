@@ -20,6 +20,15 @@ const daysUntil = (value) => {
   return Math.ceil((new Date(value).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
 };
 
+const formatCountdown = (value, now) => {
+  const remaining = Math.max(0, new Date(value).getTime() - now);
+  const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+  const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
+  return { days, hours, minutes, seconds };
+};
+
 const getExpiryLabel = (value, status) => {
   const days = daysUntil(value);
   if (status === "expired" || (days !== null && days < 0)) return "Expired";
@@ -29,7 +38,7 @@ const getExpiryLabel = (value, status) => {
   return `${days} days left`;
 };
 
-const SubscriptionMetric = ({ label, value, detail, tone = "slate" }) => {
+const SubscriptionMetric = ({ label, value, detail, tone = "slate", href }) => {
   const tones = {
     slate: "border-slate-200 bg-white text-slate-900",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -37,12 +46,21 @@ const SubscriptionMetric = ({ label, value, detail, tone = "slate" }) => {
     rose: "border-rose-200 bg-rose-50 text-rose-900"
   };
 
-  return (
-    <div className={`rounded-2xl border p-5 ${tones[tone]}`}>
+  const card = (
+    <>
       <p className="text-xs font-bold uppercase tracking-[0.18em] opacity-65">{label}</p>
-      <p className="mt-3 text-3xl font-extrabold">{value.toLocaleString()}</p>
+      <p className="mt-3 text-3xl font-extrabold">{Number(value || 0).toLocaleString()}</p>
       <p className="mt-2 text-xs opacity-70">{detail}</p>
-    </div>
+      {href && <p className="mt-4 text-xs font-bold text-emerald-700">View tenants <span aria-hidden="true">→</span></p>}
+    </>
+  );
+
+  return href ? (
+    <Link to={href} aria-label={`${label}: ${Number(value || 0)} tenants. View list`} className={`group rounded-2xl border p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${tones[tone]}`}>
+      {card}
+    </Link>
+  ) : (
+    <div className={`rounded-2xl border p-5 shadow-sm ${tones[tone]}`}>{card}</div>
   );
 };
 
@@ -57,6 +75,7 @@ const AdminSubscriptions = () => {
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [clock, setClock] = useState(Date.now());
 
   const loadSubscriptions = useCallback(async () => {
     setLoading(true);
@@ -76,6 +95,20 @@ const AdminSubscriptions = () => {
   useEffect(() => {
     loadSubscriptions();
   }, [loadSubscriptions]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const nextExpiry = useMemo(() => subscriptions
+    .filter((item) => item.subscription?.plan === "pro"
+      && item.subscription?.status === "active"
+      && item.subscription?.expiresAt
+      && new Date(item.subscription.expiresAt).getTime() > clock)
+    .sort((left, right) => new Date(left.subscription.expiresAt) - new Date(right.subscription.expiresAt))[0] || null,
+  [clock, subscriptions]);
+  const countdown = nextExpiry ? formatCountdown(nextExpiry.subscription.expiresAt, clock) : null;
 
   const visibleSubscriptions = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -130,32 +163,75 @@ const AdminSubscriptions = () => {
 
   return (
     <section className="page-stack mx-auto max-w-7xl">
-      <div className="page-heading">
-        <div>
-          <span className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-600">Super Admin · Finance</span>
-          <h1 className="mt-2 text-4xl font-extrabold text-slate-900">Subscriptions</h1>
+      <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-8 text-white shadow-xl sm:px-9 sm:py-10">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div aria-hidden="true" className="pointer-events-none absolute bottom-0 right-1/3 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" /> Super Admin · Finance
+            </span>
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl">Subscriptions</h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">A live view of tenant plans, renewal dates, and billing health. Keep every workspace on track.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link to="/admin/tenants" className="rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-white/10">Tenant directory</Link>
+            <button
+              type="button"
+              onClick={loadSubscriptions}
+              disabled={loading}
+              className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-slate-900 shadow transition hover:bg-emerald-50 disabled:opacity-50"
+            >
+              {loading ? "Refreshing..." : "↻ Refresh"}
+            </button>
+          </div>
         </div>
-        <div className="flex max-w-2xl items-center gap-4">
-          <p className="text-sm text-slate-500">Monitor tenant plans, billing cycles, and upcoming renewals. Update plan state directly from the list.</p>
-          <button
-            type="button"
-            onClick={loadSubscriptions}
-            disabled={loading}
-            className="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"
-          >
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+        <div className="relative mt-8 grid gap-3 border-t border-white/10 pt-6 sm:grid-cols-3">
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Portfolio</p><p className="mt-1 text-xl font-bold">{stats.total.toLocaleString()} <span className="text-sm font-medium text-slate-400">tenants</span></p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Renewal watch</p><p className="mt-1 text-xl font-bold">{stats.expiringIn30Days.toLocaleString()} <span className="text-sm font-medium text-slate-400">due this month</span></p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active plans</p><p className="mt-1 text-xl font-bold">{stats.active.toLocaleString()} <span className="text-sm font-medium text-slate-400">Pro workspaces</span></p></div>
         </div>
       </div>
 
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
       {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</p>}
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Next renewal</p>
+              <h2 className="mt-2 text-xl font-extrabold text-slate-900">{nextExpiry ? nextExpiry.name : "No upcoming renewals"}</h2>
+              {nextExpiry && <p className="mt-1 text-sm text-slate-500">{nextExpiry.ownerEmail || "Tenant"} · {formatDate(nextExpiry.subscription.expiresAt)}</p>}
+            </div>
+            <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">{nextExpiry?.subscription.billingCycle || "—"}</span>
+          </div>
+          {countdown ? (
+            <div className="mt-5 flex flex-wrap gap-2" aria-label="Countdown to next renewal">
+              {[["Days", countdown.days], ["Hours", countdown.hours], ["Minutes", countdown.minutes], ["Seconds", countdown.seconds]].map(([unit, value]) => (
+                <div key={unit} className="min-w-[68px] rounded-xl bg-slate-950 px-3 py-3 text-center text-white">
+                  <p className="text-2xl font-black tabular-nums">{String(value).padStart(2, "0")}</p>
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400">{unit}</p>
+                </div>
+              ))}
+            </div>
+          ) : <p className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-500">When an active plan has an expiry date, the live countdown will appear here.</p>}
+        </div>
+        <div className="flex flex-col justify-between rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-cyan-50 p-5 shadow-sm sm:p-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Renewal planning</p>
+            <h2 className="mt-2 text-xl font-extrabold text-slate-900">Stay ahead of expirations</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Open the upcoming lists to review each tenant, reach out to owners, and see their full business profile.</p>
+          </div>
+          <p className="mt-5 text-xs font-semibold text-emerald-800">Counts and countdown refresh whenever the subscriptions are reloaded.</p>
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SubscriptionMetric label="All tenants" value={stats.total} detail="Subscriptions on record" />
         <SubscriptionMetric label="Active Pro" value={stats.active} detail="Currently active plans" tone="emerald" />
-        <SubscriptionMetric label="Expiring in 7 days" value={stats.expiringIn7Days} detail="Renewal attention needed" tone="rose" />
-        <SubscriptionMetric label="Expiring in 30 days" value={stats.expiringIn30Days} detail="Upcoming active renewals" tone="amber" />
+        <SubscriptionMetric label="Expiring in 7 days" value={stats.expiringIn7Days} detail="Open tenants needing attention" tone="rose" href="/admin/subscriptions/expiring/7" />
+        <SubscriptionMetric label="Expiring in 30 days" value={stats.expiringIn30Days} detail="Open upcoming renewal list" tone="amber" href="/admin/subscriptions/expiring/30" />
         <SubscriptionMetric label="Trials / expired" value={stats.trial + stats.expired} detail={`${stats.trial} on trial · ${stats.expired} expired`} />
       </div>
 

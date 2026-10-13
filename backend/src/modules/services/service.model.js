@@ -30,11 +30,22 @@ const serviceSchema = new mongoose.Schema(
       min: 0
     },
 
-    // 🔥 DURATION IN MINUTES
     duration: {
       type: Number,
       default: 0,
       min: 0
+    },
+
+    durationUnit: {
+      type: String,
+      enum: ["seconds", "minutes", "hours", "days"],
+      default: "minutes"
+    },
+
+    frequency: {
+      type: String,
+      enum: ["once", "daily", "weekly", "monthly", "twice_yearly", "yearly"],
+      default: "once"
     },
 
     // 🔥 DESCRIPTION

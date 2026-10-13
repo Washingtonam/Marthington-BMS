@@ -1,8 +1,9 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import AdminSubscriptions from "../pages/AdminSubscriptions.jsx";
+import AdminSubscriptionExpirations from "../pages/AdminSubscriptionExpirations.jsx";
 
 const mockRequest = vi.fn();
 
@@ -52,9 +53,13 @@ describe("Admin subscriptions", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("Test Academy")).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "Test Academy" })).toBeTruthy();
     expect(screen.getByText("Expiring in 7 days")).toBeTruthy();
     expect(screen.getByText("3 days left")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /expiring in 7 days: 1 tenants/i }).getAttribute("href"))
+      .toBe("/admin/subscriptions/expiring/7");
+    expect(screen.getAllByRole("link", { name: "Test Academy" })[0].getAttribute("href"))
+      .toBe("/admin/business/tenant-1");
 
     fireEvent.change(screen.getByRole("combobox", { name: "Plan for Test Academy" }), {
       target: { value: "free" }
@@ -71,5 +76,21 @@ describe("Admin subscriptions", () => {
       );
     });
     expect((await screen.findByRole("status")).textContent).toContain("Subscription for Test Academy was updated.");
+  });
+
+  it("shows the matching expiring tenant count and links business names to their profiles", async () => {
+    render(
+      <MemoryRouter initialEntries={["/admin/subscriptions/expiring/7"]}>
+        <Routes>
+          <Route path="/admin/subscriptions/expiring/:days" element={<AdminSubscriptionExpirations />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("1 matching")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Expiring in 7 days" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Test Academy" })[0].getAttribute("href"))
+      .toBe("/admin/business/tenant-1");
+    expect(screen.getByText(/\d+d \d+h \d+m|\d+h \d+m/)).toBeTruthy();
   });
 });
