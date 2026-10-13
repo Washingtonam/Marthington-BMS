@@ -10,7 +10,19 @@ const emailCampaignSchema = new mongoose.Schema(
     footerAddress: { type: String, default: "" },
     audienceType: {
       type: String,
-      enum: ["all_users", "owners", "staff", "affiliates", "business_users"],
+      enum: [
+        "all_users",
+        "owners",
+        "staff",
+        "affiliates",
+        "business_users",
+        "subscription_all",
+        "subscription_active_pro",
+        "subscription_expiring_7",
+        "subscription_expiring_30",
+        "subscription_trial",
+        "subscription_expired"
+      ],
       default: "all_users"
     },
     business: { type: mongoose.Schema.Types.ObjectId, ref: "Business", default: null },

@@ -243,6 +243,49 @@ export const sendCampaignEmail = async ({
   }
 };
 
+export const sendSubscriptionEmail = async ({
+  recipientEmail,
+  subject,
+  previewText = "",
+  bodyText,
+  variables = {}
+}) => {
+  const interpolate = (template) => String(template ?? "")
+    .replace(/\{\{\s*([a-zA-Z]+)\s*\}\}/g, (token, key) => {
+      if (!Object.prototype.hasOwnProperty.call(variables, key)) return token;
+      return String(variables[key] ?? "").replace(/[\r\n]+/g, " ");
+    });
+
+  const body = escapeHtml(interpolate(bodyText))
+    .split(/\r?\n/)
+    .map((line) => line || "&nbsp;")
+    .join("<br />");
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
+      <div style="border-bottom: 1px solid #e2e8f0; padding: 20px 0;">
+        <strong style="color: #059669;">Marthington BMS</strong>
+      </div>
+      <p style="color: #64748b; font-size: 13px;">${escapeHtml(interpolate(previewText))}</p>
+      <div style="font-size: 15px; line-height: 1.7;">${body}</div>
+      <footer style="border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 18px; color: #64748b; font-size: 12px;">
+        <p>Marthington BMS | Business management, made clearer.</p>
+      </footer>
+    </div>
+  `;
+
+  try {
+    await sendEmailMessage({
+      to: recipientEmail,
+      subject: interpolate(subject),
+      html: htmlContent
+    });
+    return true;
+  } catch (error) {
+    setLastEmailError(error);
+    throw error;
+  }
+};
+
 /**
  * Send Invoice Created notification
  */

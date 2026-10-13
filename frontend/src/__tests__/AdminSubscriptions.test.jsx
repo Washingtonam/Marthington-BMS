@@ -54,7 +54,7 @@ describe("Admin subscriptions", () => {
     );
 
     expect(await screen.findByRole("link", { name: "Test Academy" })).toBeTruthy();
-    expect(screen.getByText("Expiring in 7 days")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /expiring in 7 days: 1 tenants/i })).toBeTruthy();
     expect(screen.getByText("3 days left")).toBeTruthy();
     expect(screen.getByRole("link", { name: /expiring in 7 days: 1 tenants/i }).getAttribute("href"))
       .toBe("/admin/subscriptions/expiring/7");

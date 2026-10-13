@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import request from "../api/client.js";
+import SubscriptionEmailComposer from "../components/SubscriptionEmailComposer.jsx";
 
 const EMPTY_STATS = {
   total: 0,
@@ -38,7 +39,7 @@ const getExpiryLabel = (value, status) => {
   return `${days} days left`;
 };
 
-const SubscriptionMetric = ({ label, value, detail, tone = "slate", href }) => {
+const SubscriptionMetric = ({ label, value, detail, tone = "slate", href, onClick }) => {
   const tones = {
     slate: "border-slate-200 bg-white text-slate-900",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-900",
@@ -51,11 +52,15 @@ const SubscriptionMetric = ({ label, value, detail, tone = "slate", href }) => {
       <p className="text-xs font-bold uppercase tracking-[0.18em] opacity-65">{label}</p>
       <p className="mt-3 text-3xl font-extrabold">{Number(value || 0).toLocaleString()}</p>
       <p className="mt-2 text-xs opacity-70">{detail}</p>
-      {href && <p className="mt-4 text-xs font-bold text-emerald-700">View tenants <span aria-hidden="true">→</span></p>}
+      {(href || onClick) && <p className="mt-4 text-xs font-bold text-emerald-700">View tenants <span aria-hidden="true">→</span></p>}
     </>
   );
 
-  return href ? (
+  return onClick ? (
+    <button type="button" onClick={onClick} aria-label={`${label}: ${Number(value || 0)} tenants. View list and email`} className={`group text-left ${tones[tone]} rounded-2xl border p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500`}>
+      {card}
+    </button>
+  ) : href ? (
     <Link to={href} aria-label={`${label}: ${Number(value || 0)} tenants. View list`} className={`group rounded-2xl border p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 ${tones[tone]}`}>
       {card}
     </Link>
@@ -71,6 +76,8 @@ const AdminSubscriptions = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [quickFilter, setQuickFilter] = useState("all");
+  const [emailAudience, setEmailAudience] = useState("subscription_all");
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
@@ -122,9 +129,24 @@ const AdminSubscriptions = () => {
       ].some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
       const matchesStatus = statusFilter === "all" || subscription.status === statusFilter;
       const matchesPlan = planFilter === "all" || subscription.plan === planFilter;
-      return matchesSearch && matchesStatus && matchesPlan;
+      const expiry = subscription.expiresAt ? new Date(subscription.expiresAt).getTime() : null;
+      const matchesQuickFilter = quickFilter === "all"
+        || (quickFilter === "active_pro" && subscription.plan === "pro" && subscription.status === "active")
+        || (quickFilter === "trial" && subscription.status === "trial")
+        || (quickFilter === "expired" && subscription.status === "expired")
+        || (quickFilter === "expiring_7" && subscription.plan === "pro" && subscription.status === "active" && expiry >= clock && expiry <= clock + 7 * 24 * 60 * 60 * 1000)
+        || (quickFilter === "expiring_30" && subscription.plan === "pro" && subscription.status === "active" && expiry >= clock && expiry <= clock + 30 * 24 * 60 * 60 * 1000);
+      return matchesSearch && matchesStatus && matchesPlan && matchesQuickFilter;
     });
-  }, [planFilter, search, statusFilter, subscriptions]);
+  }, [clock, planFilter, quickFilter, search, statusFilter, subscriptions]);
+
+  const selectAudience = (audienceType, filter) => {
+    setEmailAudience(audienceType);
+    setQuickFilter(filter);
+    setPlanFilter("all");
+    setStatusFilter("all");
+    document.getElementById("subscription-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const editDraft = (item, key, value) => {
     const current = drafts[item._id] || {
@@ -227,13 +249,16 @@ const AdminSubscriptions = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <SubscriptionMetric label="All tenants" value={stats.total} detail="Subscriptions on record" />
-        <SubscriptionMetric label="Active Pro" value={stats.active} detail="Currently active plans" tone="emerald" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <SubscriptionMetric label="All tenants" value={stats.total} detail="View all businesses and owners" onClick={() => selectAudience("subscription_all", "all")} />
+        <SubscriptionMetric label="Active Pro" value={stats.active} detail="Review and contact active plans" tone="emerald" onClick={() => selectAudience("subscription_active_pro", "active_pro")} />
         <SubscriptionMetric label="Expiring in 7 days" value={stats.expiringIn7Days} detail="Open tenants needing attention" tone="rose" href="/admin/subscriptions/expiring/7" />
         <SubscriptionMetric label="Expiring in 30 days" value={stats.expiringIn30Days} detail="Open upcoming renewal list" tone="amber" href="/admin/subscriptions/expiring/30" />
-        <SubscriptionMetric label="Trials / expired" value={stats.trial + stats.expired} detail={`${stats.trial} on trial · ${stats.expired} expired`} />
+        <SubscriptionMetric label="Trials" value={stats.trial} detail="Help trial tenants choose a plan" tone="amber" onClick={() => selectAudience("subscription_trial", "trial")} />
+        <SubscriptionMetric label="Expired" value={stats.expired} detail="Contact owners about reactivation" tone="rose" onClick={() => selectAudience("subscription_expired", "expired")} />
       </div>
+
+      <SubscriptionEmailComposer subscriptions={subscriptions} initialAudience={emailAudience} />
 
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row">
         <input
@@ -257,7 +282,7 @@ const AdminSubscriptions = () => {
         </select>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div id="subscription-list" className="scroll-mt-6 overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
         <table className="min-w-[1150px] w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
             <tr>

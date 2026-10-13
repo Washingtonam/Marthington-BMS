@@ -36,6 +36,41 @@ router.get(
   adminController.listSubscriptions
 );
 
+router.get(
+  "/subscriptions/email-audience",
+  protect,
+  onlyAdmin,
+  adminController.getSubscriptionEmailAudience
+);
+
+router.get(
+  "/subscriptions/email-drafts",
+  protect,
+  onlyAdmin,
+  adminController.listSubscriptionEmailDrafts
+);
+
+router.put(
+  "/subscriptions/email-drafts",
+  protect,
+  onlyAdmin,
+  adminController.saveSubscriptionEmailDraft
+);
+
+router.post(
+  "/subscriptions/email-drafts/:id/send",
+  protect,
+  onlyAdmin,
+  adminController.sendSubscriptionEmailDraft
+);
+
+router.get(
+  "/subscriptions/email-campaigns/:id",
+  protect,
+  onlyAdmin,
+  adminController.getSubscriptionEmailCampaign
+);
+
 // ================= BUSINESS DETAILS =================
 router.get(
   "/business/:id",

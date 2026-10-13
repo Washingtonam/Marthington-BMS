@@ -22,6 +22,16 @@ import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
 import { getReportSnapshot } from "./reportSnapshot.js";
 import { normalizePlanAccess, validatePlanAccess } from "../subscriptions/planAccess.js";
+import { getSubscriptionRecipients, processEmailCampaignById } from "../../jobs/emailCampaign.job.js";
+
+const subscriptionEmailAudiences = [
+  "subscription_all",
+  "subscription_active_pro",
+  "subscription_expiring_7",
+  "subscription_expiring_30",
+  "subscription_trial",
+  "subscription_expired"
+];
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -129,6 +139,131 @@ const listSubscriptions = async (req, res) => {
     });
 
     res.json({ subscriptions, stats });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getSubscriptionEmailAudience = async (req, res) => {
+  try {
+    const { audienceType } = req.query;
+    if (!subscriptionEmailAudiences.includes(audienceType)) {
+      return res.status(400).json({ message: "Invalid subscription email audience" });
+    }
+
+    const recipients = await getSubscriptionRecipients(audienceType);
+    res.json({ audienceType, count: recipients.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const listSubscriptionEmailDrafts = async (req, res) => {
+  try {
+    const drafts = await EmailCampaign.find({
+      audienceType: { $in: subscriptionEmailAudiences },
+      status: "draft"
+    }).sort({ updatedAt: -1 }).lean();
+    res.json({ drafts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const saveSubscriptionEmailDraft = async (req, res) => {
+  try {
+    const { audienceType, subject, previewText = "", bodyText } = req.body;
+    if (!subscriptionEmailAudiences.includes(audienceType)) {
+      return res.status(400).json({ message: "Invalid subscription email audience" });
+    }
+    if (typeof subject !== "string" || !subject.trim() || subject.length > 200 || /[\r\n]/.test(subject)) {
+      return res.status(400).json({ message: "A valid email subject of up to 200 characters is required" });
+    }
+    if (typeof bodyText !== "string" || !bodyText.trim() || bodyText.length > 20000) {
+      return res.status(400).json({ message: "An email message of up to 20,000 characters is required" });
+    }
+    if (typeof previewText !== "string" || previewText.length > 300) {
+      return res.status(400).json({ message: "Preview text must be 300 characters or fewer" });
+    }
+
+    const name = `Subscription email: ${audienceType}`;
+    const draft = await EmailCampaign.findOneAndUpdate(
+      { name, audienceType, status: "draft" },
+      {
+        $set: {
+          name,
+          subject: subject.trim(),
+          previewText,
+          bodyHtml: bodyText,
+          audienceType,
+          status: "draft",
+          scheduledFor: null,
+          updatedBy: req.user.id
+        },
+        $setOnInsert: {
+          createdBy: req.user.id,
+          footerText: "Marthington BMS | Business management, made clearer."
+        }
+      },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    res.json({ draft });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const sendSubscriptionEmailDraft = async (req, res) => {
+  try {
+    const draft = await EmailCampaign.findOne({
+      _id: req.params.id,
+      audienceType: { $in: subscriptionEmailAudiences },
+      status: "draft"
+    }).lean();
+    if (!draft) return res.status(404).json({ message: "Subscription email draft not found or already sent" });
+
+    const recipients = await getSubscriptionRecipients(draft.audienceType);
+    if (recipients.length === 0) {
+      return res.status(400).json({ message: "No active business owner email addresses match this audience" });
+    }
+
+    const queued = await EmailCampaign.findOneAndUpdate(
+      { _id: draft._id, status: "draft" },
+      {
+        $set: {
+          status: "scheduled",
+          scheduledFor: new Date(),
+          recipientCount: recipients.length,
+          updatedBy: req.user.id
+        }
+      },
+      { new: true }
+    ).lean();
+    if (!queued) return res.status(409).json({ message: "This email draft is already being sent" });
+
+    processEmailCampaignById(queued._id).catch((error) => {
+      console.error("Subscription email delivery failed:", error.message);
+    });
+
+    res.status(202).json({
+      message: "Subscription email queued for delivery",
+      campaignId: queued._id,
+      recipientCount: recipients.length
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getSubscriptionEmailCampaign = async (req, res) => {
+  try {
+    const campaign = await EmailCampaign.findOne({
+      _id: req.params.id,
+      audienceType: { $in: subscriptionEmailAudiences }
+    }).select("status subject recipientCount deliveredCount failedCount sentAt").lean();
+    if (!campaign) return res.status(404).json({ message: "Subscription email campaign not found" });
+    res.json({ campaign });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -1761,6 +1896,11 @@ export default {
   getOverview,
   listBusinesses,
   listSubscriptions,
+  getSubscriptionEmailAudience,
+  listSubscriptionEmailDrafts,
+  saveSubscriptionEmailDraft,
+  sendSubscriptionEmailDraft,
+  getSubscriptionEmailCampaign,
   updateSubscription,
   getBusinessDetails,
   getAffiliateSettings,
