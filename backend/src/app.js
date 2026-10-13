@@ -66,6 +66,7 @@ const corsOptions = {
     "Content-Type",
     "Authorization",
     "x-business-id",
+    "x-bms-workspace",
     "X-Operation-Id",
     "Accept",
     "Origin",

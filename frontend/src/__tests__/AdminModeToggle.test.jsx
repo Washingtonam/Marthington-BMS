@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import AdminModeToggle from "../components/AdminModeToggle.jsx";
 
-const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
+const { mockUseAuth, mockEnsureWorkspace } = vi.hoisted(() => ({
+  mockUseAuth: vi.fn(),
+  mockEnsureWorkspace: vi.fn(),
+}));
 
 vi.mock("../context/AuthContext.jsx", () => ({
   useAuth: () => mockUseAuth(),
@@ -33,20 +36,23 @@ describe("AdminModeToggle", () => {
 
   beforeEach(() => {
     stopImpersonation.mockReset();
+    mockEnsureWorkspace.mockReset().mockResolvedValue({ _id: "own-business" });
     mockUseAuth.mockReturnValue({
-      user: { role: "super_admin", business: { _id: "own-business" } },
+      user: { role: "super_admin", business: null },
       stopImpersonation,
+      ensureSuperAdminWorkspace: mockEnsureWorkspace,
     });
   });
 
-  it("marks the current mode and switches to the BMS workspace", () => {
+  it("marks the current mode and switches to the BMS workspace", async () => {
     renderToggle();
 
     expect(screen.getByRole("button", { name: "Super Admin" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "My BMS" }));
 
     expect(stopImpersonation).toHaveBeenCalledOnce();
-    expect(screen.getByText("/app")).toBeTruthy();
+    expect(mockEnsureWorkspace).toHaveBeenCalledOnce();
+    expect(await screen.findByText("/app")).toBeTruthy();
     expect(screen.getByText("BMS panel")).toBeTruthy();
   });
 

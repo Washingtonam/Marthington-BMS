@@ -208,6 +208,49 @@ export const getBusiness = async (req, res) => {
   }
 };
 
+export const ensureSuperAdminWorkspace = async (req, res) => {
+  try {
+    if (req.user?.accountRole !== "super_admin") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const user = await User.findById(req.user.id).populate("business");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.business) {
+      return res.status(200).json({ business: formatBusiness(user.business) });
+    }
+
+    const business = await Business.create({
+      name: user.name ? `${user.name}'s Business` : "My Business",
+      email: user.email || "",
+      owner: user._id
+    });
+
+    const linkedUser = await User.findOneAndUpdate(
+      { _id: user._id, business: null },
+      { $set: { business: business._id } },
+      { new: true }
+    ).populate("business");
+
+    if (!linkedUser?.business) {
+      await Business.findByIdAndDelete(business._id);
+      const latestUser = await User.findById(user._id).populate("business");
+      if (!latestUser?.business) {
+        return res.status(409).json({ message: "Could not create the BMS workspace. Please try again." });
+      }
+      return res.status(200).json({ business: formatBusiness(latestUser.business) });
+    }
+
+    return res.status(201).json({ business: formatBusiness(linkedUser.business) });
+  } catch (err) {
+    console.error("Super-admin BMS workspace provisioning failed:", err);
+    return res.status(500).json({ message: "Could not create the BMS workspace." });
+  }
+};
+
 // 🔥 UPDATE BUSINESS SETTINGS (HARDENED)
 const syncBusinessReportDeliverySettings = async (business, actorId) => {
   const recipient = await User.findOne({ businessId: business._id }).select("_id name email").lean();

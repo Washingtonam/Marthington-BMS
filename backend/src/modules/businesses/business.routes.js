@@ -6,6 +6,7 @@ import checkPermission from "../../middlewares/permission.middleware.js";
 
 import {
   getBusiness,
+  ensureSuperAdminWorkspace,
   updateBusiness
 } from "./business.controller.js";
 
@@ -15,6 +16,12 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 
 const upload = multer({ storage });
+
+router.post(
+  "/workspace",
+  protect,
+  ensureSuperAdminWorkspace
+);
 
 // =====================================
 // GET BUSINESS (PUBLIC READ - for staff)

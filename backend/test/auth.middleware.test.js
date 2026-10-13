@@ -52,20 +52,21 @@ test("allows the production frontend origin and preflight headers", async () => 
       headers: {
         Origin: "https://bms.marthington.com.ng",
         "Access-Control-Request-Method": "GET",
-        "Access-Control-Request-Headers": "authorization, content-type, x-business-id"
+        "Access-Control-Request-Headers": "authorization, content-type, x-business-id, x-bms-workspace"
       }
     });
 
     assert.equal(optionsRes.statusCode, 204);
     assert.equal(optionsRes.headers["access-control-allow-origin"], "https://bms.marthington.com.ng");
     assert.match((optionsRes.headers["access-control-allow-headers"] || ""), /authorization/i);
+    assert.match((optionsRes.headers["access-control-allow-headers"] || ""), /x-bms-workspace/i);
     assert.match((optionsRes.headers["access-control-allow-methods"] || ""), /GET/i);
   } finally {
     await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
   }
 });
 
-test("protect allows affiliate users without a linked business", async () => {
+test("protect allows affiliate users without a linked business", { concurrency: false }, async () => {
   process.env.JWT_SECRET = "test-secret";
 
   const originalFindById = User.findById;
@@ -85,7 +86,7 @@ test("protect allows affiliate users without a linked business", async () => {
     })
   });
 
-  Business.findById = async () => null;
+  Business.findById = () => ({ lean: async () => null });
 
   const req = {
     headers: {
@@ -120,6 +121,65 @@ test("protect allows affiliate users without a linked business", async () => {
     assert.equal(statusCode, undefined);
     assert.equal(responseBody, undefined);
     assert.equal(req.user.businessId, null);
+  } finally {
+    User.findById = originalFindById;
+    Business.findById = originalBusinessFindById;
+  }
+});
+
+test("business workspace mode limits super-admin requests to their own business", { concurrency: false }, async () => {
+  process.env.JWT_SECRET = "test-secret";
+
+  const originalFindById = User.findById;
+  const originalBusinessFindById = Business.findById;
+  const token = jwt.sign({ id: "admin-1", businessId: "another-business" }, process.env.JWT_SECRET);
+
+  User.findById = () => ({
+    populate: async () => ({
+      _id: "admin-1",
+      email: "admin@example.com",
+      name: "Admin",
+      role: "super_admin",
+      isActive: true,
+      permissions: {},
+      business: {
+        _id: { toString: () => "own-business" },
+        industryType: "retail"
+      }
+    })
+  });
+  Business.findById = (id) => ({
+    lean: async () => {
+      assert.equal(id, "own-business");
+      return { industryType: "retail", status: "active" };
+    }
+  });
+
+  const req = {
+    headers: {
+      authorization: `Bearer ${token}`,
+      "x-bms-workspace": "true",
+      "x-business-id": "another-business"
+    }
+  };
+  let nextCalled = false;
+
+  try {
+    await protect(req, {
+      status() {
+        throw new Error("Unexpected response status");
+      },
+      json() {
+        throw new Error("Unexpected response body");
+      }
+    }, () => {
+      nextCalled = true;
+    });
+
+    assert.equal(nextCalled, true);
+    assert.equal(req.user.role, "owner");
+    assert.equal(req.user.accountRole, "super_admin");
+    assert.equal(req.user.businessId, "own-business");
   } finally {
     User.findById = originalFindById;
     Business.findById = originalBusinessFindById;

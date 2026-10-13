@@ -16,6 +16,7 @@ import { registerAffiliateUser } from "../api/affiliateAuth.js";
 import {
   getBusiness
 } from "../api/business.js";
+import request from "../api/client.js";
 import { db } from "../api/offlineDb.js";
 
 const AuthContext = createContext(null);
@@ -315,6 +316,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const ensureSuperAdminWorkspace = async () => {
+    if (user?.role !== "super_admin") {
+      throw new Error("Only a super admin can open this workspace.");
+    }
+
+    const response = await request("/business/workspace", { method: "POST" });
+    const workspace = response?.business;
+    if (!workspace?._id) {
+      throw new Error("The BMS workspace could not be loaded.");
+    }
+
+    const updatedUser = normalizeUser({ ...user, business: workspace });
+    localStorage.setItem("bms_user", JSON.stringify(updatedUser));
+    localStorage.setItem("bms_business", JSON.stringify(workspace));
+    setUser(updatedUser);
+    setBusiness(workspace);
+    setLoadingBusiness(false);
+    return workspace;
+  };
+
   // 🔥 DERIVED STATE
   const permissions = usePermissions(user, business);
   const isPro = permissions.isPro;
@@ -365,6 +386,7 @@ export const AuthProvider = ({ children }) => {
       loadingBusiness,
 
       refreshBusiness,
+      ensureSuperAdminWorkspace,
 
       impersonatedBusiness,
 

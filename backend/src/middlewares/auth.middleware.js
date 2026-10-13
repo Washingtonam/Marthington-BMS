@@ -62,11 +62,21 @@ const protect = async (req, res, next) => {
         decoded.businessId.toString();
     }
 
+    const businessWorkspaceMode =
+      req.headers["x-bms-workspace"] === "true" &&
+      user.role === "super_admin";
+
+    // Business mode is always confined to the super admin's own linked business.
+    if (businessWorkspaceMode) {
+      businessId = user.business?._id?.toString?.() || null;
+    }
+
     // 🔥 SUPER ADMIN IMPERSONATION
     const impersonatedBusiness =
       req.headers["x-business-id"];
 
     if (
+      !businessWorkspaceMode &&
       impersonatedBusiness &&
       user.role === "super_admin"
     ) {
@@ -93,10 +103,12 @@ const protect = async (req, res, next) => {
         activeBusiness?.subscription?.status === "active";
 
     // 🚫 BLOCK ACCESS IF BUSINESS SUSPENDED/ARCHIVED/DELETED (unless super_admin)
+    const effectiveRole = businessWorkspaceMode ? "owner" : user.role;
+
     if (
       activeBusiness &&
       (activeBusiness.status === "suspended" || activeBusiness.status === "deleted" || activeBusiness.status === "archived") &&
-      user.role !== "super_admin"
+      effectiveRole !== "super_admin"
     ) {
       const settings = await SystemSettings.findOne().lean();
       return res.status(403).json({
@@ -116,7 +128,8 @@ const protect = async (req, res, next) => {
       _id: user._id.toString(),
       email: user.email || "",
       name: user.name || "",
-      role: user.role,
+      role: effectiveRole,
+      accountRole: user.role,
       businessId,
       branchId,
       industryType:

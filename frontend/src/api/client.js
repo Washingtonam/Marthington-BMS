@@ -9,6 +9,17 @@ import {
 
 export const API_URL = "https://marthington.onrender.com/api";
 
+const isSuperAdminBusinessMode = () => {
+  if (typeof window === "undefined" || !window.location.hash.startsWith("#/app")) return false;
+
+  try {
+    return JSON.parse(localStorage.getItem("bms_user") || "null")?.role === "super_admin"
+      && !localStorage.getItem("bms_impersonation");
+  } catch {
+    return false;
+  }
+};
+
 let isRefreshing = false;
 let refreshQueue = [];
 
@@ -66,6 +77,13 @@ const getSnapshotFallback = async (path) => {
 const request = async (path, options = {}) => {
   const token = localStorage.getItem("bms_token");
   const impersonation = localStorage.getItem("bms_impersonation");
+  const businessWorkspaceMode = isSuperAdminBusinessMode();
+  if (businessWorkspaceMode) {
+    options = {
+      ...options,
+      headers: { ...options.headers, "x-bms-workspace": "true" }
+    };
+  }
   const isFormData = options.body instanceof FormData;
   const method = options.method || "GET";
   const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
@@ -77,6 +95,7 @@ const request = async (path, options = {}) => {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(impersonation ? { "x-business-id": impersonation } : {}),
+    ...(businessWorkspaceMode ? { "x-bms-workspace": "true" } : {}),
     ...(operationId ? { "X-Operation-Id": operationId } : {}),
     ...options.headers
   };
@@ -123,6 +142,7 @@ const request = async (path, options = {}) => {
               ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
               ...(tokenHeader || {}),
               ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+              ...(isSuperAdminBusinessMode() ? { "x-bms-workspace": "true" } : {}),
               ...(operationId ? { "X-Operation-Id": operationId } : {}),
               ...options.headers
             };
@@ -159,6 +179,7 @@ const request = async (path, options = {}) => {
             ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
             ...(tokenHeader || {}),
             ...(localStorage.getItem("bms_impersonation") ? { "x-business-id": localStorage.getItem("bms_impersonation") } : {}),
+            ...(isSuperAdminBusinessMode() ? { "x-bms-workspace": "true" } : {}),
             ...(operationId ? { "X-Operation-Id": operationId } : {}),
             ...options.headers
           };
@@ -253,7 +274,11 @@ const request = async (path, options = {}) => {
       console.error("POS sale was rejected because the server failed while processing a live sale.", { path, isOfflineFailure, method });
     }
 
-    const canQueue = isMutation && !path.startsWith("/auth/") && !path.startsWith("/sales") && isOfflineFailure;
+    const canQueue = isMutation
+      && !path.startsWith("/auth/")
+      && !path.startsWith("/sales")
+      && path !== "/business/workspace"
+      && isOfflineFailure;
     if (canQueue) {
       const queuedOperationId = await queueOperation({
         path,
