@@ -194,6 +194,12 @@ const businessSchema = new mongoose.Schema(
         default: 0
       },
 
+      currency: {
+        type: String,
+        enum: ["NGN", "USD", null],
+        default: null
+      },
+
       tier: {
         type: String,
         default: ""

@@ -79,6 +79,12 @@ router.patch(
 );
 
 router.patch(
+  "/:id/service-schedule/:itemIndex",
+  protect,
+  salesController.updateServiceSchedule
+);
+
+router.patch(
   "/:id/verify-payment",
   protect,
   checkPermission("canManagePayments"),

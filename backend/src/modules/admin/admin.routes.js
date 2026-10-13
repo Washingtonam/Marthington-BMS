@@ -23,6 +23,13 @@ router.get(
 );
 
 router.get(
+  "/revenue",
+  protect,
+  onlyAdmin,
+  adminController.getRevenue
+);
+
+router.get(
   "/businesses",
   protect,
   onlyAdmin,

@@ -1,5 +1,6 @@
 import Sale from "./sale.model.js";
 import Product from "../products/product.model.js";
+import Service from "../services/service.model.js";
 import Business from "../businesses/business.model.js";
 import Customer from "../customers/customer.model.js";
 import InventoryMovement from "../inventory/inventory.model.js";
@@ -26,6 +27,7 @@ import {
 } from "./sales.utils.js";
 import { getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 import { sendWhatsAppText } from "../whatsapp/whatsapp.service.js";
+import { calculateServiceEnd, parseServiceStart } from "./serviceSchedule.js";
 
 // 🔥 GENERATE RECEIPT ID
 const generateReceiptId = () => {
@@ -251,15 +253,30 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
           const itemTotal = quantity * sellingPrice;
           totalAmount += itemTotal;
 
+          const service = item.serviceId
+            ? await Service.findOne({ _id: item.serviceId, business: businessId }).session(session)
+            : null;
+          if (item.serviceId && !service) throw new Error("Service not found in this business");
+
+          const duration = Number(service?.duration || 0);
+          const durationUnit = service?.durationUnit || "minutes";
+          const serviceStartedAt = parseServiceStart(item.serviceStartedAt);
+
           saleItems.push({
             itemType: "service",
+            serviceId: service?._id || null,
             name: item.name || "Service",
             serialNumber: String(item.serialNumber || "").trim(),
             note: String(item.note || "").trim(),
             quantity,
             costPrice: 0,
             sellingPrice,
-            total: itemTotal
+            total: itemTotal,
+            duration,
+            durationUnit,
+            frequency: service?.frequency || "once",
+            serviceStartedAt,
+            serviceEndsAt: calculateServiceEnd(serviceStartedAt, duration, durationUnit, quantity)
           });
         }
       }
@@ -653,6 +670,57 @@ const updatePaymentMethod = async (req, res) => {
     res.status(500).json({ message: error.message });
   } finally {
     session.endSession();
+  }
+};
+
+const updateServiceSchedule = async (req, res) => {
+  try {
+    if (!canDeleteSale(req.user)) {
+      return res.status(403).json({ message: "Only owners can edit service start times" });
+    }
+
+    const itemIndex = Number.parseInt(req.params.itemIndex, 10);
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) {
+      return res.status(400).json({ message: "Invalid service item" });
+    }
+
+    const sale = await Sale.findById(req.params.id);
+    if (!sale || sale.isDeleted) return res.status(404).json({ message: "Sale not found" });
+    if (req.user.role !== "super_admin" && sale.business.toString() !== req.user.businessId) {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, sale.branch?.toString());
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to this sale" });
+
+    const item = sale.items[itemIndex];
+    if (!item || item.itemType !== "service") {
+      return res.status(404).json({ message: "Service item not found on this sale" });
+    }
+
+    const serviceStartedAt = parseServiceStart(req.body.serviceStartedAt, sale.createdAt);
+    const service = item.serviceId
+      ? await Service.findOne({ _id: item.serviceId, business: sale.business })
+      : await Service.findOne({ business: sale.business, name: item.name }).collation({ locale: "en", strength: 2 });
+    if (service) {
+      item.serviceId = service._id;
+      item.duration = Number(service.duration || 0);
+      item.durationUnit = service.durationUnit || "minutes";
+      item.frequency = service.frequency || "once";
+    }
+    item.serviceStartedAt = serviceStartedAt;
+    item.serviceEndsAt = calculateServiceEnd(
+      serviceStartedAt,
+      item.duration,
+      item.durationUnit,
+      item.quantity
+    );
+    await sale.save();
+
+    res.json({ message: "Service schedule updated", sale });
+  } catch (error) {
+    const invalidStart = error.message === "Invalid service start date";
+    res.status(invalidStart ? 400 : 500).json({ message: error.message });
   }
 };
 
@@ -1093,4 +1161,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, verifyPaymentProof };
+export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, updateServiceSchedule, verifyPaymentProof };

@@ -22,6 +22,40 @@ const saleItemSchema = new mongoose.Schema(
       default: ""
     },
 
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+      default: null
+    },
+
+    duration: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+
+    durationUnit: {
+      type: String,
+      enum: ["seconds", "minutes", "hours", "days"],
+      default: "minutes"
+    },
+
+    frequency: {
+      type: String,
+      enum: ["once", "daily", "weekly", "monthly", "twice_yearly", "yearly"],
+      default: "once"
+    },
+
+    serviceStartedAt: {
+      type: Date,
+      default: null
+    },
+
+    serviceEndsAt: {
+      type: Date,
+      default: null
+    },
+
     // 🔥 ITEM NAME SNAPSHOT
     name: {
       type: String,

@@ -6,6 +6,7 @@ import {
 } from "./paystack.service.js";
 import { creditAffiliate } from "../affiliates/affiliate.utils.js";
 import { processShopPaymentEvent } from "../shop/shop.controller.js";
+import { recordSubscriptionPayment } from "./subscriptionPayment.utils.js";
 
 // ======================================
 // GET SUBSCRIPTION STATUS
@@ -129,7 +130,8 @@ const initializeSubscription = async (req, res) => {
     // ✅ STEP 1: PREPARE METADATA FOR PAYSTACK 🔒
     const paymentMetadata = {
       businessId: business._id.toString(),
-      billingCycle
+      billingCycle,
+      currency
     };
 
     console.log("[payments.initialize] 🔒 Prepared metadata for Paystack", {
@@ -294,6 +296,7 @@ const verifySubscription = async (req, res) => {
     const tier = tierMap[industryType] || `${industryType.charAt(0).toUpperCase() + industryType.slice(1)} Pro Plan`;
 
     const paymentAmountConverted = payment.amount / 100;
+    const currency = payment.currency === "USD" ? "USD" : "NGN";
 
     // ✅ STEP 6: EXECUTE findByIdAndUpdate (SINGLE SOURCE OF TRUTH) 🔥
     console.log("[payments.verify] 🔥 Executing Business document UPDATE (Single Source of Truth)");
@@ -314,6 +317,7 @@ const verifySubscription = async (req, res) => {
           startedAt: now,
           expiresAt,
           amount: paymentAmountConverted,
+          currency,
           reference,
           tier
         }
@@ -364,6 +368,18 @@ const verifySubscription = async (req, res) => {
     } else {
       console.log("[payments.verify] ℹ️  No affiliate for this business (no referredBy)", { businessId });
     }
+
+    await recordSubscriptionPayment({
+      business: updatedBusiness._id,
+      businessName: updatedBusiness.name,
+      reference,
+      billingCycle,
+      gateway: "paystack",
+      currency,
+      amount: paymentAmountConverted,
+      affiliateCommission: affiliateCredit?.commissionAmount || 0,
+      paidAt: payment.paid_at ? new Date(payment.paid_at) : now
+    }, transactionStarted ? session : null);
 
     // ✅ STEP 8: COMMIT ATOMIC TRANSACTION
     if (transactionStarted) {
@@ -444,7 +460,7 @@ const verifySubscription = async (req, res) => {
 // SINGLE SOURCE OF TRUTH UPGRADE HELPER
 // ======================================
 // Reusable function for both webhook and redirect verification paths
-const executeProUpgrade = async (businessId, billingCycle, amountPaid, paymentReference = null) => {
+const executeProUpgrade = async (businessId, billingCycle, amountPaid, paymentReference = null, currency = "NGN", paidAt = new Date()) => {
   const session = await Business.startSession();
   let transactionStarted = false;
 
@@ -506,6 +522,7 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, paymentRe
           startedAt: now,
           expiresAt,
           amount: amountPaid,
+          currency: currency === "USD" ? "USD" : "NGN",
           tier
         }
       },
@@ -552,6 +569,20 @@ const executeProUpgrade = async (businessId, billingCycle, amountPaid, paymentRe
       }
     } else {
       console.log("[executeProUpgrade] ℹ️  No affiliate for this business", { businessId });
+    }
+
+    if (paymentReference) {
+      await recordSubscriptionPayment({
+        business: updatedBusiness._id,
+        businessName: updatedBusiness.name,
+        reference: paymentReference,
+        billingCycle,
+        gateway: "paystack",
+        currency,
+        amount: amountPaid,
+        affiliateCommission: affiliateResult?.commissionAmount || 0,
+        paidAt
+      }, session);
     }
 
     await session.commitTransaction();
@@ -671,7 +702,9 @@ const verifyRedirect = async (req, res) => {
       businessId,
       billingCycle,
       paymentAmount,
-      reference
+      reference,
+      payment.currency,
+      payment.paid_at ? new Date(payment.paid_at) : new Date()
     );
 
     console.log("[verifyRedirect] 🎉 REDIRECT VERIFICATION COMPLETE", {
@@ -806,7 +839,9 @@ const handlePaystackWebhook = async (req, res) => {
       businessId,
       billingCycle,
       paymentAmount,
-      event.data.reference
+      event.data.reference,
+      event.data.currency,
+      event.data.paid_at ? new Date(event.data.paid_at) : new Date()
     );
 
     console.log("[webhook] 🎉 WEBHOOK PROCESSING COMPLETE", {

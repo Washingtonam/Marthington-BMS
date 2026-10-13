@@ -28,6 +28,19 @@ const formatDisplayText = (value = "") => {
     .join(" ");
 };
 
+const getServiceEndPreview = (item) => {
+  const millisecondsPerUnit = {
+    seconds: 1000,
+    minutes: 60 * 1000,
+    hours: 60 * 60 * 1000,
+    days: 24 * 60 * 60 * 1000
+  }[item.durationUnit || "minutes"];
+  const start = new Date(item.serviceStartedAt);
+  const duration = Number(item.duration || 0) * Math.max(1, Number(item.quantity || 1));
+  if (!millisecondsPerUnit || Number.isNaN(start.getTime()) || duration <= 0) return "";
+  return new Date(start.getTime() + duration * millisecondsPerUnit).toLocaleString();
+};
+
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
@@ -346,7 +359,13 @@ useEffect(() => {
         sellingPrice: Number(item.sellingPrice || item.price || 0),
         serialNumber: "",
         note: "",
-        ...(type === "service" && { serviceId: item._id }),
+        ...(type === "service" && {
+          serviceId: item._id,
+          duration: Number(item.duration) || 0,
+          durationUnit: item.durationUnit || "minutes",
+          frequency: item.frequency || "once",
+          serviceStartedAt: ""
+        }),
         ...(isProduct && { maxStock: selectedStock ?? item.stock })
       }];
     });
@@ -421,7 +440,13 @@ useEffect(() => {
           quantity: i.quantity,
           sellingPrice: i.sellingPrice,
           serialNumber: i.serialNumber,
-          note: i.note
+          note: i.note,
+          ...(i.itemType === "service" && {
+            serviceId: i.serviceId,
+            serviceStartedAt: i.serviceStartedAt
+              ? new Date(i.serviceStartedAt).toISOString()
+              : undefined
+          })
         }))
       };
 
@@ -691,6 +716,27 @@ useEffect(() => {
                         className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400"
                       />
                     </div>
+                    {item.itemType === "service" && (
+                      <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+                        <label className="block text-[10px] font-black uppercase tracking-[0.16em] text-indigo-800 dark:text-indigo-200">
+                          Service start date &amp; time <span className="font-medium normal-case tracking-normal text-indigo-600 dark:text-indigo-300">(optional)</span>
+                          <input
+                            type="datetime-local"
+                            aria-label={`${item.name} start date and time`}
+                            value={item.serviceStartedAt}
+                            onChange={(event) => setCart((current) => current.map((cartItem) => (
+                              cartItem._id === item._id ? { ...cartItem, serviceStartedAt: event.target.value } : cartItem
+                            )))}
+                            className="mt-2 w-full rounded-lg border border-indigo-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 dark:border-indigo-800 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                        </label>
+                        <p className="mt-2 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
+                          {item.serviceStartedAt
+                            ? `Service duration: ${item.duration || 0} ${item.durationUnit || "minutes"}${item.frequency && item.frequency !== "once" ? ` · ${item.frequency.replace("_", " ")}` : ""}. ${getServiceEndPreview(item) ? `Estimated end: ${getServiceEndPreview(item)}` : "End time will be calculated after saving."}`
+                            : "Leave blank to start when the sale is completed, or choose a past or future time."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

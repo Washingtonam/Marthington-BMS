@@ -2,21 +2,33 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import html2canvas from "html2canvas";
 import request from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import "../styles/receipt.css";
 
 const Divider = () => <div className="receipt-divider" style={{ borderTop: "2px dashed #000", margin: "8px 0" }} />;
 
+const toDateTimeLocal = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 const SaleDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const auth = useAuth();
+  const user = auth?.user;
   const receiptRef = useRef();
 
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState({ type: "", text: "" });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [scheduleDrafts, setScheduleDrafts] = useState({});
+  const [savingScheduleIndex, setSavingScheduleIndex] = useState(null);
 
   // =====================================
   // DATA FETCHING
@@ -27,6 +39,11 @@ const SaleDetails = () => {
         setLoading(true);
         const data = await request(`/sales/${id}`);
         setSale(data);
+        setScheduleDrafts(Object.fromEntries((data.items || [])
+          .map((item, index) => item.itemType === "service"
+            ? [index, toDateTimeLocal(item.serviceStartedAt || data.createdAt)]
+            : null)
+          .filter(Boolean)));
 
         if (location.state?.autoPrint) {
           setTimeout(() => {
@@ -74,6 +91,28 @@ const SaleDetails = () => {
     navigator.clipboard.writeText(link);
     setStatusMsg({ type: "success", text: "Link copied to clipboard!" });
     setTimeout(() => setStatusMsg({ type: "", text: "" }), 3000);
+  };
+
+  const saveServiceStart = async (itemIndex) => {
+    const inputValue = scheduleDrafts[itemIndex];
+    setSavingScheduleIndex(itemIndex);
+    setStatusMsg({ type: "", text: "" });
+    try {
+      const result = await request(`/sales/${id}/service-schedule/${itemIndex}`, {
+        method: "PATCH",
+        body: JSON.stringify({ serviceStartedAt: inputValue ? new Date(inputValue).toISOString() : null })
+      });
+      setSale((current) => ({ ...current, items: result.sale.items }));
+      setScheduleDrafts((current) => ({
+        ...current,
+        [itemIndex]: toDateTimeLocal(result.sale.items[itemIndex].serviceStartedAt)
+      }));
+      setStatusMsg({ type: "success", text: "Service start time and calculated end time updated." });
+    } catch (error) {
+      setStatusMsg({ type: "error", text: error.message || "Could not update the service schedule." });
+    } finally {
+      setSavingScheduleIndex(null);
+    }
   };
 
   const handleDownloadImage = async () => {
@@ -269,6 +308,12 @@ const SaleDetails = () => {
                     <p className="receipt-item-meta font-mono text-sm text-black">{item.quantity} × {formatCurrency(item.sellingPrice)}</p>
                     {item.serialNumber && <p className="text-xs font-semibold text-black">Serial number: {item.serialNumber}</p>}
                     {item.note && <p className="text-xs font-semibold text-black">Note: {item.note}</p>}
+                    {item.itemType === "service" && item.serviceStartedAt && (
+                      <p className="text-xs font-semibold text-black">
+                        Service: {new Date(item.serviceStartedAt).toLocaleString()}
+                        {item.serviceEndsAt ? ` – ${new Date(item.serviceEndsAt).toLocaleString()}` : ""}
+                      </p>
+                    )}
                   </div>
                   <strong className="receipt-item-total text-base font-black text-black">{formatCurrency(item.quantity * item.sellingPrice)}</strong>
                 </div>
@@ -304,6 +349,45 @@ const SaleDetails = () => {
 
         {/* RIGHT: ACTION PANEL */}
         <div className="space-y-4">
+          {sale.items?.some((item) => item.itemType === "service") && (
+            <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-xl">
+              <h2 className="text-lg font-extrabold text-slate-900">Service schedule</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Set or backdate when each service started. The end time is recalculated from its saved duration.</p>
+              <div className="mt-4 space-y-4">
+                {sale.items.map((item, itemIndex) => item.itemType === "service" ? (
+                  <div key={`${item.name}-${itemIndex}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-sm font-bold text-slate-900">{item.name}</p>
+                    <label className="mt-3 block text-xs font-semibold text-slate-600">
+                      Start date &amp; time
+                      <input
+                        type="datetime-local"
+                        aria-label={`${item.name} service start`}
+                        value={scheduleDrafts[itemIndex] || ""}
+                        onChange={(event) => setScheduleDrafts((current) => ({ ...current, [itemIndex]: event.target.value }))}
+                        disabled={!["owner", "super_admin"].includes(user?.role) || savingScheduleIndex !== null}
+                        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs disabled:bg-slate-100"
+                      />
+                    </label>
+                    <p className="mt-2 text-xs text-slate-500">
+                      {item.serviceEndsAt
+                        ? `Calculated end: ${new Date(item.serviceEndsAt).toLocaleString()}`
+                        : `Duration: ${item.duration || 0} ${item.durationUnit || "minutes"} · end time unavailable`}
+                    </p>
+                    {["owner", "super_admin"].includes(user?.role) && (
+                      <button
+                        type="button"
+                        onClick={() => saveServiceStart(itemIndex)}
+                        disabled={savingScheduleIndex !== null}
+                        className="mt-3 rounded-lg bg-indigo-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                      >
+                        {savingScheduleIndex === itemIndex ? "Saving..." : "Save service time"}
+                      </button>
+                    )}
+                  </div>
+                ) : null)}
+              </div>
+            </div>
+          )}
           <div className="bg-white rounded-3xl shadow-xl p-6 sticky top-8">
             <h2 className="text-xl font-bold text-gray-900 mb-1">Receipt Actions</h2>
             <p className="text-sm text-gray-500 mb-6">Manage sharing and printing for this transaction.</p>

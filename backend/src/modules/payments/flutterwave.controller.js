@@ -2,6 +2,7 @@ import axios from "axios";
 import Business from "../businesses/business.model.js";
 import Pricing from "../subscriptions/Pricing.js";
 import { creditAffiliate } from "../affiliates/affiliate.utils.js";
+import { recordSubscriptionPayment } from "./subscriptionPayment.utils.js";
 
 const FLW_API_URL = "https://api.flutterwave.com/v3/payments";
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://marthington.onrender.com";
@@ -168,12 +169,24 @@ const flutterwaveWebhook = async (req, res) => {
       startedAt: now,
       expiresAt,
       amount,
+      currency: data.currency === "USD" || meta.currency === "USD" ? "USD" : "NGN",
       reference: tx_ref
     };
 
     await business.save();
 
-    await creditAffiliate(business._id, amount, null, tx_ref);
+    const affiliateCredit = await creditAffiliate(business._id, amount, null, tx_ref);
+    await recordSubscriptionPayment({
+      business: business._id,
+      businessName: business.name,
+      reference: tx_ref,
+      billingCycle,
+      gateway: "flutterwave",
+      currency: data.currency || meta.currency,
+      amount,
+      affiliateCommission: affiliateCredit?.commissionAmount || 0,
+      paidAt: data.created_at ? new Date(data.created_at) : now
+    });
 
     return res.status(200).json({
       message: "Webhook processed successfully.",

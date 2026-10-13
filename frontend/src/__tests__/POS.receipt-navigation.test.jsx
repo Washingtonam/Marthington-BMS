@@ -4,6 +4,7 @@ import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import request from "../api/client.js";
+import { getServices } from "../api/services.js";
 
 const mockNavigate = vi.fn();
 
@@ -71,6 +72,8 @@ describe("POS checkout", () => {
     cleanup();
     mockNavigate.mockReset();
     request.mockClear();
+    getServices.mockReset();
+    getServices.mockResolvedValue([]);
   });
 
   it("keeps the added order by default and sorts products by name in either direction", async () => {
@@ -133,6 +136,34 @@ describe("POS checkout", () => {
         serialNumber: "SN-100",
         note: "Warranty included"
       });
+    });
+  });
+
+  it("converts a local service start time to ISO before checkout", async () => {
+    getServices.mockResolvedValueOnce([{
+      _id: "svc1",
+      name: "Consultation",
+      sellingPrice: 200,
+      duration: 30,
+      durationUnit: "minutes",
+      frequency: "once"
+    }]);
+    render(<POS />);
+
+    expect(await screen.findByText("Laptop")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "services" }));
+    fireEvent.click(await screen.findByText("Consultation"));
+    fireEvent.click(screen.getByRole("button", { name: "Open cart" }));
+    fireEvent.change(screen.getByLabelText("Consultation start date and time"), {
+      target: { value: "2025-12-15T09:00" }
+    });
+    expect(screen.getByText(/Estimated end:/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body).items[0].serviceStartedAt)
+        .toBe(new Date("2025-12-15T09:00").toISOString());
     });
   });
 });

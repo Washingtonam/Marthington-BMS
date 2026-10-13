@@ -23,6 +23,8 @@ import EmailPreference from "./emailPreference.model.js";
 import { getReportSnapshot } from "./reportSnapshot.js";
 import { normalizePlanAccess, validatePlanAccess } from "../subscriptions/planAccess.js";
 import { getSubscriptionRecipients, processEmailCampaignById } from "../../jobs/emailCampaign.job.js";
+import SubscriptionPayment from "../payments/subscriptionPayment.model.js";
+import { buildRevenueWindow, calculatePercentChange, resolveRevenueRange } from "./adminRevenue.utils.js";
 
 const subscriptionEmailAudiences = [
   "subscription_all",
@@ -266,6 +268,186 @@ const getSubscriptionEmailCampaign = async (req, res) => {
     res.json({ campaign });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+const getRevenue = async (req, res) => {
+  try {
+    const range = resolveRevenueRange(req.query.range || "30d");
+    if (!range) return res.status(400).json({ message: "Choose a supported revenue range: 30d, 90d, or 12m." });
+
+    const { start, end, previousStart } = buildRevenueWindow(range);
+    const [salesResult = {}, paymentResult = {}, activeSubscriptions, latestPayments] = await Promise.all([
+      Sale.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: previousStart, $lt: end },
+            isDeleted: { $ne: true },
+            status: { $ne: "reversed" }
+          }
+        },
+        {
+          $facet: {
+            current: [
+              { $match: { createdAt: { $gte: start } } },
+              { $group: { _id: null, total: { $sum: "$totalAmount" }, count: { $sum: 1 } } }
+            ],
+            previous: [
+              { $match: { createdAt: { $lt: start } } },
+              { $group: { _id: null, total: { $sum: "$totalAmount" }, count: { $sum: 1 } } }
+            ],
+            trend: [
+              { $match: { createdAt: { $gte: start } } },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "UTC" } },
+                  amount: { $sum: "$totalAmount" },
+                  count: { $sum: 1 }
+                }
+              },
+              { $sort: { _id: 1 } }
+            ],
+            topBusinesses: [
+              { $match: { createdAt: { $gte: start } } },
+              { $group: { _id: "$business", amount: { $sum: "$totalAmount" }, saleCount: { $sum: 1 } } },
+              { $sort: { amount: -1 } },
+              { $limit: 8 },
+              {
+                $lookup: {
+                  from: "businesses",
+                  localField: "_id",
+                  foreignField: "_id",
+                  as: "business"
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  businessId: "$_id",
+                  businessName: { $ifNull: [{ $arrayElemAt: ["$business.name", 0] }, "Unknown business"] },
+                  amount: 1,
+                  saleCount: 1
+                }
+              }
+            ]
+          }
+        }
+      ]),
+      SubscriptionPayment.aggregate([
+        { $match: { paidAt: { $gte: previousStart, $lt: end } } },
+        {
+          $facet: {
+            current: [
+              { $match: { paidAt: { $gte: start } } },
+              {
+                $group: {
+                  _id: "$currency",
+                  gross: { $sum: "$amount" },
+                  commissions: { $sum: "$affiliateCommission" },
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            previous: [
+              { $match: { paidAt: { $lt: start } } },
+              {
+                $group: {
+                  _id: "$currency",
+                  gross: { $sum: "$amount" },
+                  commissions: { $sum: "$affiliateCommission" },
+                  count: { $sum: 1 }
+                }
+              }
+            ],
+            trend: [
+              { $match: { paidAt: { $gte: start } } },
+              {
+                $group: {
+                  _id: {
+                    date: { $dateToString: { format: "%Y-%m-%d", date: "$paidAt", timezone: "UTC" } },
+                    currency: "$currency"
+                  },
+                  gross: { $sum: "$amount" },
+                  commissions: { $sum: "$affiliateCommission" }
+                }
+              },
+              { $sort: { "_id.date": 1 } }
+            ]
+          }
+        }
+      ]),
+      Business.find({
+        "subscription.plan": "pro",
+        "subscription.status": "active",
+        "subscription.expiresAt": { $gt: end }
+      }).select("subscription.amount subscription.billingCycle subscription.currency").lean(),
+      SubscriptionPayment.find({ paidAt: { $gte: start, $lt: end } })
+        .select("businessName reference billingCycle gateway currency amount affiliateCommission paidAt")
+        .sort({ paidAt: -1 })
+        .limit(8)
+        .lean()
+    ]);
+
+    const sales = salesResult[0] || {};
+    const salesCurrent = sales.current?.[0] || { total: 0, count: 0 };
+    const salesPrevious = sales.previous?.[0] || { total: 0, count: 0 };
+    const payment = paymentResult[0] || {};
+    const currencyTotals = (rows = []) => rows.reduce((totals, row) => {
+      const currency = row._id === "USD" ? "USD" : "NGN";
+      totals[currency] = {
+        gross: Number(row.gross || 0),
+        commissions: Number(row.commissions || 0),
+        net: Number(row.gross || 0) - Number(row.commissions || 0),
+        count: Number(row.count || 0)
+      };
+      return totals;
+    }, { NGN: { gross: 0, commissions: 0, net: 0, count: 0 }, USD: { gross: 0, commissions: 0, net: 0, count: 0 } });
+
+    const monthlyRunRate = activeSubscriptions.reduce((totals, business) => {
+      const subscription = business.subscription || {};
+      const divisor = subscription.billingCycle === "yearly" ? 12 : 1;
+      const amount = Number(subscription.amount || 0) / divisor;
+      if (subscription.currency === "NGN" || subscription.currency === "USD") {
+        totals[subscription.currency] += amount;
+      } else {
+        totals.unrecordedCurrencyCount += 1;
+      }
+      return totals;
+    }, { NGN: 0, USD: 0, unrecordedCurrencyCount: 0 });
+
+    const currentPlatform = currencyTotals(payment.current);
+    const previousPlatform = currencyTotals(payment.previous);
+
+    res.json({
+      range,
+      period: { start, end, previousStart },
+      tenantSales: {
+        total: Number(salesCurrent.total || 0),
+        saleCount: Number(salesCurrent.count || 0),
+        previousTotal: Number(salesPrevious.total || 0),
+        changePercent: calculatePercentChange(Number(salesCurrent.total || 0), Number(salesPrevious.total || 0)),
+        trend: sales.trend || [],
+        topBusinesses: sales.topBusinesses || []
+      },
+      platform: {
+        captured: currentPlatform,
+        previousCaptured: previousPlatform,
+        monthlyRunRate,
+        unrecordedCurrencySubscriptions: monthlyRunRate.unrecordedCurrencyCount,
+        activeSubscriptions: activeSubscriptions.length,
+        trend: (payment.trend || []).map((row) => ({
+          date: row._id.date,
+          currency: row._id.currency === "USD" ? "USD" : "NGN",
+          gross: Number(row.gross || 0),
+          commissions: Number(row.commissions || 0),
+          net: Number(row.gross || 0) - Number(row.commissions || 0)
+        })),
+        latestPayments,
+        historyNotice: "Verified subscription receipts are recorded from this tracking rollout onward; earlier gateway receipts are not available for historical totals."
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
 
@@ -1894,6 +2076,7 @@ const getBusinessDetails = async (req, res) => {
 
 export default {
   getOverview,
+  getRevenue,
   listBusinesses,
   listSubscriptions,
   getSubscriptionEmailAudience,

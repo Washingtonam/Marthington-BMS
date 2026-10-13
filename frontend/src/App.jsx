@@ -36,6 +36,7 @@ const Settings = lazy(() => import("./pages/Settings.jsx"));
 const Reports = lazy(() => import("./pages/Reports.jsx"));
 const ReportsDetailPage = lazy(() => import("./pages/ReportsDetailPage.jsx"));
 const Analytics = lazy(() => import("./pages/Analytics.jsx"));
+const AdminRevenue = lazy(() => import("./pages/AdminRevenue.jsx"));
 const DeletedSales = lazy(() => import("./pages/DeletedSales.jsx"));
 const Billing = lazy(() => import("./pages/Billing.jsx"));
 const Invoices = lazy(() => import("./pages/Invoices.jsx"));
@@ -138,20 +139,6 @@ const MedicalInventory = () => (
 );
 
 const AdminBusinesses = AdminTenantDirectory;
-const AdminRevenue = () => (
-  <section className="page-stack">
-    <div className="page-heading">
-      <div>
-        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
-        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Revenue</h1>
-      </div>
-      <p className="max-w-2xl text-sm text-slate-500">
-        Review global revenue and high-level income trends.
-      </p>
-    </div>
-  </section>
-);
-
 const AdminUsers = () => (
   <section className="page-stack">
     <div className="page-heading">
