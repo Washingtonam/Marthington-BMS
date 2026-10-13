@@ -72,6 +72,68 @@ const listBusinesses = async (req, res) => {
   }
 };
 
+const listSubscriptions = async (req, res) => {
+  try {
+    const businesses = await Business.find()
+      .select("name owner industryType status createdAt subscription")
+      .populate("owner", "name email")
+      .sort({ "subscription.expiresAt": 1, createdAt: -1 })
+      .lean();
+
+    const now = new Date();
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const subscriptions = businesses.map((business) => {
+      const subscription = business.subscription || {};
+      const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt) : null;
+      const status = expiresAt && expiresAt < now ? "expired" : subscription.status || "trial";
+
+      return {
+        _id: business._id,
+        name: business.name,
+        industryType: business.industryType || "retail",
+        businessStatus: business.status || "active",
+        ownerName: business.owner?.name || "",
+        ownerEmail: business.owner?.email || "",
+        createdAt: business.createdAt,
+        subscription: {
+          plan: subscription.plan || "free",
+          status,
+          billingCycle: subscription.billingCycle || null,
+          startedAt: subscription.startedAt || null,
+          expiresAt: subscription.expiresAt || null,
+          amount: subscription.amount || 0,
+          tier: subscription.tier || ""
+        }
+      };
+    });
+
+    const stats = subscriptions.reduce((summary, business) => {
+      const { plan, status, expiresAt } = business.subscription;
+      const expiry = expiresAt ? new Date(expiresAt) : null;
+      const active = plan === "pro" && status === "active";
+
+      if (active) summary.active += 1;
+      if (status === "trial") summary.trial += 1;
+      if (status === "expired") summary.expired += 1;
+      if (active && expiry && expiry >= now && expiry <= sevenDaysFromNow) summary.expiringIn7Days += 1;
+      if (active && expiry && expiry >= now && expiry <= thirtyDaysFromNow) summary.expiringIn30Days += 1;
+      return summary;
+    }, {
+      total: subscriptions.length,
+      active: 0,
+      trial: 0,
+      expired: 0,
+      expiringIn7Days: 0,
+      expiringIn30Days: 0
+    });
+
+    res.json({ subscriptions, stats });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const getOverview = async (req, res) => {
   try {
     const businessesCount = await Business.countDocuments();
@@ -191,11 +253,20 @@ const updateSubscription = async (req, res) => {
       billingCycle,
       duration,
       industryType,
-      tier
+      tier,
+      status
     } = req.body;
 
     if (!["free", "pro"].includes(plan)) {
       return res.status(400).json({ message: "Invalid plan" });
+    }
+
+    if (billingCycle !== undefined && !["monthly", "yearly", null].includes(billingCycle)) {
+      return res.status(400).json({ message: "Invalid billing cycle" });
+    }
+
+    if (status !== undefined && !["trial", "active", "expired"].includes(status)) {
+      return res.status(400).json({ message: "Invalid subscription status" });
     }
 
     const business = await Business.findById(req.params.id);
@@ -208,6 +279,53 @@ const updateSubscription = async (req, res) => {
 
     if (industryType && ["retail", "school", "hospital"].includes(industryType)) {
       update.industryType = industryType;
+    }
+
+    if (status !== undefined) {
+      if (plan === "free") {
+        update.plan = "free";
+        update.subscription = {
+          plan: "free",
+          billingCycle: null,
+          status,
+          startedAt: null,
+          expiresAt: null,
+          amount: 0,
+          tier: tier || "",
+          reference: "admin_override"
+        };
+      } else {
+        const now = new Date();
+        const cycle = billingCycle || business.subscription?.billingCycle || "monthly";
+        const subscription = {
+          ...business.subscription?.toObject?.(),
+          plan: "pro",
+          billingCycle: cycle,
+          status,
+          tier: tier || business.subscription?.tier || "Premium Plan",
+          reference: "admin_override"
+        };
+
+        if (status === "active" && (!subscription.startedAt || !subscription.expiresAt || business.subscription?.status !== "active")) {
+          const expiresAt = new Date(now);
+          if (cycle === "yearly") {
+            expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+          } else {
+            expiresAt.setMonth(expiresAt.getMonth() + 1);
+          }
+          subscription.startedAt = now;
+          subscription.expiresAt = expiresAt;
+        }
+
+        update.plan = "pro";
+        update.subscription = subscription;
+      }
+
+      const managed = await Business.findByIdAndUpdate(req.params.id, update, { new: true });
+      return res.json({
+        message: "Subscription updated successfully",
+        business: formatBusiness(managed)
+      });
     }
 
     if (plan === "free") {
@@ -1642,6 +1760,7 @@ const getBusinessDetails = async (req, res) => {
 export default {
   getOverview,
   listBusinesses,
+  listSubscriptions,
   updateSubscription,
   getBusinessDetails,
   getAffiliateSettings,

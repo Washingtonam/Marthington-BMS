@@ -55,6 +55,7 @@ const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminTenantDirectory = lazy(() => import("./pages/AdminTenantDirectory.jsx"));
+const AdminSubscriptions = lazy(() => import("./pages/AdminSubscriptions.jsx"));
 const AdminAffiliateNetwork = lazy(() => import("./pages/AdminAffiliateNetwork.jsx"));
 const AdminCommunications = lazy(() => import("./pages/AdminCommunications.jsx"));
 const AdminCampaigns = lazy(() => import("./pages/AdminCampaigns.jsx"));
@@ -145,20 +146,6 @@ const AdminRevenue = () => (
       </div>
       <p className="max-w-2xl text-sm text-slate-500">
         Review global revenue and high-level income trends.
-      </p>
-    </div>
-  </section>
-);
-
-const AdminSubscriptions = () => (
-  <section className="page-stack">
-    <div className="page-heading">
-      <div>
-        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
-        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Subscriptions</h1>
-      </div>
-      <p className="max-w-2xl text-sm text-slate-500">
-        Manage tenant subscriptions, billing cycles, and plan states.
       </p>
     </div>
   </section>
