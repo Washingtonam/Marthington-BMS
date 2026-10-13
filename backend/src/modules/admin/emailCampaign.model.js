@@ -26,6 +26,7 @@ const emailCampaignSchema = new mongoose.Schema(
       default: "all_users"
     },
     business: { type: mongoose.Schema.Types.ObjectId, ref: "Business", default: null },
+    selectedRecipients: { type: [String], default: null },
     status: {
       type: String,
       enum: ["draft", "scheduled", "sending", "sent", "failed", "cancelled"],

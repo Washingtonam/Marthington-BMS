@@ -64,6 +64,9 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
   const [audienceType, setAudienceType] = useState(initialAudience);
   const [drafts, setDrafts] = useState({});
   const [audienceCount, setAudienceCount] = useState(null);
+  const [audienceRecipients, setAudienceRecipients] = useState([]);
+  const [selectedEmails, setSelectedEmails] = useState(null);
+  const [recipientSearch, setRecipientSearch] = useState("");
   const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -105,9 +108,15 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
   useEffect(() => {
     let active = true;
     setAudienceCount(null);
+    setAudienceRecipients([]);
+    setSelectedEmails(null);
     request(`/admin/subscriptions/email-audience?audienceType=${encodeURIComponent(audienceType)}`)
       .then((data) => {
-        if (active) setAudienceCount(Number(data.count) || 0);
+        if (!active) return;
+        const recipients = Array.isArray(data.recipients) ? data.recipients : [];
+        setAudienceCount(Number(data.count) || 0);
+        setAudienceRecipients(recipients);
+        setSelectedEmails(Array.isArray(data.recipients) ? recipients.map((recipient) => recipient.email) : null);
       })
       .catch((countError) => {
         if (active) setError(countError.message || "Could not count subscription email recipients.");
@@ -190,34 +199,71 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
         [audienceType]: { ...draft, id: result.draft._id, dirty: false }
       }));
       setNotice(`Draft saved for ${selectedAudience.label}.`);
+      return result.draft._id;
     } catch (saveError) {
       setError(saveError.message || "Could not save this email draft.");
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
+  const selectedRecipientCount = selectedEmails === null ? audienceCount : selectedEmails.length;
+  const visibleRecipients = audienceRecipients.filter((recipient) => (
+    `${recipient.name || ""} ${recipient.email || ""} ${recipient.businessName || ""}`
+      .toLowerCase()
+      .includes(recipientSearch.trim().toLowerCase())
+  ));
+
+  const toggleRecipient = (email) => {
+    setSelectedEmails((current) => {
+      const selected = new Set(current || []);
+      if (selected.has(email)) selected.delete(email);
+      else selected.add(email);
+      return [...selected];
+    });
+  };
+
+  const selectVisibleRecipients = (select) => {
+    setSelectedEmails((current) => {
+      const selected = new Set(current || []);
+      visibleRecipients.forEach((recipient) => {
+        if (select) selected.add(recipient.email);
+        else selected.delete(recipient.email);
+      });
+      return [...selected];
+    });
+  };
+
   const sendDraft = async () => {
-    if (!draft.id || draft.dirty) {
-      setError("Save your latest email draft before sending it.");
-      return;
-    }
-    if (!audienceCount) {
+    if (!selectedRecipientCount) {
       setError("There are no business owner email addresses in this audience.");
       return;
     }
-    if (!window.confirm(`Send “${draft.subject}” to ${audienceCount} business owner(s) in ${selectedAudience.label}?`)) return;
+    if (audienceCount === null) {
+      setError("Wait for the recipient list to finish loading before sending.");
+      return;
+    }
+    if (!window.confirm(`Send “${draft.subject}” to ${selectedRecipientCount} selected business owner(s) in ${selectedAudience.label}?`)) return;
 
     setSending(true);
     setError("");
     setNotice("");
     setDelivery(null);
     try {
-      const result = await request(`/admin/subscriptions/email-drafts/${draft.id}/send`, { method: "POST" });
+      const draftId = draft.id && !draft.dirty ? draft.id : await saveDraft();
+      if (!draftId) {
+        setSending(false);
+        return;
+      }
+      const result = await request(`/admin/subscriptions/email-drafts/${draftId}/send`, {
+        method: "POST",
+        body: JSON.stringify({ recipientEmails: selectedEmails === null ? undefined : selectedEmails })
+      });
       setCampaignId(result.campaignId);
       setDrafts((current) => ({
         ...current,
-        [audienceType]: { ...current[audienceType], id: null }
+        [audienceType]: { ...draft, ...(current[audienceType] || {}), id: null, dirty: true }
       }));
       setNotice(`Sending to ${result.recipientCount} business owner(s). Delivery status will update here.`);
     } catch (sendError) {
@@ -256,6 +302,50 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
             </select>
             <span className="mt-1 block font-normal text-slate-500">{selectedAudience.description}</span>
           </label>
+
+          {audienceRecipients.length > 0 && (
+            <section aria-label="Choose recipients" className="overflow-hidden rounded-xl border border-slate-200">
+              <div className="space-y-3 border-b border-slate-100 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800">Choose recipients</h3>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{selectedRecipientCount?.toLocaleString() || 0} of {audienceCount?.toLocaleString() || 0} selected</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => selectVisibleRecipients(true)} className="text-xs font-bold text-emerald-700 hover:underline">Select visible</button>
+                    <button type="button" onClick={() => selectVisibleRecipients(false)} className="text-xs font-bold text-slate-600 hover:underline">Clear visible</button>
+                  </div>
+                </div>
+                <input
+                  type="search"
+                  aria-label="Search email recipients"
+                  value={recipientSearch}
+                  onChange={(event) => setRecipientSearch(event.target.value)}
+                  placeholder="Search name, business, or email"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto">
+                {visibleRecipients.map((recipient) => (
+                  <label key={recipient.email} className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-emerald-50/50">
+                    <input
+                      type="checkbox"
+                      checked={selectedEmails?.includes(recipient.email) || false}
+                      onChange={() => toggleRecipient(recipient.email)}
+                      aria-label={`Select ${recipient.name || recipient.email}`}
+                      className="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-slate-800">{recipient.name || "Business owner"}</span>
+                      <span className="block truncate text-[11px] text-slate-500">{recipient.email}</span>
+                      {recipient.businessName && <span className="block truncate text-[11px] text-slate-400">{recipient.businessName}</span>}
+                    </span>
+                  </label>
+                ))}
+                {visibleRecipients.length === 0 && <p className="px-3 py-5 text-center text-xs text-slate-500">No matching email recipients.</p>}
+              </div>
+            </section>
+          )}
 
           {loadingDrafts ? (
             <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">Loading saved email drafts...</p>
@@ -306,7 +396,7 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
               <button type="button" onClick={saveDraft} disabled={loadingDrafts || saving || sending} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-50">
                 {saving ? "Saving..." : "Save draft"}
               </button>
-              <button type="button" onClick={sendDraft} disabled={loadingDrafts || saving || sending || audienceCount === 0 || !draft.id || draft.dirty} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={sendDraft} disabled={loadingDrafts || saving || sending || audienceCount === null || selectedRecipientCount === 0} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">
                 {sending ? "Sending..." : "Send reminder"}
               </button>
             </div>

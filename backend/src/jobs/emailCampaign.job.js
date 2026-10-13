@@ -6,6 +6,12 @@ import Business from "../modules/businesses/business.model.js";
 import User from "../modules/users/user.model.js";
 import { sendCampaignEmail, sendSubscriptionEmail } from "../utils/emailService.js";
 
+export const filterCampaignRecipients = (recipients, selectedRecipients) => {
+  if (!Array.isArray(selectedRecipients)) return recipients;
+  const selectedEmails = new Set(selectedRecipients.map((email) => String(email).toLowerCase()));
+  return recipients.filter((recipient) => selectedEmails.has(String(recipient.email || "").toLowerCase()));
+};
+
 const audienceQuery = (campaign, optedOutIds) => {
   const query = {
     isActive: { $ne: false },
@@ -132,7 +138,8 @@ export const processEmailCampaignById = async (campaignId, now = new Date()) => 
       status: "sent"
     }).select("recipientEmail").lean();
     const alreadySent = new Set(previousDeliveries.map((delivery) => delivery.recipientEmail));
-    const pendingRecipients = recipients.filter((recipient) => recipient.email && !alreadySent.has(recipient.email));
+    const eligibleRecipients = filterCampaignRecipients(recipients, campaign.selectedRecipients);
+    const pendingRecipients = eligibleRecipients.filter((recipient) => recipient.email && !alreadySent.has(recipient.email));
     let deliveredCount = 0;
     let failedCount = 0;
 
@@ -194,7 +201,7 @@ export const processEmailCampaignById = async (campaignId, now = new Date()) => 
     await EmailCampaign.findByIdAndUpdate(campaign._id, {
       status: failedCount > 0 ? "failed" : "sent",
       sentAt: failedCount > 0 ? null : now,
-      recipientCount: recipients.length,
+      recipientCount: eligibleRecipients.length,
       deliveredCount: alreadySent.size + deliveredCount,
       failedCount
     });

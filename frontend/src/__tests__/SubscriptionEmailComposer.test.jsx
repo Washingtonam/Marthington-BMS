@@ -69,7 +69,7 @@ describe("Subscription email composer", () => {
     });
   });
 
-  it("requires a saved draft before sending and reports completed delivery", async () => {
+  it("auto-saves the draft, sends to only selected owners, and reports delivery", async () => {
     mockRequest.mockImplementation((path, options = {}) => {
       if (path === "/admin/subscriptions/email-drafts" && options.method === "PUT") {
         return Promise.resolve({ draft: { _id: "draft-1" } });
@@ -77,7 +77,15 @@ describe("Subscription email composer", () => {
       if (path === "/admin/subscriptions/email-drafts") {
         return Promise.resolve({ drafts: [] });
       }
-      if (path.startsWith("/admin/subscriptions/email-audience")) return Promise.resolve({ count: 1 });
+      if (path.startsWith("/admin/subscriptions/email-audience")) {
+        return Promise.resolve({
+          count: 2,
+          recipients: [
+            { email: "ada@example.com", name: "Ada Owner", businessName: "Northwind" },
+            { email: "lee@example.com", name: "Lee Owner", businessName: "Southridge" }
+          ]
+        });
+      }
       if (path === "/admin/subscriptions/email-drafts/draft-1/send") {
         return Promise.resolve({ campaignId: "campaign-1", recipientCount: 1 });
       }
@@ -88,21 +96,27 @@ describe("Subscription email composer", () => {
     });
 
     render(<SubscriptionEmailComposer initialAudience="subscription_active_pro" />);
-    expect(await screen.findByText((_, element) => element.tagName === "P" && element.textContent.includes("Recipients with email: 1"))).toBeTruthy();
+    expect(await screen.findByText((_, element) => element.tagName === "P" && element.textContent.includes("Recipients with email: 2"))).toBeTruthy();
 
     const sendButton = screen.getByRole("button", { name: "Send reminder" });
-    expect(sendButton.disabled).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Send reminder" }).disabled).toBe(false));
+    expect(sendButton.disabled).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Lee Owner" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Send reminder" }));
 
     await waitFor(() => {
       expect(mockRequest).toHaveBeenCalledWith(
         "/admin/subscriptions/email-drafts/draft-1/send",
-        { method: "POST" }
+        {
+          method: "POST",
+          body: JSON.stringify({ recipientEmails: ["ada@example.com"] })
+        }
       );
     });
+    expect(mockRequest).toHaveBeenCalledWith(
+      "/admin/subscriptions/email-drafts",
+      expect.objectContaining({ method: "PUT" })
+    );
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.getByRole("status").textContent).toContain("Email delivered to 1 recipient(s).");

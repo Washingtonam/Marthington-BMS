@@ -57,8 +57,8 @@ const formatBusiness = (business) => {
 const listBusinesses = async (req, res) => {
   try {
     const businesses = await Business.find()
-      .select("name owner email industryType subscription status createdAt")
-      .populate("owner", "name email")
+      .select("name owner email phone whatsapp industryType subscription status createdAt")
+      .populate("owner", "name email phone phoneNumber")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -70,6 +70,9 @@ const listBusinesses = async (req, res) => {
         ownerId: business.owner?._id || null,
         ownerName: business.owner?.name || "",
         ownerEmail: business.owner?.email || "",
+        ownerPhone: business.owner?.phoneNumber || business.owner?.phone || "",
+        businessPhone: business.phone || "",
+        whatsappPhone: business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "",
         subscription: {
           plan: business.subscription?.plan || "free",
           status: business.subscription?.status || "trial"
@@ -87,8 +90,8 @@ const listBusinesses = async (req, res) => {
 const listSubscriptions = async (req, res) => {
   try {
     const businesses = await Business.find()
-      .select("name owner industryType status createdAt subscription")
-      .populate("owner", "name email")
+      .select("name owner email phone whatsapp industryType status createdAt subscription")
+      .populate("owner", "name email phone phoneNumber")
       .sort({ "subscription.expiresAt": 1, createdAt: -1 })
       .lean();
 
@@ -107,6 +110,9 @@ const listSubscriptions = async (req, res) => {
         businessStatus: business.status || "active",
         ownerName: business.owner?.name || "",
         ownerEmail: business.owner?.email || "",
+        ownerPhone: business.owner?.phoneNumber || business.owner?.phone || "",
+        businessPhone: business.phone || "",
+        whatsappPhone: business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "",
         createdAt: business.createdAt,
         subscription: {
           plan: subscription.plan || "free",
@@ -154,7 +160,15 @@ const getSubscriptionEmailAudience = async (req, res) => {
     }
 
     const recipients = await getSubscriptionRecipients(audienceType);
-    res.json({ audienceType, count: recipients.length });
+    res.json({
+      audienceType,
+      count: recipients.length,
+      recipients: recipients.map((recipient) => ({
+        email: recipient.email,
+        name: recipient.name,
+        businessName: recipient.variables?.businessName || ""
+      }))
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -225,10 +239,29 @@ const sendSubscriptionEmailDraft = async (req, res) => {
     }).lean();
     if (!draft) return res.status(404).json({ message: "Subscription email draft not found or already sent" });
 
-    const recipients = await getSubscriptionRecipients(draft.audienceType);
-    if (recipients.length === 0) {
+    const eligibleRecipients = await getSubscriptionRecipients(draft.audienceType);
+    if (eligibleRecipients.length === 0) {
       return res.status(400).json({ message: "No active business owner email addresses match this audience" });
     }
+
+    const { recipientEmails } = req.body || {};
+    let selectedRecipients = null;
+    if (recipientEmails !== undefined) {
+      if (!Array.isArray(recipientEmails) || recipientEmails.length === 0 || recipientEmails.length > 5000) {
+        return res.status(400).json({ message: "Select at least one recipient and no more than 5,000 recipients." });
+      }
+      const eligibleEmails = new Set(eligibleRecipients.map((recipient) => recipient.email.toLowerCase()));
+      selectedRecipients = [...new Set(recipientEmails
+        .filter((email) => typeof email === "string")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean))];
+      if (!selectedRecipients.length || selectedRecipients.some((email) => !eligibleEmails.has(email))) {
+        return res.status(400).json({ message: "One or more selected email addresses are no longer eligible for this audience. Refresh the recipient list and try again." });
+      }
+    }
+    const recipients = selectedRecipients
+      ? eligibleRecipients.filter((recipient) => selectedRecipients.includes(recipient.email.toLowerCase()))
+      : eligibleRecipients;
 
     const queued = await EmailCampaign.findOneAndUpdate(
       { _id: draft._id, status: "draft" },
@@ -237,6 +270,7 @@ const sendSubscriptionEmailDraft = async (req, res) => {
           status: "scheduled",
           scheduledFor: new Date(),
           recipientCount: recipients.length,
+          selectedRecipients,
           updatedBy: req.user.id
         }
       },
@@ -517,7 +551,7 @@ const getOverview = async (req, res) => {
     }, {});
 
     const businessList = await Business.find()
-      .populate("owner", "name email")
+      .populate("owner", "name email phone phoneNumber")
       .sort({ createdAt: -1 });
 
     const formattedBusinesses = businessList.map((business) => {
@@ -538,6 +572,9 @@ const getOverview = async (req, res) => {
         ownerId: business.owner?._id || null,
         ownerName: business.owner?.name || "",
         ownerEmail: business.owner?.email || "",
+        ownerPhone: business.owner?.phoneNumber || business.owner?.phone || "",
+        businessPhone: business.phone || "",
+        whatsappPhone: business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "",
         totalSalesRecord: summary.totalSales,
         saleCount: summary.saleCount,
         studentCount: obj.studentCount || 0,
