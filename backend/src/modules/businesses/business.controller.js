@@ -6,6 +6,7 @@ import {
   normalizeReportDay,
   normalizeReportScheduleTime
 } from "../../utils/reportDeliverySettings.js";
+import { getBusinessPlanAccess } from "../subscriptions/planAccess.js";
 
 // 🔥 NORMALIZE BUSINESS RESPONSE (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -104,6 +105,7 @@ export const getBusiness = async (req, res) => {
       });
     }
 
+    const planAccess = await getBusinessPlanAccess(rawBusiness);
     const business = {
       ...rawBusiness.toObject(),
       industryType: rawBusiness?.industryType || "retail",
@@ -135,6 +137,12 @@ export const getBusiness = async (req, res) => {
         rawBusiness?.isPro === true ||
         (rawBusiness?.subscription?.plan === "pro" &&
           rawBusiness?.subscription?.status === "active"),
+      planLimits: {
+        products: planAccess.products,
+        staff: planAccess.staff,
+        posProducts: planAccess.posProducts
+      },
+      planFeatures: planAccess.features,
       whatsapp: {
         enabled: rawBusiness?.whatsapp?.enabled || false,
         number: rawBusiness?.whatsapp?.number || "",
@@ -267,6 +275,11 @@ export const updateBusiness = async (req, res) => {
       });
     }
 
+    const planAccess = await getBusinessPlanAccess(business);
+    if (req.file && !planAccess.features.logoUpload) {
+      return res.status(403).json({ message: "Logo upload is not available on your current plan." });
+    }
+
     const {
       name,
       address,
@@ -297,6 +310,15 @@ export const updateBusiness = async (req, res) => {
       paymentWalletNumber,
       paymentTransferInstructions
     } = req.body;
+
+    if (
+      receiptTheme !== undefined &&
+      receiptTheme !== business.receiptTheme &&
+      receiptTheme !== "modern" &&
+      !planAccess.features.customReceiptThemes
+    ) {
+      return res.status(403).json({ message: "Custom receipt themes are not available on your current plan." });
+    }
 
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;

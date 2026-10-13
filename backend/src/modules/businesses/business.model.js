@@ -252,23 +252,6 @@ const businessSchema = new mongoose.Schema(
   }
 );
 
-// 🔥 SMART LIMIT SYSTEM (BASED ON REAL PLAN)
-businessSchema.methods.getLimits = function () {
-  const plan = this.subscription?.plan;
-
-  if (plan === "pro") {
-    return {
-      products: Infinity,
-      staff: Infinity
-    };
-  }
-
-  return {
-    products: 20,
-    staff: 1
-  };
-};
-
 const Business = mongoose.model("Business", businessSchema);
 
 export default Business;

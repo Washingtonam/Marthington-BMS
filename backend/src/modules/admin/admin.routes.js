@@ -96,6 +96,20 @@ router.put(
   adminController.updateAffiliateSettings
 );
 
+router.get(
+  "/plan-access",
+  protect,
+  onlyAdmin,
+  adminController.getPlanAccessSettings
+);
+
+router.put(
+  "/plan-access",
+  protect,
+  onlyAdmin,
+  adminController.updatePlanAccessSettings
+);
+
 router.put(
   "/settings/admin-contact",
   protect,

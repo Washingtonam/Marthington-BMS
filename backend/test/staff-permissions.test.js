@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 
 import { createStaff, updateStaff } from "../src/modules/users/users.controller.js";
@@ -6,6 +6,19 @@ import staffController from "../src/modules/staff/staff.controller.js";
 import User from "../src/modules/users/user.model.js";
 import Branch from "../src/modules/branches/branch.model.js";
 import Business from "../src/modules/businesses/business.model.js";
+import SystemSettings from "../src/modules/admin/systemSettings.model.js";
+
+const originalSystemSettingsFindOne = SystemSettings.findOne;
+
+before(() => {
+  SystemSettings.findOne = () => ({
+    select: () => ({ lean: async () => ({}) })
+  });
+});
+
+after(() => {
+  SystemSettings.findOne = originalSystemSettingsFindOne;
+});
 
 const buildRes = () => {
   const response = {

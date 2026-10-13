@@ -171,7 +171,7 @@ const POS = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const prodRes = await request("/products?limit=500");
+        const prodRes = await request("/products?limit=5000&view=pos");
         const cleanProducts = Array.isArray(prodRes)
           ? prodRes
           : (prodRes?.products || prodRes?.data?.products || []);

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import User from "../users/user.model.js";
 import Branch from "../branches/branch.model.js";
 import Business from "../businesses/business.model.js";
+import { getBusinessPlanAccess } from "../subscriptions/planAccess.js";
 
 const STAFF_ROLES = ["staff", "cashier", "manager"];
 
@@ -126,8 +127,7 @@ const createStaff = async (
       });
     }
 
-    const limits =
-      business.getLimits();
+    const planAccess = await getBusinessPlanAccess(business);
 
     const staffCount =
       await User.countDocuments({
@@ -139,9 +139,7 @@ const createStaff = async (
         }
       });
 
-    if (
-      staffCount >= limits.staff
-    ) {
+    if (planAccess.staff !== null && staffCount >= planAccess.staff) {
       return res.status(403).json({
         message:
           "Staff limit reached"

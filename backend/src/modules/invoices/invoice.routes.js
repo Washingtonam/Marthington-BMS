@@ -3,6 +3,7 @@ import express from "express";
 import protect from "../../middlewares/auth.middleware.js";
 import checkPermission from "../../middlewares/permission.middleware.js";
 import checkSubscription from "../../middlewares/subscription.middleware.js";
+import requirePlanFeature from "../../middlewares/planFeature.middleware.js";
 
 import invoiceController from "./invoice.controller.js";
 
@@ -12,6 +13,7 @@ const router =
 router.post(
   "/",
   protect,
+  requirePlanFeature("invoices"),
   checkSubscription,
   checkPermission("canManageInvoices"),
   invoiceController.createInvoice

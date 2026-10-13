@@ -61,6 +61,7 @@ const AdminCampaigns = lazy(() => import("./pages/AdminCampaigns.jsx"));
 const AdminEmailRegistry = lazy(() => import("./pages/AdminEmailRegistry.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
+const AdminPlanAccess = lazy(() => import("./pages/AdminPlanAccess.jsx"));
 const AdminOperationLogs = lazy(() => import("./pages/AdminOperationLogs.jsx"));
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
@@ -361,6 +362,7 @@ const App = () => {
               <Route path="revenue" element={<AdminRevenue />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
               <Route path="billing-settings" element={<AdminBillingSettings />} />
+              <Route path="plan-access" element={<AdminPlanAccess />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="settings" element={<AdminSettings />} />

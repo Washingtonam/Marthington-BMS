@@ -1,5 +1,6 @@
 import Expense from "./expense.model.js";
 import Business from "../businesses/business.model.js";
+import { assertBusinessProductCapacity } from "../subscriptions/planAccess.js";
 import User from "../users/user.model.js";
 import Product from "../products/product.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
@@ -20,11 +21,36 @@ const getExpenseScope = (req, requestedBranch) => getScopedBranchQuery(
   requestedBranch && requestedBranch !== "all" ? requestedBranch : undefined
 );
 
+const assertInventoryProductCapacity = async (business, inventoryItems = []) => {
+  const existingProducts = await Product.find({ business: business._id }).select("_id name").lean();
+  const existingProductIds = new Set(existingProducts.map((product) => String(product._id)));
+  const catalogCandidates = [...existingProducts];
+  let newProductCount = 0;
+  for (const item of inventoryItems) {
+    const targetName = String(item.productName || "").trim();
+    if (
+      item.inventoryUpdated ||
+      (item.product && existingProductIds.has(String(item.product))) ||
+      !targetName ||
+      Number(item.quantity || 0) <= 0 ||
+      findCatalogMatch(catalogCandidates, targetName)
+    ) continue;
+
+    newProductCount += 1;
+    catalogCandidates.push({ _id: `new-${newProductCount}`, name: targetName });
+  }
+  await assertBusinessProductCapacity(business, newProductCount);
+};
+
 // 🔥 PROCESS INVENTORY UPDATES FOR EXPENSE
 const processInventoryUpdates = async (expense, businessId, userId, branchId = null) => {
   if (expense.category !== "inventory" || !expense.inventoryItems || expense.inventoryItems.length === 0) {
     return;
   }
+
+  const business = await Business.findById(businessId);
+  if (!business) throw new Error("Business not found");
+  await assertInventoryProductCapacity(business, expense.inventoryItems);
 
   for (const item of expense.inventoryItems) {
     if (item.inventoryUpdated) continue;
@@ -282,6 +308,10 @@ const createExpense = async (req, res) => {
       businessSettings
     });
 
+    if (autoApprovalDecision.shouldAutoApprove && category === "inventory") {
+      await assertInventoryProductCapacity(business, inventoryItems);
+    }
+
     const expense = await Expense.create({
       business: businessId,
       branch: branchId,
@@ -329,7 +359,7 @@ const createExpense = async (req, res) => {
     });
   } catch (err) {
     console.error("Create Expense Error:", err);
-    return res.status(500).json({ message: err.message || "Failed to create expense" });
+    return res.status(err.statusCode || 500).json({ message: err.message || "Failed to create expense" });
   }
 };
 
@@ -670,7 +700,7 @@ const approveExpense = async (req, res) => {
     });
   } catch (err) {
     console.error("Approve Expense Error:", err);
-    return res.status(500).json({ message: err.message || "Failed to approve expense" });
+    return res.status(err.statusCode || 500).json({ message: err.message || "Failed to approve expense" });
   }
 };
 

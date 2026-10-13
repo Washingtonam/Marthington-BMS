@@ -78,6 +78,7 @@ const AdminLayout = () => {
 
                 <NavLink to="/admin/revenue" className={navItem}>Revenue</NavLink>
                 <NavLink to="/admin/subscriptions" className={navItem}>Subscriptions</NavLink>
+                <NavLink to="/admin/plan-access" className={navItem}>Free &amp; Pro Modes</NavLink>
                 <NavLink to="/admin/billing-settings" className={navItem}>Billing Settings</NavLink>
                 <NavLink to="/admin/payouts" className={navItem}>Payout Requests</NavLink>
               </div>

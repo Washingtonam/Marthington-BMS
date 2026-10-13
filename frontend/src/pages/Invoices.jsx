@@ -110,7 +110,8 @@ const Invoices = () => {
     items: [{ product: "", name: "", quantity: 1, price: 0, total: 0 }]
   });
 
-  const { isPro, loadingBusiness, branchId: userBranchId } = useAuth();
+  const { isPro, business, loadingBusiness, branchId: userBranchId } = useAuth();
+  const canCreateInvoices = business?.planFeatures?.invoices ?? isPro;
 
   useEffect(() => {
     if (newInvoiceModalOpen) {
@@ -338,7 +339,7 @@ const Invoices = () => {
   };
 
   const openNewInvoiceModal = async () => {
-    if (!isPro && !loadingBusiness) {
+    if (!canCreateInvoices && !loadingBusiness) {
       navigate("/app/billing");
       return;
     }

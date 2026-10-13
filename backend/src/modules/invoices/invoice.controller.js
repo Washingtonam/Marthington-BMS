@@ -16,6 +16,8 @@ import { getOutgoingStockDelta, validateOutgoingStockAvailability } from "./invo
 import { canAccessBranch, getScopedBranchQuery, resolveOperationalBranchId } from "../../utils/branchAccess.js";
 import { buildSaleLedgerEntry } from "../sales/sales.utils.js";
 import Expense from "../expenses/expense.model.js";
+import Business from "../businesses/business.model.js";
+import { assertBusinessProductCapacity } from "../subscriptions/planAccess.js";
 import { buildSupplierInvoiceExpense } from "./supplierInvoiceExpense.utils.js";
 import { buildSupplierInvoiceProduct } from "./supplierInvoiceProduct.utils.js";
 
@@ -213,6 +215,14 @@ const createInvoice = async (req, res) => {
     let invoiceCustomerEmail = String(customerEmail || "").trim();
 
     const businessId = req.user.businessId;
+    const business = await Business.findById(businessId).session(session);
+    if (!business) throw new Error("Business not found");
+    const newProductCount = transactionType === "incoming"
+      ? items.filter((item) => Boolean(item.createProduct)).length
+      : 0;
+    if (newProductCount > 0) {
+      await assertBusinessProductCapacity(business, newProductCount);
+    }
     const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
     if (branchId === undefined) {
       throw new Error("You can only create invoices for your assigned branch unless cross-branch management is enabled.");
@@ -542,7 +552,7 @@ const createInvoice = async (req, res) => {
   } catch (err) {
     await session.abortTransaction();
     session.endSession();
-    res.status(500).json({ message: err.message });
+    res.status(err.statusCode || 500).json({ message: err.message });
   }
 };
 

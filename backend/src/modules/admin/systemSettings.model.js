@@ -17,6 +17,10 @@ const systemSettingsSchema = new mongoose.Schema(
     totalCommissionsCleared: {
       type: Number,
       default: 0
+    },
+    planAccess: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
     }
   },
   {

@@ -5,6 +5,10 @@ import XLSX from "xlsx";
 import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
 import { isPrivileged } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
+import {
+  assertBusinessProductCapacity,
+  getBusinessPlanAccess
+} from "../subscriptions/planAccess.js";
 
 const findExistingProductMatch = async (businessId, name, excludeId = null) => {
   if (!name || !String(name).trim()) return null;
@@ -28,9 +32,7 @@ const createProduct = async (req, res) => {
     if (isExpired) return res.status(403).json({ message: "Subscription expired. Please upgrade." });
 
     // 2. Limit Check
-    const limits = business.getLimits();
-    const currentCount = await Product.countDocuments({ business: business._id });
-    if (currentCount >= limits.products) return res.status(403).json({ message: "Product limit reached for your plan." });
+    await assertBusinessProductCapacity(business, 1);
 
     const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
 
@@ -74,7 +76,7 @@ const createProduct = async (req, res) => {
 
     res.status(201).json(product);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.statusCode || 500).json({ message: err.message });
   }
 };
 
@@ -87,6 +89,17 @@ const bulkImportProducts = async (req, res) => {
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
     if (!rows.length) return res.status(400).json({ message: "File is empty" });
+
+    const planAccess = await getBusinessPlanAccess(business);
+    if (planAccess.products !== null) {
+      const existingProducts = await Product.find({ business: business._id }).select("_id name").lean();
+      let newProductCount = 0;
+      for (const row of rows) {
+        if (!row.name || findCatalogMatch(existingProducts, row.name)) continue;
+        if (String(row.name).trim()) newProductCount += 1;
+      }
+      await assertBusinessProductCapacity(business, newProductCount);
+    }
 
     const productsToInsert = [];
     const existingProducts = await Product.find({ business: business._id })
@@ -157,7 +170,7 @@ const bulkImportProducts = async (req, res) => {
       updated: updatedCount
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.statusCode || 500).json({ message: err.message });
   }
 };
 
@@ -166,7 +179,15 @@ const getProducts = async (req, res) => {
   try {
     const page = Math.max(Number(req.query.page) || 1, 1);
     const requestedLimit = Number(req.query.limit) || 20;
-    const limit = Math.min(Math.max(requestedLimit, 1), 5000);
+    let limit = Math.min(Math.max(requestedLimit, 1), 5000);
+    if (req.query.view === "pos") {
+      const business = await Business.findById(req.user.businessId);
+      if (!business) return res.status(404).json({ message: "Business not found" });
+      const planAccess = await getBusinessPlanAccess(business);
+      if (planAccess.posProducts !== null) {
+        limit = Math.min(limit, planAccess.posProducts);
+      }
+    }
     const skip = (page - 1) * limit;
 
     // Retail-only products for POS. School and hospital accounts should not crash.

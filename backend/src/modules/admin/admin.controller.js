@@ -21,6 +21,7 @@ import { getEmailConfigStatus, verifyEmailConfig } from "../../config/email.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
 import { getReportSnapshot } from "./reportSnapshot.js";
+import { normalizePlanAccess, validatePlanAccess } from "../subscriptions/planAccess.js";
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -425,6 +426,36 @@ const updateAffiliateSettings = async (req, res) => {
     res.json({
       message: "Affiliate settings updated successfully",
       settings
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const getPlanAccessSettings = async (req, res) => {
+  try {
+    const settings = await SystemSettings.findOne().select("planAccess").lean();
+    res.json({ planAccess: normalizePlanAccess(settings?.planAccess) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updatePlanAccessSettings = async (req, res) => {
+  try {
+    const validationError = validatePlanAccess(req.body?.planAccess);
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    let settings = await SystemSettings.findOne();
+    if (!settings) settings = new SystemSettings();
+    settings.planAccess = normalizePlanAccess(req.body.planAccess);
+    await settings.save();
+
+    res.json({
+      message: "Plan access settings updated successfully",
+      planAccess: normalizePlanAccess(settings.planAccess)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -1614,7 +1645,9 @@ export default {
   updateSubscription,
   getBusinessDetails,
   getAffiliateSettings,
-  updateAffiliateSettings
+  updateAffiliateSettings,
+  getPlanAccessSettings,
+  updatePlanAccessSettings
   ,
   // business controls
   suspendBusiness,

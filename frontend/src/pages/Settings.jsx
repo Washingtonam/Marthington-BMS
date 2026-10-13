@@ -19,6 +19,8 @@ const Settings = () => {
     user,
     logout
   } = useAuth();
+  const canUseCustomReceiptThemes = business?.planFeatures?.customReceiptThemes ?? isPro;
+  const canUploadLogo = business?.planFeatures?.logoUpload ?? isPro;
 
   const [activeTab, setActiveTab] = useState("business");
 
@@ -211,8 +213,8 @@ const Settings = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    if (name === "receiptTheme" && !isPro && value !== "modern") {
-      setUpgradeMsg("Custom themes are available on Pro plan.");
+    if (name === "receiptTheme" && !canUseCustomReceiptThemes && value !== "modern") {
+      setUpgradeMsg("Custom themes are not available on your current plan.");
       return;
     }
 
@@ -220,8 +222,8 @@ const Settings = () => {
   };
 
   const handleLogo = async (e) => {
-    if (!isPro) {
-      setUpgradeMsg("Logo upload is a Pro feature.");
+    if (!canUploadLogo) {
+      setUpgradeMsg("Logo upload is not available on your current plan.");
       return;
     }
 

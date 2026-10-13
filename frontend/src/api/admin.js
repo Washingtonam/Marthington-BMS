@@ -1,5 +1,12 @@
 import request from "./client.js";
 
+export const getPlanAccessSettings = async () => request("/admin/plan-access");
+
+export const updatePlanAccessSettings = async (planAccess) => request("/admin/plan-access", {
+  method: "PUT",
+  body: JSON.stringify({ planAccess })
+});
+
 export const getPayoutRequests = async (query = "") => {
   const q = query ? `?${query}` : "";
   return request(`/admin/payout-requests${q}`);

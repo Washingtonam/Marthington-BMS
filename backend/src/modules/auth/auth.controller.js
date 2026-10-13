@@ -4,6 +4,7 @@ import SystemSettings from "../admin/systemSettings.model.js";
 import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
 import jwt from "jsonwebtoken";
+import { getBusinessPlanAccess } from "../subscriptions/planAccess.js";
 
 const getCurrentUser = async (req, res) => {
   try {
@@ -21,6 +22,19 @@ const getCurrentUser = async (req, res) => {
       business.subscription?.plan === "pro" &&
       business.subscription?.status === "active"
     );
+    const planAccess = business?._id ? await getBusinessPlanAccess(business) : null;
+    const businessData = business?.toObject ? business.toObject() : business;
+    const formattedBusiness = planAccess
+      ? {
+          ...businessData,
+          planLimits: {
+            products: planAccess.products,
+            staff: planAccess.staff,
+            posProducts: planAccess.posProducts
+          },
+          planFeatures: planAccess.features
+        }
+      : businessData;
 
     return res.json({
       user: {
@@ -28,7 +42,7 @@ const getCurrentUser = async (req, res) => {
         industryType: business.industryType || "retail",
         isPro
       },
-      business
+      business: formattedBusiness
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });

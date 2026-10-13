@@ -32,7 +32,7 @@ vi.mock("../context/AuthContext.jsx", () => ({
 
 vi.mock("../api/client.js", () => ({
   default: vi.fn((path) => {
-    if (path === "/products?limit=500") {
+    if (path === "/products?limit=5000&view=pos") {
       return Promise.resolve([
         { _id: "p1", name: "Laptop", category: "Tech", sellingPrice: 2500, stock: 10 },
         { _id: "p2", name: "Apple", category: "Tech", sellingPrice: 1200, stock: 8 },
