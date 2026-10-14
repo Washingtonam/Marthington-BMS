@@ -22,6 +22,7 @@ import {
   getShopProduct,
   initializeDeliveryFeePayment,
   loginShopCustomer,
+  linkShopCustomer,
   registerShopCustomer,
   updateShopAdminOrder,
   updateShopAdminBusiness,
@@ -53,6 +54,7 @@ router.get("/products/:id", getShopProduct);
 
 router.post("/customers/register", registerShopCustomer);
 router.post("/customers/login", loginShopCustomer);
+router.post("/customers/link", protect, linkShopCustomer);
 router.get("/customers/me", protectShopCustomer, getShopCustomer);
 router.post("/customers/addresses", protectShopCustomer, addShopCustomerAddress);
 router.patch("/customers/addresses/:addressId", protectShopCustomer, updateShopCustomerAddress);

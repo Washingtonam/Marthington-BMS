@@ -336,6 +336,27 @@ export const AuthProvider = ({ children }) => {
     return workspace;
   };
 
+  const ensureBmsWorkspace = async () => {
+    const session = await request("/auth/modes/bms", { method: "POST" });
+    if (!session?.token || !session?.business?._id) {
+      throw new Error("The BMS workspace could not be loaded.");
+    }
+    persistSession(session);
+    setBusiness(session.business);
+    setLoadingBusiness(false);
+    return session.business;
+  };
+
+  const activateAgentMode = async () => {
+    await request("/affiliates/activate", { method: "POST" });
+    const session = await getCurrentUser();
+    if (!session?.user) throw new Error("Agent access could not be refreshed.");
+    const updatedUser = normalizeUser(session.user);
+    localStorage.setItem("bms_user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return updatedUser;
+  };
+
   // 🔥 DERIVED STATE
   const permissions = usePermissions(user, business);
   const isPro = permissions.isPro;
@@ -387,6 +408,8 @@ export const AuthProvider = ({ children }) => {
 
       refreshBusiness,
       ensureSuperAdminWorkspace,
+      ensureBmsWorkspace,
+      activateAgentMode,
 
       impersonatedBusiness,
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Area,
   AreaChart,
@@ -44,14 +45,30 @@ const platformChangeLabel = (current, previous) => {
   return `${change > 0 ? "+" : ""}${change.toFixed(1)}% vs previous period`;
 };
 
-const StatCard = ({ label, value, detail, accent = "indigo" }) => (
-  <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+const StatCard = ({ label, value, detail, accent = "indigo", onClick }) => {
+  const contents = (
+    <>
     <div className={`mb-4 h-1 w-10 rounded-full ${ACCENT_BAR[accent] || ACCENT_BAR.indigo}`} />
     <p className="text-sm font-medium text-slate-500">{label}</p>
     <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{value}</p>
     <p className="mt-2 text-xs text-slate-500">{detail}</p>
-  </article>
-);
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={`${label}: ${value}. View details`}
+        className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+        {contents}
+        <span className="mt-3 block text-xs font-bold text-indigo-700">View details →</span>
+      </button>
+    );
+  }
+  return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">{contents}</article>;
+};
 
 const EmptyChart = ({ message }) => (
   <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">
@@ -66,6 +83,7 @@ const AdminRevenue = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshId, setRefreshId] = useState(0);
+  const [selectedMetric, setSelectedMetric] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -91,6 +109,42 @@ const AdminRevenue = () => {
       ...point,
       label: new Date(`${point.date}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })
     })), [data, currency]);
+
+    const activeDetails = data?.platform?.activeSubscriptionDetails || [];
+    const capturedPayments = data?.platform?.capturedPayments || data?.platform?.latestPayments || [];
+    const getMetricDetails = () => {
+      if (selectedMetric === "active") return {
+        title: "Active paid subscriptions",
+        description: "Current Pro subscriptions marked active that have no expiry date or have not expired. This count is independent of the selected receipt period.",
+        subscriptions: activeDetails
+      };
+      if (selectedMetric === "unknown") return {
+        title: "Active plans with unknown currency",
+        description: "These legacy subscription records have an active paid plan, but no verified currency was saved. They are deliberately excluded from NGN and USD run-rate totals.",
+        subscriptions: data.platform.unrecordedCurrencyDetails || []
+      };
+      if (selectedMetric.startsWith("runrate-")) {
+        const metricCurrency = selectedMetric.endsWith("USD") ? "USD" : "NGN";
+        return {
+          title: `Current monthly run-rate · ${metricCurrency}`,
+          description: `Estimated monthly value from current active plans with a recorded ${metricCurrency} currency. Annual plan amounts are divided by 12; this is a run-rate estimate, not cash received in the selected period.`,
+          subscriptions: activeDetails.filter((item) => item.currency === metricCurrency),
+          currency: metricCurrency
+        };
+      }
+      if (selectedMetric.startsWith("captured-")) {
+        const metricCurrency = selectedMetric.endsWith("USD") ? "USD" : "NGN";
+        return {
+          title: `Subscription cash received · ${metricCurrency}`,
+          description: `Verified subscription payment receipts captured during ${RANGE_OPTIONS.find((option) => option.value === range)?.label.toLowerCase()}. This is historical cash, not the value of all currently active subscriptions.`,
+          payments: capturedPayments.filter((payment) => payment.currency === metricCurrency),
+          currency: metricCurrency,
+          truncated: data.platform.capturedPaymentsTruncated
+        };
+      }
+      return null;
+    };
+    const metricDetails = selectedMetric ? getMetricDetails() : null;
 
   if (loading && !data) {
     return (
@@ -159,8 +213,9 @@ const AdminRevenue = () => {
               <StatCard
                 label="Active paid subscriptions"
                 value={Number(data.platform.activeSubscriptions || 0).toLocaleString()}
-                detail="Eligible subscriptions with a future expiry date"
+                detail="Current paid plans; includes plans without an expiry date"
                 accent="emerald"
+                onClick={() => setSelectedMetric("active")}
               />
             </div>
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
@@ -224,30 +279,35 @@ const AdminRevenue = () => {
                 value={money(data.platform.captured.NGN.gross)}
                 detail={`${data.platform.captured.NGN.count} receipts · ${platformChangeLabel(data.platform.captured.NGN.gross, data.platform.previousCaptured.NGN.gross)} · net ${money(data.platform.captured.NGN.net)}`}
                 accent="emerald"
+                onClick={() => setSelectedMetric("captured-NGN")}
               />
               <StatCard
                 label="Subscription cash received · USD"
                 value={money(data.platform.captured.USD.gross, "USD")}
                 detail={`${data.platform.captured.USD.count} receipts · ${platformChangeLabel(data.platform.captured.USD.gross, data.platform.previousCaptured.USD.gross)} · net ${money(data.platform.captured.USD.net, "USD")}`}
                 accent="teal"
+                onClick={() => setSelectedMetric("captured-USD")}
               />
               <StatCard
                 label="Current monthly run-rate · NGN"
                 value={money(data.platform.monthlyRunRate.NGN)}
                 detail="Annual plans are divided by 12"
                 accent="blue"
+                onClick={() => setSelectedMetric("runrate-NGN")}
               />
               <StatCard
                 label="Current monthly run-rate · USD"
                 value={money(data.platform.monthlyRunRate.USD, "USD")}
                 detail="Estimate from active paid plans"
                 accent="violet"
+                onClick={() => setSelectedMetric("runrate-USD")}
               />
               <StatCard
                 label="Active plans with unknown currency"
                 value={Number(data.platform.unrecordedCurrencySubscriptions || 0).toLocaleString()}
                 detail="Legacy subscription records awaiting a verified renewal"
                 accent="teal"
+                onClick={() => setSelectedMetric("unknown")}
               />
             </div>
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
@@ -311,6 +371,114 @@ const AdminRevenue = () => {
             </p>
           </section>
         </>
+      )}
+      {metricDetails && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+          <button
+            type="button"
+            aria-label="Close revenue details"
+            onClick={() => setSelectedMetric("")}
+            className="absolute inset-0 cursor-default"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="revenue-detail-title"
+            className="relative z-10 max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-white px-5 py-5 sm:px-7">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-700">Revenue details</p>
+                <h2 id="revenue-detail-title" className="mt-1 text-xl font-extrabold text-slate-900">{metricDetails.title}</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-5 text-slate-600">{metricDetails.description}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close details"
+                onClick={() => setSelectedMetric("")}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-lg text-slate-600 hover:bg-slate-50"
+              >
+                ×
+              </button>
+            </header>
+            <div className="max-h-[calc(90vh-120px)] overflow-auto p-5 sm:p-7">
+              {metricDetails.subscriptions && (
+                metricDetails.subscriptions.length ? (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Business / owner</th>
+                          <th className="px-4 py-3">Billing</th>
+                          <th className="px-4 py-3">Subscription value</th>
+                          <th className="px-4 py-3">Expires</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {metricDetails.subscriptions.map((subscription) => {
+                          const monthlyAmount = subscription.billingCycle === "yearly"
+                            ? subscription.amount / 12
+                            : subscription.amount;
+                          return (
+                            <tr key={subscription.businessId} className="hover:bg-slate-50">
+                              <td className="px-4 py-3">
+                                <Link to={`/admin/business/${subscription.businessId}`} onClick={() => setSelectedMetric("")} className="font-bold text-indigo-700 hover:underline">{subscription.businessName}</Link>
+                                <p className="mt-1 text-xs text-slate-500">{subscription.ownerName || "Business owner"}{subscription.ownerEmail ? ` · ${subscription.ownerEmail}` : ""}</p>
+                                {subscription.ownerPhone && <p className="mt-1 text-xs text-slate-500">{subscription.ownerPhone}</p>}
+                              </td>
+                              <td className="px-4 py-3 capitalize text-slate-700">{subscription.tier || "Pro"} · {subscription.billingCycle || "cycle not recorded"}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-800">
+                                {subscription.currency
+                                  ? `${money(subscription.amount, subscription.currency)}${metricDetails.currency ? ` · ${money(monthlyAmount, subscription.currency)}/month` : ""}`
+                                  : `${Number(subscription.amount || 0).toLocaleString()} · currency not recorded`}
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString() : "No expiry date"}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No subscriptions match this detail.</p>
+                )
+              )}
+              {metricDetails.payments && (
+                <>
+                  {metricDetails.truncated && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Showing up to 500 detailed receipts. Summary totals include all receipts in the period.</p>}
+                  {metricDetails.payments.length ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                          <tr>
+                            <th className="px-4 py-3">Business</th>
+                            <th className="px-4 py-3">Receipt date</th>
+                            <th className="px-4 py-3">Gateway / cycle</th>
+                            <th className="px-4 py-3">Gross</th>
+                            <th className="px-4 py-3">Affiliate commission</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {metricDetails.payments.map((payment) => (
+                            <tr key={payment.reference} className="hover:bg-slate-50">
+                              <td className="px-4 py-3 font-semibold text-slate-800">{payment.businessName || "Tenant"}</td>
+                              <td className="px-4 py-3 text-slate-600">{new Date(payment.paidAt).toLocaleString()}</td>
+                              <td className="px-4 py-3 capitalize text-slate-600">{payment.gateway} · {payment.billingCycle}</td>
+                              <td className="px-4 py-3 font-semibold text-slate-800">{money(payment.amount, payment.currency)}</td>
+                              <td className="px-4 py-3 text-slate-700">{money(payment.affiliateCommission, payment.currency)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">No verified receipts in this currency and reporting period.</p>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        </div>
       )}
     </section>
   );

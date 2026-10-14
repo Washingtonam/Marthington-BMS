@@ -16,6 +16,7 @@ const createPayoutRequest = async (req, res) => {
 
     const affiliate = await User.findById(affiliateId);
     if (!affiliate) return res.status(404).json({ message: "Affiliate not found" });
+    if (!affiliate.affiliateCode) return res.status(403).json({ message: "Agent mode is not active for this account." });
 
     const bankName = affiliate.bankName || affiliate.paymentDetails?.bankName || "";
     const accountNumber = affiliate.accountNumber || affiliate.paymentDetails?.accountNumber || "";
@@ -58,6 +59,9 @@ const getPayoutRequests = async (req, res) => {
   try {
     const affiliateId = req.user?._id;
     if (!affiliateId) return res.status(401).json({ message: "Unauthorized" });
+
+    const affiliate = await User.findById(affiliateId).select("affiliateCode");
+    if (!affiliate?.affiliateCode) return res.status(403).json({ message: "Agent mode is not active for this account." });
 
     const requests = await PayoutRequest.find({ partnerId: affiliateId }).sort({ createdAt: -1 }).lean();
     const history = await WithdrawalHistory.find({ partnerId: affiliateId }).sort({ date: -1 }).lean();

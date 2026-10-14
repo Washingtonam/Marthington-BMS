@@ -25,6 +25,10 @@ const protect = async (req, res, next) => {
       process.env.JWT_SECRET
     );
 
+    if (decoded.type === "shop_customer") {
+      return res.status(401).json({ message: "A BMS account session is required." });
+    }
+
     // 🔥 FETCH USER
     const user = await User.findById(decoded.id).populate(
       "business"

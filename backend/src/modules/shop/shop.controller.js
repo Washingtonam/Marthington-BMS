@@ -248,6 +248,57 @@ export const loginShopCustomer = async (req, res) => {
   }
 };
 
+export const linkShopCustomer = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "Signed-in account not found." });
+
+    let customer = await ShopCustomer.findOne({ linkedUser: user._id }).select("+password");
+    if (!customer) {
+      customer = await ShopCustomer.findOne({ email: user.email }).select("+password");
+      if (customer) {
+        if (customer.linkedUser && customer.linkedUser.toString() !== user._id.toString()) {
+          return res.status(409).json({ message: "This marketplace account is already linked to another user." });
+        }
+        const marketplacePassword = String(req.body.marketplacePassword || "");
+        if (!marketplacePassword) {
+          return res.status(409).json({
+            code: "MARKETPLACE_PASSWORD_REQUIRED",
+            requiresPassword: true,
+            message: "Enter your existing marketplace password to link this account."
+          });
+        }
+        if (!await bcrypt.compare(marketplacePassword, customer.password)) {
+          return res.status(401).json({ message: "Marketplace password is incorrect." });
+        }
+        customer.linkedUser = user._id;
+        await customer.save();
+      } else {
+        const generatedPassword = crypto.randomBytes(32).toString("hex");
+        customer = await ShopCustomer.create({
+          linkedUser: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || user.phoneNumber || "",
+          password: await bcrypt.hash(generatedPassword, 12)
+        });
+      }
+    }
+
+    if (!customer.isActive) {
+      return res.status(403).json({ message: "This marketplace account is disabled." });
+    }
+
+    return res.json({ token: customerToken(customer), customer: publicCustomer(customer) });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "This marketplace account is already linked." });
+    }
+    console.error("LINK SHOP CUSTOMER ERROR:", error);
+    return res.status(500).json({ message: "Could not link your marketplace account." });
+  }
+};
+
 export const getShopCustomer = (req, res) => res.json({ customer: publicCustomer(req.shopCustomer) });
 
 export const addShopCustomerAddress = async (req, res) => {

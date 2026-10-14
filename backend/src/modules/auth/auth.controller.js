@@ -160,6 +160,78 @@ const register = async (req, res) => {
   }
 };
 
+const ensureBmsWorkspace = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password -refreshToken").populate("business");
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    if (user.business) {
+      const business = user.business;
+      const token = generateToken(user, business.industryType || "retail", false);
+      const publicUser = user.toObject();
+      return res.json({
+        token,
+        user: {
+          ...publicUser,
+          industryType: business.industryType || "retail",
+          isPro: business.isPro === true
+        },
+        business
+      });
+    }
+
+    if (user.role !== "affiliate") {
+      return res.status(400).json({ message: "This account does not have a BMS workspace." });
+    }
+
+    const business = await Business.create({
+      name: `${user.name}'s Business`,
+      email: user.email,
+      phone: user.phone || user.phoneNumber || "",
+      industryType: "retail",
+      owner: user._id,
+      subscription: {
+        plan: "free",
+        status: "active",
+        billingCycle: null,
+        startedAt: new Date(),
+        expiresAt: null,
+        amount: 0,
+        currency: null
+      }
+    });
+
+    user.role = "owner";
+    user.business = business._id;
+    await user.save();
+
+    const token = generateToken(user, business.industryType, false);
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: "30d" }
+    );
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    const publicUser = user.toObject();
+    delete publicUser.password;
+    delete publicUser.refreshToken;
+    return res.status(201).json({
+      token,
+      refreshToken,
+      user: {
+        ...publicUser,
+        industryType: business.industryType,
+        isPro: false
+      },
+      business
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 
 // 🔐 LOGIN (🔥 WITH ACTIVE CHECK)
 const login = async (req, res) => {
@@ -301,6 +373,7 @@ const refresh = async (req, res) => {
 export default {
   register,
   login,
+  ensureBmsWorkspace,
   refresh,
   getCurrentUser
 };

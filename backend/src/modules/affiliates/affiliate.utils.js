@@ -50,8 +50,7 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null,
 
   // ✅ STEP 2: LOCATE AFFILIATE USER
   const affiliate = await User.findOne({
-    affiliateCode: business.referredBy,
-    role: "affiliate"
+    affiliateCode: business.referredBy
   }).session(session).lean();
 
   if (!affiliate) {

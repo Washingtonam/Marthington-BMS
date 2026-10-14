@@ -3,6 +3,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import request from "../api/client.js";
 import AdminRevenue from "../pages/AdminRevenue.jsx";
 
@@ -26,7 +27,36 @@ const revenue = {
     topBusinesses: [{ businessId: "b1", businessName: "Northwind", amount: 125000, saleCount: 14 }]
   },
   platform: {
-    activeSubscriptions: 3,
+    activeSubscriptions: 2,
+    activeSubscriptionDetails: [
+      {
+        businessId: "b1",
+        businessName: "Northwind",
+        ownerName: "Ada Owner",
+        ownerEmail: "ada@example.com",
+        billingCycle: "monthly",
+        amount: 15000,
+        currency: "NGN",
+        expiresAt: "2026-12-01T00:00:00.000Z"
+      },
+      {
+        businessId: "b2",
+        businessName: "Legacy Clinic",
+        ownerName: "Lee Owner",
+        amount: 80,
+        currency: null,
+        expiresAt: null
+      }
+    ],
+    unrecordedCurrencySubscriptions: 1,
+    unrecordedCurrencyDetails: [{
+      businessId: "b2",
+      businessName: "Legacy Clinic",
+      ownerName: "Lee Owner",
+      amount: 80,
+      currency: null,
+      expiresAt: null
+    }],
     captured: {
       NGN: { gross: 15000, commissions: 3000, net: 12000, count: 1 },
       USD: { gross: 10, commissions: 0, net: 10, count: 1 }
@@ -47,6 +77,16 @@ const revenue = {
       amount: 15000,
       paidAt: "2026-06-01T12:00:00.000Z"
     }],
+    capturedPayments: [{
+      businessName: "Northwind",
+      reference: "pay-1",
+      billingCycle: "monthly",
+      gateway: "paystack",
+      currency: "NGN",
+      amount: 15000,
+      affiliateCommission: 3000,
+      paidAt: "2026-06-01T12:00:00.000Z"
+    }],
     historyNotice: "Historical receipt tracking note."
   }
 };
@@ -59,12 +99,23 @@ describe("admin revenue dashboard", () => {
 
   it("separates tenant sales from platform receipts and loads the selected range", async () => {
     request.mockResolvedValue(revenue);
-    render(<AdminRevenue />);
+    render(<MemoryRouter><AdminRevenue /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Sales generated across tenants" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Subscription receipts and run-rate" })).toBeTruthy();
     expect(screen.getAllByText("Northwind").length).toBeGreaterThan(0);
     expect(screen.getByText("Historical receipt tracking note.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Active paid subscriptions/ }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Active paid subscriptions" })).toBeTruthy();
+    expect(screen.getByText("Legacy Clinic")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Subscription cash received · NGN/ }));
+    expect(await screen.findByRole("heading", { name: "Subscription cash received · NGN" })).toBeTruthy();
+    expect(screen.getByText(/Verified subscription payment receipts captured during last 30 days/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
 
     fireEvent.change(screen.getByRole("combobox", { name: "Revenue reporting period" }), {
       target: { value: "90d" }

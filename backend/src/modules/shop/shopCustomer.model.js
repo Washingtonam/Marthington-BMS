@@ -15,6 +15,7 @@ const shopCustomerSchema = new mongoose.Schema({
   email: { type: String, required: true, lowercase: true, trim: true, unique: true },
   phone: { type: String, default: "", trim: true },
   password: { type: String, required: true, select: false },
+  linkedUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", unique: true, sparse: true },
   addresses: { type: [addressSchema], default: [] },
   isActive: { type: Boolean, default: true }
 }, { timestamps: true });

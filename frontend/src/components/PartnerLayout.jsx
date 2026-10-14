@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import AdminModeToggle from "./AdminModeToggle.jsx";
 
 const navigation = [
   { to: "/partners/dashboard", label: "Dashboard", icon: "⌂", end: true },
@@ -65,8 +66,11 @@ const PartnerLayout = () => {
       <main className="lg:pl-72">
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-slate-950/85 px-4 py-4 backdrop-blur lg:px-8">
           <button type="button" onClick={() => setOpen(true)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-200 lg:hidden" aria-label="Open sidebar">☰</button>
-          <div className="hidden text-sm text-slate-400 lg:block">Affiliate operations</div>
-          <div className="ml-auto text-xs text-slate-400">{user?.affiliateCode || "Partner account"}</div>
+          <div className="hidden text-sm text-slate-400 lg:block">Agent operations</div>
+          <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
+            <span>{user?.affiliateCode || "Agent account"}</span>
+            <AdminModeToggle />
+          </div>
         </header>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><Outlet /></div>
       </main>

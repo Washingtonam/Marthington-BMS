@@ -6,6 +6,34 @@ import WithdrawalHistory from "./withdrawalHistory.model.js";
 import AffiliateClick from "./affiliateClick.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
 
+const activateAgentMode = async (req, res) => {
+  try {
+    const affiliate = await User.findById(req.user._id);
+    if (!affiliate) return res.status(404).json({ message: "User not found." });
+
+    if (!affiliate.affiliateCode) {
+      const prefix = affiliate.name.replace(/[^a-z0-9]/gi, "").slice(0, 5).toUpperCase() || "AGENT";
+      let code;
+      do {
+        code = `${prefix}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      } while (await User.exists({ affiliateCode: code }));
+
+      affiliate.affiliateCode = code;
+      affiliate.walletBalance = affiliate.walletBalance || 0;
+      affiliate.totalEarned = affiliate.totalEarned || 0;
+      await affiliate.save();
+    }
+
+    return res.status(200).json({ agent: { affiliateCode: affiliate.affiliateCode } });
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: "Could not reserve an agent referral code. Please try again." });
+    }
+    console.error("ACTIVATE AGENT MODE ERROR:", err);
+    return res.status(500).json({ message: "Could not activate Agent mode." });
+  }
+};
+
 const trackAffiliateClick = async (req, res) => {
   try {
     const affiliateCode = String(req.body?.affiliateCode || req.query?.affiliateCode || "").trim();
@@ -14,7 +42,7 @@ const trackAffiliateClick = async (req, res) => {
       return res.status(400).json({ message: "Affiliate code is required" });
     }
 
-    const affiliate = await User.findOne({ affiliateCode, role: "affiliate" }).lean();
+    const affiliate = await User.findOne({ affiliateCode }).lean();
 
     if (!affiliate) {
       return res.status(404).json({ message: "Affiliate not found" });
@@ -51,7 +79,7 @@ const getAffiliateDashboard = async (req, res) => {
 
     const affiliate = await User.findById(req.user._id).lean();
 
-    if (!affiliate || affiliate.role !== "affiliate") {
+    if (!affiliate || !affiliate.affiliateCode) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -205,7 +233,7 @@ const getAffiliateProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (affiliate.role !== "affiliate") {
+    if (!affiliate.affiliateCode) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -236,6 +264,11 @@ const updateAffiliateProfile = async (req, res) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const currentAffiliate = await User.findById(req.user._id).select("affiliateCode");
+    if (!currentAffiliate?.affiliateCode) {
+      return res.status(403).json({ message: "Agent mode is not active for this account." });
     }
 
     const { phone, address, bankName, accountNumber, accountName } = req.body;
@@ -293,6 +326,7 @@ const updateAffiliateProfile = async (req, res) => {
 };
 
 export default {
+  activateAgentMode,
   trackAffiliateClick,
   getAffiliateDashboard,
   getAffiliateProfile,

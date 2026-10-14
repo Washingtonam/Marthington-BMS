@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { clearShopSession, getShopSession, shopRequest } from "../../api/shop.js";
 import { useShopCart } from "../../context/ShopCartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
+import AdminModeToggle from "../AdminModeToggle.jsx";
 
 const ShopLayout = () => {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ const ShopLayout = () => {
               <Link to="/shop/account" className="rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700">Sign in</Link>
             )}
             {bmsUser?.role === "super_admin" && <Link to="/shop/admin" className="hidden text-emerald-700 hover:text-emerald-900 sm:inline">Shop admin</Link>}
+            <AdminModeToggle />
             <Link to="/" className="hidden text-slate-500 hover:text-slate-900 md:inline">BMS home</Link>
           </nav>
         </div>

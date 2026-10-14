@@ -219,35 +219,6 @@ const App = () => {
               <Route path="referrals" element={<Navigate to="/partners/conversions" replace />} />
             </Route>
 
-            {/* ADMIN PAYOUTS */}
-            <Route
-              path="/admin/payouts"
-              element={
-                <ProtectedRoute requiredRole="super_admin">
-                  <AdminPayouts />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* ADMIN PARTNERS LEDGER */}
-            <Route
-              path="/admin/affiliates"
-              element={
-                <ProtectedRoute requiredRole="super_admin">
-                  <AdminPartnersLedger />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/admin/partners-ledger"
-              element={
-                <ProtectedRoute requiredRole="super_admin">
-                  <AdminPartnersLedger />
-                </ProtectedRoute>
-              }
-            />
-
             {/* CUSTOMER VIEW (STANDALONE) */}
             <Route path="/app/customer-view" element={<CustomerView />} />
 
@@ -344,6 +315,9 @@ const App = () => {
               <Route path="settings" element={<AdminSettings />} />
               <Route path="operation-logs" element={<AdminOperationLogs />} />
               <Route path="business/:id" element={<AdminBusinessView />} />
+              <Route path="payouts" element={<AdminPayouts />} />
+              <Route path="affiliates" element={<AdminPartnersLedger />} />
+              <Route path="partners-ledger" element={<AdminPartnersLedger />} />
             </Route>
 
             {/* FALLBACK */}

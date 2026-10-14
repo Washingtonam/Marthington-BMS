@@ -9,7 +9,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPerm
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.role === "affiliate" && requiredRole !== "affiliate") {
+  if (user?.role === "affiliate" && user?.affiliateCode && requiredRole !== "affiliate") {
     return <Navigate to="/partners/dashboard" replace />;
   }
 
@@ -17,7 +17,10 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPerm
     return <Navigate to="/admin" replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
+  const hasRequiredRole = requiredRole === "affiliate"
+    ? Boolean(user?.affiliateCode)
+    : user?.role === requiredRole;
+  if (requiredRole && !hasRequiredRole) {
     return <Navigate to="/app" replace />;
   }
 

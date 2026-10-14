@@ -311,7 +311,7 @@ const getRevenue = async (req, res) => {
     if (!range) return res.status(400).json({ message: "Choose a supported revenue range: 30d, 90d, or 12m." });
 
     const { start, end, previousStart } = buildRevenueWindow(range);
-    const [salesResult = {}, paymentResult = {}, activeSubscriptions, latestPayments] = await Promise.all([
+    const [salesResult = {}, paymentResult = {}, activeSubscriptionRecords, capturedPayments] = await Promise.all([
       Sale.aggregate([
         {
           $match: {
@@ -413,12 +413,20 @@ const getRevenue = async (req, res) => {
       Business.find({
         "subscription.plan": "pro",
         "subscription.status": "active",
-        "subscription.expiresAt": { $gt: end }
-      }).select("subscription.amount subscription.billingCycle subscription.currency").lean(),
+        $or: [
+          { "subscription.expiresAt": { $gt: end } },
+          { "subscription.expiresAt": null },
+          { "subscription.expiresAt": { $exists: false } }
+        ]
+      })
+        .select("name phone whatsapp.number owner subscription.amount subscription.billingCycle subscription.currency subscription.expiresAt subscription.tier")
+        .populate("owner", "name email phone phoneNumber")
+        .sort({ name: 1 })
+        .lean(),
       SubscriptionPayment.find({ paidAt: { $gte: start, $lt: end } })
         .select("businessName reference billingCycle gateway currency amount affiliateCommission paidAt")
         .sort({ paidAt: -1 })
-        .limit(8)
+        .limit(500)
         .lean()
     ]);
 
@@ -437,7 +445,7 @@ const getRevenue = async (req, res) => {
       return totals;
     }, { NGN: { gross: 0, commissions: 0, net: 0, count: 0 }, USD: { gross: 0, commissions: 0, net: 0, count: 0 } });
 
-    const monthlyRunRate = activeSubscriptions.reduce((totals, business) => {
+    const monthlyRunRate = activeSubscriptionRecords.reduce((totals, business) => {
       const subscription = business.subscription || {};
       const divisor = subscription.billingCycle === "yearly" ? 12 : 1;
       const amount = Number(subscription.amount || 0) / divisor;
@@ -451,6 +459,21 @@ const getRevenue = async (req, res) => {
 
     const currentPlatform = currencyTotals(payment.current);
     const previousPlatform = currencyTotals(payment.previous);
+    const activeSubscriptionDetails = activeSubscriptionRecords.map((business) => ({
+      businessId: business._id,
+      businessName: business.name || "Unnamed business",
+      ownerName: business.owner?.name || "",
+      ownerEmail: business.owner?.email || "",
+      ownerPhone: business.owner?.phoneNumber || business.owner?.phone || "",
+      businessPhone: business.whatsapp?.number || business.phone || "",
+      plan: business.subscription?.plan || "pro",
+      tier: business.subscription?.tier || "",
+      billingCycle: business.subscription?.billingCycle || "",
+      amount: Number(business.subscription?.amount || 0),
+      currency: business.subscription?.currency || null,
+      expiresAt: business.subscription?.expiresAt || null
+    }));
+    const unrecordedCurrencyDetails = activeSubscriptionDetails.filter((subscription) => !subscription.currency);
 
     res.json({
       range,
@@ -468,7 +491,9 @@ const getRevenue = async (req, res) => {
         previousCaptured: previousPlatform,
         monthlyRunRate,
         unrecordedCurrencySubscriptions: monthlyRunRate.unrecordedCurrencyCount,
-        activeSubscriptions: activeSubscriptions.length,
+        activeSubscriptions: activeSubscriptionDetails.length,
+        activeSubscriptionDetails,
+        unrecordedCurrencyDetails,
         trend: (payment.trend || []).map((row) => ({
           date: row._id.date,
           currency: row._id.currency === "USD" ? "USD" : "NGN",
@@ -476,7 +501,10 @@ const getRevenue = async (req, res) => {
           commissions: Number(row.commissions || 0),
           net: Number(row.gross || 0) - Number(row.commissions || 0)
         })),
-        latestPayments,
+        latestPayments: capturedPayments,
+        capturedPayments,
+        capturedPaymentCount: Number((payment.current || []).reduce((sum, row) => sum + Number(row.count || 0), 0)),
+        capturedPaymentsTruncated: Number((payment.current || []).reduce((sum, row) => sum + Number(row.count || 0), 0)) > capturedPayments.length,
         historyNotice: "Verified subscription receipts are recorded from this tracking rollout onward; earlier gateway receipts are not available for historical totals."
       }
     });
@@ -502,7 +530,7 @@ const getOverview = async (req, res) => {
 
     const [affiliateTotals, pendingAffiliatePayouts, affiliateSettings, approvedWithdrawals] = await Promise.all([
       User.aggregate([
-        { $match: { role: "affiliate" } },
+        { $match: { affiliateCode: { $exists: true, $ne: null } } },
         { $group: { _id: null, totalEarned: { $sum: "$totalEarned" }, availableBalance: { $sum: "$walletBalance" }, totalPartners: { $sum: 1 } } }
       ]),
       PayoutRequest.aggregate([
@@ -1449,7 +1477,7 @@ const retryEmailCampaign = async (req, res) => {
 // ================= AFFILIATE ADMIN ACTIONS =================
 const listAffiliates = async (req, res) => {
   try {
-    const affiliates = await User.find({ role: "affiliate" })
+    const affiliates = await User.find({ affiliateCode: { $exists: true, $ne: null } })
       .select("name email affiliateCode walletBalance totalEarned createdAt")
       .sort({ createdAt: -1 })
       .lean();

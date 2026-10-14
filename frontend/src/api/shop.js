@@ -25,21 +25,30 @@ export const clearShopSession = () => {
 };
 
 export const shopRequest = async (path, options = {}) => {
-  const token = options.token ?? getShopSession().token;
+  const { token: requestToken, ...fetchOptions } = options;
+  const token = requestToken ?? getShopSession().token;
   const headers = {
-    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+    ...(fetchOptions.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers
+    ...fetchOptions.headers
   };
-  const response = await fetch(`${API_URL}/shop${path}`, { ...options, headers });
+  const response = await fetch(`${API_URL}/shop${path}`, { ...fetchOptions, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(data.message || "Shop request failed.");
     error.status = response.status;
+    error.code = data.code;
+    error.requiresPassword = data.requiresPassword === true;
     throw error;
   }
   return data;
 };
+
+export const linkMarketplaceAccount = (token, marketplacePassword) => shopRequest("/customers/link", {
+  method: "POST",
+  token,
+  body: JSON.stringify({ marketplacePassword })
+});
 
 export const getShopCart = () => {
   try {
