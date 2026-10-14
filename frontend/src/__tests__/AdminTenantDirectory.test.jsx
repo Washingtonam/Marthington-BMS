@@ -135,6 +135,21 @@ describe("Admin tenant directory", () => {
     expect(decodeURIComponent(screen.getAllByRole("link", { name: /Open WhatsApp draft|Open again/ })[0].getAttribute("href"))).toContain("Please renew your plan.");
   });
 
+  it("opens a business detail modal when the tenant row is clicked", async () => {
+    render(
+      <MemoryRouter>
+        <AdminTenantDirectory />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open details for Test Academy" }));
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Test Academy" })).toBeTruthy();
+    expect(screen.getAllByText("Ada Owner").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "owner@test.com" }).getAttribute("href")).toBe("mailto:owner@test.com");
+  });
+
   it("paginates tenants and opens a bulk message composer as a modal", async () => {
     mockRequest.mockImplementation((path) => path === "/admin/overview"
       ? Promise.resolve({

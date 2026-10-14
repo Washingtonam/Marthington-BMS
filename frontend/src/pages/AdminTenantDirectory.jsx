@@ -23,6 +23,7 @@ const AdminTenantDirectory = () => {
   const [deletingId, setDeletingId] = useState("");
   const [search, setSearch] = useState("");
   const [contactBusinessId, setContactBusinessId] = useState("");
+  const [selectedBusinessId, setSelectedBusinessId] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -64,6 +65,7 @@ const AdminTenantDirectory = () => {
     [activeTab, businesses, search, statusFilter]
   );
   const contactBusiness = businesses.find((business) => business._id === contactBusinessId);
+  const selectedBusiness = businesses.find((business) => business._id === selectedBusinessId);
   const selectedBusinesses = visibleBusinesses.filter((business) => selectedIds.includes(business._id));
   const pageCount = Math.max(1, Math.ceil(visibleBusinesses.length / pageSize));
   const pageBusinesses = visibleBusinesses.slice((page - 1) * pageSize, page * pageSize);
@@ -79,6 +81,7 @@ const AdminTenantDirectory = () => {
   }, [pageCount]);
 
   const openContactDraft = (business) => setContactBusinessId(business._id);
+  const openBusinessDetail = (business) => setSelectedBusinessId(business._id);
 
   const updatePlan = async (business, plan) => {
     if (!window.confirm(`Are you sure you want to ${plan === "pro" ? "upgrade" : "downgrade"} ${business.name}?`)) {
@@ -265,18 +268,20 @@ const AdminTenantDirectory = () => {
                 const isBusy = !!actionLoading || deletingId === business._id;
 
                 return (
-                  <tr key={business._id} className="align-middle transition hover:bg-slate-50/70">
+                  <tr key={business._id} onClick={() => openBusinessDetail(business)} className="cursor-pointer align-middle transition hover:bg-slate-50/70">
                     <td className="px-4 py-4">
                       <input type="checkbox" checked={selectedIds.includes(business._id)} onChange={() => setSelectedIds((current) => current.includes(business._id) ? current.filter((id) => id !== business._id) : [...current, business._id])} aria-label={`Select ${business.name}`} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex min-w-52 items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-black uppercase text-emerald-800 ring-1 ring-emerald-100">{String(business.name || "?").slice(0, 1)}</span>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); openBusinessDetail(business); }} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-black uppercase text-emerald-800 ring-1 ring-emerald-100 transition hover:bg-emerald-100" aria-label={`Open details for ${business.name}`}>
+                          {String(business.name || "?").slice(0, 1)}
+                        </button>
                         <div className="min-w-0">
-                          <Link to={`/admin/business/${business._id}`} className="block truncate font-bold text-slate-900 hover:text-emerald-700">{business.name}</Link>
-                          <p className="mt-0.5 truncate text-xs text-slate-500">{business.ownerName || "Business owner"}</p>
+                          <Link to={`/admin/business/${business._id}`} onClick={(event) => { event.preventDefault(); openBusinessDetail(business); }} className="block truncate font-bold text-slate-900 hover:text-emerald-700">{business.name}</Link>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); openBusinessDetail(business); }} className="mt-0.5 block truncate text-left text-xs text-slate-500 hover:text-emerald-700">{business.ownerName || "Business owner"}</button>
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-600">{business.industryType || "retail"}</span>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); openBusinessDetail(business); }} className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-600 hover:bg-slate-200">{business.industryType || "retail"}</button>
                             <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold capitalize ${businessStatus === "active" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{businessStatus}</span>
                           </div>
                         </div>
@@ -321,6 +326,50 @@ const AdminTenantDirectory = () => {
           </div>
         </div>
       </section>
+      {selectedBusiness && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="business-detail-title">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">Tenant profile</p>
+                <h2 id="business-detail-title" className="mt-2 text-2xl font-black text-slate-900">{selectedBusiness.name}</h2>
+              </div>
+              <button type="button" onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Close</button>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Business owner</p>
+                <p className="mt-2 text-base font-extrabold text-slate-900">{selectedBusiness.ownerName || "Unknown owner"}</p>
+                <a href={`mailto:${selectedBusiness.ownerEmail || ""}`} className="mt-2 block text-sm font-semibold text-emerald-700 hover:underline">{selectedBusiness.ownerEmail || "No email on file"}</a>
+                <p className="mt-2 text-sm text-slate-600">{selectedBusiness.ownerPhone || selectedBusiness.businessPhone || "No phone on file"}</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Business overview</p>
+                <dl className="mt-2 space-y-2 text-sm text-slate-700">
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Industry</dt><dd className="font-semibold capitalize">{selectedBusiness.industryType || "retail"}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Plan</dt><dd className="font-semibold capitalize">{selectedBusiness.subscription?.plan || "free"}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Status</dt><dd className="font-semibold capitalize">{selectedBusiness.subscription?.status || "trial"}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Business phone</dt><dd className="font-semibold">{selectedBusiness.businessPhone || "—"}</dd></div>
+                </dl>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-extrabold text-slate-900">Manage this tenant</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setSelectedBusinessId(""); setContactBusinessId(selectedBusiness._id); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Contact owner</button>
+                  <button type="button" onClick={() => { setSelectedBusinessId(""); startImpersonation(selectedBusiness._id); navigate("/app"); }} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">Access account</button>
+                  <Link to={`/admin/business/${selectedBusiness._id}`} onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">Open full business view</Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {contactBusinessId && (contactBusiness || contactBusinessId === "bulk") && (
         <TenantMessageModal
           recipients={contactBusinessId === "bulk" ? selectedBusinesses : [contactBusiness]}
