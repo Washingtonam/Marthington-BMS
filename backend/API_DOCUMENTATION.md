@@ -41,6 +41,8 @@ New products are listed automatically. Marthington super admins can hide a busin
 
 Orders retain price and supplier snapshots and reserve stock while product payment is pending. Unpaid reservations expire after 30 minutes and are released. Product payment goes to the Marthington Paystack account; Marthington receives the single order, contacts suppliers and coordinates delivery. The delivery fee is confirmed after checkout and paid separately.
 
+After product payment is confirmed, the customer receives an email receipt with the order number, customer and delivery details, itemized products, and each source business/supplier. When a super admin marks a paid order delivered, the customer receives a delivery-confirmation email. Email failures are recorded on the order and can be retried by a super admin. Supplier/business contact phone numbers are available in storefront operations with WhatsApp and call links.
+
 Paid orders cannot be marked cancelled through the shop admin API; refund processing must be completed in Paystack first. Product stock for unpaid checkouts is reserved for 30 minutes and released by the shop expiry job if checkout is abandoned.
 
 ### Shop administration
@@ -60,6 +62,7 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | `PATCH` | `/api/shop/admin/delivery-areas/:id` | BMS super-admin token | Edit, activate or deactivate a delivery-area fee preset |
 | `DELETE` | `/api/shop/admin/delivery-areas/:id` | BMS super-admin token | Remove a delivery-area fee preset |
 | `GET` | `/api/shop/admin/orders` | BMS super-admin token | Review all customer orders and supplier contact details |
+| `POST` | `/api/shop/admin/orders/:id/emails/:type/retry` | BMS super-admin token | Retry a failed `receipt` or `delivery` customer email |
 | `POST` | `/api/shop/admin/orders/:id/refunds` | BMS super-admin token | Request a full or partial Paystack refund (`{ "source": "products", "amount": 2500, "reason": "Item unavailable" }`); amounts are whole naira |
 | `POST` | `/api/shop/admin/orders/:id/refunds/:requestKey/refresh` | BMS super-admin token | Refresh an in-progress refund from Paystack |
 | `PATCH` | `/api/shop/admin/orders/:id` | BMS super-admin token | Set delivery fee, status and internal note; cancellation is only allowed after refunds cover all money paid |

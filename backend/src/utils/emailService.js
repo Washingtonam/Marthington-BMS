@@ -34,6 +34,69 @@ const sendEmailMessage = async ({ to, subject, html }) => {
   });
 };
 
+const formatShopEmailCurrency = (amount) => `₦${Number(amount || 0).toLocaleString("en-NG")}`;
+
+const shopOrderItemsHtml = (items) => items.map((item) => `
+  <tr>
+    <td style="padding:10px;border-bottom:1px solid #e5e7eb">
+      <strong>${escapeHtml(item.productName)}</strong><br />
+      <span style="color:#64748b">Business / supplier: ${escapeHtml(item.supplierName)}</span>
+    </td>
+    <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center">${escapeHtml(item.quantity)}</td>
+    <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:right">${formatShopEmailCurrency(item.unitPrice * item.quantity)}</td>
+  </tr>
+`).join("");
+
+export const sendShopOrderReceiptEmail = async (order) => {
+  const recipientName = escapeHtml(order.customerSnapshot.name);
+  const orderNumber = escapeHtml(order.orderNumber);
+  const subject = `Payment received — Marthington order ${orderNumber}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#0f172a">
+      <h2>Thank you for your order, ${recipientName}</h2>
+      <p>We have confirmed payment for your Marthington Storefront order.</p>
+      <p><strong>Order number:</strong> ${orderNumber}</p>
+      <table style="width:100%;border-collapse:collapse;text-align:left">
+        <thead><tr><th style="padding:10px;background:#f1f5f9">Product and business</th><th style="padding:10px;background:#f1f5f9">Qty</th><th style="padding:10px;background:#f1f5f9;text-align:right">Amount</th></tr></thead>
+        <tbody>${shopOrderItemsHtml(order.items)}</tbody>
+      </table>
+      <p style="text-align:right"><strong>Products total: ${formatShopEmailCurrency(order.subtotal)}</strong></p>
+      <h3>Delivery details</h3>
+      <p>${escapeHtml(order.deliveryAddress.recipientName)} · ${escapeHtml(order.deliveryAddress.phone)}<br />
+      ${escapeHtml(order.deliveryAddress.addressLine)}, ${escapeHtml(order.deliveryAddress.city)}, ${escapeHtml(order.deliveryAddress.state)}</p>
+      <p>Marthington coordinates your order with the listed businesses. Any delivery fee is confirmed separately after checkout.</p>
+    </div>
+  `;
+  return sendEmailMessage({ to: order.customerSnapshot.email, subject, html });
+};
+
+export const sendShopOrderDeliveredEmail = async (order) => {
+  const recipientName = escapeHtml(order.customerSnapshot.name);
+  const orderNumber = escapeHtml(order.orderNumber);
+  const subject = `Delivery confirmed — Marthington order ${orderNumber}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#0f172a">
+      <h2>Your order has been marked delivered</h2>
+      <p>Hello ${recipientName},</p>
+      <p>Marthington has confirmed delivery for order <strong>${orderNumber}</strong>.</p>
+      <table style="width:100%;border-collapse:collapse;text-align:left">
+        <thead><tr><th style="padding:10px;background:#f1f5f9">Product and business</th><th style="padding:10px;background:#f1f5f9">Qty</th></tr></thead>
+        <tbody>${order.items.map((item) => `
+          <tr>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb">
+              <strong>${escapeHtml(item.productName)}</strong><br />
+              <span style="color:#64748b">Business / supplier: ${escapeHtml(item.supplierName)}</span>
+            </td>
+            <td style="padding:10px;border-bottom:1px solid #e5e7eb;text-align:center">${escapeHtml(item.quantity)}</td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+      <p>Thank you for shopping with Marthington.</p>
+    </div>
+  `;
+  return sendEmailMessage({ to: order.customerSnapshot.email, subject, html });
+};
+
 /**
  * Email Service
  * Handles sending all invoice-related emails with history tracking

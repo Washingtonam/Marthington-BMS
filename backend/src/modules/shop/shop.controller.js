@@ -12,6 +12,7 @@ import jwt from "jsonwebtoken";
 import cloudinary from "../../utils/cloudinary.js";
 import { createRefund, getRefund, verifyPayment } from "../payments/paystack.service.js";
 import { initializeShopPayment } from "./shop.paystack.js";
+import { sendShopOrderDeliveredEmail, sendShopOrderReceiptEmail } from "../../utils/emailService.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCategory = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
@@ -657,6 +658,7 @@ export const processShopPaymentEvent = async (payment) => {
     refreshShopRefundPaymentStatus(order);
     await order.save();
     await notifyShopAdminsOfPaidOrder(order);
+    await sendShopOrderNotificationEmail(order, "receipt");
     return order;
   } else {
     if (String(payment.reference) !== order.deliveryPaymentReference || Number(payment.amount) !== order.deliveryFee * 100) {
@@ -672,6 +674,41 @@ export const processShopPaymentEvent = async (payment) => {
   }
   await order.save();
   return order;
+};
+
+const sendShopOrderNotificationEmail = async (order, type) => {
+  const isReceipt = type === "receipt";
+  const statusField = isReceipt ? "receiptEmailStatus" : "deliveryEmailStatus";
+  const sentAtField = isReceipt ? "receiptEmailSentAt" : "deliveryEmailSentAt";
+  const errorField = isReceipt ? "receiptEmailError" : "deliveryEmailError";
+  const claimedOrder = await ShopOrder.findOneAndUpdate(
+    {
+      _id: order._id,
+      $or: [
+        { [statusField]: { $in: ["not_sent", "failed"] } },
+        { [statusField]: { $exists: false } }
+      ]
+    },
+    { $set: { [statusField]: "sending", [errorField]: "" } },
+    { new: true }
+  );
+  if (!claimedOrder) return false;
+
+  try {
+    await (isReceipt ? sendShopOrderReceiptEmail(claimedOrder) : sendShopOrderDeliveredEmail(claimedOrder));
+    await ShopOrder.updateOne(
+      { _id: claimedOrder._id, [statusField]: "sending" },
+      { $set: { [statusField]: "sent", [sentAtField]: new Date(), [errorField]: "" } }
+    );
+    return true;
+  } catch (error) {
+    console.error(`SHOP ORDER ${type.toUpperCase()} EMAIL ERROR:`, error);
+    await ShopOrder.updateOne(
+      { _id: claimedOrder._id, [statusField]: "sending" },
+      { $set: { [statusField]: "failed", [errorField]: String(error.message || error).slice(0, 1000) } }
+    );
+    return false;
+  }
 };
 
 const notifyShopAdminsOfPaidOrder = async (order) => {
@@ -1111,6 +1148,37 @@ export const getShopAdminOrders = async (req, res) => {
   }
 };
 
+export const retryShopOrderEmail = async (req, res) => {
+  const type = String(req.params.type || "");
+  if (!["receipt", "delivery"].includes(type)) {
+    return res.status(400).json({ message: "Choose a valid order email type." });
+  }
+  try {
+    const order = await ShopOrder.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: "Order not found." });
+    if (type === "receipt" && order.totalPaid < order.subtotal) {
+      return res.status(409).json({ message: "The order receipt can only be sent after payment is confirmed." });
+    }
+    if (type === "delivery" && (order.status !== "delivered" || order.totalPaid < order.subtotal)) {
+      return res.status(409).json({ message: "The delivery email can only be sent after a paid order is marked delivered." });
+    }
+    const sent = await sendShopOrderNotificationEmail(order, type);
+    const updatedOrder = await ShopOrder.findById(order._id).lean();
+    if (!sent) {
+      return res.status(502).json({
+        message: updatedOrder?.[`${type}EmailStatus`] === "sending"
+          ? "This order email is already being sent."
+          : `Could not send the ${type} email. Check email configuration and retry.`,
+        order: updatedOrder
+      });
+    }
+    return res.json({ message: `${type === "receipt" ? "Receipt" : "Delivery"} email sent to the customer.`, order: updatedOrder });
+  } catch (error) {
+    console.error("SHOP ORDER EMAIL RETRY ERROR:", error);
+    return res.status(500).json({ message: "Could not send the order email." });
+  }
+};
+
 const normalizedRefundStatus = (status) => {
   const value = String(status || "").toLowerCase();
   if (["processed", "success", "successful"].includes(value)) return "processed";
@@ -1327,10 +1395,14 @@ export const updateShopAdminOrder = async (req, res) => {
   try {
     const order = await ShopOrder.findById(req.params.id);
     if (!order) return res.status(404).json({ message: "Order not found." });
+    const deliveryWasConfirmed = order.status === "delivered";
     if (req.body.status !== undefined && !allowedStatuses.includes(req.body.status)) {
       return res.status(400).json({ message: "Choose a valid shop order status." });
     }
     if (req.body.status && allowedStatuses.includes(req.body.status)) {
+      if (req.body.status === "delivered" && order.totalPaid < order.subtotal) {
+        return res.status(409).json({ message: "Confirm product payment before marking this order delivered." });
+      }
       if (req.body.status === "cancelled" && (order.totalRefunded || 0) < order.totalPaid) {
         return res.status(409).json({ message: "Refund the full amount paid through Paystack before cancelling this order." });
       }
@@ -1372,7 +1444,11 @@ export const updateShopAdminOrder = async (req, res) => {
     }
     refreshShopRefundPaymentStatus(order);
     await order.save();
-    return res.json({ order });
+    if (!deliveryWasConfirmed && order.status === "delivered") {
+      await sendShopOrderNotificationEmail(order, "delivery");
+    }
+    const updatedOrder = await ShopOrder.findById(order._id);
+    return res.json({ order: updatedOrder });
   } catch (error) {
     console.error("SHOP ADMIN ORDER UPDATE ERROR:", error);
     return res.status(500).json({ message: "Could not update marketplace order." });

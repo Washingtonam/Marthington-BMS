@@ -38,6 +38,17 @@ test("shop orders keep individual Paystack refund requests and partial-refund to
   assert.ok(ShopOrder.schema.path("paymentStatus").enumValues.includes("partially_refunded"));
 });
 
+test("shop orders track receipt and delivery email attempts for admin retry", () => {
+  for (const field of ["receiptEmailStatus", "deliveryEmailStatus"]) {
+    assert.equal(ShopOrder.schema.path(field).options.default, "not_sent");
+    assert.deepEqual(ShopOrder.schema.path(field).enumValues, ["not_sent", "sending", "sent", "failed"]);
+  }
+  assert.ok(ShopOrder.schema.path("receiptEmailSentAt"));
+  assert.ok(ShopOrder.schema.path("receiptEmailError"));
+  assert.ok(ShopOrder.schema.path("deliveryEmailSentAt"));
+  assert.ok(ShopOrder.schema.path("deliveryEmailError"));
+});
+
 test("shop payment notifications are typed and idempotent per admin/order", () => {
   assert.ok(Notification.schema.path("type").enumValues.includes("shop_order_received"));
   assert.ok(Notification.schema.path("shopOrderId"));

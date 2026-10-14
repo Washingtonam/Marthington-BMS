@@ -178,7 +178,7 @@ describe("Shop administration", () => {
       adminNote: "",
       refunds: []
     };
-    shopRequest.mockImplementation(async (path) => {
+    shopRequest.mockImplementation(async (path, options = {}) => {
       if (path === "/admin/orders") return { orders: [order] };
       if (path === "/admin/delivery-areas") return { areas: [] };
       if (path === "/admin/orders/order-1/refunds") {
@@ -252,6 +252,72 @@ describe("Shop administration", () => {
           reason: "Delivery cancelled",
           externalReference: "BANK-TRANSFER-123"
         })
+      }));
+    });
+  });
+
+  it("shows direct business contact links and lets admins retry a failed receipt email", async () => {
+    let order = {
+      _id: "order-email",
+      orderNumber: "MS-EMAIL-1",
+      customerSnapshot: { name: "Shopper", email: "shopper@example.com", phone: "08000000000" },
+      createdAt: "2026-10-08T12:00:00.000Z",
+      status: "received",
+      paymentStatus: "paid",
+      subtotal: 5000,
+      deliveryFee: 0,
+      deliveryFeePaymentStatus: "not_set",
+      totalPaid: 5000,
+      totalRefunded: 0,
+      receiptEmailStatus: "failed",
+      receiptEmailError: "Email service is unavailable.",
+      deliveryEmailStatus: "not_sent",
+      items: [{ productName: "Gift set", quantity: 1, supplierName: "Market Goods", supplierPhone: "08012345678" }],
+      deliveryAddress: {
+        recipientName: "Shopper",
+        phone: "08000000000",
+        addressLine: "1 Market Road",
+        city: "Ikeja",
+        state: "Lagos",
+        deliveryNote: ""
+      },
+      adminNote: "",
+      refunds: []
+    };
+    shopRequest.mockImplementation(async (path) => {
+      if (path === "/admin/orders") return { orders: [order] };
+      if (path === "/admin/delivery-areas") return { areas: [] };
+      if (path === "/admin/orders/order-email/emails/receipt/retry") {
+        order = { ...order, receiptEmailStatus: "sent", receiptEmailError: "" };
+        return { message: "Receipt email sent to the customer." };
+      }
+      if (path === "/admin/orders/order-email") {
+        order = { ...order, ...JSON.parse(options.body || "{}") };
+        return { order };
+      }
+      return {};
+    });
+
+    renderShopAdmin();
+    await screen.findByText("MS-EMAIL-1");
+
+    expect(screen.getByRole("link", { name: "WhatsApp Market Goods" }).getAttribute("href")).toContain("wa.me/2348012345678");
+    expect(screen.getByRole("link", { name: "Call business" }).getAttribute("href")).toBe("tel:+2348012345678");
+    expect(screen.getByText("Email service is unavailable.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry receipt email" }));
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith("/admin/orders/order-email/emails/receipt/retry", expect.objectContaining({
+        method: "POST"
+      }));
+    });
+    expect(await screen.findByText("Receipt email sent to the customer.")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/Order status/), { target: { value: "delivered" } });
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith("/admin/orders/order-email", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "delivered" })
       }));
     });
   });

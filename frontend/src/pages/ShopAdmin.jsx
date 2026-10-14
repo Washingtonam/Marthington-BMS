@@ -108,6 +108,25 @@ const ShopAdmin = () => {
     }
   };
 
+  const retryOrderEmail = async (order, type) => {
+    setBusy(`${type}-email-${order._id}`);
+    setError("");
+    setMessage("");
+    try {
+      const result = await shopRequest(`/admin/orders/${order._id}/emails/${type}/retry`, {
+        method: "POST",
+        token: localStorage.getItem("bms_token")
+      });
+      await loadOrders();
+      setMessage(result.message);
+    } catch (requestError) {
+      setError(requestError.message || `Could not resend the ${type} email.`);
+      await loadOrders();
+    } finally {
+      setBusy("");
+    }
+  };
+
   const submitRefund = async (order) => {
     const source = document.getElementById(`refund-source-${order._id}`)?.value;
     const amount = Number(document.getElementById(`refund-amount-${order._id}`)?.value);
@@ -391,7 +410,18 @@ const ShopAdmin = () => {
                   <div className="mt-2 space-y-3">{order.items.map((item, index) => {
                     const digits = String(item.supplierPhone || "").replace(/\D/g, "");
                     const phone = digits.startsWith("0") && digits.length === 11 ? `234${digits.slice(1)}` : digits;
-                    return <div key={`${item.productName}-${index}`} className="rounded-xl bg-slate-50 p-3 text-sm"><p className="font-bold">{item.productName} × {item.quantity}</p><p className="text-slate-600">Supplier: {item.supplierName}</p>{phone && <a className="mt-1 inline-block font-semibold text-emerald-700 underline" href={`https://wa.me/${phone}?text=${encodeURIComponent(`Hello, Marthington has received order ${order.orderNumber} for ${item.productName} (${item.quantity}). Please confirm availability.`)}`} target="_blank" rel="noreferrer">Contact supplier on WhatsApp</a>}</div>;
+                    return (
+                      <div key={`${item.productName}-${index}`} className="rounded-xl bg-slate-50 p-3 text-sm">
+                        <p className="font-bold">{item.productName} × {item.quantity}</p>
+                        <p className="text-slate-600">Business / supplier: {item.supplierName}</p>
+                        {phone ? (
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                            <a className="font-semibold text-emerald-700 underline" href={`https://wa.me/${phone}?text=${encodeURIComponent(`Hello, Marthington has received order ${order.orderNumber} for ${item.productName} (${item.quantity}). Please confirm availability and delivery arrangements.`)}`} target="_blank" rel="noreferrer">WhatsApp {item.supplierName}</a>
+                            <a className="font-semibold text-emerald-700 underline" href={`tel:+${phone}`}>Call business</a>
+                          </div>
+                        ) : <p className="mt-2 text-xs text-slate-500">No business contact number is available.</p>}
+                      </div>
+                    );
                   })}</div>
                 </div>
                 <div>
@@ -420,6 +450,27 @@ const ShopAdmin = () => {
                   }} className="mt-2 rounded-lg border border-emerald-600 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50">Confirm delivery fee</button>
                   {order.deliveryFee > 0 && order.deliveryFeePaymentStatus === "pending" && <button type="button" disabled={busy === order._id} onClick={() => updateOrder(order, { deliveryFeeMarkedPaid: true })} className="ml-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">Record fee paid manually</button>}
                 </div>
+              </div>
+              <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 p-4 text-sm sm:grid-cols-2">
+                {[
+                  ["receipt", "Receipt", order.receiptEmailStatus || "not_sent", order.receiptEmailError],
+                  ["delivery", "Delivery confirmation", order.deliveryEmailStatus || "not_sent", order.deliveryEmailError]
+                ].map(([type, label, status, emailError]) => (
+                  <div key={type}>
+                    <p className="font-semibold">{label} email: <span className="capitalize">{status.replace(/_/g, " ")}</span></p>
+                    {emailError && <p className="mt-1 text-xs text-rose-700">{emailError}</p>}
+                    {status === "failed" && (
+                      <button
+                        type="button"
+                        disabled={busy === `${type}-email-${order._id}`}
+                        onClick={() => retryOrderEmail(order, type)}
+                        className="mt-2 rounded-lg border border-emerald-600 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50"
+                      >
+                        {busy === `${type}-email-${order._id}` ? "Resending..." : `Retry ${label.toLowerCase()} email`}
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
               {order.refunds?.length > 0 && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
                 <h3 className="text-sm font-bold text-amber-950">Refund history</h3>
@@ -463,7 +514,7 @@ const ShopAdmin = () => {
                 </div>
               )}
               <div className="flex flex-wrap items-end gap-3">
-                <label className="grid gap-1 text-xs font-semibold text-slate-600">Order status<select value={order.status} onChange={(event) => updateOrder(order, { status: event.target.value })} disabled={busy === order._id} className="rounded-lg border border-slate-300 px-3 py-2 text-sm capitalize">{orderStatuses.filter((status) => status !== "cancelled" || (order.totalPaid === 0 && !order.paymentReference) || (order.totalRefunded || 0) >= order.totalPaid).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select></label>
+                <label className="grid gap-1 text-xs font-semibold text-slate-600">Order status — mark delivered to email customer<select value={order.status} onChange={(event) => updateOrder(order, { status: event.target.value })} disabled={busy === order._id} className="rounded-lg border border-slate-300 px-3 py-2 text-sm capitalize">{orderStatuses.filter((status) => status !== "cancelled" || (order.totalPaid === 0 && !order.paymentReference) || (order.totalRefunded || 0) >= order.totalPaid).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select></label>
                 {order.totalPaid > (order.totalRefunded || 0) && <p className="text-xs text-amber-700">Refund the remaining {formatCurrency(order.totalPaid - (order.totalRefunded || 0))} before cancelling.</p>}
                 <label className="grid min-w-64 flex-1 gap-1 text-xs font-semibold text-slate-600">Internal note<input id={`note-${order._id}`} defaultValue={order.adminNote || ""} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
                 <button type="button" disabled={busy === order._id} onClick={() => updateOrder(order, { adminNote: document.getElementById(`note-${order._id}`)?.value })} className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white">Save note</button>

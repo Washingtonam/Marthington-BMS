@@ -72,6 +72,12 @@ const shopOrderSchema = new mongoose.Schema({
   adminNote: { type: String, default: "" },
   deliveryFeeConfirmedAt: { type: Date, default: null },
   deliveryFeeDueAt: { type: Date, default: null },
+  receiptEmailStatus: { type: String, enum: ["not_sent", "sending", "sent", "failed"], default: "not_sent" },
+  receiptEmailSentAt: { type: Date, default: null },
+  receiptEmailError: { type: String, default: "" },
+  deliveryEmailStatus: { type: String, enum: ["not_sent", "sending", "sent", "failed"], default: "not_sent" },
+  deliveryEmailSentAt: { type: Date, default: null },
+  deliveryEmailError: { type: String, default: "" },
   stockReserved: { type: Boolean, default: false },
   paymentExpiresAt: { type: Date, default: null }
 }, { timestamps: true });

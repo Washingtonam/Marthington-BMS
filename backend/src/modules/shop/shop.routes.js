@@ -25,6 +25,7 @@ import {
   loginShopCustomer,
   linkShopCustomer,
   registerShopCustomer,
+  retryShopOrderEmail,
   updateShopAdminOrder,
   updateShopAdminBusiness,
   updateShopAdminCategory,
@@ -83,6 +84,7 @@ router.post("/admin/delivery-areas", protect, authorize("super_admin"), createSh
 router.patch("/admin/delivery-areas/:id", protect, authorize("super_admin"), updateShopAdminDeliveryArea);
 router.delete("/admin/delivery-areas/:id", protect, authorize("super_admin"), deleteShopAdminDeliveryArea);
 router.get("/admin/orders", protect, authorize("super_admin"), getShopAdminOrders);
+router.post("/admin/orders/:id/emails/:type/retry", protect, authorize("super_admin"), retryShopOrderEmail);
 router.post("/admin/orders/:id/refunds", protect, authorize("super_admin"), createShopAdminRefund);
 router.post("/admin/orders/:id/refunds/:requestKey/refresh", protect, authorize("super_admin"), refreshShopAdminRefund);
 router.patch("/admin/orders/:id", protect, authorize("super_admin"), updateShopAdminOrder);
