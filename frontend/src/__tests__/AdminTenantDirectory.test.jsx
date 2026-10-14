@@ -71,8 +71,7 @@ describe("Admin tenant directory", () => {
     );
 
     expect(await screen.findByRole("button", { name: "Businesses" })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: /delete/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
 
     await waitFor(() => {
       expect(window.confirm).toHaveBeenCalledWith(
@@ -114,9 +113,10 @@ describe("Admin tenant directory", () => {
     expect(screen.getAllByText("trial").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Draft email / WhatsApp" })[0]);
 
-    const emailDraftLink = await screen.findByRole("link", { name: "Open drafted email" });
+    const emailDraftLink = await screen.findByRole("link", { name: "Open email draft" });
     expect(decodeURIComponent(emailDraftLink.getAttribute("href"))).toContain("mailto:owner@test.com");
     expect(screen.getByLabelText("Email subject").value).toContain("Test Academy");
+    fireEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
     const whatsAppLink = screen.getByRole("link", { name: "Open WhatsApp draft" });
     expect(whatsAppLink.getAttribute("href")).toContain("wa.me/2348012345678");
 
@@ -154,7 +154,8 @@ describe("Admin tenant directory", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Draft email / WhatsApp" })[0]);
 
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByLabelText("Draft for tenant")).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Email all selected \(10\)/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open next email draft" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Open email draft" })).toHaveLength(10);
+    expect(screen.getByLabelText("Tenant 1 draft opened").checked).toBe(false);
   });
 });
