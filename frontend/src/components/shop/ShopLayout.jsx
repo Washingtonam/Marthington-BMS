@@ -52,23 +52,23 @@ const ShopLayout = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
-          <Link to="/shop" className="text-lg font-black tracking-tight">Marthington <span className="text-emerald-600">Storefront</span></Link>
-          <nav className="flex items-center gap-3 text-sm font-semibold sm:gap-5">
-            <NavLink to="/shop" end className="hidden text-slate-600 hover:text-emerald-700 sm:inline">Storefront</NavLink>
-            <NavLink to="/shop/cart" className="text-slate-700 hover:text-emerald-700">Cart ({count})</NavLink>
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-8 sm:py-4">
+          <Link to="/shop" className="self-center text-lg font-black tracking-tight sm:self-auto">Marthington <span className="text-emerald-600">Storefront</span></Link>
+          <nav aria-label="Storefront navigation" className="flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs font-semibold sm:w-auto sm:justify-end sm:gap-x-5 sm:text-sm">
+            <NavLink to="/shop" end className="flex min-h-10 items-center text-slate-600 hover:text-emerald-700">Storefront</NavLink>
+            <NavLink to="/shop/cart" className="flex min-h-10 items-center text-slate-700 hover:text-emerald-700">Cart ({count})</NavLink>
             {customer ? (
               <>
-                <NavLink to="/shop/orders" className="hidden text-slate-600 hover:text-emerald-700 sm:inline">My orders</NavLink>
-                <button type="button" onClick={signOut} className="text-slate-600 hover:text-rose-700">Sign out</button>
+                <NavLink to="/shop/orders" className="flex min-h-10 items-center text-slate-600 hover:text-emerald-700">My orders</NavLink>
+                <button type="button" onClick={signOut} className="min-h-10 text-slate-600 hover:text-rose-700">Sign out</button>
               </>
             ) : (
-              <Link to="/shop/account" className="rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700">Sign in</Link>
+              <Link to="/shop/account" className="flex min-h-10 items-center rounded-lg bg-emerald-600 px-3 text-white hover:bg-emerald-700">Sign in</Link>
             )}
-            {bmsUser?.role === "super_admin" && <Link to="/shop/admin" className="hidden text-emerald-700 hover:text-emerald-900 sm:inline">Storefront admin</Link>}
-            {bmsUser?.role === "owner" && <Link to="/shop/manage" className="hidden text-emerald-700 hover:text-emerald-900 sm:inline">Manage storefront</Link>}
+            {bmsUser?.role === "super_admin" && <Link to="/shop/admin" className="flex min-h-10 items-center text-emerald-700 hover:text-emerald-900">Storefront admin</Link>}
+            {bmsUser?.role === "owner" && <Link to="/shop/manage" className="flex min-h-10 items-center text-emerald-700 hover:text-emerald-900">Manage storefront</Link>}
             <AdminModeToggle />
-            <Link to="/" className="hidden text-slate-500 hover:text-slate-900 md:inline">BMS home</Link>
+            <Link to="/" className="flex min-h-10 items-center text-slate-500 hover:text-slate-900">BMS home</Link>
           </nav>
         </div>
       </header>
