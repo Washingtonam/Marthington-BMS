@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import request from "../api/client.js";
+import TenantMessageModal from "../components/TenantMessageModal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
@@ -9,17 +10,6 @@ const tierForIndustry = {
   retail: "Retail Pro Plan",
   school: "Premium Academic Plan",
   hospital: "Premium Health Plan"
-};
-
-const normalizeWhatsAppNumber = (value) => String(value || "").replace(/\D/g, "").replace(/^0/, "234");
-
-const buildMailLink = (email, subject, body) => (
-  `mailto:${encodeURIComponent(email || "")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-);
-
-const buildWhatsAppLink = (phone, message) => {
-  const number = normalizeWhatsAppNumber(phone);
-  return number ? `https://wa.me/${number}?text=${encodeURIComponent(message)}` : "";
 };
 
 const AdminTenantDirectory = () => {
@@ -32,8 +22,9 @@ const AdminTenantDirectory = () => {
   const [deletingId, setDeletingId] = useState("");
   const [search, setSearch] = useState("");
   const [contactBusinessId, setContactBusinessId] = useState("");
-  const [messageSubject, setMessageSubject] = useState("");
-  const [messageBody, setMessageBody] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const load = async () => {
     try {
@@ -68,19 +59,17 @@ const AdminTenantDirectory = () => {
     [activeTab, businesses, search]
   );
   const contactBusiness = businesses.find((business) => business._id === contactBusinessId);
+  const selectedBusinesses = visibleBusinesses.filter((business) => selectedIds.includes(business._id));
+  const pageCount = Math.max(1, Math.ceil(visibleBusinesses.length / pageSize));
+  const pageBusinesses = visibleBusinesses.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
 
   const openContactDraft = (business) => {
     setContactBusinessId(business._id);
-    setMessageSubject(`A note about ${business.name}`);
-    setMessageBody(`Hello ${business.ownerName || "there"},\n\nI’m reaching out regarding ${business.name} and your Marthington BMS workspace.\n\n`);
   };
-
-  const messageMailLink = contactBusiness?.ownerEmail
-    ? buildMailLink(contactBusiness.ownerEmail, messageSubject, messageBody)
-    : "";
-  const messageWhatsAppLink = contactBusiness
-    ? buildWhatsAppLink(contactBusiness.whatsappPhone || contactBusiness.ownerPhone || contactBusiness.businessPhone, messageBody)
-    : "";
 
   const updatePlan = async (business, plan) => {
     if (!window.confirm(`Are you sure you want to ${plan === "pro" ? "upgrade" : "downgrade"} ${business.name}?`)) {
@@ -144,7 +133,7 @@ const AdminTenantDirectory = () => {
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setActiveTab(tab); setPage(1); }}
             className={`rounded-xl px-4 py-2 text-xs font-bold uppercase tracking-wider ${
               activeTab === tab ? "bg-slate-950 text-white" : "border border-slate-200 bg-white text-slate-500"
             }`}
@@ -170,51 +159,31 @@ const AdminTenantDirectory = () => {
           type="search"
           aria-label="Search tenants"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           placeholder="Search tenants..."
           className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm sm:max-w-xs"
         />
       </div>
 
-      {contactBusiness && (
-        <section aria-label={`Message ${contactBusiness.name}`} className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">Tenant messaging</p>
-              <h2 className="mt-1 text-lg font-extrabold text-slate-900">Draft a message to {contactBusiness.name}</h2>
-              <p className="mt-1 text-sm text-slate-600">{contactBusiness.ownerName || "Business owner"} · {contactBusiness.ownerEmail || "No owner email"} · {contactBusiness.whatsappPhone || contactBusiness.ownerPhone || contactBusiness.businessPhone || "No phone number"}</p>
-            </div>
-            <button type="button" onClick={() => setContactBusinessId("")} aria-label="Close tenant message draft" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Close</button>
+      {selectedBusinesses.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <span className="text-xs font-bold text-emerald-800">{selectedBusinesses.length} tenant{selectedBusinesses.length === 1 ? "" : "s"} selected</span>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setContactBusinessId("bulk")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">Draft email / WhatsApp</button>
+            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-800">Clear selection</button>
           </div>
-          <div className="mt-4 grid gap-3">
-            <label className="text-xs font-bold text-slate-600">
-              Email subject
-              <input value={messageSubject} onChange={(event) => setMessageSubject(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800" />
-            </label>
-            <label className="text-xs font-bold text-slate-600">
-              Message
-              <textarea rows={5} value={messageBody} onChange={(event) => setMessageBody(event.target.value)} className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-800" />
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {messageMailLink ? (
-                <a href={messageMailLink} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">Open drafted email</a>
-              ) : (
-                <span className="rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-bold text-slate-500">No email address available</span>
-              )}
-              {messageWhatsAppLink ? (
-                <a href={messageWhatsAppLink} target="_blank" rel="noreferrer" className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">Open WhatsApp draft</a>
-              ) : (
-                <span className="rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-bold text-slate-500">No WhatsApp number available</span>
-              )}
-            </div>
-          </div>
-        </section>
+        </div>
       )}
 
       <div className="overflow-x-auto rounded-3xl bg-white p-6 shadow-xl border border-slate-200/80">
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-[10px] uppercase tracking-widest text-slate-400">
             <tr>
+              <th className="px-5 py-4"><input type="checkbox" aria-label="Select tenants on this page" checked={pageBusinesses.length > 0 && pageBusinesses.every((business) => selectedIds.includes(business._id))} onChange={() => {
+                const pageIds = pageBusinesses.map((business) => business._id);
+                const allSelected = pageIds.every((id) => selectedIds.includes(id));
+                setSelectedIds((current) => allSelected ? current.filter((id) => !pageIds.includes(id)) : [...new Set([...current, ...pageIds])]);
+              }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" /></th>
               <th className="px-5 py-4">Business</th>
               <th className="px-5 py-4">Owner &amp; contact</th>
               <th className="px-5 py-4">Industry</th>
@@ -228,10 +197,14 @@ const AdminTenantDirectory = () => {
           <tbody className="divide-y divide-slate-100 text-xs">
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-5 py-12 text-center text-slate-400">Loading tenants...</td>
+                <td colSpan={8} className="px-5 py-12 text-center text-slate-400">Loading tenants...</td>
+              </tr>
+            ) : pageBusinesses.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-5 py-12 text-center text-slate-400">No tenants found.</td>
               </tr>
             ) : (
-              visibleBusinesses.map((business) => {
+              pageBusinesses.map((business) => {
                 const isPro = business.subscription?.plan === "pro";
                 const metric = business.industryType === "school"
                   ? `${business.studentCount || 0} students`
@@ -241,13 +214,14 @@ const AdminTenantDirectory = () => {
 
                 return (
                   <tr key={business._id}>
+                    <td className="px-5 py-4"><input type="checkbox" checked={selectedIds.includes(business._id)} onChange={() => setSelectedIds((current) => current.includes(business._id) ? current.filter((id) => id !== business._id) : [...current, business._id])} aria-label={`Select ${business.name}`} className="h-4 w-4 rounded border-slate-300 text-emerald-600" /></td>
                     <td className="px-5 py-4">
                       <p className="font-bold text-slate-900">{business.name}</p>
                       <p className="mt-1 text-[11px] text-slate-500">{business.status || "active"}</p>
                     </td>
                     <td className="min-w-56 px-5 py-4 text-slate-500">
                       <p className="font-semibold text-slate-800">{business.ownerName || "Business owner"}</p>
-                      {business.ownerEmail ? <a href={buildMailLink(business.ownerEmail, `A note about ${business.name}`, `Hello ${business.ownerName || "there"},\n\n`)} className="mt-1 block text-emerald-700 hover:underline">{business.ownerEmail}</a> : <p className="mt-1">No email address</p>}
+                      {business.ownerEmail ? <p className="mt-1">{business.ownerEmail}</p> : <p className="mt-1">No email address</p>}
                       <p className="mt-1">{business.whatsappPhone || business.ownerPhone || business.businessPhone || "No phone number"}</p>
                       <button type="button" onClick={() => openContactDraft(business)} className="mt-2 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50">Draft email / WhatsApp</button>
                     </td>
@@ -304,6 +278,26 @@ const AdminTenantDirectory = () => {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-slate-500">
+        <label className="flex items-center gap-2">Rows per page
+          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+            {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <span>{visibleBusinesses.length === 0 ? "0 tenants" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, visibleBusinesses.length)} of ${visibleBusinesses.length} tenants`}</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold disabled:opacity-40">Previous</button>
+          <span>Page {Math.min(page, pageCount)} of {pageCount}</span>
+          <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold disabled:opacity-40">Next</button>
+        </div>
+      </div>
+      {contactBusinessId && (contactBusiness || contactBusinessId === "bulk") && (
+        <TenantMessageModal
+          recipients={contactBusinessId === "bulk" ? selectedBusinesses : [contactBusiness]}
+          onClose={() => setContactBusinessId("")}
+          title={contactBusinessId === "bulk" ? `Draft a message to ${selectedBusinesses.length} selected tenants` : `Draft a message to ${contactBusiness.name}`}
+        />
+      )}
     </section>
   );
 };

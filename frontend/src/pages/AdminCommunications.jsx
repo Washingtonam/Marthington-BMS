@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import TenantMessageModal from "../components/TenantMessageModal.jsx";
 import request from "../api/client.js";
 
 const reportSections = [
@@ -40,6 +41,9 @@ const AdminCommunications = () => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState("");
   const [historyRecipient, setHistoryRecipient] = useState(null);
+  const [contactRecipients, setContactRecipients] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const load = async () => {
     const [subscriptionData, businessesData] = await Promise.all([
@@ -91,6 +95,30 @@ const AdminCommunications = () => {
   }, [groupedRecipients, search]);
 
   const selectedRecipients = filteredRecipients.filter((recipient) => selectedIds.includes(getRecipientKey(recipient)));
+  const pageCount = Math.max(1, Math.ceil(filteredRecipients.length / pageSize));
+  const pageRecipients = filteredRecipients.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
+  const openContactDraft = (recipientList) => {
+    setContactRecipients(recipientList.map((recipient) => {
+      const businessId = recipient.business?._id || recipient.business;
+      const business = businesses.find((item) => item._id === businessId) || (typeof recipient.business === "object" ? recipient.business : {});
+      return {
+        ...business,
+        _id: getRecipientKey(recipient),
+        name: business.name || recipient.business?.name,
+        ownerName: recipient.recipientName || business.ownerName,
+        ownerEmail: recipient.recipientEmail || business.ownerEmail,
+        recipientEmail: recipient.recipientEmail,
+        whatsappPhone: business.whatsappPhone || business.ownerPhone || business.businessPhone,
+        ownerPhone: business.ownerPhone,
+        businessPhone: business.businessPhone
+      };
+    }));
+  };
 
   const toggleSelection = (recipient) => {
     const key = getRecipientKey(recipient);
@@ -346,15 +374,15 @@ const AdminCommunications = () => {
               <label className="relative block">
                 <span className="sr-only">Search recipients</span>
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">⌕</span>
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, email, or business" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-slate-700 outline-none transition focus:border-emerald-400" />
+                <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Search by name, email, or business" className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-slate-700 outline-none transition focus:border-emerald-400" />
               </label>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {statusFilters.map(([value, label]) => <button key={value} type="button" onClick={() => setView(value)} className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] ${view === value ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}>{label}</button>)}
+              {statusFilters.map(([value, label]) => <button key={value} type="button" onClick={() => { setView(value); setPage(1); }} className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] ${view === value ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-500"}`}>{label}</button>)}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="status">Sort by status</option><option value="business">Sort by business</option><option value="email">Sort by email</option><option value="lastSent">Sort by last sent</option></select>
+            <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="status">Sort by status</option><option value="business">Sort by business</option><option value="email">Sort by email</option><option value="lastSent">Sort by last sent</option></select>
             <button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white">Add recipient</button>
           </div>
         </div>
@@ -365,6 +393,8 @@ const AdminCommunications = () => {
             <button type="button" onClick={() => applyBulkAction("enable")} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Enable</button>
             <button type="button" onClick={() => applyBulkAction("disable")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700">Disable</button>
             <button type="button" onClick={() => applyBulkAction("delete")} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-rose-700">Delete</button>
+            <button type="button" onClick={() => openContactDraft(selectedRecipients)} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Draft email / WhatsApp</button>
+            <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-600">Clear selection</button>
           </div>
         </div>}
       </div>
@@ -373,8 +403,8 @@ const AdminCommunications = () => {
         <table className="min-w-full text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
             <tr>
-              <th className="px-5 py-4"><input type="checkbox" checked={filteredRecipients.length > 0 && filteredRecipients.every((recipient) => selectedIds.includes(getRecipientKey(recipient)))} onChange={() => {
-                const keys = filteredRecipients.map((recipient) => getRecipientKey(recipient));
+              <th className="px-5 py-4"><input type="checkbox" checked={pageRecipients.length > 0 && pageRecipients.every((recipient) => selectedIds.includes(getRecipientKey(recipient)))} onChange={() => {
+                const keys = pageRecipients.map((recipient) => getRecipientKey(recipient));
                 const allSelected = keys.every((key) => selectedIds.includes(key));
                 setSelectedIds((current) => allSelected ? current.filter((key) => !keys.includes(key)) : [...new Set([...current, ...keys])]);
               }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" aria-label="Toggle all recipients" /></th>
@@ -386,7 +416,7 @@ const AdminCommunications = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white text-xs">
-            {filteredRecipients.length === 0 ? <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">No report recipients configured.</td></tr> : filteredRecipients.map((recipient) => {
+            {filteredRecipients.length === 0 ? <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">No report recipients configured.</td></tr> : pageRecipients.map((recipient) => {
               const primarySchedule = recipient.schedules.find((item) => item.status === "enabled") || recipient.schedules[0];
               const isPro = recipient.business?.isPro === true || (recipient.business?.plan === "pro" && recipient.business?.subscription?.status === "active");
               const isEnabled = recipient.schedules.some((item) => item.status === "enabled") || (recipient.isAutomatic && isPro && recipient.business?.reportNotificationsEnabled !== false);
@@ -439,6 +469,7 @@ const AdminCommunications = () => {
                 </td>
                 <td className="relative px-5 py-4 text-right">
                   <div className="flex justify-end">
+                    <button type="button" onClick={() => openContactDraft([recipient])} className="mr-2 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-emerald-800 hover:bg-emerald-50">Draft email / WhatsApp</button>
                     <button type="button" onClick={() => setMenuOpenId(menuOpenId === recipientKeyValue ? "" : recipientKeyValue)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">⋮</button>
                   </div>
                   {menuOpenId === recipientKeyValue && <div className="absolute right-5 top-14 z-20 w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
@@ -453,8 +484,22 @@ const AdminCommunications = () => {
           </tbody>
         </table>
       </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
+        <label className="flex items-center gap-2">Rows per page
+          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+            {[10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <span>{filteredRecipients.length === 0 ? "0 recipients" : `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, filteredRecipients.length)} of ${filteredRecipients.length} recipients`}</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold disabled:opacity-40">Previous</button>
+          <span>Page {Math.min(page, pageCount)} of {pageCount}</span>
+          <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold disabled:opacity-40">Next</button>
+        </div>
+      </div>
     </div>
 
+    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} title={contactRecipients.length > 1 ? `Draft a message to ${contactRecipients.length} selected tenants` : `Draft a message to ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
     {historyRecipient && <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/30" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title">
       <aside className="h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
