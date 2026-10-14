@@ -72,7 +72,7 @@ describe("Admin tenant directory", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Tenant directory" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "More actions for Test Academy" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Test Academy" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Delete tenant" }));
 
     await waitFor(() => {
@@ -96,8 +96,12 @@ describe("Admin tenant directory", () => {
       </MemoryRouter>
     );
 
-    const accessButton = await screen.findByRole("button", { name: "Access", exact: true });
-    fireEvent.click(accessButton);
+    const tenantLink = await screen.findByRole("link", { name: "Test Academy" });
+    expect(tenantLink.getAttribute("href")).toBe("/admin/business/biz1");
+    expect(screen.queryByRole("columnheader", { name: "Business activity" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Contact" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Actions for Test Academy" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Access account" }));
 
     expect(mockStartAccess).toHaveBeenCalledWith("biz1");
     expect(mockNavigate).toHaveBeenCalledWith("/app");
@@ -111,9 +115,9 @@ describe("Admin tenant directory", () => {
       </MemoryRouter>
     );
 
-    expect((await screen.findByText((_, element) => element?.textContent?.startsWith("+234 801 234 5678")))).toBeTruthy();
     expect(screen.getAllByText("trial").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Contact" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Test Academy" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Contact owner" }));
 
     const emailDraftLink = await screen.findByRole("link", { name: "Open email draft" });
     expect(decodeURIComponent(emailDraftLink.getAttribute("href"))).toContain("mailto:owner@test.com");

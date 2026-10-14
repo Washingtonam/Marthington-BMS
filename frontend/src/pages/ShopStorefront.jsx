@@ -9,13 +9,12 @@ const ShopStorefront = () => {
   const [products, setProducts] = useState([]);
   const [descriptions, setDescriptions] = useState({});
   const [images, setImages] = useState({});
+  const [imageUrls, setImageUrls] = useState({});
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalProducts: 0 });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [selectedProductIds, setSelectedProductIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
-  const [bulkUpdating, setBulkUpdating] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const imageDrafts = useRef({});
@@ -35,6 +34,10 @@ const ShopStorefront = () => {
         product._id,
         current[product._id] ?? product.shopDescription ?? ""
       ])));
+      setImageUrls((current) => Object.fromEntries((data.products || []).map((product) => [
+        product._id,
+        current[product._id] ?? product.shopImage ?? ""
+      ])));
     } catch (requestError) {
       setError(requestError.message || "Could not load your storefront.");
     } finally {
@@ -45,10 +48,6 @@ const ShopStorefront = () => {
   useEffect(() => {
     load();
   }, [load]);
-
-  useEffect(() => {
-    setSelectedProductIds([]);
-  }, [page, search]);
 
   useEffect(() => () => {
     Object.values(imageDrafts.current).forEach((image) => URL.revokeObjectURL(image.previewUrl));
@@ -62,6 +61,9 @@ const ShopStorefront = () => {
       const form = new FormData();
       form.append("shopDescription", descriptions[product._id] || "");
       if (images[product._id]) form.append("image", images[product._id].file);
+      else if ((imageUrls[product._id] ?? product.shopImage ?? "") !== (product.shopImage || "")) {
+        form.append("shopImageUrl", imageUrls[product._id] ?? "");
+      }
       const response = await shopRequest(`/storefront/products/${product._id}`, {
         method: "PATCH",
         token: localStorage.getItem("bms_token"),
@@ -69,6 +71,7 @@ const ShopStorefront = () => {
       });
       setProducts((current) => current.map((item) => item._id === product._id ? response.product : item));
       setDescriptions((current) => ({ ...current, [product._id]: response.product.shopDescription || "" }));
+      setImageUrls((current) => ({ ...current, [product._id]: response.product.shopImage || "" }));
       if (imageDrafts.current[product._id]) URL.revokeObjectURL(imageDrafts.current[product._id].previewUrl);
       delete imageDrafts.current[product._id];
       setImages((current) => {
@@ -83,49 +86,6 @@ const ShopStorefront = () => {
       setBusyId("");
     }
   };
-
-  const toggleProductSelection = (id) => {
-    setSelectedProductIds((current) => current.includes(id)
-      ? current.filter((productId) => productId !== id)
-      : [...current, id]);
-  };
-
-  const toggleSelectAll = () => {
-    setSelectedProductIds((current) => products.length > 0 && current.length === products.length
-      ? []
-      : products.map((product) => product._id));
-  };
-
-  const updateSelectedVisibility = async () => {
-    if (!selectedProductIds.length) return;
-    const showProducts = products.some((product) =>
-      selectedProductIds.includes(product._id) && product.shopVisible === false
-    );
-    setBulkUpdating(true);
-    setError("");
-    setMessage("");
-    try {
-      const response = await shopRequest("/storefront/products", {
-        method: "PATCH",
-        token: localStorage.getItem("bms_token"),
-        body: JSON.stringify({ ids: selectedProductIds, shopVisible: showProducts })
-      });
-      setProducts((current) => current.map((product) => selectedProductIds.includes(product._id)
-        ? { ...product, shopVisible: showProducts }
-        : product));
-      setMessage(`${response.updatedCount} product(s) ${showProducts ? "listed" : "hidden"} from the storefront.`);
-      setSelectedProductIds([]);
-    } catch (requestError) {
-      setError(requestError.message || "Could not update selected products.");
-    } finally {
-      setBulkUpdating(false);
-    }
-  };
-
-  const allSelected = products.length > 0 && selectedProductIds.length === products.length;
-  const selectedIncludesHidden = products.some((product) =>
-    selectedProductIds.includes(product._id) && product.shopVisible === false
-  );
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
@@ -163,19 +123,6 @@ const ShopStorefront = () => {
             className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
         </label>
-        {selectedProductIds.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-slate-600">{selectedProductIds.length} selected</span>
-            <button
-              type="button"
-              onClick={updateSelectedVisibility}
-              disabled={bulkUpdating}
-              className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:opacity-50"
-            >
-              {bulkUpdating ? "Updating..." : selectedIncludesHidden ? "List selected products" : "Hide selected products"}
-            </button>
-          </div>
-        )}
       </div>
 
       {loading ? (
@@ -188,12 +135,6 @@ const ShopStorefront = () => {
         </div>
       ) : (
         <>
-        {products.length > 0 && (
-          <label className="mb-3 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
-            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="h-4 w-4 rounded border-slate-300 text-emerald-700" />
-            Select all products on this page
-          </label>
-        )}
         <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {products.map((product) => {
             const preview = images[product._id]?.previewUrl || product.shopImage;
@@ -202,11 +143,7 @@ const ShopStorefront = () => {
                 <div className="relative">
                   <div className="relative flex h-40 items-center justify-center bg-slate-100">
                     {preview ? <img src={preview} alt={`${product.name} storefront`} className="absolute inset-0 h-full w-full object-cover" /> : <span className="text-5xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
-                    {!product.shopVisible && <span className="absolute left-3 top-3 rounded-full bg-slate-900/80 px-2.5 py-1 text-[10px] font-bold uppercase text-white">Not listed</span>}
                   </div>
-                  <label className="absolute right-3 top-3 rounded-lg bg-white/95 p-2 shadow" aria-label={`Select ${product.name}`}>
-                    <input type="checkbox" checked={selectedProductIds.includes(product._id)} onChange={() => toggleProductSelection(product._id)} className="h-4 w-4 rounded border-slate-300 text-emerald-700" />
-                  </label>
                   <div className="p-4">
                     <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{product.category || "General"}</p>
                     <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{product.name}</h2>
@@ -231,7 +168,28 @@ const ShopStorefront = () => {
                       imageDrafts.current[product._id] = draft;
                       setImages((current) => ({ ...current, [product._id]: draft }));
                     }} className="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-2 file:font-bold file:text-emerald-800" />
-                    <span className="mt-1 block font-normal text-slate-400">Choose an image up to 5 MB.</span>
+                    <span className="mt-1 block font-normal text-slate-400">Uploads are saved to Cloudinary. Maximum 5 MB.</span>
+                  </label>
+                  <label className="block text-xs font-bold text-slate-600">
+                    Or paste a Cloudinary image URL
+                    <input
+                      type="url"
+                      aria-label={`${product.name} Cloudinary image URL`}
+                      value={imageUrls[product._id] ?? product.shopImage ?? ""}
+                      onChange={(event) => {
+                        setImageUrls((current) => ({ ...current, [product._id]: event.target.value }));
+                        if (imageDrafts.current[product._id]) URL.revokeObjectURL(imageDrafts.current[product._id].previewUrl);
+                        delete imageDrafts.current[product._id];
+                        setImages((current) => {
+                          const next = { ...current };
+                          delete next[product._id];
+                          return next;
+                        });
+                      }}
+                      placeholder="https://res.cloudinary.com/..."
+                      className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-normal text-slate-800"
+                    />
+                    <span className="mt-1 block font-normal text-slate-400">Only secure Cloudinary image URLs are accepted.</span>
                   </label>
                   <label className="block text-xs font-bold text-slate-600">
                     Storefront description

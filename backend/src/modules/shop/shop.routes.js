@@ -33,7 +33,6 @@ import {
   deleteShopAdminDeliveryArea,
   updateShopAdminProduct,
   updateOwnerStorefrontProduct,
-  updateOwnerStorefrontProductsVisibility,
   updateShopCustomerAddress,
   verifyDeliveryFeePayment,
   verifyShopPayment
@@ -56,7 +55,6 @@ router.get("/", getShopListings);
 router.get("/products/:id", getShopProduct);
 router.get("/storefront/products", protect, authorize("owner"), getOwnerStorefrontProducts);
 router.patch("/storefront/products/:id", protect, authorize("owner"), upload.single("image"), updateOwnerStorefrontProduct);
-router.patch("/storefront/products", protect, authorize("owner"), updateOwnerStorefrontProductsVisibility);
 
 router.post("/customers/register", registerShopCustomer);
 router.post("/customers/login", loginShopCustomer);

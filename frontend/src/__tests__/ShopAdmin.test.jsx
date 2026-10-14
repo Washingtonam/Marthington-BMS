@@ -119,6 +119,24 @@ describe("Shop administration", () => {
     });
   });
 
+  it("lets the super admin set a fixed sale price and Cloudinary image URL", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Gift set storefront sale price" }), {
+      target: { value: "7500" }
+    });
+    fireEvent.change(screen.getByLabelText("Gift set Cloudinary image URL"), {
+      target: { value: "https://res.cloudinary.com/demo/image/upload/gift.jpg" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save price and URL" }));
+
+    await waitFor(() => {
+      const updateCall = shopRequest.mock.calls.find(([path]) => path === "/admin/products/product-1");
+      expect(updateCall[1].body.get("shopSalePrice")).toBe("7500");
+      expect(updateCall[1].body.get("shopImageUrl")).toBe("https://res.cloudinary.com/demo/image/upload/gift.jpg");
+    });
+  });
+
   it("lets the super admin add a delivery-area fee preset", async () => {
     renderShopAdmin();
     fireEvent.click(screen.getByRole("button", { name: "Delivery areas" }));

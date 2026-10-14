@@ -10,6 +10,11 @@ test("shop products support admin curation without changing BMS product fields",
   assert.equal(Product.schema.path("shopVisible").options.default, true);
   assert.equal(Product.schema.path("shopDescription").options.default, "");
   assert.equal(Product.schema.path("shopDescription").options.maxlength, 1000);
+  assert.equal(Product.schema.path("shopSalePrice").options.default, 0);
+  assert.equal(Product.schema.path("shopSalePrice").options.min, 0);
+  assert.ok(Product.schema.path("shopSalePrice").validators.some(
+    (validator) => validator.validator === Number.isSafeInteger
+  ));
 });
 
 test("shop delivery presets enforce a unique state and city and a whole-number fee", () => {

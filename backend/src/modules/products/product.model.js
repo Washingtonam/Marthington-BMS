@@ -48,6 +48,13 @@ const productSchema = new mongoose.Schema(
       default: false
     },
 
+    shopSalePrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+      validate: Number.isSafeInteger
+    },
+
     shopImage: {
       type: String,
       default: ""

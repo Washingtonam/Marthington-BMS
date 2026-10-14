@@ -1,13 +1,13 @@
 # Marthington BMS - API Documentation
 
-## Marthington Shop
+## Marthington Storefront
 
 ### Browse marketplace products
 ```http
 GET /api/shop?page=1&limit=24&search=notebook&category=Stationery
 ```
 
-This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden the business or an individual product. New BMS businesses and products appear automatically by default. Results include product names, shop-normalized categories, selling prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
+This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden the business or an individual product. New BMS businesses and products appear automatically by default. Featured products and products with images are prioritized, while the remaining catalogue is randomized on refresh. Results include product names, storefront-normalized categories, regular and sale prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -16,7 +16,7 @@ This public endpoint automatically lists products from every active BMS business
 | `search` | string | — | Match product name or category |
 | `category` | string | — | Exact category filter |
 
-New products are listed automatically. Marthington super admins can hide a business or an individual product, create shop categories, and map source BMS category labels to those canonical names. Case and repeated-whitespace variants are mapped together. These mappings only affect the shop display and do not change category values in business BMS accounts. Businesses do not receive marketplace orders directly.
+New products are listed automatically. Marthington super admins can hide a business or an individual product, create storefront categories, and map source BMS category labels to those canonical names. Case and repeated-whitespace variants are mapped together. These mappings only affect the storefront display and do not change category values in business BMS accounts. Businesses do not receive marketplace orders directly.
 
 ### Shopper account and address endpoints
 
@@ -48,7 +48,7 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | Method | Endpoint | Authorization | Description |
 |--------|----------|---------------|-------------|
 | `GET` | `/api/shop/admin/products` | BMS super-admin token | Search all BMS products |
-| `PATCH` | `/api/shop/admin/products/:id` | BMS super-admin token | Upload a marketplace image and/or hide a listing |
+| `PATCH` | `/api/shop/admin/products/:id` | BMS super-admin token | Upload an image to Cloudinary, set a Cloudinary image URL, feature/hide a listing, or set a fixed whole-naira sale price |
 | `GET` | `/api/shop/admin/categories` | BMS super-admin token | List shop categories and distinct BMS categories with product counts |
 | `POST` | `/api/shop/admin/categories` | BMS super-admin token | Create a canonical shop category (`{ "name": "Perfumes" }`) |
 | `PATCH` | `/api/shop/admin/categories/:id` | BMS super-admin token | Rename a canonical shop category |
@@ -64,7 +64,14 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | `POST` | `/api/shop/admin/orders/:id/refunds/:requestKey/refresh` | BMS super-admin token | Refresh an in-progress refund from Paystack |
 | `PATCH` | `/api/shop/admin/orders/:id` | BMS super-admin token | Set delivery fee, status and internal note; cancellation is only allowed after refunds cover all money paid |
 
-Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access. Hiding a business or product only affects the marketplace storefront and checkout; it does not alter or remove the source BMS business or product. Admins can mark products as featured; featured products are sorted before other products in public listings. A configured delivery-area rate is only a suggestion for the admin: delivery fees remain confirmed after product checkout and are paid separately. Successful product-payment verification creates one in-app `shop_order_received` notification for each active super admin, visible from the BMS admin header. Refunds are recorded per Paystack transaction, support partial amounts, and remain pending until Paystack reports them processed. An unresolved refund blocks another refund request to prevent duplicate payouts. A delivery fee marked paid manually can be recorded as externally refunded only after the admin confirms completion and supplies the external reference; this action does not move money. Cancellation is enabled only when recorded refunds cover the total amount paid.
+### Business owner storefront content
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `GET` | `/api/shop/storefront/products` | BMS business-owner token | List the business's products for image and description editing |
+| `PATCH` | `/api/shop/storefront/products/:id` | BMS business-owner token | Upload a product image to Cloudinary or set a Cloudinary URL, and edit the storefront description |
+
+Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access. In the product PATCH endpoint, send `shopSalePrice` as a whole-naira amount below the regular product `price`; send `0` to remove a sale price. The server calculates catalogue and checkout prices from the current BMS selling price and this centrally managed sale price. For image URLs, send `shopImageUrl` as an HTTPS `res.cloudinary.com` URL; uploads continue to be stored in Cloudinary. Owners can edit product images and storefront descriptions only; featured status, sale prices, and listing visibility are controlled by Marthington Super Admin. Hiding a business or product only affects the marketplace storefront and checkout; it does not alter or remove the source BMS business or product. Featured products are prioritized in public listings, and products without images retain a text fallback. A configured delivery-area rate is only a suggestion for the admin: delivery fees remain confirmed after product checkout and are paid separately. Successful product-payment verification creates one in-app `shop_order_received` notification for each active super admin, visible from the BMS admin header. Refunds are recorded per Paystack transaction, support partial amounts, and remain pending until Paystack reports them processed. An unresolved refund blocks another refund request to prevent duplicate payouts. A delivery fee marked paid manually can be recorded as externally refunded only after the admin confirms completion and supplies the external reference; this action does not move money. Cancellation is enabled only when recorded refunds cover the total amount paid.
 
 ## Expense Module - Phase 3 Endpoints
 

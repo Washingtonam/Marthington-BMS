@@ -1,9 +1,8 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import TenantMessageModal from "../components/TenantMessageModal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { formatCurrency } from "../utils/formatters.js";
 
 const tabs = ["all", "retail", "school", "hospital"];
 const statusFilters = ["all", "active", "trial", "expired"];
@@ -233,7 +232,7 @@ const AdminTenantDirectory = () => {
         )}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full text-left text-sm">
+          <table className="min-w-[560px] w-full text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/80 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
               <tr>
                 <th className="w-12 px-4 py-3.5">
@@ -245,17 +244,15 @@ const AdminTenantDirectory = () => {
                 </th>
                 <th className="px-4 py-3.5">Tenant</th>
                 <th className="px-4 py-3.5">Subscription</th>
-                <th className="px-4 py-3.5">Business activity</th>
-                <th className="px-4 py-3.5">Contact</th>
-                <th className="px-4 py-3.5 text-right">Actions</th>
+                <th className="w-36 px-4 py-3.5">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-14 text-center text-sm text-slate-500">Loading tenant workspaces...</td></tr>
+                <tr><td colSpan={4} className="px-4 py-14 text-center text-sm text-slate-500">Loading tenant workspaces...</td></tr>
               ) : pageBusinesses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-14 text-center">
+                  <td colSpan={4} className="px-4 py-14 text-center">
                     <p className="font-bold text-slate-800">No tenants match these filters</p>
                     <p className="mt-1 text-xs text-slate-500">Try changing the search or selecting a different plan status.</p>
                     <button type="button" onClick={() => { setSearch(""); setActiveTab("all"); setStatusFilter("all"); setPage(1); }} className="mt-3 text-xs font-bold text-emerald-700 hover:underline">Clear filters</button>
@@ -264,18 +261,6 @@ const AdminTenantDirectory = () => {
               ) : pageBusinesses.map((business) => {
                 const isPro = business.subscription?.plan === "pro";
                 const subscriptionStatus = business.subscription?.status || "trial";
-                const contactPhones = [
-                  business.whatsappPhone,
-                  business.ownerPhone,
-                  business.businessPhone
-                ].flatMap((value) => String(value || "").split(/[;,|/\n]+/))
-                  .map((value) => value.trim())
-                  .filter((value, index, values) => value && values.indexOf(value) === index);
-                const metric = business.industryType === "school"
-                  ? [`${(business.studentCount || 0).toLocaleString()} students`, "School"]
-                  : business.industryType === "hospital"
-                    ? [`${(business.activePatientCount || 0).toLocaleString()} patients`, "Healthcare"]
-                    : [formatCurrency(business.totalSalesRecord || 0), "Recorded sales"];
                 const businessStatus = business.status || "active";
                 const isBusy = !!actionLoading || deletingId === business._id;
 
@@ -288,7 +273,7 @@ const AdminTenantDirectory = () => {
                       <div className="flex min-w-52 items-center gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-sm font-black uppercase text-emerald-800 ring-1 ring-emerald-100">{String(business.name || "?").slice(0, 1)}</span>
                         <div className="min-w-0">
-                          <p className="truncate font-bold text-slate-900">{business.name}</p>
+                          <Link to={`/admin/business/${business._id}`} className="block truncate font-bold text-slate-900 hover:text-emerald-700">{business.name}</Link>
                           <p className="mt-0.5 truncate text-xs text-slate-500">{business.ownerName || "Business owner"}</p>
                           <div className="mt-1.5 flex flex-wrap gap-1.5">
                             <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-600">{business.industryType || "retail"}</span>
@@ -305,28 +290,15 @@ const AdminTenantDirectory = () => {
                       <p className="mt-2 text-xs capitalize text-slate-500">{business.subscription?.billingCycle || "No billing cycle"}</p>
                       {business.subscription?.expiresAt && <p className="mt-1 text-[11px] text-slate-400">Until {new Date(business.subscription.expiresAt).toLocaleDateString()}</p>}
                     </td>
-                    <td className="px-4 py-4">
-                      <p className="font-bold text-slate-800">{metric[0]}</p>
-                      <p className="mt-1 text-xs text-slate-500">{metric[1]}</p>
-                    </td>
-                    <td className="px-4 py-4">
-                      {business.ownerEmail ? <p className="max-w-48 truncate text-xs font-medium text-slate-700" title={business.ownerEmail}>{business.ownerEmail}</p> : <p className="text-xs text-slate-400">No email address</p>}
-                      {contactPhones.length > 0
-                        ? <p className="mt-1.5 text-xs text-slate-500" title={contactPhones.join(", ")}>{contactPhones[0]}{contactPhones.length > 1 ? ` +${contactPhones.length - 1} more` : ""}</p>
-                        : <p className="mt-1.5 text-xs text-slate-400">No phone number</p>}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button type="button" onClick={() => openContactDraft(business)} className="rounded-lg border border-emerald-200 bg-white px-2.5 py-2 text-xs font-bold text-emerald-800 transition hover:bg-emerald-50">Contact</button>
-                        <button type="button" onClick={() => navigate(`/admin/business/${business._id}`)} className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50">Audit</button>
-                        <button type="button" onClick={() => { startImpersonation(business._id); navigate("/app"); }} className="rounded-lg bg-slate-900 px-2.5 py-2 text-xs font-bold text-white transition hover:bg-slate-700">Access</button>
-                        <div className="relative">
-                          <button type="button" aria-label={`More actions for ${business.name}`} aria-haspopup="menu" aria-expanded={openMenuId === business._id} onClick={() => setOpenMenuId((current) => current === business._id ? "" : business._id)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg font-bold text-slate-600 hover:bg-slate-50">⋯</button>
+                    <td className="px-4 py-4 text-right">
+                      <div className="relative inline-block text-left">
+                          <button type="button" aria-label={`Actions for ${business.name}`} aria-haspopup="menu" aria-expanded={openMenuId === business._id} onClick={() => setOpenMenuId((current) => current === business._id ? "" : business._id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Actions <span aria-hidden="true">⌄</span></button>
                           {openMenuId === business._id && <div role="menu" aria-label={`Actions for ${business.name}`} className="absolute right-0 top-10 z-20 w-44 rounded-xl border border-slate-200 bg-white p-1.5 text-left shadow-xl">
+                            <button type="button" role="menuitem" onClick={() => { setOpenMenuId(""); openContactDraft(business); }} className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-emerald-50">Contact owner</button>
+                            <button type="button" role="menuitem" onClick={() => { setOpenMenuId(""); startImpersonation(business._id); navigate("/app"); }} className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">Access account</button>
                             <button type="button" role="menuitem" disabled={isBusy} onClick={() => { setOpenMenuId(""); updatePlan(business, isPro ? "free" : "pro"); }} className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{actionLoading === business._id ? "Saving..." : isPro ? "Downgrade plan" : "Upgrade plan"}</button>
                             <button type="button" role="menuitem" disabled={isBusy} onClick={() => { setOpenMenuId(""); deleteBusiness(business); }} className="w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{deletingId === business._id ? "Deleting..." : "Delete tenant"}</button>
                           </div>}
-                        </div>
                       </div>
                     </td>
                   </tr>

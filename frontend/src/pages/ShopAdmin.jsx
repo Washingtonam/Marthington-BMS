@@ -9,6 +9,8 @@ const ShopAdmin = () => {
   const [tab, setTab] = useState("orders");
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [salePriceDrafts, setSalePriceDrafts] = useState({});
+  const [imageUrlDrafts, setImageUrlDrafts] = useState({});
   const [categories, setCategories] = useState([]);
   const [sourceCategories, setSourceCategories] = useState([]);
   const [categoryNames, setCategoryNames] = useState({});
@@ -34,6 +36,14 @@ const ShopAdmin = () => {
     const params = new URLSearchParams({ limit: "100", search, page: String(productPage) });
     const data = await shopRequest(`/admin/products?${params}`, { token: localStorage.getItem("bms_token") });
     setProducts(data.products || []);
+    setSalePriceDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
+      product._id,
+      current[product._id] ?? product.shopSalePrice ?? ""
+    ])));
+    setImageUrlDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
+      product._id,
+      current[product._id] ?? product.shopImage ?? ""
+    ])));
     setProductPagination(data.pagination || { currentPage: 1, totalPages: 1 });
   }, [search, productPage]);
 
@@ -69,7 +79,7 @@ const ShopAdmin = () => {
       delivery: loadDeliveryAreas
     };
     const loader = loaders[tab];
-    loader().catch((requestError) => setError(requestError.message || "Could not load shop admin data."));
+    loader().catch((requestError) => setError(requestError.message || "Could not load storefront admin data."));
   }, [tab, loadOrders, loadProducts, loadCategories, loadBusinesses, loadDeliveryAreas]);
 
   useEffect(() => {
@@ -167,11 +177,19 @@ const ShopAdmin = () => {
       if (changes.image) form.append("image", changes.image);
       if (changes.shopVisible !== undefined) form.append("shopVisible", String(changes.shopVisible));
       if (changes.shopFeatured !== undefined) form.append("shopFeatured", String(changes.shopFeatured));
-      await shopRequest(`/admin/products/${product._id}`, {
+      if (changes.shopSalePrice !== undefined) form.append("shopSalePrice", String(changes.shopSalePrice));
+      if (changes.shopImageUrl !== undefined) form.append("shopImageUrl", changes.shopImageUrl);
+      const data = await shopRequest(`/admin/products/${product._id}`, {
         method: "PATCH",
         token: localStorage.getItem("bms_token"),
         body: form
       });
+      if (changes.image || changes.shopImageUrl !== undefined) {
+        setImageUrlDrafts((current) => ({ ...current, [product._id]: data.product?.shopImage || "" }));
+      }
+      if (changes.shopSalePrice !== undefined) {
+        setSalePriceDrafts((current) => ({ ...current, [product._id]: data.product?.shopSalePrice ?? 0 }));
+      }
       await loadProducts();
       setMessage(`${product.name} updated.`);
     } catch (requestError) {
@@ -345,7 +363,7 @@ const ShopAdmin = () => {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Marthington platform administration</p>
-          <h1 className="mt-2 text-3xl font-black">Shop operations</h1>
+          <h1 className="mt-2 text-3xl font-black">Storefront operations</h1>
           <p className="mt-2 text-sm text-slate-500">Orders are received and coordinated by Marthington. Suppliers are contacted from the order details.</p>
         </div>
         <Link to="/shop" className="text-sm font-semibold text-emerald-700">View storefront</Link>
@@ -360,7 +378,7 @@ const ShopAdmin = () => {
 
       {tab === "orders" ? (
         <section className="mt-5 space-y-5">
-          {orders.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">No shop orders to manage yet.</div>}
+          {orders.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">No storefront orders to manage yet.</div>}
           {orders.map((order) => (
             <article key={order._id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap justify-between gap-4">
@@ -457,14 +475,54 @@ const ShopAdmin = () => {
         <section className="mt-5">
           <label className="block max-w-lg"><span className="sr-only">Search all BMS products</span><input value={search} onChange={(event) => { setProductPage(1); setSearch(event.target.value); }} placeholder="Search all BMS products" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" /></label>
           <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Product</th><th className="p-3">Source business</th><th className="p-3">Price</th><th className="p-3">Shop image</th><th className="p-3">Featured</th><th className="p-3">Listing</th></tr></thead>
+            <table className="min-w-[1050px] text-left text-sm">
+              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Product</th><th className="p-3">Source business</th><th className="p-3">Regular price</th><th className="p-3">Sale price</th><th className="p-3">Storefront image</th><th className="p-3">Featured</th><th className="p-3">Listing</th></tr></thead>
               <tbody>{products.map((product) => (
                 <tr key={product._id} className="border-t border-slate-100">
                   <td className="p-3"><p className="font-bold">{product.name}</p><p className="text-xs text-slate-500">{product.category}</p></td>
                   <td className="p-3">{product.business?.name || "Business removed"}<p className="text-xs text-slate-500">Stock: {product.stock}</p></td>
                   <td className="p-3">{formatCurrency(product.price)}</td>
-                  <td className="p-3"><div className="flex items-center gap-3">{product.shopImage && <img src={product.shopImage} alt="" className="h-12 w-12 rounded-lg object-cover" />}<label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">{busy === String(product._id) ? "Uploading..." : product.shopImage ? "Replace image" : "Add image"}<input type="file" accept="image/*" className="hidden" disabled={busy === String(product._id)} onChange={(event) => { const image = event.target.files?.[0]; if (image) changeProduct(product, { image }); event.target.value = ""; }} /></label></div></td>
+                  <td className="p-3">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      Sale price (NGN)
+                      <input
+                        type="number"
+                        min="0"
+                        max={Math.max(0, product.price - 1)}
+                        step="1"
+                        aria-label={`${product.name} storefront sale price`}
+                        value={salePriceDrafts[product._id] ?? ""}
+                        onChange={(event) => setSalePriceDrafts((current) => ({ ...current, [product._id]: event.target.value }))}
+                        className="mt-1 w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                    </label>
+                    <p className="mt-1 text-[11px] text-slate-500">0 removes the sale price.</p>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-3">{product.shopImage && <img src={product.shopImage} alt="" className="h-12 w-12 rounded-lg object-cover" />}<label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">{busy === String(product._id) ? "Uploading..." : product.shopImage ? "Replace image" : "Add image"}<input type="file" accept="image/*" className="hidden" disabled={busy === String(product._id)} onChange={(event) => { const image = event.target.files?.[0]; if (image) changeProduct(product, { image }); event.target.value = ""; }} /></label></div>
+                    <label className="mt-2 block text-xs font-semibold text-slate-600">
+                      Or paste Cloudinary URL
+                      <input
+                        type="url"
+                        aria-label={`${product.name} Cloudinary image URL`}
+                        value={imageUrlDrafts[product._id] ?? ""}
+                        onChange={(event) => setImageUrlDrafts((current) => ({ ...current, [product._id]: event.target.value }))}
+                        placeholder="https://res.cloudinary.com/..."
+                        className="mt-1 w-64 rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-normal"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={busy === String(product._id)}
+                      onClick={() => changeProduct(product, {
+                        shopSalePrice: salePriceDrafts[product._id] ?? product.shopSalePrice ?? 0,
+                        shopImageUrl: imageUrlDrafts[product._id] ?? product.shopImage ?? ""
+                      })}
+                      className="mt-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                    >
+                      Save price and URL
+                    </button>
+                  </td>
                   <td className="p-3"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={product.shopFeatured === true} disabled={busy === String(product._id)} onChange={(event) => changeProduct(product, { shopFeatured: event.target.checked })} />Feature</label></td>
                   <td className="p-3"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={product.shopVisible !== false} disabled={busy === String(product._id)} onChange={(event) => changeProduct(product, { shopVisible: event.target.checked })} />Visible</label></td>
                 </tr>
@@ -483,11 +541,11 @@ const ShopAdmin = () => {
       ) : tab === "categories" ? (
         <section className="mt-5 space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-black">Shop categories</h2>
-            <p className="mt-1 text-sm text-slate-500">Create the storefront categories, then map BMS category labels—including spelling variants—to the right shop category. These changes do not modify product categories in any business's BMS.</p>
+            <h2 className="text-lg font-black">Storefront categories</h2>
+            <p className="mt-1 text-sm text-slate-500">Create storefront categories, then map BMS category labels—including spelling variants—to the right storefront category. These changes do not modify product categories in any business's BMS.</p>
             <form onSubmit={createCategory} className="mt-4 flex flex-wrap gap-3">
               <input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} maxLength={80} required placeholder="For example, Perfumes" className="min-w-64 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-              <button type="submit" disabled={busy === "new-category"} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy === "new-category" ? "Adding..." : "Add shop category"}</button>
+              <button type="submit" disabled={busy === "new-category"} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy === "new-category" ? "Adding..." : "Add storefront category"}</button>
             </form>
             {categories.length > 0 && <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {categories.map((category) => (
@@ -502,10 +560,10 @@ const ShopAdmin = () => {
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 p-5">
               <h2 className="text-lg font-black">BMS category mapping</h2>
-              <p className="mt-1 text-sm text-slate-500">Case and extra-space variants are grouped together. Map each label to a shop category; unmapped labels continue to appear under their original category name.</p>
+              <p className="mt-1 text-sm text-slate-500">Case and extra-space variants are grouped together. Map each label to a storefront category; unmapped labels continue to appear under their original category name.</p>
             </div>
             <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">BMS category labels</th><th className="p-3">Products</th><th className="p-3">Shop category</th></tr></thead>
+              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">BMS category labels</th><th className="p-3">Products</th><th className="p-3">Storefront category</th></tr></thead>
               <tbody>{sourceCategories.map((source) => (
                 <tr key={source.sourceCategory.toLocaleLowerCase()} className="border-t border-slate-100">
                   <td className="p-3"><p className="font-semibold">{source.sourceCategory}</p>{source.variants.length > 1 && <p className="mt-1 text-xs text-slate-500">Also: {source.variants.filter((value) => value !== source.sourceCategory).join(", ")}</p>}</td>
@@ -525,11 +583,11 @@ const ShopAdmin = () => {
       ) : tab === "businesses" ? (
         <section className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 p-5">
-            <h2 className="text-lg font-black">Businesses in the shop</h2>
+            <h2 className="text-lg font-black">Businesses in the storefront</h2>
             <p className="mt-1 text-sm text-slate-500">Businesses are sourced automatically from BMS. Hide or show each business's products in the storefront without changing its BMS account or catalogue.</p>
           </div>
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Business</th><th className="p-3">BMS status</th><th className="p-3">Products</th><th className="p-3">Shop listing</th><th className="p-3">Action</th></tr></thead>
+            <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Business</th><th className="p-3">BMS status</th><th className="p-3">Products</th><th className="p-3">Storefront listing</th><th className="p-3">Action</th></tr></thead>
             <tbody>{businesses.map((business) => (
               <tr key={business._id} className="border-t border-slate-100">
                 <td className="p-3 font-semibold">{business.name}</td>

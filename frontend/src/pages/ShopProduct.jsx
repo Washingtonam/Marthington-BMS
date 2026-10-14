@@ -18,12 +18,12 @@ const ShopProduct = () => {
     return () => { active = false; };
   }, [id]);
 
-  if (error) return <main role="alert" className="mx-auto max-w-5xl px-5 py-16 text-center text-rose-700">{error}<div><Link to="/shop" className="mt-4 inline-block font-semibold underline">Back to shop</Link></div></main>;
+  if (error) return <main role="alert" className="mx-auto max-w-5xl px-5 py-16 text-center text-rose-700">{error}<div><Link to="/shop" className="mt-4 inline-block font-semibold underline">Back to storefront</Link></div></main>;
   if (!product) return <main className="mx-auto max-w-5xl px-5 py-16 text-center text-slate-500">Loading product...</main>;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
-      <Link to="/shop" className="text-sm font-semibold text-emerald-700">← Back to shop</Link>
+      <Link to="/shop" className="text-sm font-semibold text-emerald-700">← Back to storefront</Link>
       <section className="mt-6 grid gap-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2 md:p-8">
         <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
           {product.image ? <img src={product.image} alt={product.name} className="h-full max-h-[520px] w-full object-cover" /> : <span className="text-7xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
@@ -34,7 +34,10 @@ const ShopProduct = () => {
           <p className="mt-3 text-sm text-slate-500">Supplied by {product.business.name}</p>
           {product.description && <p className="mt-5 whitespace-pre-line leading-7 text-slate-600">{product.description}</p>}
           <p className={`mt-6 text-sm font-semibold ${product.available ? "text-emerald-700" : "text-amber-700"}`}>{product.available ? "In stock" : "Currently out of stock"}</p>
-          <p className="mt-3 text-3xl font-black">{formatCurrency(product.price)}</p>
+          <div className="mt-3 flex items-baseline gap-3">
+            <p className="text-3xl font-black">{formatCurrency(product.price)}</p>
+            {product.salePrice > 0 && <><span className="text-sm font-black text-rose-600">Save {formatCurrency(product.originalPrice - product.price)}</span><p className="text-lg font-semibold text-slate-400 line-through">{formatCurrency(product.originalPrice)}</p></>}
+          </div>
           <button type="button" disabled={!product.canPurchase} onClick={() => add(product)} className="mt-6 rounded-xl bg-emerald-600 px-5 py-4 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">{!product.available ? "Out of stock" : product.canPurchase ? "Add to cart" : "Price unavailable"}</button>
           <p className="mt-3 text-xs leading-5 text-slate-500">Orders and payment are handled by Marthington. The supplier does not receive customer orders directly.</p>
         </div>

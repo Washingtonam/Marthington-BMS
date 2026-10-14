@@ -27,7 +27,7 @@ const navigationGroups = [
     label: "Control center",
     items: [
       { to: "/admin", label: "Dashboard", icon: FiHome, end: true },
-      { to: "/admin/shop", label: "Shop management", icon: FiShoppingBag },
+      { to: "/admin/shop", label: "Storefront management", icon: FiShoppingBag },
       { to: "/admin/tenants", label: "Tenant directory", icon: FiBriefcase },
       { to: "/admin/affiliate-network", label: "Agent network", icon: FiUsers },
       { to: "/admin/affiliates", label: "Agent ledger", icon: FiDollarSign },

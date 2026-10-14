@@ -62,6 +62,27 @@ describe("Owner storefront management", () => {
     });
   });
 
+  it("lets owners paste a Cloudinary URL while restricting settings to images and descriptions", async () => {
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Laptop" });
+    fireEvent.change(screen.getByLabelText("Laptop Cloudinary image URL"), {
+      target: { value: "https://res.cloudinary.com/demo/image/upload/laptop.jpg" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save storefront details" }));
+
+    await waitFor(() => {
+      const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products/product-1");
+      expect(options.body.get("shopImageUrl")).toBe("https://res.cloudinary.com/demo/image/upload/laptop.jpg");
+      expect(options.body.has("shopFeatured")).toBe(false);
+      expect(options.body.has("shopSalePrice")).toBe(false);
+      expect(options.body.has("shopVisible")).toBe(false);
+    });
+    expect(screen.queryByLabelText(/Feature Laptop/)).toBeNull();
+    expect(screen.queryByLabelText(/storefront discount/i)).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Select Laptop" })).toBeNull();
+  });
+
   it("does not treat an unset legacy business visibility as hidden", async () => {
     shopRequest.mockResolvedValueOnce({
       business: { name: "Legacy Business" },
@@ -74,7 +95,7 @@ describe("Owner storefront management", () => {
     expect(screen.queryByText(/currently hidden from shoppers/)).toBeNull();
   });
 
-  it("searches storefront products and bulk updates selected product visibility", async () => {
+  it("searches products without exposing listing visibility controls to owners", async () => {
     render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Laptop" });
 
@@ -88,15 +109,8 @@ describe("Owner storefront management", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Laptop" }));
-    fireEvent.click(screen.getByRole("button", { name: "Hide selected products" }));
-
-    await waitFor(() => {
-      const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products");
-      expect(options.method).toBe("PATCH");
-      expect(JSON.parse(options.body)).toEqual({ ids: ["product-1"], shopVisible: false });
-    });
-    expect((await screen.findByRole("status")).textContent).toContain("1 product(s) hidden from the storefront.");
+    expect(screen.queryByRole("button", { name: /selected products/i })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Select Laptop" })).toBeNull();
   });
 
   it("warns owners when the super admin explicitly hides their business", async () => {

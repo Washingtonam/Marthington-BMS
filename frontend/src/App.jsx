@@ -58,6 +58,7 @@ const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminTenantDirectory = lazy(() => import("./pages/AdminTenantDirectory.jsx"));
 const AdminSubscriptions = lazy(() => import("./pages/AdminSubscriptions.jsx"));
+const AdminSubscriptionEmailStudio = lazy(() => import("./pages/AdminSubscriptionEmailStudio.jsx"));
 const AdminSubscriptionExpirations = lazy(() => import("./pages/AdminSubscriptionExpirations.jsx"));
 const AdminAffiliateNetwork = lazy(() => import("./pages/AdminAffiliateNetwork.jsx"));
 const AdminCommunications = lazy(() => import("./pages/AdminCommunications.jsx"));
@@ -316,6 +317,7 @@ const App = () => {
               <Route path="email-registry" element={<AdminEmailRegistry />} />
               <Route path="revenue" element={<AdminRevenue />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />
+              <Route path="subscriptions/email-studio" element={<AdminSubscriptionEmailStudio />} />
               <Route path="subscriptions/expiring/:days" element={<AdminSubscriptionExpirations />} />
               <Route path="billing-settings" element={<AdminBillingSettings />} />
               <Route path="plan-access" element={<AdminPlanAccess />} />

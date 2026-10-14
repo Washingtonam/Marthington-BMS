@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import request from "../api/client.js";
-import SubscriptionEmailComposer from "../components/SubscriptionEmailComposer.jsx";
 
 const formatDate = (value) => new Date(value).toLocaleString(undefined, {
   year: "numeric",
@@ -90,14 +89,10 @@ const AdminSubscriptionExpirations = () => {
             <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/75">tenants to review</p>
           </div>
         </div>
+        <Link to={`/admin/subscriptions/email-studio?audience=subscription_expiring_${days}`} className="relative mt-6 inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-rose-800 transition hover:bg-rose-50">Draft renewal email ↗</Link>
       </div>
 
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
-
-      <SubscriptionEmailComposer
-        subscriptions={expiringSubscriptions}
-        initialAudience={`subscription_expiring_${days}`}
-      />
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
