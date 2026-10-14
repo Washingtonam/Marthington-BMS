@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import generateToken from "../../utils/generateToken.js";
 import jwt from "jsonwebtoken";
 import { getBusinessPlanAccess } from "../subscriptions/planAccess.js";
+import { validateAndNormalizeLocation } from "../../utils/locationData.js";
 
 const getCurrentUser = async (req, res) => {
   try {
@@ -77,10 +78,24 @@ const register = async (req, res) => {
       password,
       businessName,
       address,
+      addressCountryCode,
+      addressState,
+      addressLocalGovernment,
+      addressCity,
       phone,
       industryType = "retail",
       referredBy = null
     } = req.body;
+
+    const location = validateAndNormalizeLocation({
+      countryCode: addressCountryCode,
+      state: addressState,
+      localGovernment: addressLocalGovernment
+    });
+    if (location.error) return res.status(400).json({ message: location.error });
+    if (!String(address || "").trim() || !String(addressCity || "").trim()) {
+      return res.status(400).json({ message: "Enter a street address and city or town." });
+    }
 
     // CHECK EXISTING USER
       const existingUser = await User.findOne({ email: (email || "").toLowerCase().trim() });
@@ -93,7 +108,18 @@ const register = async (req, res) => {
     // CREATE BUSINESS (🔥 NOW COMPLETE)
     const business = await Business.create({
       name: businessName,
-      address,
+      address: [
+        String(address).trim(),
+        String(addressCity).trim(),
+        location.localGovernment,
+        location.state,
+        location.country
+      ].filter(Boolean).join(", "),
+      addressCountry: location.country,
+      addressCountryCode: location.countryCode,
+      addressState: location.state,
+      addressLocalGovernment: location.localGovernment,
+      addressCity: String(addressCity).trim(),
       phone,
       industryType,
       referredBy: referredBy || null

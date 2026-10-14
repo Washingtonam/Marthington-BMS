@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Notification from "../src/modules/notifications/notification.model.js";
 import Product from "../src/modules/products/product.model.js";
+import Business from "../src/modules/businesses/business.model.js";
 import ShopDeliveryArea from "../src/modules/shop/shopDeliveryArea.model.js";
+import ShopCustomer from "../src/modules/shop/shopCustomer.model.js";
 import ShopOrder from "../src/modules/shop/shopOrder.model.js";
 
 test("shop products support admin curation without changing BMS product fields", () => {
@@ -47,6 +49,19 @@ test("shop orders track receipt and delivery email attempts for admin retry", ()
   assert.ok(ShopOrder.schema.path("receiptEmailError"));
   assert.ok(ShopOrder.schema.path("deliveryEmailSentAt"));
   assert.ok(ShopOrder.schema.path("deliveryEmailError"));
+});
+
+test("shop delivery addresses store country, state, LGA, and delivery landmarks", () => {
+  for (const field of ["country", "countryCode", "state", "localGovernment", "city", "nearestBusStop"]) {
+    assert.ok(ShopOrder.schema.path(`deliveryAddress.${field}`), `Expected shop order address to include ${field}`);
+  }
+  const savedAddress = ShopCustomer.schema.path("addresses").schema;
+  for (const field of ["country", "countryCode", "state", "localGovernment", "city", "nearestBusStop"]) {
+    assert.ok(savedAddress.path(field), `Expected saved shopper address to include ${field}`);
+  }
+  for (const field of ["addressCountry", "addressCountryCode", "addressState", "addressLocalGovernment", "addressCity"]) {
+    assert.ok(Business.schema.path(field), `Expected business location to include ${field}`);
+  }
 });
 
 test("shop payment notifications are typed and idempotent per admin/order", () => {

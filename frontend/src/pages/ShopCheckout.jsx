@@ -3,8 +3,20 @@ import { Link, useNavigate } from "react-router-dom";
 import { getShopSession, saveShopSession, shopRequest } from "../api/shop.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import LocationFields from "../components/LocationFields.jsx";
 
-const emptyAddress = { label: "Delivery", recipientName: "", phone: "", addressLine: "", city: "", state: "", deliveryNote: "" };
+const emptyAddress = {
+  label: "Delivery",
+  recipientName: "",
+  phone: "",
+  addressLine: "",
+  countryCode: "NG",
+  city: "",
+  state: "",
+  localGovernment: "",
+  nearestBusStop: "",
+  deliveryNote: ""
+};
 
 const ShopCheckout = () => {
   const navigate = useNavigate();
@@ -36,6 +48,12 @@ const ShopCheckout = () => {
   }, [navigate]);
 
   const saveAddress = async () => {
+    if (!address.recipientName.trim() || !address.phone.trim() || !address.addressLine.trim() ||
+      !address.countryCode || !address.state || !address.city.trim() ||
+      (address.countryCode === "NG" && !address.localGovernment)) {
+      setError("Complete the recipient, WhatsApp phone, street address, country, state, local government area (for Nigeria), and city or town.");
+      return;
+    }
     setSavingAddress(true);
     setError("");
     try {
@@ -70,8 +88,11 @@ const ShopCheckout = () => {
       recipientName: saved.recipientName || "",
       phone: saved.phone || "",
       addressLine: saved.addressLine || "",
+      countryCode: saved.countryCode || "NG",
       city: saved.city || "",
       state: saved.state || "",
+      localGovernment: saved.localGovernment || "",
+      nearestBusStop: saved.nearestBusStop || "",
       deliveryNote: saved.deliveryNote || ""
     });
   };
@@ -132,7 +153,7 @@ const ShopCheckout = () => {
                 {addresses.map((saved) => (
                   <div key={saved._id} className={`flex items-start gap-3 rounded-xl border p-4 ${addressId === saved._id ? "border-emerald-500 bg-emerald-50/60" : "border-slate-200"}`}>
                     <input type="radio" name="deliveryAddress" checked={addressId === saved._id} onChange={() => { setAddressId(saved._id); setEditingAddressId(""); }} aria-label={`Deliver to ${saved.label}`} />
-                    <span className="flex-1 text-sm"><strong>{saved.label} — {saved.recipientName}</strong><span className="mt-1 block text-slate-600">{saved.addressLine}, {saved.city}, {saved.state}</span><span className="block text-slate-500">{saved.phone}</span></span>
+                    <span className="flex-1 text-sm"><strong>{saved.label} — {saved.recipientName}</strong><span className="mt-1 block text-slate-600">{saved.addressLine}, {saved.city}{saved.localGovernment ? `, ${saved.localGovernment}` : ""}, {saved.state}, {saved.country || "Nigeria"}</span><span className="block text-slate-500">WhatsApp: {saved.phone}</span>{saved.nearestBusStop && <span className="block text-slate-500">Nearest bus stop / landmark: {saved.nearestBusStop}</span>}</span>
                     <button type="button" onClick={() => editAddress(saved)} className="text-xs font-semibold text-emerald-700 underline">Edit</button>
                     <button type="button" onClick={() => deleteAddress(saved)} className="text-xs font-semibold text-rose-700 underline">Remove</button>
                   </div>
@@ -143,10 +164,16 @@ const ShopCheckout = () => {
               <button type="button" onClick={() => setAddressFormOpen((open) => !open)} className="text-left text-sm font-semibold">{addressFormOpen ? "Hide address form" : editingAddressId ? "Edit selected delivery address" : "Add a delivery address"}</button>
               {addressFormOpen && <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {[
-                  ["recipientName", "Recipient name"], ["phone", "Phone"], ["addressLine", "Street address"], ["city", "City"], ["state", "State"]
+                  ["recipientName", "Recipient name"], ["phone", "WhatsApp phone number"], ["addressLine", "Street address"]
                 ].map(([key, label]) => (
                   <label key={key} className={`grid gap-1 text-xs font-semibold text-slate-600 ${key === "addressLine" ? "sm:col-span-2" : ""}`}>{label}<input value={address[key]} onChange={(event) => setAddress({ ...address, [key]: event.target.value })} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
                 ))}
+                <LocationFields
+                  value={address}
+                  onChange={setAddress}
+                  labelClassName="grid gap-1 text-xs font-semibold text-slate-600"
+                  inputClassName="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"
+                />
                 <label className="grid gap-1 text-xs font-semibold text-slate-600 sm:col-span-2">Delivery note (optional)<textarea value={address.deliveryNote} onChange={(event) => setAddress({ ...address, deliveryNote: event.target.value })} rows={2} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
               </div>}
               {addressFormOpen && <button type="button" disabled={savingAddress} onClick={saveAddress} className="mt-4 rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold text-emerald-700 disabled:opacity-50">{savingAddress ? "Saving..." : editingAddressId ? "Update address" : "Save address"}</button>}

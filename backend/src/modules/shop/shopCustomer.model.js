@@ -5,8 +5,12 @@ const addressSchema = new mongoose.Schema({
   recipientName: { type: String, required: true, trim: true },
   phone: { type: String, required: true, trim: true },
   addressLine: { type: String, required: true, trim: true },
+  country: { type: String, required: true, trim: true, default: "Nigeria" },
+  countryCode: { type: String, required: true, trim: true, default: "NG" },
   city: { type: String, required: true, trim: true },
   state: { type: String, required: true, trim: true },
+  localGovernment: { type: String, default: "", trim: true },
+  nearestBusStop: { type: String, default: "", trim: true, maxlength: 200 },
   deliveryNote: { type: String, default: "", trim: true }
 }, { _id: true });
 

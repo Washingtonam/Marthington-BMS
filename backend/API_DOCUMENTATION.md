@@ -20,6 +20,8 @@ New products are listed automatically. Marthington super admins can hide a busin
 
 ### Shopper account and address endpoints
 
+Shopper registration collects a WhatsApp contact number and an initial delivery address. Country defaults to Nigeria; country and state/province/region are selected from a shared location dataset, and Nigerian addresses require a state-specific LGA selection. City/town, street address, optional nearest bus stop/landmark, and delivery instructions are stored with the address. These fields are available in checkout and order details. Other countries use the available region list; if the location dataset has no subdivisions for a country, state/province is entered as text. Business-owner registration uses the same country/state/LGA selector and saves structured business-location fields alongside the formatted address.
+
 | Method | Endpoint | Authorization | Description |
 |--------|----------|---------------|-------------|
 | `POST` | `/api/shop/customers/register` | Public | Create a separate shopper account |
@@ -39,7 +41,7 @@ New products are listed automatically. Marthington super admins can hide a busin
 | `POST` | `/api/shop/orders/:id/delivery-fee/initialize` | Shop customer token | Pay a delivery fee confirmed later by Marthington |
 | `POST` | `/api/shop/orders/verify-delivery-payment` | Shop customer token | Verify delivery-fee payment |
 
-Orders retain price and supplier snapshots and reserve stock while product payment is pending. Unpaid reservations expire after 30 minutes and are released. Product payment goes to the Marthington Paystack account; Marthington receives the single order, contacts suppliers and coordinates delivery. The delivery fee is confirmed after checkout and paid separately.
+Orders retain price, supplier and delivery-address snapshots (including country, state, LGA where applicable, city, WhatsApp phone, and nearby landmark) and reserve stock while product payment is pending. Unpaid reservations expire after 30 minutes and are released. Product payment goes to the Marthington Paystack account; Marthington receives the single order, contacts suppliers and coordinates delivery. The delivery fee is confirmed after checkout and paid separately.
 
 After product payment is confirmed, the customer receives an email receipt with the order number, customer and delivery details, itemized products, and each source business/supplier. When a super admin marks a paid order delivered, the customer receives a delivery-confirmation email. Email failures are recorded on the order and can be retried by a super admin. Supplier/business contact phone numbers are available in storefront operations with WhatsApp and call links.
 

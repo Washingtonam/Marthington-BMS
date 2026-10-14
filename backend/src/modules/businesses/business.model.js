@@ -9,6 +9,11 @@ const businessSchema = new mongoose.Schema(
     },
 
     address: { type: String, default: "" },
+    addressCountry: { type: String, default: "" },
+    addressCountryCode: { type: String, default: "" },
+    addressState: { type: String, default: "" },
+    addressLocalGovernment: { type: String, default: "" },
+    addressCity: { type: String, default: "" },
     phone: { type: String, default: "" },
     email: { type: String, default: "" },
     website: { type: String, default: "" },

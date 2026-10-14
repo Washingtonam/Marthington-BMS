@@ -63,7 +63,9 @@ export const sendShopOrderReceiptEmail = async (order) => {
       <p style="text-align:right"><strong>Products total: ${formatShopEmailCurrency(order.subtotal)}</strong></p>
       <h3>Delivery details</h3>
       <p>${escapeHtml(order.deliveryAddress.recipientName)} · ${escapeHtml(order.deliveryAddress.phone)}<br />
-      ${escapeHtml(order.deliveryAddress.addressLine)}, ${escapeHtml(order.deliveryAddress.city)}, ${escapeHtml(order.deliveryAddress.state)}</p>
+      ${escapeHtml(order.deliveryAddress.addressLine)}, ${escapeHtml(order.deliveryAddress.city)}${order.deliveryAddress.localGovernment ? `, ${escapeHtml(order.deliveryAddress.localGovernment)} LGA` : ""}, ${escapeHtml(order.deliveryAddress.state)}, ${escapeHtml(order.deliveryAddress.country)}</p>
+      ${order.deliveryAddress.nearestBusStop ? `<p>Nearest bus stop / landmark: ${escapeHtml(order.deliveryAddress.nearestBusStop)}</p>` : ""}
+      ${order.deliveryAddress.deliveryNote ? `<p>Delivery instructions: ${escapeHtml(order.deliveryAddress.deliveryNote)}</p>` : ""}
       <p>Marthington coordinates your order with the listed businesses. Any delivery fee is confirmed separately after checkout.</p>
     </div>
   `;

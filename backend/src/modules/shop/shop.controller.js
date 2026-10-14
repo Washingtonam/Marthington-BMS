@@ -13,6 +13,7 @@ import cloudinary from "../../utils/cloudinary.js";
 import { createRefund, getRefund, verifyPayment } from "../payments/paystack.service.js";
 import { initializeShopPayment } from "./shop.paystack.js";
 import { sendShopOrderDeliveredEmail, sendShopOrderReceiptEmail } from "../../utils/emailService.js";
+import { validateAndNormalizeLocation } from "../../utils/locationData.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCategory = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
@@ -57,11 +58,30 @@ const customerToken = (customer) => jwt.sign(
 );
 
 const validateAddress = (address) => {
-  const required = ["recipientName", "phone", "addressLine", "city", "state"];
+  const required = ["recipientName", "phone", "addressLine", "city", "state", "countryCode"];
   if (!address || required.some((field) => !String(address[field] || "").trim())) {
-    return "Recipient, phone, street address, city, and state are required.";
+    return "Recipient, WhatsApp phone, street address, city, country, and state are required.";
   }
-  return null;
+  if (String(address.nearestBusStop || "").length > 200) return "Nearest bus stop or landmark must be 200 characters or fewer.";
+  return validateAndNormalizeLocation(address).error || null;
+};
+
+const normalizedShopAddress = (address) => {
+  const location = validateAndNormalizeLocation(address);
+  if (location.error) return { error: location.error };
+  return {
+    label: String(address.label || "Delivery").trim(),
+    recipientName: String(address.recipientName).trim(),
+    phone: String(address.phone).trim(),
+    addressLine: String(address.addressLine).trim(),
+    country: location.country,
+    countryCode: location.countryCode,
+    city: String(address.city).trim(),
+    state: location.state,
+    localGovernment: location.localGovernment,
+    nearestBusStop: String(address.nearestBusStop || "").trim(),
+    deliveryNote: String(address.deliveryNote || "").trim()
+  };
 };
 
 const callbackUrl = () => {
@@ -246,9 +266,21 @@ export const registerShopCustomer = async (req, res) => {
     const email = String(req.body.email || "").trim().toLowerCase();
     const password = String(req.body.password || "");
     const phone = String(req.body.phone || "").trim();
-    if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
-      return res.status(400).json({ message: "Enter your name, a valid email, and a password of at least 8 characters." });
+    const deliveryAddress = req.body.deliveryAddress || {};
+    const address = normalizedShopAddress({
+      ...deliveryAddress,
+      recipientName: deliveryAddress.recipientName || name,
+      phone: deliveryAddress.phone || phone
+    });
+    const addressError = validateAddress({
+      ...deliveryAddress,
+      recipientName: deliveryAddress.recipientName || name,
+      phone: deliveryAddress.phone || phone
+    });
+    if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8 || !phone) {
+      return res.status(400).json({ message: "Enter your name, WhatsApp phone, valid email, and a password of at least 8 characters." });
     }
+    if (addressError) return res.status(400).json({ message: addressError.error || addressError });
 
     const existing = await ShopCustomer.findOne({ email });
     if (existing) return res.status(409).json({ message: "An account with this email already exists." });
@@ -257,6 +289,7 @@ export const registerShopCustomer = async (req, res) => {
       name,
       email,
       phone,
+      addresses: [address],
       password: await bcrypt.hash(password, 12)
     });
     return res.status(201).json({ token: customerToken(customer), customer: publicCustomer(customer) });
@@ -339,15 +372,7 @@ export const addShopCustomerAddress = async (req, res) => {
   const addressError = validateAddress(req.body);
   if (addressError) return res.status(400).json({ message: addressError });
   try {
-    req.shopCustomer.addresses.push({
-      label: String(req.body.label || "Delivery").trim(),
-      recipientName: String(req.body.recipientName).trim(),
-      phone: String(req.body.phone).trim(),
-      addressLine: String(req.body.addressLine).trim(),
-      city: String(req.body.city).trim(),
-      state: String(req.body.state).trim(),
-      deliveryNote: String(req.body.deliveryNote || "").trim()
-    });
+    req.shopCustomer.addresses.push(normalizedShopAddress(req.body));
     await req.shopCustomer.save();
     return res.status(201).json({ customer: publicCustomer(req.shopCustomer) });
   } catch (error) {
@@ -362,15 +387,7 @@ export const updateShopCustomerAddress = async (req, res) => {
   try {
     const address = req.shopCustomer.addresses.id(req.params.addressId);
     if (!address) return res.status(404).json({ message: "Delivery address not found." });
-    address.set({
-      label: String(req.body.label || "Delivery").trim(),
-      recipientName: String(req.body.recipientName).trim(),
-      phone: String(req.body.phone).trim(),
-      addressLine: String(req.body.addressLine).trim(),
-      city: String(req.body.city).trim(),
-      state: String(req.body.state).trim(),
-      deliveryNote: String(req.body.deliveryNote || "").trim()
-    });
+    address.set(normalizedShopAddress(req.body));
     await req.shopCustomer.save();
     return res.json({ customer: publicCustomer(req.shopCustomer) });
   } catch (error) {
@@ -487,7 +504,11 @@ export const createShopOrder = async (req, res) => {
         phone: address.phone,
         addressLine: address.addressLine,
         city: address.city,
+        country: address.country,
+        countryCode: address.countryCode,
         state: address.state,
+        localGovernment: address.localGovernment,
+        nearestBusStop: address.nearestBusStop,
         deliveryNote: address.deliveryNote || ""
       },
       items: orderItems,
@@ -561,6 +582,7 @@ const publicOrder = (order) => ({
   orderNumber: order.orderNumber,
   items: order.items.map((item) => ({
     productName: item.productName,
+    supplierName: item.supplierName,
     quantity: item.quantity,
     unitPrice: item.unitPrice
   })),

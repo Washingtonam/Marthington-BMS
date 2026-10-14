@@ -39,8 +39,12 @@ const shopOrderSchema = new mongoose.Schema({
     recipientName: { type: String, required: true },
     phone: { type: String, required: true },
     addressLine: { type: String, required: true },
+    country: { type: String, required: true, default: "Nigeria" },
+    countryCode: { type: String, required: true, default: "NG" },
     city: { type: String, required: true },
     state: { type: String, required: true },
+    localGovernment: { type: String, default: "" },
+    nearestBusStop: { type: String, default: "" },
     deliveryNote: { type: String, default: "" }
   },
   items: { type: [shopOrderItemSchema], required: true },

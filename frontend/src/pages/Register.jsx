@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
+import LocationFields from "../components/LocationFields.jsx";
 import { trackAffiliateClick } from "../api/affiliates.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -34,6 +35,13 @@ const Register = () => {
     address: "",
     phone: "",
     industryType: "retail"
+  });
+  const [businessLocation, setBusinessLocation] = useState({
+    countryCode: "NG",
+    state: "",
+    localGovernment: "",
+    city: "",
+    nearestBusStop: ""
   });
 
   const [error, setError] = useState("");
@@ -73,9 +81,12 @@ const Register = () => {
       !form.password ||
       !form.businessName ||
       !form.address ||
-      !form.phone
+      !form.phone ||
+      !businessLocation.state ||
+      !businessLocation.city ||
+      (businessLocation.countryCode === "NG" && !businessLocation.localGovernment)
     ) {
-      setError("All fields are required.");
+      setError("Complete all required fields, including your business country, state, local government area (for Nigeria), and city or town.");
       return;
     }
 
@@ -84,6 +95,10 @@ const Register = () => {
     try {
       const payload = {
         ...form,
+        addressCountryCode: businessLocation.countryCode,
+        addressState: businessLocation.state,
+        addressLocalGovernment: businessLocation.localGovernment,
+        addressCity: businessLocation.city,
         referredBy: refCode || localStorage.getItem("bms_referral") || null
       };
 
@@ -145,15 +160,25 @@ const Register = () => {
           </label>
 
           <label>
-            Business address
+            Business street address
             <input
               name="address"
               value={form.address}
               onChange={handleChange}
-              placeholder="Abuja, Nigeria"
+              placeholder="House number and street"
               className="input-field"
             />
           </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <LocationFields
+              value={businessLocation}
+              onChange={setBusinessLocation}
+              includeNearestBusStop={false}
+              labelClassName="block space-y-2 text-sm text-slate-300"
+              inputClassName="input-field"
+            />
+          </div>
 
           <label>
             Phone number

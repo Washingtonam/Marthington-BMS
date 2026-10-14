@@ -426,7 +426,8 @@ const ShopAdmin = () => {
                 </div>
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Marthington delivery address</p>
-                  <p className="mt-2 text-sm">{order.deliveryAddress.recipientName} · {order.deliveryAddress.phone}<br />{order.deliveryAddress.addressLine}, {order.deliveryAddress.city}, {order.deliveryAddress.state}</p>
+                  <p className="mt-2 text-sm">{order.deliveryAddress.recipientName} · WhatsApp: {order.deliveryAddress.phone}<br />{order.deliveryAddress.addressLine}, {order.deliveryAddress.city}{order.deliveryAddress.localGovernment ? `, ${order.deliveryAddress.localGovernment} LGA` : ""}, {order.deliveryAddress.state}, {order.deliveryAddress.country || "Nigeria"}</p>
+                  {order.deliveryAddress.nearestBusStop && <p className="mt-1 text-xs text-slate-500">Nearest bus stop / landmark: {order.deliveryAddress.nearestBusStop}</p>}
                   {order.deliveryAddress.deliveryNote && <p className="mt-1 text-xs text-slate-500">Note: {order.deliveryAddress.deliveryNote}</p>}
                   {(() => {
                     const suggestion = findDeliverySuggestion(order.deliveryAddress);
