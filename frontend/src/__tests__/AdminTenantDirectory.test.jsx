@@ -45,6 +45,7 @@ describe("Admin tenant directory", () => {
               ownerEmail: "owner@test.com",
               ownerName: "Ada Owner",
               ownerPhone: "+234 801 234 5678",
+              businessPhone: "+234 803 333 4444",
               whatsappPhone: "+234 801 234 5678",
               industryType: "school",
               subscription: { plan: "free", status: "trial", billingCycle: "monthly", expiresAt: "2026-10-20T00:00:00.000Z" },
@@ -117,11 +118,16 @@ describe("Admin tenant directory", () => {
     expect(decodeURIComponent(emailDraftLink.getAttribute("href"))).toContain("mailto:owner@test.com");
     expect(screen.getByLabelText("Email subject").value).toContain("Test Academy");
     fireEvent.click(screen.getByRole("button", { name: "WhatsApp" }));
-    const whatsAppLink = screen.getByRole("link", { name: "Open WhatsApp draft" });
-    expect(whatsAppLink.getAttribute("href")).toContain("wa.me/2348012345678");
+    const whatsAppLinks = screen.getAllByRole("link", { name: "Open WhatsApp draft" });
+    expect(whatsAppLinks).toHaveLength(2);
+    expect(whatsAppLinks[0].getAttribute("href")).toContain("wa.me/2348012345678");
+    expect(whatsAppLinks[1].getAttribute("href")).toContain("wa.me/2348033334444");
+    expect(screen.getByLabelText("+234 801 234 5678 draft opened").checked).toBe(false);
+    fireEvent.click(whatsAppLinks[1]);
+    expect(screen.getByLabelText("+234 803 333 4444 draft opened").checked).toBe(true);
 
     fireEvent.change(screen.getByLabelText("Message"), { target: { value: "Please renew your plan." } });
-    expect(decodeURIComponent(screen.getByRole("link", { name: "Open WhatsApp draft" }).getAttribute("href"))).toContain("Please renew your plan.");
+    expect(decodeURIComponent(screen.getAllByRole("link", { name: /Open WhatsApp draft|Open again/ })[0].getAttribute("href"))).toContain("Please renew your plan.");
   });
 
   it("paginates tenants and opens a bulk message composer as a modal", async () => {

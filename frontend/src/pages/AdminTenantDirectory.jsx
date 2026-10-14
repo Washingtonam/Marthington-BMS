@@ -206,6 +206,13 @@ const AdminTenantDirectory = () => {
             ) : (
               pageBusinesses.map((business) => {
                 const isPro = business.subscription?.plan === "pro";
+                const contactPhones = [
+                  business.whatsappPhone,
+                  business.ownerPhone,
+                  business.businessPhone
+                ].flatMap((value) => String(value || "").split(/[;,|/\n]+/))
+                  .map((value) => value.trim())
+                  .filter((value, index, values) => value && values.indexOf(value) === index);
                 const metric = business.industryType === "school"
                   ? `${business.studentCount || 0} students`
                   : business.industryType === "hospital"
@@ -222,7 +229,9 @@ const AdminTenantDirectory = () => {
                     <td className="min-w-56 px-5 py-4 text-slate-500">
                       <p className="font-semibold text-slate-800">{business.ownerName || "Business owner"}</p>
                       {business.ownerEmail ? <p className="mt-1">{business.ownerEmail}</p> : <p className="mt-1">No email address</p>}
-                      <p className="mt-1">{business.whatsappPhone || business.ownerPhone || business.businessPhone || "No phone number"}</p>
+                      {contactPhones.length
+                        ? <div className="mt-1 space-y-0.5">{contactPhones.map((phone) => <p key={phone}>{phone}</p>)}</div>
+                        : <p className="mt-1">No phone number</p>}
                       <button type="button" onClick={() => openContactDraft(business)} className="mt-2 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-[11px] font-bold text-emerald-800 hover:bg-emerald-50">Draft email / WhatsApp</button>
                     </td>
                     <td className="px-5 py-4 capitalize">{business.industryType || "retail"}</td>
