@@ -49,6 +49,13 @@ router.get(
   productController.getProducts
 );
 
+router.get(
+  "/:id",
+  protect,
+  checkPermission("canViewProducts"),
+  productController.getProductById
+);
+
 
 // 🔥 UPDATE PRODUCT
 router.put(

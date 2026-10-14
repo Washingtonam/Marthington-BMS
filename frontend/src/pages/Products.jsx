@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
@@ -21,6 +22,8 @@ const initialForm = {
 };
 
 const Products = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedProductId = searchParams.get("edit");
   const { business, isPro, user } = useAuth(); // Using the boolean from context
   const currentMode = isPro ? "Pro mode" : "Free mode";
   const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
@@ -55,7 +58,7 @@ const Products = () => {
   const [search, setSearch] = useState("");
   const [productSort, setProductSort] = useState("added");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const productSuggestions = useMemo(
     () => [...new Set(products.map((product) => product.name).filter(Boolean))],
@@ -190,7 +193,7 @@ const Products = () => {
       setMarkup(String(DEFAULT_PRODUCT_MARKUP));
       setCustomSellingPrice(false);
       setEditingId(null);
-      setDrawerOpen(false);
+      setModalOpen(false);
       loadProducts();
     } catch (err) {
       if (isPlanAccessMessage(err.message)) setUpgradePrompt(err.message);
@@ -200,7 +203,7 @@ const Products = () => {
     }
   };
 
-  const handleEdit = (product) => {
+  const handleEdit = useCallback((product) => {
     setEditingId(product._id);
     setForm({
       name: product.name || "",
@@ -214,19 +217,42 @@ const Products = () => {
     const sellingPrice = Number(product.sellingPrice || product.price || 0);
     setMarkup(costPrice > 0 ? calculateMarkup(costPrice, sellingPrice) : String(DEFAULT_PRODUCT_MARKUP));
     setCustomSellingPrice(true);
-    setDrawerOpen(true);
-  };
+    setModalOpen(true);
+  }, []);
 
-  const openNewProductDrawer = () => {
+  useEffect(() => {
+    if (!linkedProductId) return undefined;
+    let cancelled = false;
+    const openLinkedProduct = async () => {
+      try {
+        const product = await request(`/products/${encodeURIComponent(linkedProductId)}`);
+        if (cancelled) return;
+        handleEdit(product);
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current);
+          next.delete("edit");
+          return next;
+        }, { replace: true });
+      } catch (requestError) {
+        if (!cancelled) setError(requestError.message || "Could not open this product for editing.");
+      }
+    };
+    openLinkedProduct();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedProductId, handleEdit, setSearchParams]);
+
+  const openNewProductModal = () => {
     setEditingId(null);
     setForm(initialForm);
     setMarkup(String(DEFAULT_PRODUCT_MARKUP));
     setCustomSellingPrice(false);
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
-  const closeDrawer = () => {
-    setDrawerOpen(false);
+  const closeModal = () => {
+    setModalOpen(false);
     setEditingId(null);
     setForm(initialForm);
     setMarkup(30);
@@ -404,7 +430,7 @@ const Products = () => {
             </a>
             <button
               type="button"
-              onClick={openNewProductDrawer}
+              onClick={openNewProductModal}
               className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-100 transition hover:bg-emerald-700"
             >
               + Add Product
@@ -412,7 +438,7 @@ const Products = () => {
           </div>
         </div>
 
-        {upgradePrompt && !drawerOpen && <PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} />}
+        {upgradePrompt && !modalOpen && <PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} />}
 
         <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
@@ -558,16 +584,15 @@ const Products = () => {
         )}
       </div>
 
-      {drawerOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-slate-950/30 backdrop-blur-[2px]" onClick={closeDrawer} />
-          <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-[420px] flex-col border-l border-slate-200 bg-white shadow-2xl">
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-[2px]" onClick={closeModal}>
+          <div role="dialog" aria-modal="true" aria-labelledby="product-modal-title" onClick={(event) => event.stopPropagation()} className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h2 className="text-xl font-black text-slate-900">{editingId ? "Edit Product" : "Add Product"}</h2>
+                <h2 id="product-modal-title" className="text-xl font-black text-slate-900">{editingId ? "Edit Product" : "Add Product"}</h2>
                 <p className="mt-1 text-sm text-slate-500">{editingId ? "Update the product details below." : "Create a new inventory item in seconds."}</p>
               </div>
-              <button type="button" onClick={closeDrawer} className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50">✕</button>
+              <button type="button" onClick={closeModal} aria-label="Close product dialog" className="rounded-full border border-slate-200 p-2 text-slate-500 transition hover:bg-slate-50">✕</button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -710,7 +735,7 @@ const Products = () => {
               </form>
             </div>
           </div>
-        </>
+        </div>
       )}
     </section>
   );

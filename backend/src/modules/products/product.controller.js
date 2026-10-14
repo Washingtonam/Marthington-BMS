@@ -1,4 +1,5 @@
 import Product from "./product.model.js";
+import mongoose from "mongoose";
 import Business from "../businesses/business.model.js";
 import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 import XLSX from "xlsx";
@@ -361,6 +362,26 @@ const deleteProduct = async (req, res) => {
 };
 
 // 🔥 GET PRODUCTS FOR AUTOCOMPLETE (minimal data for searchable dropdown)
+const getProductById = async (req, res) => {
+  if (!req.user.businessId) return res.status(400).json({ message: "No business linked to this account." });
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid product ID." });
+  }
+  try {
+    const product = await Product.findOne({
+      _id: req.params.id,
+      business: req.user.businessId
+    }).lean();
+    if (!product) return res.status(404).json({ message: "Product not found." });
+    return res.json({
+      ...product,
+      sellingPrice: Number(product.price) || 0
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Could not load product." });
+  }
+};
+
 const getProductsForAutocomplete = async (req, res) => {
   try {
     const { search = "", limit = 20 } = req.query;
@@ -386,4 +407,4 @@ const getProductsForAutocomplete = async (req, res) => {
   }
 };
 
-export default { createProduct, bulkImportProducts, getProducts, getProductsForAutocomplete, updateProduct, deleteProduct, bulkDeleteProducts };
+export default { createProduct, bulkImportProducts, getProducts, getProductById, getProductsForAutocomplete, updateProduct, deleteProduct, bulkDeleteProducts };

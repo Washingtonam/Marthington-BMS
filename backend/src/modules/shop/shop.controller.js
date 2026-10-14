@@ -12,6 +12,7 @@ import jwt from "jsonwebtoken";
 import cloudinary from "../../utils/cloudinary.js";
 import { createRefund, getRefund, verifyPayment } from "../payments/paystack.service.js";
 import { initializeShopPayment } from "./shop.paystack.js";
+import mongoose from "mongoose";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCategory = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
@@ -697,11 +698,21 @@ export const getOwnerStorefrontProducts = async (req, res) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
     const business = await Business.findById(req.user.businessId).select("_id name logo shopVisible").lean();
     if (!business) return res.status(404).json({ message: "Business not found." });
+    business.shopVisible = business.shopVisible !== false;
     const filter = { business: business._id };
+    const search = String(req.query.search || "").trim().slice(0, 100);
+    if (search) {
+      const expression = { $regex: escapeRegex(search), $options: "i" };
+      filter.$or = [
+        { name: expression },
+        { category: expression },
+        { sku: expression }
+      ];
+    }
     const [totalProducts, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
-        .select("_id name category price stock shopVisible shopImage shopDescription")
+        .select("_id name category price stock sku shopVisible shopImage shopDescription")
         .sort({ name: 1, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -715,6 +726,33 @@ export const getOwnerStorefrontProducts = async (req, res) => {
   } catch (error) {
     console.error("OWNER STOREFRONT PRODUCTS ERROR:", error);
     return res.status(500).json({ message: "Could not load storefront products." });
+  }
+};
+
+export const updateOwnerStorefrontProductsVisibility = async (req, res) => {
+  const { ids, shopVisible } = req.body || {};
+  if (!req.user.businessId) return res.status(400).json({ message: "No business linked to this account." });
+  if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100 ||
+    ids.some((id) => typeof id !== "string" || !mongoose.Types.ObjectId.isValid(id))) {
+    return res.status(400).json({ message: "Select between 1 and 100 valid products." });
+  }
+  if (![true, false, "true", "false"].includes(shopVisible)) {
+    return res.status(400).json({ message: "Product visibility must be true or false." });
+  }
+  try {
+    const uniqueIds = [...new Set(ids)];
+    const ownedCount = await Product.countDocuments({ _id: { $in: uniqueIds }, business: req.user.businessId });
+    if (ownedCount !== uniqueIds.length) {
+      return res.status(404).json({ message: "One or more products were not found in your business catalogue." });
+    }
+    const result = await Product.updateMany(
+      { _id: { $in: uniqueIds }, business: req.user.businessId },
+      { $set: { shopVisible: shopVisible === true || shopVisible === "true" } }
+    );
+    return res.json({ updatedCount: result.modifiedCount });
+  } catch (error) {
+    console.error("OWNER STOREFRONT BULK VISIBILITY ERROR:", error);
+    return res.status(500).json({ message: "Could not update storefront product visibility." });
   }
 };
 

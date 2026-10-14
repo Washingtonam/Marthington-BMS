@@ -27,9 +27,13 @@ const storefrontData = {
 describe("Owner storefront management", () => {
   beforeEach(() => {
     localStorage.setItem("bms_token", "owner-token");
-    shopRequest.mockImplementation((path) => path === "/storefront/products/product-1"
-      ? Promise.resolve({ product: { ...storefrontData.products[0], shopDescription: "Updated storefront description" } })
-      : Promise.resolve(storefrontData));
+    shopRequest.mockImplementation((path) => {
+      if (path === "/storefront/products/product-1") {
+        return Promise.resolve({ product: { ...storefrontData.products[0], shopDescription: "Updated storefront description" } });
+      }
+      if (path === "/storefront/products") return Promise.resolve({ updatedCount: 1 });
+      return Promise.resolve(storefrontData);
+    });
   });
 
   afterEach(() => {
@@ -45,6 +49,7 @@ describe("Owner storefront management", () => {
     expect(screen.getByRole("heading", { name: "Laptop" })).toBeTruthy();
     expect(screen.getByLabelText("Storefront description").value).toBe("Fast and reliable");
     expect(screen.queryByLabelText("Product name")).toBeNull();
+    expect(screen.getByRole("link", { name: "Edit product in BMS" }).getAttribute("href")).toBe("/app/products?edit=product-1");
 
     fireEvent.change(screen.getByLabelText("Storefront description"), { target: { value: "Updated storefront description" } });
     fireEvent.click(screen.getByRole("button", { name: "Save storefront details" }));
@@ -55,5 +60,52 @@ describe("Owner storefront management", () => {
       expect(options.body.get("shopDescription")).toBe("Updated storefront description");
       expect(options.token).toBe("owner-token");
     });
+  });
+
+  it("does not treat an unset legacy business visibility as hidden", async () => {
+    shopRequest.mockResolvedValueOnce({
+      business: { name: "Legacy Business" },
+      products: [],
+      pagination: { currentPage: 1, totalPages: 1, totalProducts: 0 }
+    });
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Legacy Business storefront" });
+    expect(screen.queryByText(/currently hidden from shoppers/)).toBeNull();
+  });
+
+  it("searches storefront products and bulk updates selected product visibility", async () => {
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Laptop" });
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search storefront products" }), {
+      target: { value: "Laptop" }
+    });
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/storefront/products?page=1&limit=12&search=Laptop",
+        expect.objectContaining({ token: "owner-token" })
+      );
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Laptop" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide selected products" }));
+
+    await waitFor(() => {
+      const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products");
+      expect(options.method).toBe("PATCH");
+      expect(JSON.parse(options.body)).toEqual({ ids: ["product-1"], shopVisible: false });
+    });
+    expect((await screen.findByRole("status")).textContent).toContain("1 product(s) hidden from the storefront.");
+  });
+
+  it("warns owners when the super admin explicitly hides their business", async () => {
+    shopRequest.mockResolvedValueOnce({
+      ...storefrontData,
+      business: { ...storefrontData.business, shopVisible: false }
+    });
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+
+    expect(await screen.findByText(/currently hidden from shoppers/)).toBeTruthy();
   });
 });

@@ -64,15 +64,16 @@ describe("Admin tenant directory", () => {
     });
   });
 
-  it("shows the Businesses tab and permanently deletes a business after confirmation", async () => {
+  it("shows the tenant directory and permanently deletes a business after confirmation", async () => {
     render(
       <MemoryRouter>
         <AdminTenantDirectory />
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole("button", { name: "Businesses" })).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: /delete/i }));
+    expect(await screen.findByRole("heading", { name: "Tenant directory" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Test Academy" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete tenant" }));
 
     await waitFor(() => {
       expect(window.confirm).toHaveBeenCalledWith(
@@ -95,7 +96,7 @@ describe("Admin tenant directory", () => {
       </MemoryRouter>
     );
 
-    const accessButton = await screen.findByRole("button", { name: "Access Account" });
+    const accessButton = await screen.findByRole("button", { name: "Access", exact: true });
     fireEvent.click(accessButton);
 
     expect(mockStartAccess).toHaveBeenCalledWith("biz1");
@@ -110,9 +111,9 @@ describe("Admin tenant directory", () => {
       </MemoryRouter>
     );
 
-    expect((await screen.findAllByText("+234 801 234 5678")).length).toBeGreaterThan(0);
+    expect((await screen.findByText((_, element) => element?.textContent?.startsWith("+234 801 234 5678")))).toBeTruthy();
     expect(screen.getAllByText("trial").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "Draft email / WhatsApp" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Contact" }));
 
     const emailDraftLink = await screen.findByRole("link", { name: "Open email draft" });
     expect(decodeURIComponent(emailDraftLink.getAttribute("href"))).toContain("mailto:owner@test.com");
