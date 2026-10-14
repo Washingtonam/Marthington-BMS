@@ -10,6 +10,17 @@
 
 :root {
   color-scheme: light;
+  --app-emerald-50: 236 253 245;
+  --app-emerald-100: 209 250 229;
+  --app-emerald-200: 167 243 208;
+  --app-emerald-300: 110 231 183;
+  --app-emerald-400: 52 211 153;
+  --app-emerald-500: 16 185 129;
+  --app-emerald-600: 5 150 105;
+  --app-emerald-700: 4 120 87;
+  --app-emerald-800: 6 95 70;
+  --app-emerald-900: 6 78 59;
+  --app-emerald-950: 2 44 34;
 }
 
 html {

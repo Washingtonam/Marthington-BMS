@@ -6,6 +6,8 @@ import request from "../api/client.js";
 import { getOfflineSnapshotMeta, saveOfflineSnapshot } from "../api/offlineDb.js";
 import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
+import AccentColorSettings from "../components/AccentColorSettings.jsx";
+import { defaultAccentColor } from "../utils/appearance.js";
 
 const Settings = () => {
   const location = useLocation();
@@ -18,6 +20,7 @@ const Settings = () => {
     refreshBusiness,
     loadingBusiness,
     user,
+    updateAppearance,
     logout
   } = useAuth();
   const canUseCustomReceiptThemes = business?.planFeatures?.customReceiptThemes ?? isPro;
@@ -40,6 +43,7 @@ const Settings = () => {
     receiptFooter: "",
     customerDisplayMessage: "",
     receiptTheme: "modern",
+    brandPrimaryColor: defaultAccentColor,
     logo: "",
     whatsappEnabled: false,
     whatsappNumber: "",
@@ -54,6 +58,8 @@ const Settings = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [savingAppearance, setSavingAppearance] = useState(false);
+  const [personalAccentColor, setPersonalAccentColor] = useState(user?.appearance?.accentColor || defaultAccentColor);
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
@@ -84,6 +90,7 @@ const Settings = () => {
       receiptFooter: business.receiptFooter || "",
       customerDisplayMessage: business.customerDisplayMessage || "",
       receiptTheme: business.receiptTheme || "modern",
+      brandPrimaryColor: business.brandSettings?.primaryColor || defaultAccentColor,
       logo: "",
       whatsappEnabled: Boolean(business.whatsapp?.enabled),
       whatsappNumber: business.whatsapp?.number || "",
@@ -97,6 +104,10 @@ const Settings = () => {
       paymentTransferInstructions: business.paymentSettings?.transferInstructions || ""
     });
   }, [business]);
+
+  useEffect(() => {
+    setPersonalAccentColor(user?.appearance?.accentColor || defaultAccentColor);
+  }, [user?.appearance?.accentColor]);
 
   // 🔥 FETCH DYNAMIC PRICING (NEW)
   useEffect(() => {
@@ -283,6 +294,18 @@ const Settings = () => {
     setLoading(false);
   };
 
+  const savePersonalAppearance = async () => {
+    try {
+      setSavingAppearance(true);
+      await updateAppearance(personalAccentColor);
+      setUpgradeMsg("Appearance preferences saved.");
+    } catch (err) {
+      setUpgradeMsg(err.message || "Could not save appearance preferences.");
+    } finally {
+      setSavingAppearance(false);
+    }
+  };
+
   const handleSubscribe = async (planType, currency) => {
     try {
       setIsSubscribing(true);
@@ -409,6 +432,24 @@ const Settings = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Save your catalog, stock, customers, branches, and recent records on this computer for offline access.
             </p>
+            {user?.role === "owner" ? (
+              <AccentColorSettings
+                value={form.brandPrimaryColor}
+                onChange={(brandPrimaryColor) => setForm((prev) => ({ ...prev, brandPrimaryColor }))}
+                description="Choose the accent color for your business workspace. This color is saved with the business and follows it across modes."
+              />
+            ) : user?.role === "super_admin" ? (
+              <div className="space-y-3">
+                <AccentColorSettings
+                  value={personalAccentColor}
+                  onChange={setPersonalAccentColor}
+                  description="Choose the accent color for your super-admin account. Light or dark mode is shared across all modes."
+                />
+                <button type="button" onClick={savePersonalAppearance} disabled={savingAppearance} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+                  {savingAppearance ? "Saving..." : "Save appearance"}
+                </button>
+              </div>
+            ) : null}
             {offlineDataSummary?.syncedAt && (
               <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
                 Last offline download: {new Date(offlineDataSummary.syncedAt).toLocaleString()}

@@ -25,6 +25,8 @@ import {
 } from "react-icons/fi";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } from "../../utils/appearance.js";
 
 const defaultNavGroups = [
   {
@@ -83,23 +85,27 @@ const defaultNavGroups = [
 ];
 
 export default function AppShell({ children, navigationGroups = defaultNavGroups }) {
+  const { business, user, impersonatedBusiness } = useAuth();
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") return "light";
-    return localStorage.getItem("theme") || "light";
+    return getColorMode();
   });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.documentElement.classList.toggle("dark", theme === "dark");
-      document.documentElement.classList.toggle("light", theme === "light");
-    }
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem("theme", theme);
+      applyColorMode(theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    const useBusinessAccent = impersonatedBusiness || !["super_admin", "affiliate"].includes(user?.role);
+    const accentColor = useBusinessAccent
+      ? business?.brandSettings?.primaryColor
+      : user?.appearance?.accentColor;
+    applyAccentColor(accentColor || defaultAccentColor);
+  }, [business?.brandSettings?.primaryColor, impersonatedBusiness, user?.appearance?.accentColor, user?.role]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));

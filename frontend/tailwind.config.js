@@ -6,7 +6,16 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}"
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        emerald: Object.fromEntries(
+          [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((shade) => [
+            shade,
+            `rgb(var(--app-emerald-${shade}) / <alpha-value>)`
+          ])
+        )
+      }
+    },
   },
   plugins: [],
 };

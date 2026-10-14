@@ -43,6 +43,9 @@ export const updateBusiness = async (payload = {}) => {
   formData.append("receiptFooter", payload.receiptFooter ?? "");
   formData.append("customerDisplayMessage", payload.customerDisplayMessage ?? "");
   formData.append("receiptTheme", payload.receiptTheme ?? "");
+  if (payload.brandPrimaryColor !== undefined) {
+    formData.append("brandPrimaryColor", payload.brandPrimaryColor);
+  }
   formData.append("businessType", payload.businessType ?? "general_services");
   formData.append("whatsappEnabled", payload.whatsappEnabled ?? false);
   formData.append("whatsappNumber", payload.whatsappNumber ?? "");

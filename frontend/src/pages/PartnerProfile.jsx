@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { getAffiliateProfile, updateAffiliateProfile } from "../api/affiliates.js";
+import AccentColorSettings from "../components/AccentColorSettings.jsx";
+import { defaultAccentColor } from "../utils/appearance.js";
 
 const PartnerProfile = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, updateAppearance } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState(""); // 'success' or 'error'
+  const [accentColor, setAccentColor] = useState(user?.appearance?.accentColor || defaultAccentColor);
+  const [savingAppearance, setSavingAppearance] = useState(false);
   
   const [formData, setFormData] = useState({
     phone: "",
@@ -51,6 +55,10 @@ const PartnerProfile = () => {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    setAccentColor(user?.appearance?.accentColor || defaultAccentColor);
+  }, [user?.appearance?.accentColor]);
 
   // Clear success message after 3 seconds
   useEffect(() => {
@@ -102,6 +110,20 @@ const PartnerProfile = () => {
       setMessageType("error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveAppearance = async () => {
+    try {
+      setSavingAppearance(true);
+      await updateAppearance(accentColor);
+      setMessage("Appearance preferences saved.");
+      setMessageType("success");
+    } catch (err) {
+      setMessage(err.message || "Failed to save appearance preferences");
+      setMessageType("error");
+    } finally {
+      setSavingAppearance(false);
     }
   };
 
@@ -258,6 +280,17 @@ const PartnerProfile = () => {
               </button>
             </div>
           </form>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-slate-700/50 bg-slate-800/50 p-6 backdrop-blur-sm md:p-8">
+          <AccentColorSettings
+            value={accentColor}
+            onChange={setAccentColor}
+            description="Choose a preset or custom accent for your partner account. Your light/dark mode preference follows you across every mode."
+          />
+          <button type="button" onClick={saveAppearance} disabled={savingAppearance} className="mt-4 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+            {savingAppearance ? "Saving..." : "Save appearance"}
+          </button>
         </div>
 
         {/* Security Note */}

@@ -345,6 +345,7 @@ export const updateBusiness = async (req, res) => {
       supportPhone,
       receiptFooter,
       receiptTheme,
+      brandPrimaryColor,
       businessType,
       industryType,
       reportNotificationsEnabled,
@@ -365,6 +366,10 @@ export const updateBusiness = async (req, res) => {
       paymentWalletNumber,
       paymentTransferInstructions
     } = req.body;
+
+    if (brandPrimaryColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(brandPrimaryColor))) {
+      return res.status(400).json({ message: "Business accent color must be a six-digit hex color." });
+    }
 
     if (
       receiptTheme !== undefined &&
@@ -411,6 +416,12 @@ export const updateBusiness = async (req, res) => {
     business.receiptFooter = receiptFooter ?? business.receiptFooter;
     business.customerDisplayMessage = customerDisplayMessage !== undefined ? customerDisplayMessage : business.customerDisplayMessage;
     business.receiptTheme = receiptTheme ?? business.receiptTheme;
+    if (brandPrimaryColor !== undefined) {
+      business.brandSettings = {
+        ...(business.brandSettings?.toObject?.() || business.brandSettings || {}),
+        primaryColor: String(brandPrimaryColor).toLowerCase()
+      };
+    }
     business.businessType = businessType ?? business.businessType;
     business.industryType = industryType || business.industryType || "retail";
 

@@ -1,26 +1,30 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import AdminModeToggle from "./AdminModeToggle.jsx";
+import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } from "../utils/appearance.js";
 
 const navigation = [
   { to: "/partners/dashboard", label: "Dashboard", icon: "⌂", end: true },
   { to: "/partners/conversions", label: "Live Conversions", icon: "↗" },
   { to: "/partners/withdrawals", label: "Withdrawals & Payouts", icon: "₦" },
   { to: "/partners/link-history", label: "Link History", icon: "⌁" },
-  { to: "/partners/profile", label: "Profile & Bank", icon: "◎" }
+  { to: "/partners/profile", label: "Profile & Settings", icon: "◎" }
 ];
 
 const PartnerLayout = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("partner-theme") || "dark");
+  const [theme, setTheme] = useState(getColorMode);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem("partner-theme", theme);
+    applyColorMode(theme);
   }, [theme]);
+
+  useEffect(() => {
+    applyAccentColor(user?.appearance?.accentColor || defaultAccentColor);
+  }, [user?.appearance?.accentColor]);
 
   const linkClass = ({ isActive }) => `flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${
     isActive

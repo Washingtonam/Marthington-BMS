@@ -4,13 +4,21 @@ import { clearShopSession, getShopSession, shopRequest } from "../../api/shop.js
 import { useShopCart } from "../../context/ShopCartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import AdminModeToggle from "../AdminModeToggle.jsx";
+import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } from "../../utils/appearance.js";
 
 const ShopLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { count } = useShopCart();
-  const { user: bmsUser } = useAuth();
+  const { user: bmsUser, business } = useAuth();
   const [customer, setCustomer] = useState(getShopSession().customer);
+
+  useEffect(() => {
+    applyColorMode(getColorMode());
+    applyAccentColor(bmsUser?.role === "owner"
+      ? business?.brandSettings?.primaryColor || defaultAccentColor
+      : bmsUser?.appearance?.accentColor || defaultAccentColor);
+  }, [bmsUser, business?.brandSettings?.primaryColor]);
 
   useEffect(() => {
     const session = getShopSession();

@@ -269,6 +269,14 @@ const userSchema = new mongoose.Schema(
       default: null
     },
 
+    appearance: {
+      accentColor: {
+        type: String,
+        default: "#10b981",
+        match: /^#[0-9a-fA-F]{6}$/
+      }
+    },
+
     refreshToken: {
       type: String,
       default: null

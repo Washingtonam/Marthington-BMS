@@ -49,6 +49,25 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+const updateAppearance = async (req, res) => {
+  const accentColor = String(req.body?.accentColor || "");
+  if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
+    return res.status(400).json({ message: "Accent color must be a six-digit hex color." });
+  }
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: { "appearance.accentColor": accentColor.toLowerCase() } },
+      { new: true, runValidators: true }
+    ).select("appearance");
+    if (!user) return res.status(404).json({ message: "User not found." });
+    return res.json({ appearance: user.appearance });
+  } catch (error) {
+    console.error("UPDATE USER APPEARANCE ERROR:", error);
+    return res.status(500).json({ message: "Could not save appearance settings." });
+  }
+};
+
 // 🔥 REGISTER (FULL BUSINESS ONBOARDING)
 const register = async (req, res) => {
   try {
@@ -375,5 +394,6 @@ export default {
   login,
   ensureBmsWorkspace,
   refresh,
-  getCurrentUser
+  getCurrentUser,
+  updateAppearance
 };

@@ -357,6 +357,17 @@ export const AuthProvider = ({ children }) => {
     return updatedUser;
   };
 
+  const updateAppearance = async (accentColor) => {
+    const response = await request("/auth/appearance", {
+      method: "PATCH",
+      body: JSON.stringify({ accentColor })
+    });
+    const updatedUser = normalizeUser({ ...user, appearance: response.appearance });
+    localStorage.setItem("bms_user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return response.appearance;
+  };
+
   // 🔥 DERIVED STATE
   const permissions = usePermissions(user, business);
   const isPro = permissions.isPro;
@@ -410,6 +421,7 @@ export const AuthProvider = ({ children }) => {
       ensureSuperAdminWorkspace,
       ensureBmsWorkspace,
       activateAgentMode,
+      updateAppearance,
 
       impersonatedBusiness,
 
