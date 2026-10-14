@@ -23,6 +23,7 @@ const ShopCart = lazy(() => import("./pages/ShopCart.jsx"));
 const ShopCheckout = lazy(() => import("./pages/ShopCheckout.jsx"));
 const ShopOrders = lazy(() => import("./pages/ShopOrders.jsx"));
 const ShopAdmin = lazy(() => import("./pages/ShopAdmin.jsx"));
+const ShopStorefront = lazy(() => import("./pages/ShopStorefront.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
 const AffiliateRegister = lazy(() => import("./pages/AffiliateRegister.jsx"));
@@ -183,6 +184,14 @@ const App = () => {
               <Route path="cart" element={<ShopCart />} />
               <Route path="checkout" element={<ShopCheckout />} />
               <Route path="orders" element={<ShopOrders />} />
+              <Route
+                path="manage"
+                element={
+                  <ProtectedRoute requiredRole="owner">
+                    <ShopStorefront />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="admin"
                 element={

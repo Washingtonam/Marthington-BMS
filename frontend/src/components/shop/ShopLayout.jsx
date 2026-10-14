@@ -58,6 +58,7 @@ const ShopLayout = () => {
               <Link to="/shop/account" className="rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700">Sign in</Link>
             )}
             {bmsUser?.role === "super_admin" && <Link to="/shop/admin" className="hidden text-emerald-700 hover:text-emerald-900 sm:inline">Shop admin</Link>}
+            {bmsUser?.role === "owner" && <Link to="/shop/manage" className="hidden text-emerald-700 hover:text-emerald-900 sm:inline">Manage storefront</Link>}
             <AdminModeToggle />
             <Link to="/" className="hidden text-slate-500 hover:text-slate-900 md:inline">BMS home</Link>
           </nav>

@@ -109,6 +109,7 @@ const Shop = () => {
                 <div className="flex flex-1 flex-col p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{product.category}</p>
                   <Link to={`/shop/product/${product.id}`} className="mt-2 text-lg font-bold hover:text-emerald-700">{product.name}</Link>
+                  {product.description && <p className="mt-2 line-clamp-2 text-sm leading-5 text-slate-600">{product.description}</p>}
                   <p className="mt-1 text-sm text-slate-500">Supplied by {product.business.name}</p>
                   <p className={`mt-2 text-xs font-semibold ${product.available ? "text-emerald-700" : "text-amber-700"}`}>
                     {product.available ? "In stock" : "Currently out of stock"}

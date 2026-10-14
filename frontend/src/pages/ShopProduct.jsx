@@ -32,7 +32,7 @@ const ShopProduct = () => {
           <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">{product.category}</p>{product.featured && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Featured</span>}</div>
           <h1 className="mt-3 text-4xl font-black">{product.name}</h1>
           <p className="mt-3 text-sm text-slate-500">Supplied by {product.business.name}</p>
-          {product.business.description && <p className="mt-5 leading-7 text-slate-600">{product.business.description}</p>}
+          {product.description && <p className="mt-5 whitespace-pre-line leading-7 text-slate-600">{product.description}</p>}
           <p className={`mt-6 text-sm font-semibold ${product.available ? "text-emerald-700" : "text-amber-700"}`}>{product.available ? "In stock" : "Currently out of stock"}</p>
           <p className="mt-3 text-3xl font-black">{formatCurrency(product.price)}</p>
           <button type="button" disabled={!product.canPurchase} onClick={() => add(product)} className="mt-6 rounded-xl bg-emerald-600 px-5 py-4 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">{!product.available ? "Out of stock" : product.canPurchase ? "Add to cart" : "Price unavailable"}</button>

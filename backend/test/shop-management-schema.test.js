@@ -8,6 +8,8 @@ import ShopOrder from "../src/modules/shop/shopOrder.model.js";
 test("shop products support admin curation without changing BMS product fields", () => {
   assert.equal(Product.schema.path("shopFeatured").options.default, false);
   assert.equal(Product.schema.path("shopVisible").options.default, true);
+  assert.equal(Product.schema.path("shopDescription").options.default, "");
+  assert.equal(Product.schema.path("shopDescription").options.maxlength, 1000);
 });
 
 test("shop delivery presets enforce a unique state and city and a whole-number fee", () => {

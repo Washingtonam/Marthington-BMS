@@ -53,6 +53,12 @@ const productSchema = new mongoose.Schema(
       default: ""
     },
 
+    shopDescription: {
+      type: String,
+      default: "",
+      maxlength: 1000
+    },
+
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",

@@ -45,6 +45,7 @@ describe("Marthington Shop catalogue", () => {
         available: true,
         canPurchase: true,
         image: "",
+        description: "A useful everyday product.",
         business: { name: "Market Goods" }
       }],
       categories: ["Home"],
@@ -57,6 +58,7 @@ describe("Marthington Shop catalogue", () => {
 
     expect(screen.getByText("Market basket")).toBeTruthy();
     expect(screen.getByText("Supplied by Market Goods")).toBeTruthy();
+    expect(screen.getByText("A useful everyday product.")).toBeTruthy();
     expect(screen.getByText("Cart items: 1")).toBeTruthy();
   });
 

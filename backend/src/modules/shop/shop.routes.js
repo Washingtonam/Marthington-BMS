@@ -11,6 +11,7 @@ import {
   createShopAdminRefund,
   deleteShopCustomerAddress,
   getCustomerOrders,
+  getOwnerStorefrontProducts,
   getShopAdminBusinesses,
   getShopAdminCategories,
   getShopAdminDeliveryAreas,
@@ -31,6 +32,7 @@ import {
   updateShopAdminDeliveryArea,
   deleteShopAdminDeliveryArea,
   updateShopAdminProduct,
+  updateOwnerStorefrontProduct,
   updateShopCustomerAddress,
   verifyDeliveryFeePayment,
   verifyShopPayment
@@ -51,6 +53,8 @@ const upload = multer({
 
 router.get("/", getShopListings);
 router.get("/products/:id", getShopProduct);
+router.get("/storefront/products", protect, authorize("owner"), getOwnerStorefrontProducts);
+router.patch("/storefront/products/:id", protect, authorize("owner"), upload.single("image"), updateOwnerStorefrontProduct);
 
 router.post("/customers/register", registerShopCustomer);
 router.post("/customers/login", loginShopCustomer);

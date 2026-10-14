@@ -124,7 +124,7 @@ export const getShopListings = async (req, res) => {
     const [totalProducts, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
-        .select("_id name category price stock business shopImage shopFeatured")
+        .select("_id name category price stock business shopImage shopDescription shopFeatured")
         .sort({ shopFeatured: -1, createdAt: -1, _id: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -141,6 +141,7 @@ export const getShopListings = async (req, res) => {
         available: Number(product.stock) > 0,
         canPurchase: Number(product.stock) > 0 && Number(product.price) > 0,
         image: product.shopImage || "",
+        description: product.shopDescription || "",
         featured: product.shopFeatured === true,
         business: {
           name: business.name,
@@ -169,7 +170,7 @@ export const getShopListings = async (req, res) => {
 export const getShopProduct = async (req, res) => {
   try {
     const product = await Product.findOne({ _id: req.params.id, shopVisible: { $ne: false } })
-      .select("_id name category price stock business shopImage shopFeatured")
+      .select("_id name category price stock business shopImage shopDescription shopFeatured")
       .populate({
         path: "business",
         match: {
@@ -192,6 +193,7 @@ export const getShopProduct = async (req, res) => {
         available: Number(product.stock) > 0,
         canPurchase: Number(product.stock) > 0 && Number(product.price) > 0,
         image: product.shopImage || "",
+        description: product.shopDescription || "",
         featured: product.shopFeatured === true,
         business: {
           name: product.business.name,
@@ -685,6 +687,78 @@ export const getShopAdminProducts = async (req, res) => {
   } catch (error) {
     console.error("SHOP ADMIN PRODUCTS ERROR:", error);
     return res.status(500).json({ message: "Could not load marketplace products." });
+  }
+};
+
+export const getOwnerStorefrontProducts = async (req, res) => {
+  try {
+    if (!req.user.businessId) return res.status(400).json({ message: "No business linked to this account." });
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
+    const business = await Business.findById(req.user.businessId).select("_id name logo shopVisible").lean();
+    if (!business) return res.status(404).json({ message: "Business not found." });
+    const filter = { business: business._id };
+    const [totalProducts, products] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter)
+        .select("_id name category price stock shopVisible shopImage shopDescription")
+        .sort({ name: 1, _id: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean()
+    ]);
+    return res.json({
+      business,
+      products,
+      pagination: { currentPage: page, totalPages: Math.ceil(totalProducts / limit), totalProducts }
+    });
+  } catch (error) {
+    console.error("OWNER STOREFRONT PRODUCTS ERROR:", error);
+    return res.status(500).json({ message: "Could not load storefront products." });
+  }
+};
+
+export const updateOwnerStorefrontProduct = async (req, res) => {
+  try {
+    if (!req.user.businessId) return res.status(400).json({ message: "No business linked to this account." });
+    if (req.body.shopDescription !== undefined && typeof req.body.shopDescription !== "string") {
+      return res.status(400).json({ message: "Product description must be text." });
+    }
+    if (req.body.shopDescription?.length > 1000) {
+      return res.status(400).json({ message: "Product description must be 1,000 characters or fewer." });
+    }
+    if (req.file && !req.file.mimetype.startsWith("image/")) {
+      return res.status(400).json({ message: "Upload a valid image." });
+    }
+    const product = await Product.findOne({ _id: req.params.id, business: req.user.businessId });
+    if (!product) return res.status(404).json({ message: "Product not found in your business catalogue." });
+    if (!req.file && req.body.shopDescription === undefined) {
+      return res.status(400).json({ message: "Add a product image or description to save." });
+    }
+    if (req.file) {
+      const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const result = await cloudinary.uploader.upload(base64, { folder: "marthington_shop_products", resource_type: "image" });
+      product.shopImage = result.secure_url;
+    }
+    if (req.body.shopDescription !== undefined) {
+      product.shopDescription = req.body.shopDescription.trim();
+    }
+    await product.save();
+    return res.json({
+      product: {
+        _id: product._id,
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        stock: product.stock,
+        shopVisible: product.shopVisible,
+        shopImage: product.shopImage,
+        shopDescription: product.shopDescription
+      }
+    });
+  } catch (error) {
+    console.error("OWNER STOREFRONT PRODUCT UPDATE ERROR:", error);
+    return res.status(500).json({ message: "Could not update storefront product." });
   }
 };
 
