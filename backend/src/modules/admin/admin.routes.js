@@ -216,6 +216,9 @@ router.get(
   adminController.getEmailHealth
 );
 
+router.get("/communications/messages", protect, onlyAdmin, adminController.listCommunicationDeliveries);
+router.post("/communications/messages", protect, onlyAdmin, adminController.sendCommunicationMessage);
+
 // ================= OUTREACH CAMPAIGNS =================
 router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);
 router.get("/email-campaigns/audience-count", protect, onlyAdmin, adminController.getEmailAudienceCount);

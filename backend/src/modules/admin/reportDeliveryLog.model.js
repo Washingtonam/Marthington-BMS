@@ -16,8 +16,18 @@ const reportDeliveryLogSchema = new mongoose.Schema(
     },
     recipientEmail: {
       type: String,
-      required: true,
+      default: "",
       lowercase: true
+    },
+    recipientPhone: {
+      type: String,
+      default: ""
+    },
+    channel: {
+      type: String,
+      enum: ["email", "whatsapp"],
+      default: "email",
+      required: true
     },
     reportType: {
       type: String,

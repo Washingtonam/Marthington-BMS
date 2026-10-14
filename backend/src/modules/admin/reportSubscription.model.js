@@ -12,6 +12,18 @@ const reportSubscriptionSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    recipientPhone: {
+      type: String,
+      default: ""
+    },
+    whatsappOptInConfirmed: {
+      type: Boolean,
+      default: false
+    },
+    whatsappOptInConfirmedAt: {
+      type: Date,
+      default: null
+    },
     business: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Business",
@@ -32,6 +44,11 @@ const reportSubscriptionSchema = new mongoose.Schema(
       type: String,
       enum: ["daily", "weekly", "monthly"],
       default: "daily"
+    },
+    channel: {
+      type: String,
+      enum: ["email", "whatsapp", "both"],
+      default: "email"
     },
     sendTime: {
       type: String,
@@ -71,6 +88,14 @@ const reportSubscriptionSchema = new mongoose.Schema(
       index: true
     },
     lastSentAt: {
+      type: Date,
+      default: null
+    },
+    emailLastSentAt: {
+      type: Date,
+      default: null
+    },
+    whatsappLastSentAt: {
       type: Date,
       default: null
     },

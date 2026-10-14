@@ -20,7 +20,7 @@ const statusFilters = [
 ];
 const defaultSections = reportSections.map(([value]) => value);
 const emptyForm = {
-  recipientName: "", recipientEmail: "", businessId: "", reportType: "overview",
+  recipientName: "", recipientEmail: "", recipientPhone: "", whatsappOptInConfirmed: false, businessId: "", reportType: "overview", channel: "email",
   frequencies: ["daily"], reportSections: defaultSections, sendTimes: { daily: "18:00", weekly: "18:00", monthly: "18:00" }, weeklyDay: 1, monthlyDay: "last", timezone: "Africa/Lagos"
 };
 
@@ -37,6 +37,7 @@ const AdminCommunications = () => {
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState("");
   const [emailHealth, setEmailHealth] = useState(null);
+  const [messageDeliveries, setMessageDeliveries] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState("");
@@ -46,11 +47,14 @@ const AdminCommunications = () => {
   const [pageSize, setPageSize] = useState(10);
 
   const load = async () => {
-    const [subscriptionData, businessesData] = await Promise.all([
-      request("/admin/report-subscriptions"), request("/admin/businesses")
+    const [subscriptionData, businessesData, messageData] = await Promise.all([
+      request("/admin/report-subscriptions"),
+      request("/admin/businesses"),
+      request("/admin/communications/messages")
     ]);
     setSubscriptions(subscriptionData.subscriptions || []);
     setBusinesses(businessesData.businesses || []);
+    setMessageDeliveries(messageData.deliveries || []);
     request("/admin/email-health")
       .then(setEmailHealth)
       .catch((error) => setEmailHealth(error.body || { verified: false, email: { lastError: error.message || "Email health check failed" } }));
@@ -109,6 +113,7 @@ const AdminCommunications = () => {
       return {
         ...business,
         _id: getRecipientKey(recipient),
+        businessId,
         name: business.name || recipient.business?.name,
         ownerName: recipient.recipientName || business.ownerName,
         ownerEmail: recipient.recipientEmail || business.ownerEmail,
@@ -118,6 +123,21 @@ const AdminCommunications = () => {
         businessPhone: business.businessPhone
       };
     }));
+  };
+
+  const sendDirectMessage = async ({ recipients, channel, subject, message, whatsappOptInConfirmed }) => {
+    const response = await request("/admin/communications/messages", {
+      method: "POST",
+      body: JSON.stringify({
+        businessIds: recipients.map((recipient) => recipient.businessId).filter(Boolean),
+        channel,
+        subject,
+        message,
+        whatsappOptInConfirmed
+      })
+    });
+    setMessageDeliveries((current) => [...(response.deliveries || []), ...current].slice(0, 100));
+    return response;
   };
 
   const toggleSelection = (recipient) => {
@@ -145,7 +165,13 @@ const AdminCommunications = () => {
 
   const handleBusinessChange = (businessId) => {
     const business = businesses.find((item) => item._id === businessId);
-    setForm((current) => ({ ...current, businessId, recipientName: business?.ownerName || "", recipientEmail: business?.ownerEmail || "" }));
+    setForm((current) => ({
+      ...current,
+      businessId,
+      recipientName: business?.ownerName || "",
+      recipientEmail: business?.ownerEmail || "",
+      recipientPhone: business?.whatsappPhone || business?.ownerPhone || business?.businessPhone || ""
+    }));
   };
 
   const toggleFormValue = (field, value) => setForm((current) => ({
@@ -158,8 +184,11 @@ const AdminCommunications = () => {
     setForm({
       recipientName: recipient.recipientName || "",
       recipientEmail: recipient.recipientEmail || "",
+      recipientPhone: schedule?.recipientPhone || recipient.recipientPhone || businesses.find((item) => item._id === (recipient.business?._id || recipient.business))?.whatsappPhone || "",
+      whatsappOptInConfirmed: recipient.whatsappOptInConfirmed || false,
       businessId: recipient.business?._id || recipient.business || "",
       reportType: recipient.reportType || "overview",
+      channel: schedule?.channel || recipient.channel || "email",
       frequencies: [frequency],
       reportSections: recipient.reportSections || defaultSections,
       sendTimes: Object.fromEntries(["daily", "weekly", "monthly"].map((value) => [value, recipient.schedules.find((item) => item.frequency === value)?.sendTime || "18:00"])),
@@ -271,7 +300,12 @@ const AdminCommunications = () => {
   };
 
   const sendTest = async (subscription) => {
-    if (!window.confirm(`Send the ${subscription.frequency} report now to ${subscription.recipientEmail}?`)) return;
+    const destination = subscription.channel === "whatsapp"
+      ? subscription.recipientPhone
+      : subscription.channel === "both"
+        ? `${subscription.recipientEmail} and ${subscription.recipientPhone}`
+        : subscription.recipientEmail;
+    if (!window.confirm(`Send the ${subscription.frequency} report now to ${destination}?`)) return;
     try {
       setTestingId(subscription._id);
       await request(`/admin/report-subscriptions/${subscription._id}/test`, { method: "POST" });
@@ -366,6 +400,20 @@ const AdminCommunications = () => {
       </div>
     </div>
 
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="message-activity-title">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <div><h2 id="message-activity-title" className="text-sm font-extrabold text-slate-900">Recent direct messages</h2><p className="mt-1 text-xs text-slate-500">Email and WhatsApp sends to selected business owners.</p></div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{messageDeliveries.length} recent</span>
+      </div>
+      {messageDeliveries.length === 0 ? <p className="px-5 py-6 text-sm text-slate-500">No direct messages sent yet. Select a business or group below to start.</p> : <ul className="divide-y divide-slate-100">
+        {messageDeliveries.slice(0, 6).map((delivery) => <li key={delivery._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+          <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{delivery.business?.name || "Business"} <span className="font-normal text-slate-500">· {delivery.recipientName || "Owner"}</span></p><p className="mt-0.5 truncate text-xs text-slate-500">{delivery.subject || delivery.message}</p></div>
+          <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">{delivery.channel || "email"}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${delivery.status === "sent" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{delivery.status}</span><span className="whitespace-nowrap text-[10px] text-slate-400">{new Date(delivery.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>
+          {delivery.errorMessage && <p className="w-full text-xs text-rose-700">{delivery.errorMessage}</p>}
+        </li>)}
+      </ul>}
+    </section>
+
     <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
       <div className="border-b border-slate-100 bg-slate-50/60 p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -438,8 +486,9 @@ const AdminCommunications = () => {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-                      <span className="rounded-full bg-slate-100 px-2 py-1">{recipient.business?.name || "General"}</span>
+                      <button type="button" onClick={() => openFrequency(recipient, primarySchedule?.frequency || "daily")} className="rounded-full bg-slate-100 px-2 py-1 text-left hover:bg-emerald-50 hover:text-emerald-800" aria-label={`Configure reports for ${recipient.business?.name || "General"}`}>{recipient.business?.name || "General"} · Configure</button>
                       <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{formatReportType(recipient.reportType)}</span>
+                      <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700">{(recipient.channel || "email").replace("both", "Email + WhatsApp")}</span>
                       <span className={`rounded-full px-2 py-1 font-bold ${isPro ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>{isPro ? "Pro" : "Free"}</span>
                     </div>
                   </div>
@@ -499,7 +548,7 @@ const AdminCommunications = () => {
       </div>
     </div>
 
-    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} title={contactRecipients.length > 1 ? `Draft a message to ${contactRecipients.length} selected tenants` : `Draft a message to ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
+    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} onSendDirect={sendDirectMessage} title={contactRecipients.length > 1 ? `Message ${contactRecipients.length} selected tenants` : `Message ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
     {historyRecipient && <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/30" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title">
       <aside className="h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
@@ -519,7 +568,7 @@ const AdminCommunications = () => {
             <p className="mt-3 text-sm font-semibold text-slate-800">{schedule.sendTime || "18:00"} · {schedule.timezone || "Africa/Lagos"}</p>
             {schedule.frequency === "weekly" && <p className="mt-1 text-xs text-slate-500">Every {weekdays.find(([value]) => value === (schedule.weeklyDay ?? 1))?.[1] || "Monday"}</p>}
             {schedule.frequency === "monthly" && <p className="mt-1 text-xs text-slate-500">Every {schedule.monthlyDay === "first" ? "first day of the month" : schedule.monthlyDay === "last" ? "last day of the month" : `${schedule.monthlyDay || 1}${Number(schedule.monthlyDay) % 100 >= 11 && Number(schedule.monthlyDay) % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][Number(schedule.monthlyDay) % 10] || "th")} day of the month`}</p>}
-            <p className="mt-2 text-xs text-slate-500">Last sent: {schedule.lastSentAt ? new Date(schedule.lastSentAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No email sent yet"}</p>
+            <p className="mt-2 text-xs text-slate-500">Last sent: {schedule.lastSentAt ? new Date(schedule.lastSentAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "No report sent yet"} · {(schedule.channel || "email").replace("both", "Email + WhatsApp")}</p>
             {schedule.lastError && <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">Latest error: {schedule.lastError}</p>}
             <p className="mt-2 text-xs text-slate-500">Report sections: {(schedule.reportSections || defaultSections).map((section) => reportSections.find(([value]) => value === section)?.[1]).filter(Boolean).join(", ") || "Overview"}</p>
             {schedule.historyError && <p className="mt-2 text-xs text-rose-600">{schedule.historyError}</p>}
@@ -531,7 +580,7 @@ const AdminCommunications = () => {
 
     {isFormOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="recipient-modal-title"><form onSubmit={create} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
       <div className="mb-6 flex items-start justify-between border-b border-slate-100 pb-4"><div><h2 id="recipient-modal-title" className="text-xl font-bold text-slate-900">{editingId ? "Edit report schedule" : "Add report recipient"}</h2><p className="mt-1 text-xs text-slate-400">Choose schedules and report sections before saving.</p></div><button type="button" onClick={() => { setIsFormOpen(false); setEditingId(""); }} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600">Close</button></div>
-      <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-slate-500">Business<select required value={form.businessId} onChange={(event) => handleBusinessChange(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="">Select business</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select></label><label className="text-xs font-bold text-slate-500">Recipient name<input required value={form.recipientName} onChange={(event) => setForm({ ...form, recipientName: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Recipient email<input required type="email" value={form.recipientEmail} onChange={(event) => setForm({ ...form, recipientEmail: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Report content<select value={form.reportType} onChange={(event) => setForm({ ...form, reportType: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="overview">Business overview</option><option value="daily-analysis">Daily report analysis</option></select></label></div>
+      <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-slate-500">Business<select required value={form.businessId} onChange={(event) => handleBusinessChange(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="">Select business</option>{businesses.map((business) => <option key={business._id} value={business._id}>{business.name}</option>)}</select></label><label className="text-xs font-bold text-slate-500">Recipient name<input required value={form.recipientName} onChange={(event) => setForm({ ...form, recipientName: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="text-xs font-bold text-slate-500">Delivery channel<select value={form.channel} onChange={(event) => setForm({ ...form, channel: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="both">Email and WhatsApp</option></select></label>{["email", "both"].includes(form.channel) && <label className="text-xs font-bold text-slate-500">Recipient email<input required type="email" value={form.recipientEmail} onChange={(event) => setForm({ ...form, recipientEmail: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>}{["whatsapp", "both"].includes(form.channel) && <><label className="text-xs font-bold text-slate-500">WhatsApp number<input required value={form.recipientPhone} onChange={(event) => setForm({ ...form, recipientPhone: event.target.value })} placeholder="e.g. 2348012345678" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label><label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-900 md:col-span-2"><input type="checkbox" required checked={form.whatsappOptInConfirmed} onChange={(event) => setForm({ ...form, whatsappOptInConfirmed: event.target.checked })} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-emerald-600" />I confirm this recipient has explicitly opted in to receive scheduled business reports on WhatsApp.</label></>}<label className="text-xs font-bold text-slate-500">Report content<select value={form.reportType} onChange={(event) => setForm({ ...form, reportType: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="overview">Business overview</option><option value="daily-analysis">Daily report analysis</option></select></label></div>
       <fieldset className="mt-5"><legend className="text-xs font-bold text-slate-500">Delivery frequency</legend><div className="mt-2 flex flex-wrap gap-2">{frequencies.map(([value, label]) => <button key={value} type="button" onClick={() => toggleFormValue("frequencies", value)} className={`rounded-xl border px-4 py-2 text-xs font-bold ${form.frequencies.includes(value) ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-500"}`}>{label}</button>)}</div></fieldset>
       <fieldset className="mt-5"><legend className="text-xs font-bold text-slate-500">Report contents</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{reportSections.map(([value, label]) => <label key={value} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-3 text-xs text-slate-700"><input type="checkbox" checked={form.reportSections.includes(value)} onChange={() => toggleFormValue("reportSections", value)} />{label}</label>)}</div></fieldset>
       <div className="mt-5 grid gap-4 md:grid-cols-2">{form.frequencies.map((frequency) => <label key={frequency} className="text-xs font-bold text-slate-500">{frequency[0].toUpperCase() + frequency.slice(1)} send time<input type="time" required value={form.sendTimes[frequency]} onChange={(event) => setForm({ ...form, sendTimes: { ...form.sendTimes, [frequency]: event.target.value } })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5" /></label>)}<label className="text-xs font-bold text-slate-500">Timezone<select value={form.timezone} onChange={(event) => setForm({ ...form, timezone: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5"><option value="Africa/Lagos">Africa/Lagos</option><option value="UTC">UTC</option><option value="Europe/London">Europe/London</option><option value="America/New_York">America/New_York</option></select></label></div>

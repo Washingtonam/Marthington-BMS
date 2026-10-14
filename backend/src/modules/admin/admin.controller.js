@@ -15,12 +15,15 @@ import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
 import ReportDeliveryLog from "./reportDeliveryLog.model.js";
+import CommunicationDelivery from "./communicationDelivery.model.js";
 import jwt from "jsonwebtoken";
-import { sendCampaignEmail, sendReportEmail } from "../../utils/emailService.js";
+import { sendCampaignEmail, sendReportEmail, sendSubscriptionEmail } from "../../utils/emailService.js";
 import { getEmailConfigStatus, verifyEmailConfig } from "../../config/email.js";
 import EmailCampaign from "./emailCampaign.model.js";
 import EmailPreference from "./emailPreference.model.js";
 import { getReportSnapshot } from "./reportSnapshot.js";
+import { sendBusinessReportWhatsApp } from "../../utils/reportWhatsApp.js";
+import { sendWhatsAppTemplate } from "../whatsapp/whatsapp.service.js";
 import { normalizePlanAccess, validatePlanAccess } from "../subscriptions/planAccess.js";
 import { getSubscriptionRecipients, processEmailCampaignById } from "../../jobs/emailCampaign.job.js";
 import SubscriptionPayment from "../payments/subscriptionPayment.model.js";
@@ -1033,10 +1036,13 @@ const createReportSubscription = async (req, res) => {
     const {
       recipientEmail,
       recipientName = "",
+      recipientPhone = "",
+      whatsappOptInConfirmed = false,
       businessId,
       reportType = "overview",
       reportSections,
       frequency = "daily",
+      channel = "email",
       sendTime = "18:00",
       weeklyDay = 1,
       monthlyDay = "last",
@@ -1045,8 +1051,14 @@ const createReportSubscription = async (req, res) => {
       isRemoved = false
     } = req.body;
 
-    if (!recipientEmail || !/^\S+@\S+\.\S+$/.test(recipientEmail)) {
+    if (!["email", "whatsapp", "both"].includes(channel)) {
+      return res.status(400).json({ message: "A valid report delivery channel is required" });
+    }
+    if (["email", "both"].includes(channel) && (!recipientEmail || !/^\S+@\S+\.\S+$/.test(recipientEmail))) {
       return res.status(400).json({ message: "A valid recipient email is required" });
+    }
+    if (["whatsapp", "both"].includes(channel) && (!recipientPhone || whatsappOptInConfirmed !== true)) {
+      return res.status(400).json({ message: "A WhatsApp number and confirmed recipient opt-in are required" });
     }
     if (!businessId || !mongoose.Types.ObjectId.isValid(businessId) || !(await Business.exists({ _id: businessId }))) {
       return res.status(400).json({ message: "A valid business is required" });
@@ -1055,15 +1067,19 @@ const createReportSubscription = async (req, res) => {
     const existingRemovedSubscription = await ReportSubscription.findOne({ business: businessId, recipientEmail, reportType, frequency, isRemoved: true });
     const createdSubscription = existingRemovedSubscription
       ? await ReportSubscription.findByIdAndUpdate(existingRemovedSubscription._id, {
-        recipientName, reportSections, sendTime, weeklyDay, monthlyDay, timezone, status, isRemoved: isRemoved === true, updatedBy: req.user.id
+        recipientName, recipientPhone, whatsappOptInConfirmed, whatsappOptInConfirmedAt: whatsappOptInConfirmed ? new Date() : null, channel, reportSections, sendTime, weeklyDay, monthlyDay, timezone, status, isRemoved: isRemoved === true, updatedBy: req.user.id
       }, { new: true, runValidators: true })
       : await ReportSubscription.create({
       recipientEmail,
       recipientName,
+      recipientPhone,
+      whatsappOptInConfirmed,
+      whatsappOptInConfirmedAt: whatsappOptInConfirmed ? new Date() : null,
       business: businessId,
       reportType,
       ...(Array.isArray(reportSections) ? { reportSections } : {}),
       frequency,
+      channel,
       sendTime,
       weeklyDay,
       monthlyDay,
@@ -1089,7 +1105,7 @@ const createReportSubscription = async (req, res) => {
 
 const updateReportSubscription = async (req, res) => {
   try {
-    const allowedFields = ["recipientName", "reportType", "reportSections", "frequency", "sendTime", "weeklyDay", "monthlyDay", "timezone", "status"];
+    const allowedFields = ["recipientName", "recipientEmail", "recipientPhone", "whatsappOptInConfirmed", "channel", "reportType", "reportSections", "frequency", "sendTime", "weeklyDay", "monthlyDay", "timezone", "status"];
     const updates = {};
 
     for (const field of allowedFields) {
@@ -1098,6 +1114,26 @@ const updateReportSubscription = async (req, res) => {
 
     if (!Object.keys(updates).length) {
       return res.status(400).json({ message: "No subscription changes supplied" });
+    }
+
+    const current = await ReportSubscription.findById(req.params.id).lean();
+    if (!current) return res.status(404).json({ message: "Report subscription not found" });
+    const nextChannel = updates.channel || current.channel || "email";
+    const nextEmail = updates.recipientEmail ?? current.recipientEmail;
+    const nextPhone = updates.recipientPhone ?? current.recipientPhone;
+    const nextOptIn = updates.whatsappOptInConfirmed ?? current.whatsappOptInConfirmed;
+    if (["email", "both"].includes(nextChannel) && (!nextEmail || !/^\S+@\S+\.\S+$/.test(nextEmail))) {
+      return res.status(400).json({ message: "A valid recipient email is required" });
+    }
+    if (["whatsapp", "both"].includes(nextChannel) && (!nextPhone || nextOptIn !== true)) {
+      return res.status(400).json({ message: "A WhatsApp number and confirmed recipient opt-in are required" });
+    }
+    if (updates.whatsappOptInConfirmed !== undefined) {
+      updates.whatsappOptInConfirmedAt = updates.whatsappOptInConfirmed ? new Date() : null;
+    }
+    if (updates.channel === "both" && current.lastSentAt) {
+      if ((current.channel || "email") === "email" && !current.emailLastSentAt) updates.emailLastSentAt = current.lastSentAt;
+      if (current.channel === "whatsapp" && !current.whatsappLastSentAt) updates.whatsappLastSentAt = current.lastSentAt;
     }
 
     updates.updatedBy = req.user.id;
@@ -1149,14 +1185,15 @@ const sendReportSubscriptionTest = async (req, res) => {
   const stage = (name, details = "") => console.log(`[report-test] ${name} ${Date.now() - startedAt}ms${details ? ` ${details}` : ""}`);
   let subscription = null;
   let currentStage = "subscription_lookup";
-  let recipientEmailForLog = null;
-  const recordDelivery = async ({ status, errorMessage = "", sentAt = null }) => {
+  const recordDelivery = async ({ channel, recipientEmail, recipientPhone, status, errorMessage = "", sentAt = null }) => {
     if (!subscription) return;
     try {
       await ReportDeliveryLog.create({
         subscription: subscription._id,
         business: subscription.business?._id || subscription.business,
-        recipientEmail: recipientEmailForLog || subscription.recipientEmail,
+        recipientEmail: recipientEmail || "",
+        recipientPhone: recipientPhone || subscription.recipientPhone || "",
+        channel,
         reportType: subscription.reportType,
         frequency: subscription.frequency,
         status,
@@ -1174,48 +1211,63 @@ const sendReportSubscriptionTest = async (req, res) => {
 
     const recipientEmail = req.body.recipientEmail || subscription.recipientEmail;
     const recipientName = req.body.recipientName || subscription.recipientName;
-    recipientEmailForLog = recipientEmail;
     const businessId = subscription.business?._id || subscription.business;
     currentStage = "report_data_collection";
     const { snapshot, periodLabel, counts } = await getReportSnapshot(subscription, businessId);
     stage("report_data_loaded", `sales=${counts.sales} transactions=${counts.transactions} products=${counts.products}`);
     currentStage = "snapshot_build";
     stage("snapshot_built");
-    const token = jwt.sign({ subscriptionId: subscription._id.toString(), purpose: "report-unsubscribe" }, process.env.JWT_SECRET, { expiresIn: "10y" });
-    const apiUrl = String(process.env.PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
-    currentStage = "email_delivery";
-    const sent = await sendReportEmail({
-      recipientEmail,
-      recipientName,
-      businessName: subscription.business?.name || "Marthington BMS business",
-      reportType: subscription.reportType,
-      frequency: subscription.frequency,
-      periodLabel,
-      snapshot,
-      unsubscribeUrl: `${apiUrl}/api/report-subscriptions/unsubscribe?token=${encodeURIComponent(token)}`
-    });
-    stage("email_completed");
-    if (!sent) {
-      const emailStatus = getEmailConfigStatus();
-      const isTimeout = /timeout|timed out|ETIMEDOUT/i.test(emailStatus.lastError || "");
-      const errorMessage = emailStatus.lastError || "Email transporter unavailable or delivery failed";
+    const channels = subscription.channel === "both" ? ["email", "whatsapp"] : [subscription.channel || "email"];
+    const failures = [];
+    for (const channel of channels) {
+      try {
+        if (channel === "email") {
+          const token = jwt.sign({ subscriptionId: subscription._id.toString(), purpose: "report-unsubscribe" }, process.env.JWT_SECRET, { expiresIn: "10y" });
+          const apiUrl = String(process.env.PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000").replace(/\/$/, "");
+          const sent = await sendReportEmail({
+            recipientEmail,
+            recipientName,
+            businessName: subscription.business?.name || "Marthington BMS business",
+            reportType: subscription.reportType,
+            frequency: subscription.frequency,
+            periodLabel,
+            snapshot,
+            unsubscribeUrl: `${apiUrl}/api/report-subscriptions/unsubscribe?token=${encodeURIComponent(token)}`
+          });
+          if (!sent) throw new Error(getEmailConfigStatus().lastError || "Email delivery failed");
+        } else {
+          if (!subscription.whatsappOptInConfirmed) throw new Error("WhatsApp opt-in has not been confirmed for this recipient.");
+          await sendBusinessReportWhatsApp({
+            subscription: { ...subscription, recipientName: subscription.recipientName || recipientName },
+            businessName: subscription.business?.name || "Marthington BMS business",
+            periodLabel,
+            snapshot
+          });
+        }
+        const deliveredAt = new Date();
+        await ReportSubscription.findByIdAndUpdate(subscription._id, {
+          lastSentAt: deliveredAt,
+          [channel === "email" ? "emailLastSentAt" : "whatsappLastSentAt"]: deliveredAt
+        });
+        await recordDelivery({ channel, recipientEmail: channel === "email" ? recipientEmail : "", recipientPhone: subscription.recipientPhone, status: "sent", sentAt: new Date() });
+      } catch (error) {
+        failures.push(`${channel}: ${error.message}`);
+        await recordDelivery({ channel, recipientEmail: channel === "email" ? recipientEmail : "", recipientPhone: subscription.recipientPhone, status: "failed", errorMessage: error.message });
+      }
+    }
+    if (failures.length) {
+      const errorMessage = failures.join("; ");
       await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: errorMessage });
-      await recordDelivery({ status: "failed", errorMessage });
-      return res.status(503).json({
-        message: errorMessage,
-        code: isTimeout ? "EMAIL_PROVIDER_TIMEOUT" : "EMAIL_DELIVERY_FAILED",
-        email: emailStatus
-      });
+      return res.status(503).json({ message: errorMessage });
     }
     await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: "" });
-    await recordDelivery({ status: "sent", sentAt: new Date() });
     res.json({ message: "Test report sent" });
   } catch (err) {
     stage("failed", `stage=${currentStage} error=${err.message}`);
     const errorMessage = `${currentStage}: ${err.message}`;
     if (subscription) {
       await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: errorMessage });
-      await recordDelivery({ status: "failed", errorMessage });
+      await recordDelivery({ channel: subscription.channel === "both" ? "email" : subscription.channel || "email", errorMessage, status: "failed" });
     }
     res.status(500).json({ message: errorMessage });
   }
@@ -1224,6 +1276,120 @@ const sendReportSubscriptionTest = async (req, res) => {
 const getEmailHealth = async (req, res) => {
   const verified = await verifyEmailConfig();
   res.status(verified ? 200 : 503).json({ verified, email: getEmailConfigStatus() });
+};
+
+const listCommunicationDeliveries = async (_req, res) => {
+  try {
+    const deliveries = await CommunicationDelivery.find({})
+      .populate("business", "name")
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    res.json({ deliveries });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const sendCommunicationMessage = async (req, res) => {
+  const { businessIds, channel, subject = "", message, whatsappOptInConfirmed = false } = req.body || {};
+  if (!Array.isArray(businessIds) || businessIds.length === 0 || businessIds.length > 50) {
+    return res.status(400).json({ message: "Select between 1 and 50 businesses" });
+  }
+  if (!["email", "whatsapp"].includes(channel)) {
+    return res.status(400).json({ message: "Choose a valid message channel" });
+  }
+  if (typeof message !== "string" || !message.trim() || message.length > 5000) {
+    return res.status(400).json({ message: "Message must be between 1 and 5,000 characters" });
+  }
+  if (channel === "email" && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
+    return res.status(400).json({ message: "Email subject must be between 1 and 200 characters" });
+  }
+  if (channel === "whatsapp" && (message.length > 1024 || whatsappOptInConfirmed !== true)) {
+    return res.status(400).json({ message: "WhatsApp messages require confirmed recipient opt-in and must be 1,024 characters or fewer" });
+  }
+  if (businessIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+    return res.status(400).json({ message: "One or more selected businesses are invalid" });
+  }
+
+  try {
+    const uniqueIds = [...new Set(businessIds.map(String))];
+    const businesses = await Business.find({ _id: { $in: uniqueIds }, status: { $ne: "deleted" } })
+      .select("name email phone whatsapp owner")
+      .populate("owner", "name email phone phoneNumber")
+      .lean();
+    if (businesses.length !== uniqueIds.length) {
+      return res.status(400).json({ message: "A selected business no longer exists or is unavailable" });
+    }
+
+    const deliverToBusiness = async (business) => {
+      const recipientName = business.owner?.name || "";
+      const recipientEmail = business.owner?.email || business.email || "";
+      const recipientPhone = business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "";
+      let status = "sent";
+      let errorMessage = "";
+      try {
+        if (channel === "email") {
+          if (!recipientEmail) throw new Error("No recipient email address is available");
+          const sent = await sendSubscriptionEmail({
+            recipientEmail,
+            recipientName,
+            subject: subject.trim(),
+            previewText: subject.trim(),
+            bodyText: message
+          });
+          if (!sent) throw new Error("Email provider did not confirm delivery");
+        } else {
+          if (!recipientPhone) throw new Error("No WhatsApp number is available");
+          await sendWhatsAppTemplate({
+            to: recipientPhone,
+            templateName: process.env.WHATSAPP_MESSAGE_TEMPLATE_NAME || "admin_communication",
+            languageCode: process.env.WHATSAPP_MESSAGE_TEMPLATE_LANGUAGE || "en",
+            bodyParameters: [recipientName || "there", business.name, message.trim()]
+          });
+        }
+      } catch (error) {
+        status = "failed";
+        errorMessage = error.message || "Message delivery failed";
+      }
+
+      const delivery = await CommunicationDelivery.create({
+        business: business._id,
+        recipientName,
+        recipientEmail,
+        recipientPhone,
+        channel,
+        whatsappOptInConfirmed: channel === "whatsapp" && whatsappOptInConfirmed === true,
+        whatsappOptInConfirmedAt: channel === "whatsapp" && whatsappOptInConfirmed === true ? new Date() : null,
+        subject: channel === "email" ? subject.trim() : "",
+        message: message.trim(),
+        status,
+        errorMessage,
+        sentAt: status === "sent" ? new Date() : null,
+        createdBy: req.user.id
+      });
+      return {
+        _id: delivery._id,
+        business: { _id: business._id, name: business.name },
+        recipientName,
+        channel,
+        subject: delivery.subject,
+        message: delivery.message,
+        status,
+        errorMessage,
+        createdAt: delivery.createdAt
+      };
+    };
+    const deliveries = [];
+    for (let index = 0; index < businesses.length; index += 5) {
+      const batch = businesses.slice(index, index + 5);
+      deliveries.push(...await Promise.all(batch.map(deliverToBusiness)));
+    }
+    const failed = deliveries.filter((delivery) => delivery.status === "failed").length;
+    res.status(failed ? 207 : 200).json({ sent: deliveries.length - failed, failed, deliveries });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 const unsubscribeReportSubscription = async (req, res) => {
@@ -2170,6 +2336,8 @@ export default {
   listReportDeliveryHistory,
   sendReportSubscriptionTest,
   getEmailHealth,
+  listCommunicationDeliveries,
+  sendCommunicationMessage,
   unsubscribeReportSubscription,
   unsubscribeCampaignEmail,
   listEmailCampaigns,

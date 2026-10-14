@@ -5,6 +5,7 @@ import ReportDeliveryLog from "../modules/admin/reportDeliveryLog.model.js";
 import { getReportSnapshot } from "../modules/admin/reportSnapshot.js";
 import { sendReportEmail } from "../utils/emailService.js";
 import { normalizeReportScheduleTime } from "../utils/reportDeliverySettings.js";
+import { sendBusinessReportWhatsApp } from "../utils/reportWhatsApp.js";
 import cron from "node-cron";
 
 export const getLocalScheduleParts = (date, timezone) => {
@@ -146,7 +147,16 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
   let failed = 0;
 
   for (const subscription of subscriptions) {
-    if (!isSubscriptionDue(subscription, now)) continue;
+    const channels = subscription.channel === "both"
+      ? ["email", "whatsapp"]
+      : [subscription.channel || "email"];
+    const dueChannels = channels.filter((channel) => isSubscriptionDue({
+      ...subscription,
+      lastSentAt: channel === "whatsapp"
+        ? subscription.whatsappLastSentAt
+        : subscription.emailLastSentAt || ((subscription.channel || "email") === "email" ? subscription.lastSentAt : null)
+    }, now));
+    if (!dueChannels.length) continue;
 
     try {
       const business = await Business.findById(subscription.business)
@@ -156,37 +166,73 @@ export const sendDueReportSubscriptions = async (now = new Date()) => {
       if (business.reportNotificationsEnabled === false) continue;
 
       const { snapshot, periodLabel } = await getReportSnapshot(subscription, subscription.business, now);
-      const delivered = await sendReportEmail({
-        recipientEmail: subscription.recipientEmail,
-        recipientName: subscription.recipientName,
-        businessName: business.name,
-        businessProfile: business,
-        reportType: subscription.reportType,
-        frequency: subscription.frequency,
-        periodLabel,
-        snapshot,
-        unsubscribeUrl: unsubscribeUrlFor(subscription._id)
-      });
+      for (const channel of dueChannels) {
+        try {
+          if (channel === "email") {
+            const delivered = await sendReportEmail({
+              recipientEmail: subscription.recipientEmail,
+              recipientName: subscription.recipientName,
+              businessName: business.name,
+              businessProfile: business,
+              reportType: subscription.reportType,
+              frequency: subscription.frequency,
+              periodLabel,
+              snapshot,
+              unsubscribeUrl: unsubscribeUrlFor(subscription._id)
+            });
+            if (!delivered) throw new Error("Email transporter unavailable or delivery failed");
+          } else {
+            if (!subscription.whatsappOptInConfirmed) throw new Error("WhatsApp opt-in has not been confirmed for this recipient.");
+            await sendBusinessReportWhatsApp({
+              subscription,
+              businessName: business.name,
+              periodLabel,
+              snapshot
+            });
+          }
 
-      if (!delivered) throw new Error("Email transporter unavailable or delivery failed");
-
-      await ReportSubscription.findByIdAndUpdate(subscription._id, { lastSentAt: now, lastError: "" });
-      await ReportDeliveryLog.create({
-        subscription: subscription._id,
-        business: subscription.business,
-        recipientEmail: subscription.recipientEmail,
-        reportType: subscription.reportType,
-        frequency: subscription.frequency,
-        status: "sent",
-        sentAt: now
-      });
-      sent += 1;
+          const channelLastSentField = channel === "whatsapp" ? "whatsappLastSentAt" : "emailLastSentAt";
+          await ReportSubscription.findByIdAndUpdate(subscription._id, {
+            lastSentAt: now,
+            [channelLastSentField]: now,
+            lastError: ""
+          });
+          await ReportDeliveryLog.create({
+            subscription: subscription._id,
+            business: subscription.business,
+            recipientEmail: subscription.recipientEmail,
+            recipientPhone: subscription.recipientPhone,
+            channel,
+            reportType: subscription.reportType,
+            frequency: subscription.frequency,
+            status: "sent",
+            sentAt: now
+          });
+          sent += 1;
+        } catch (error) {
+          await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: `${channel}: ${error.message}` });
+          await ReportDeliveryLog.create({
+            subscription: subscription._id,
+            business: subscription.business,
+            recipientEmail: subscription.recipientEmail,
+            recipientPhone: subscription.recipientPhone,
+            channel,
+            reportType: subscription.reportType,
+            frequency: subscription.frequency,
+            status: "failed",
+            errorMessage: error.message
+          });
+          failed += 1;
+        }
+      }
     } catch (error) {
       await ReportSubscription.findByIdAndUpdate(subscription._id, { lastError: error.message });
       await ReportDeliveryLog.create({
         subscription: subscription._id,
         business: subscription.business,
         recipientEmail: subscription.recipientEmail,
+        recipientPhone: subscription.recipientPhone,
+        channel: dueChannels[0],
         reportType: subscription.reportType,
         frequency: subscription.frequency,
         status: "failed",

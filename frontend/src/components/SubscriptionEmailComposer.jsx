@@ -304,45 +304,75 @@ const SubscriptionEmailComposer = ({ subscriptions = [], initialAudience = "subs
           </label>
 
           {audienceRecipients.length > 0 && (
-            <section aria-label="Choose recipients" className="overflow-hidden rounded-xl border border-slate-200">
-              <div className="space-y-3 border-b border-slate-100 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+            <section aria-label="Choose recipients" className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-emerald-50/60 p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xs font-bold text-slate-800">Choose recipients</h3>
-                    <p className="mt-0.5 text-[11px] text-slate-500">{selectedRecipientCount?.toLocaleString() || 0} of {audienceCount?.toLocaleString() || 0} selected</p>
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">Email audience</p>
+                    <h3 className="mt-1 text-sm font-extrabold text-slate-900">Choose recipients</h3>
+                    <p className="mt-1 text-xs text-slate-500">Select the owners who should receive this message.</p>
                   </div>
+                  <span className="rounded-xl border border-emerald-100 bg-white px-3 py-2 text-xs font-extrabold text-emerald-800">
+                    {selectedRecipientCount?.toLocaleString() || 0}
+                    <span className="ml-1 font-semibold text-slate-500">/ {audienceCount?.toLocaleString() || 0} selected</span>
+                  </span>
+                </div>
+                <label className="relative mt-4 block">
+                  <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-slate-400">⌕</span>
+                  <input
+                    type="search"
+                    aria-label="Search email recipients"
+                    value={recipientSearch}
+                    onChange={(event) => setRecipientSearch(event.target.value)}
+                    placeholder="Search name, business, or email"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[11px] font-medium text-slate-500">
+                    Showing {visibleRecipients.length.toLocaleString()} of {audienceRecipients.length.toLocaleString()} owners
+                  </p>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => selectVisibleRecipients(true)} className="text-xs font-bold text-emerald-700 hover:underline">Select visible</button>
-                    <button type="button" onClick={() => selectVisibleRecipients(false)} className="text-xs font-bold text-slate-600 hover:underline">Clear visible</button>
+                    <button type="button" onClick={() => selectVisibleRecipients(true)} className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-50">Select visible</button>
+                    <button type="button" onClick={() => selectVisibleRecipients(false)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">Clear visible</button>
                   </div>
                 </div>
-                <input
-                  type="search"
-                  aria-label="Search email recipients"
-                  value={recipientSearch}
-                  onChange={(event) => setRecipientSearch(event.target.value)}
-                  placeholder="Search name, business, or email"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs"
-                />
               </div>
-              <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto">
-                {visibleRecipients.map((recipient) => (
-                  <label key={recipient.email} className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-emerald-50/50">
-                    <input
-                      type="checkbox"
-                      checked={selectedEmails?.includes(recipient.email) || false}
-                      onChange={() => toggleRecipient(recipient.email)}
-                      aria-label={`Select ${recipient.name || recipient.email}`}
-                      className="mt-0.5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-xs font-semibold text-slate-800">{recipient.name || "Business owner"}</span>
-                      <span className="block truncate text-[11px] text-slate-500">{recipient.email}</span>
-                      {recipient.businessName && <span className="block truncate text-[11px] text-slate-400">{recipient.businessName}</span>}
-                    </span>
-                  </label>
-                ))}
-                {visibleRecipients.length === 0 && <p className="px-3 py-5 text-center text-xs text-slate-500">No matching email recipients.</p>}
+              <div className="max-h-80 overflow-y-auto p-2">
+                {visibleRecipients.length > 0 ? (
+                  <ul className="space-y-1">
+                    {visibleRecipients.map((recipient) => {
+                      const isSelected = selectedEmails?.includes(recipient.email) || false;
+                      return (
+                        <li key={recipient.email}>
+                          <label className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${isSelected ? "border-emerald-200 bg-emerald-50/70" : "border-transparent bg-white hover:border-slate-200 hover:bg-slate-50"}`}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleRecipient(recipient.email)}
+                              aria-label={`Select ${recipient.name || recipient.email}`}
+                              className="h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600"
+                            />
+                            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-extrabold uppercase ${isSelected ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
+                              {String(recipient.name || recipient.email || "?").slice(0, 1)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-bold text-slate-900">{recipient.name || "Business owner"}</span>
+                              {recipient.businessName && <span className="mt-0.5 block truncate text-xs font-medium text-slate-600">{recipient.businessName}</span>}
+                              <span className="mt-0.5 block truncate text-xs text-slate-500">{recipient.email}</span>
+                            </span>
+                            <span aria-hidden="true" className={`hidden shrink-0 rounded-full px-2 py-1 text-[10px] font-bold sm:inline-block ${isSelected ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{isSelected ? "Selected" : "Not selected"}</span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="px-4 py-10 text-center">
+                    <p className="text-sm font-bold text-slate-800">No matching recipients</p>
+                    <p className="mt-1 text-xs text-slate-500">Try a different owner, business, or email search.</p>
+                  </div>
+                )}
               </div>
             </section>
           )}

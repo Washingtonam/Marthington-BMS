@@ -126,226 +126,193 @@ const AdminBusinessView = () => {
   };
 
   if (loading) {
-    return <div className="p-6">Loading business...</div>;
+    return (
+      <section className="mx-auto max-w-7xl space-y-5" aria-label="Loading business">
+        <div className="h-56 animate-pulse rounded-[2rem] bg-slate-200" />
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[1, 2, 3].map((item) => <div key={item} className="h-28 animate-pulse rounded-2xl bg-slate-100" />)}
+        </div>
+      </section>
+    );
   }
   const { business, products, sales, users } = data;
+  const subscription = business?.subscription || {};
+  const businessStatus = business?.status || "active";
+  const statusTone = businessStatus === "active"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+    : businessStatus === "suspended" || businessStatus === "deleted"
+      ? "border-rose-200 bg-rose-50 text-rose-800"
+      : "border-amber-200 bg-amber-50 text-amber-800";
+  const tabs = [
+    { id: "overview", label: "Overview", count: null },
+    { id: "products", label: "Products", count: products.length },
+    { id: "sales", label: "Sales", count: sales.length },
+    { id: "staff", label: "Staff", count: users.length }
+  ];
 
   return (
-    <section className="page-stack">
-
-      {/* HEADER */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold">{business?.name}</h1>
-
-          <div className="flex gap-2 mt-1 items-center">
-            <span
-              className={`text-xs px-2 py-1 rounded ${
-                business?.subscription?.plan === "pro"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              {business?.subscription?.plan || "free"}
-            </span>
-
-            <span className="text-xs text-gray-500">
-              {business?.subscription?.status || "trial"}
-            </span>
-          </div>
-
-          {business?.subscription?.expiresAt && (
-            <p className="text-xs text-gray-500 mt-1">
-              Expires:{" "}
-              {new Date(
-                business.subscription.expiresAt
-              ).toLocaleDateString()}
-            </p>
-          )}
-        </div>
-
-        <button
-          onClick={() => {
-            startImpersonation(id);
-            navigate("/app");
-          }}
-          className="bg-black text-white px-4 py-2 rounded-md"
-        >
-          Access Account
-        </button>
-      </div>
-
-      {/* ADMIN CONTROLS */}
-      <div className="tool-panel mt-4 space-y-3">
-        <h3 className="font-bold">Admin Controls</h3>
-
-        <div className="flex flex-wrap gap-2">
-
-          <button
-            disabled={processing}
-            onClick={() => handlePlanChange("pro", "monthly")}
-            className="bg-green-600 text-white px-3 py-2 rounded-md text-sm"
-          >
-            Upgrade Monthly
-          </button>
-
-          <button
-            disabled={processing}
-            onClick={() => handlePlanChange("pro", "yearly")}
-            className="bg-green-700 text-white px-3 py-2 rounded-md text-sm"
-          >
-            Upgrade Yearly
-          </button>
-
-          <button
-            disabled={processing}
-            onClick={() => handlePlanChange("free")}
-            className="bg-red-600 text-white px-3 py-2 rounded-md text-sm"
-          >
-            Downgrade
-          </button>
-
-          {business?.status !== "suspended" && business?.status !== "deleted" && (
-            <button
-              disabled={processing}
-              onClick={handleSuspend}
-              className="bg-yellow-500 text-white px-3 py-2 rounded-md text-sm"
-            >
-              Suspend
+    <section className="mx-auto max-w-7xl space-y-6">
+      <header className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-7 text-white shadow-xl sm:px-9 sm:py-9">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div className="relative flex flex-col justify-between gap-7 lg:flex-row lg:items-start">
+          <div className="min-w-0">
+            <button type="button" onClick={() => navigate("/admin/tenants")} className="mb-5 inline-flex items-center gap-2 text-xs font-bold text-slate-300 transition hover:text-white">
+              <span aria-hidden="true">←</span> Tenant directory
             </button>
-          )}
-
-          {business?.status === "suspended" && (
-            <button
-              disabled={processing}
-              onClick={handleUnsuspend}
-              className="bg-green-500 text-white px-3 py-2 rounded-md text-sm"
-            >
-              Unsuspend
-            </button>
-          )}
-
-          {business?.status !== "archived" && (
-            <button
-              disabled={processing}
-              onClick={handleArchive}
-              className="bg-gray-500 text-white px-3 py-2 rounded-md text-sm"
-            >
-              Archive
-            </button>
-          )}
-
-          {business?.status === "archived" && (
-            <button
-              disabled={processing}
-              onClick={handleUnarchive}
-              className="bg-blue-500 text-white px-3 py-2 rounded-md text-sm"
-            >
-              Unarchive
-            </button>
-          )}
-
-          <button
-            disabled={processing}
-            onClick={handleDelete}
-            className="bg-gray-800 text-white px-3 py-2 rounded-md text-sm"
-          >
-            Delete (Permanent)
-          </button>
-
-        </div>
-      </div>
-
-      {/* TABS */}
-      <div className="flex gap-4 border-b pb-2 mt-4">
-        {["overview", "products", "sales", "staff"].map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`text-sm ${
-              tab === t ? "font-bold" : "text-gray-500"
-            }`}
-          >
-            {t.toUpperCase()}
-          </button>
-        ))}
-      </div>
-
-      {/* OVERVIEW */}
-      {tab === "overview" && (
-        <div className="grid md:grid-cols-3 gap-4 mt-4">
-          <div className="tool-panel">
-            <strong>Products</strong>
-            <h2>{products.length}</h2>
-          </div>
-
-          <div className="tool-panel">
-            <strong>Sales</strong>
-            <h2>{sales.length}</h2>
-          </div>
-
-          <div className="tool-panel">
-            <strong>Staff</strong>
-            <h2>{users.length}</h2>
-          </div>
-        </div>
-      )}
-
-      {/* PRODUCTS */}
-      {tab === "products" && (
-        <div className="product-table mt-4">
-          <div className="product-row product-row-head">
-            <span>Name</span>
-            <span>Price</span>
-            <span>Stock</span>
-          </div>
-
-          {products.map((p) => (
-            <div className="product-row" key={p._id}>
-              <span>{p.name}</span>
-              <span>{formatCurrency(p.price)}</span>
-              <span>{p.stock}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200">{business?.industryType || "Retail"}</span>
+              <span className={`rounded-full border px-3 py-1 text-[10px] font-bold capitalize ${statusTone}`}>{businessStatus}</span>
             </div>
+            <h1 className="mt-4 break-words text-3xl font-black tracking-tight sm:text-4xl">{business?.name || "Business profile"}</h1>
+            <p className="mt-2 text-sm text-slate-300">{business?.ownerName || "Business owner"}{business?.ownerEmail ? ` · ${business.ownerEmail}` : ""}</p>
+            <div className="mt-5 flex flex-wrap items-center gap-2 text-xs">
+              <span className={`rounded-lg px-3 py-1.5 font-extrabold capitalize ${subscription.plan === "pro" ? "bg-emerald-300 text-slate-950" : "bg-white/10 text-slate-100"}`}>{subscription.plan || "free"} plan</span>
+              <span className="rounded-lg border border-white/15 px-3 py-1.5 font-semibold capitalize text-slate-200">{subscription.status || "trial"}</span>
+              {subscription.expiresAt && <span className="px-1 text-slate-300">Renews / expires {new Date(subscription.expiresAt).toLocaleDateString()}</span>}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { startImpersonation(id); navigate("/app"); }}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-300 px-5 py-3 text-sm font-extrabold text-slate-950 shadow transition hover:bg-emerald-200"
+          >
+            Access business account <span aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </header>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="business-controls-title">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h2 id="business-controls-title" className="text-sm font-extrabold text-slate-900">Business controls</h2>
+            <p className="mt-1 text-xs text-slate-500">Manage plan, access, and the business lifecycle.</p>
+          </div>
+          {processing && <span role="status" className="text-xs font-semibold text-emerald-700">Updating business…</span>}
+        </div>
+        <div className="flex flex-wrap gap-2 p-4 sm:p-5">
+          <button type="button" disabled={processing} onClick={() => handlePlanChange("pro", "monthly")} className="rounded-xl bg-emerald-700 px-3.5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-800 disabled:opacity-50">Upgrade · Monthly</button>
+          <button type="button" disabled={processing} onClick={() => handlePlanChange("pro", "yearly")} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50">Upgrade · Yearly</button>
+          <button type="button" disabled={processing} onClick={() => handlePlanChange("free")} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">Downgrade</button>
+          {business?.status !== "suspended" && business?.status !== "deleted" && <button type="button" disabled={processing} onClick={handleSuspend} className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50">Suspend access</button>}
+          {business?.status === "suspended" && <button type="button" disabled={processing} onClick={handleUnsuspend} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50">Restore access</button>}
+          {business?.status !== "archived" && <button type="button" disabled={processing} onClick={handleArchive} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50">Archive</button>}
+          {business?.status === "archived" && <button type="button" disabled={processing} onClick={handleUnarchive} className="rounded-xl border border-sky-200 bg-sky-50 px-3.5 py-2.5 text-xs font-bold text-sky-800 transition hover:bg-sky-100 disabled:opacity-50">Restore from archive</button>}
+          <button type="button" disabled={processing} onClick={handleDelete} className="ml-auto rounded-xl border border-rose-200 bg-white px-3.5 py-2.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50">Permanently delete</button>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-3 sm:px-5" role="tablist" aria-label="Business details">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              id={`business-tab-${item.id}`}
+              aria-selected={tab === item.id}
+              aria-controls={`business-panel-${item.id}`}
+              onClick={() => setTab(item.id)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-t-xl border-b-2 px-4 py-3 text-sm font-bold transition ${tab === item.id ? "border-emerald-600 bg-emerald-50/60 text-emerald-800" : "border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}
+            >
+              {item.label}
+              {item.count !== null && <span className={`rounded-full px-2 py-0.5 text-[10px] ${tab === item.id ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"}`}>{item.count}</span>}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* SALES */}
-      {tab === "sales" && (
-        <div className="product-table mt-4">
-          <div className="product-row product-row-head">
-            <span>Amount</span>
-            <span>Date</span>
-          </div>
-
-          {sales.map((s) => (
-            <div className="product-row" key={s._id}>
-              <span>{formatCurrency(s.totalAmount)}</span>
-              <span>
-                {new Date(s.createdAt).toLocaleDateString()}
-              </span>
+        {tab === "overview" && (
+          <div id="business-panel-overview" role="tabpanel" aria-labelledby="business-tab-overview" className="space-y-5 p-4 sm:p-6">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { label: "Products", value: products.length, detail: "Items in this workspace", tone: "emerald" },
+                { label: "Recent sales", value: sales.length, detail: "Latest 20 sales records", tone: "sky" },
+                { label: "Team members", value: users.length, detail: "Registered workspace users", tone: "violet" }
+              ].map((metric) => (
+                <div key={metric.label} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4">
+                  <p className="text-xs font-bold text-slate-500">{metric.label}</p>
+                  <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{metric.value.toLocaleString()}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{metric.detail}</p>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* STAFF */}
-      {tab === "staff" && (
-        <div className="product-table mt-4">
-          <div className="product-row product-row-head">
-            <span>Name</span>
-            <span>Role</span>
-          </div>
-
-          {users.map((u) => (
-            <div className="product-row" key={u._id}>
-              <span>{u.name}</span>
-              <span>{u.role}</span>
+            <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+              <div className="rounded-2xl border border-slate-200 p-4 sm:p-5">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">Owner contact</p>
+                <h3 className="mt-2 text-base font-extrabold text-slate-900">{business?.ownerName || "Business owner"}</h3>
+                <div className="mt-3 space-y-2 text-sm">
+                  {business?.ownerEmail ? <a className="block font-semibold text-emerald-700 hover:underline" href={`mailto:${business.ownerEmail}`}>{business.ownerEmail}</a> : <p className="text-slate-500">No owner email on file</p>}
+                  {business?.ownerPhone && <a className="block text-slate-600 hover:text-emerald-700" href={`tel:${business.ownerPhone}`}>{business.ownerPhone}</a>}
+                  {business?.businessPhone && <p className="text-slate-500">Business: {business.businessPhone}</p>}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4 sm:p-5">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">Subscription</p>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-xs text-slate-500">Plan</p><p className="mt-1 font-bold capitalize text-slate-900">{subscription.plan || "free"}</p></div>
+                  <div><p className="text-xs text-slate-500">Status</p><p className="mt-1 font-bold capitalize text-slate-900">{subscription.status || "trial"}</p></div>
+                  <div><p className="text-xs text-slate-500">Billing cycle</p><p className="mt-1 font-bold capitalize text-slate-900">{subscription.billingCycle || "—"}</p></div>
+                  <div><p className="text-xs text-slate-500">Industry</p><p className="mt-1 font-bold capitalize text-slate-900">{business?.industryType || "retail"}</p></div>
+                </div>
+                {subscription.expiresAt && <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">Expires {new Date(subscription.expiresAt).toLocaleDateString()}</p>}
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
 
+        {tab === "products" && (
+          <div id="business-panel-products" role="tabpanel" aria-labelledby="business-tab-products" className="p-4 sm:p-6">
+            {products.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+                <p className="text-sm font-bold text-slate-800">No products yet</p>
+                <p className="mt-1 text-xs text-slate-500">Products added to this workspace will appear here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Product</th><th className="px-4 py-3">Price</th><th className="px-4 py-3">Stock</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">{products.map((product) => <tr key={product._id} className="hover:bg-slate-50/70"><td className="px-4 py-3.5 font-semibold text-slate-900">{product.name}</td><td className="px-4 py-3.5 font-semibold text-slate-700">{formatCurrency(product.price)}</td><td className="px-4 py-3.5 text-slate-600">{product.stock ?? "—"}</td></tr>)}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "sales" && (
+          <div id="business-panel-sales" role="tabpanel" aria-labelledby="business-tab-sales" className="p-4 sm:p-6">
+            {sales.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+                <p className="text-sm font-bold text-slate-800">No sales recorded</p>
+                <p className="mt-1 text-xs text-slate-500">Recent sales activity will show here when available.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Sale amount</th><th className="px-4 py-3">Date</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">{sales.map((sale) => <tr key={sale._id} className="hover:bg-slate-50/70"><td className="px-4 py-3.5 font-bold text-slate-900">{formatCurrency(sale.totalAmount)}</td><td className="px-4 py-3.5 text-slate-600">{sale.createdAt ? new Date(sale.createdAt).toLocaleDateString() : "—"}</td></tr>)}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "staff" && (
+          <div id="business-panel-staff" role="tabpanel" aria-labelledby="business-tab-staff" className="p-4 sm:p-6">
+            {users.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
+                <p className="text-sm font-bold text-slate-800">No team members found</p>
+                <p className="mt-1 text-xs text-slate-500">Workspace users and their roles will appear here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                <table className="w-full min-w-[520px] text-left text-sm">
+                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Team member</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Joined</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">{users.map((user) => <tr key={user._id} className="hover:bg-slate-50/70"><td className="px-4 py-3.5 font-semibold text-slate-900">{user.name || "Unnamed user"}</td><td className="px-4 py-3.5 text-slate-600">{user.email || "—"}</td><td className="px-4 py-3.5"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{user.role || "staff"}</span></td><td className="px-4 py-3.5 text-slate-600">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</td></tr>)}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
     </section>
   );
 };

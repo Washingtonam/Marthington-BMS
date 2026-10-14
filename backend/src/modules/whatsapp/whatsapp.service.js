@@ -117,6 +117,48 @@ export const sendWhatsAppText = async ({ to, message }) => {
   };
 };
 
+export const sendWhatsAppTemplate = async ({ to, templateName, languageCode = "en", bodyParameters = [] }) => {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (!accessToken || !phoneNumberId) {
+    throw new Error("WhatsApp API credentials are not configured.");
+  }
+  if (!templateName) {
+    throw new Error("The approved WhatsApp report template is not configured.");
+  }
+
+  const normalizedTo = normalizeWhatsAppNumber(to);
+  if (!normalizedTo) {
+    throw new Error("Recipient WhatsApp number is required.");
+  }
+
+  const response = await axios.post(
+    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+    {
+      messaging_product: "whatsapp",
+      to: normalizedTo,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: [{
+          type: "body",
+          parameters: bodyParameters.map((text) => ({ type: "text", text: String(text ?? "") }))
+        }]
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  return { ok: true, data: response.data, to: normalizedTo };
+};
+
 export const getBusinessWhatsAppConfig = async (businessId) => {
   const business = await Business.findById(businessId).lean();
   return {

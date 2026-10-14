@@ -31,12 +31,15 @@ const buildWhatsAppLink = (phone, message) => {
   return number ? `https://wa.me/${number}?text=${encodeURIComponent(message)}` : "";
 };
 
-const TenantMessageModal = ({ recipients, onClose, title = "Draft tenant message" }) => {
+const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft tenant message" }) => {
   const [recipientId, setRecipientId] = useState(recipients[0]?._id || "");
   const [messageSubject, setMessageSubject] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [channel, setChannel] = useState("email");
   const [draftedKeys, setDraftedKeys] = useState([]);
+  const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false);
+  const [sendingDirect, setSendingDirect] = useState(false);
+  const [directResult, setDirectResult] = useState(null);
 
   const recipient = useMemo(
     () => recipients.find((item) => item._id === recipientId) || recipients[0],
@@ -91,6 +94,26 @@ const TenantMessageModal = ({ recipients, onClose, title = "Draft tenant message
     markDraftOpened(nextRecipient, channel === "whatsapp" ? nextTarget.phone : "");
   };
 
+  const sendDirectMessage = async () => {
+    if (!onSendDirect) return;
+    try {
+      setSendingDirect(true);
+      setDirectResult(null);
+      const result = await onSendDirect({
+        recipients,
+        channel,
+        subject: messageSubject,
+        message: messageBody,
+        whatsappOptInConfirmed
+      });
+      setDirectResult(result);
+    } catch (error) {
+      setDirectResult({ error: error.message || "Message delivery failed" });
+    } finally {
+      setSendingDirect(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-message-title">
       <section className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
@@ -98,28 +121,32 @@ const TenantMessageModal = ({ recipients, onClose, title = "Draft tenant message
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">Tenant messaging</p>
             <h2 id="tenant-message-title" className="mt-1 text-xl font-extrabold text-slate-900">{title}</h2>
-            <p className="mt-1 text-sm text-slate-600">Compose once, then open an individual draft for each tenant.</p>
+            <p className="mt-1 text-sm text-slate-600">Compose once, then send directly or open individual drafts.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close tenant message draft" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Close</button>
         </div>
 
         <div className="mt-4 grid gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs font-bold text-slate-600">Draft channel</span>
-            <div className="flex gap-2" role="group" aria-label="Draft channel">
+            <span className="text-xs font-bold text-slate-600">Message channel</span>
+            <div className="flex gap-2" role="group" aria-label="Message channel">
               {["email", "whatsapp"].map((value) => (
                 <button key={value} type="button" onClick={() => setChannel(value)} aria-pressed={channel === value} className={`rounded-lg border px-3 py-2 text-xs font-bold capitalize ${channel === value ? "border-emerald-600 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600"}`}>{value === "whatsapp" ? "WhatsApp" : "Email"}</button>
               ))}
             </div>
           </div>
-          <label className="text-xs font-bold text-slate-600">
+          {channel === "email" && <label className="text-xs font-bold text-slate-600">
             Email subject
             <input value={messageSubject} onChange={(event) => setMessageSubject(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800" />
-          </label>
+          </label>}
           <label className="text-xs font-bold text-slate-600">
-            Message
-            <textarea rows={5} value={messageBody} onChange={(event) => setMessageBody(event.target.value)} className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-800" />
+            Message {channel === "whatsapp" && <span className="font-medium text-slate-400">(up to 1,024 characters)</span>}
+            <textarea aria-label="Message" rows={5} maxLength={channel === "whatsapp" ? 1024 : 5000} value={messageBody} onChange={(event) => setMessageBody(event.target.value)} className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-800" />
           </label>
+          {channel === "whatsapp" && <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-900">
+            <input type="checkbox" checked={whatsappOptInConfirmed} onChange={(event) => setWhatsappOptInConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-emerald-600" />
+            I confirm every selected recipient explicitly opted in to WhatsApp messages.
+          </label>}
         </div>
 
         <div className="mt-5 rounded-2xl border border-slate-200">
@@ -170,6 +197,8 @@ const TenantMessageModal = ({ recipients, onClose, title = "Draft tenant message
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-md text-xs text-slate-500">A check means the external draft was opened, not that the message was sent. Each WhatsApp draft uses one number. Tenants without a {channel === "email" ? "email address" : "WhatsApp number"} are skipped.</p>
+          <div className="flex flex-wrap gap-2">
+            {onSendDirect && <button type="button" onClick={sendDirectMessage} disabled={sendingDirect || !messageBody.trim() || (channel === "whatsapp" && !whatsappOptInConfirmed)} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50">{sendingDirect ? "Sending..." : `Send directly via ${channel === "whatsapp" ? "WhatsApp" : "Email"}`}</button>}
           <div className="flex gap-2">
             {nextRecipient && (
               <button type="button" onClick={openNextDraft} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">
@@ -178,7 +207,9 @@ const TenantMessageModal = ({ recipients, onClose, title = "Draft tenant message
             )}
             <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">{nextRecipient ? "Close" : "Done"}</button>
           </div>
+          </div>
         </div>
+        {directResult && <p role="status" className={`mt-3 rounded-xl border p-3 text-sm ${directResult.error || directResult.failed ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{directResult.error || `${directResult.sent} sent${directResult.failed ? `, ${directResult.failed} failed` : ""}${directResult.failed ? ". Check the recent delivery activity for details." : "."}`}</p>}
       </section>
     </div>
   );
