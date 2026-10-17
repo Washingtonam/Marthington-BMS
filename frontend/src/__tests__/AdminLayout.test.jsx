@@ -25,6 +25,7 @@ describe("Admin layout navigation", () => {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<p>Admin home</p>} />
             <Route path="affiliates" element={<p>Agent ledger details</p>} />
+            <Route path="wild-thoughts" element={<p>Wild thoughts workspace</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -35,6 +36,8 @@ describe("Admin layout navigation", () => {
     expect(await screen.findByText("Agent ledger details")).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "Super admin navigation" })).toBeTruthy();
     expect(screen.getByAltText("Marthington")).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: /Wild Thoughts/ }));
+    expect(await screen.findByText("Wild thoughts workspace")).toBeTruthy();
   });
 
   it("opens and closes the responsive sidebar from the hamburger controls", async () => {

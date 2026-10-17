@@ -16,6 +16,7 @@ import {
   FiSettings,
   FiShield,
   FiShoppingBag,
+  FiZap,
   FiUsers,
   FiX
 } from "react-icons/fi";
@@ -34,6 +35,7 @@ const navigationGroups = [
       { to: "/admin/affiliates", label: "Agent ledger", icon: FiDollarSign },
       { to: "/admin/communications", label: "Communications", icon: FiMail },
       { to: "/admin/campaigns", label: "Campaigns", icon: FiFileText },
+      { to: "/admin/wild-thoughts", label: "Wild Thoughts", icon: FiZap },
       { to: "/admin/email-registry", label: "Email registry", icon: FiMail }
     ]
   },

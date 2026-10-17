@@ -63,6 +63,7 @@ const AdminSubscriptionExpirations = lazy(() => import("./pages/AdminSubscriptio
 const AdminAffiliateNetwork = lazy(() => import("./pages/AdminAffiliateNetwork.jsx"));
 const AdminCommunications = lazy(() => import("./pages/AdminCommunications.jsx"));
 const AdminCampaigns = lazy(() => import("./pages/AdminCampaigns.jsx"));
+const AdminWildThoughts = lazy(() => import("./pages/AdminWildThoughts.jsx"));
 const AdminEmailRegistry = lazy(() => import("./pages/AdminEmailRegistry.jsx"));
 const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
@@ -315,6 +316,7 @@ const App = () => {
               <Route path="affiliate-network" element={<AdminAffiliateNetwork />} />
               <Route path="communications" element={<AdminCommunications />} />
               <Route path="campaigns" element={<AdminCampaigns />} />
+              <Route path="wild-thoughts" element={<AdminWildThoughts />} />
               <Route path="email-registry" element={<AdminEmailRegistry />} />
               <Route path="revenue" element={<AdminRevenue />} />
               <Route path="subscriptions" element={<AdminSubscriptions />} />

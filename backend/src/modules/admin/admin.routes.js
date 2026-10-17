@@ -1,6 +1,12 @@
 import express from "express";
 import protect from "../../middlewares/auth.middleware.js";
 import adminController from "./admin.controller.js";
+import {
+  createWildThought,
+  deleteWildThought,
+  getWildThoughts,
+  updateWildThought
+} from "./wildThought.controller.js";
 
 const router = express.Router();
 
@@ -15,6 +21,11 @@ const onlyAdmin = (req, res, next) => {
 };
 
 // ================= OVERVIEW =================
+router.get("/wild-thoughts", protect, onlyAdmin, getWildThoughts);
+router.post("/wild-thoughts", protect, onlyAdmin, createWildThought);
+router.patch("/wild-thoughts/:id", protect, onlyAdmin, updateWildThought);
+router.delete("/wild-thoughts/:id", protect, onlyAdmin, deleteWildThought);
+
 router.get(
   "/overview",
   protect,
