@@ -9,7 +9,8 @@ const DEFAULT_PLAN_ACCESS = {
     features: {
       invoices: false,
       logoUpload: false,
-      customReceiptThemes: false
+      customReceiptThemes: false,
+      businessChat: false
     }
   },
   pro: {
@@ -19,7 +20,8 @@ const DEFAULT_PLAN_ACCESS = {
     features: {
       invoices: true,
       logoUpload: true,
-      customReceiptThemes: true
+      customReceiptThemes: true,
+      businessChat: true
     }
   }
 };
@@ -33,7 +35,8 @@ const LIMITS = [
 const FEATURES = [
   { key: "invoices", label: "Create invoices", description: "Allow the business to create new customer and supplier invoices." },
   { key: "logoUpload", label: "Upload a business logo", description: "Allow changing the business logo using an uploaded image." },
-  { key: "customReceiptThemes", label: "Use custom receipt themes", description: "Allow receipt themes other than the standard Modern theme." }
+  { key: "customReceiptThemes", label: "Use custom receipt themes", description: "Allow receipt themes other than the standard Modern theme." },
+  { key: "businessChat", label: "Business assistant & support chat", description: "Allow businesses to ask questions about their stock, customers, invoices, and contact superadmin support." }
 ];
 
 const copyPlanAccess = (value) => JSON.parse(JSON.stringify(value));

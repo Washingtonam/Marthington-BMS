@@ -9,7 +9,8 @@ export const DEFAULT_PLAN_ACCESS = {
     features: {
       invoices: false,
       logoUpload: false,
-      customReceiptThemes: false
+      customReceiptThemes: false,
+      businessChat: false
     }
   },
   pro: {
@@ -19,13 +20,14 @@ export const DEFAULT_PLAN_ACCESS = {
     features: {
       invoices: true,
       logoUpload: true,
-      customReceiptThemes: true
+      customReceiptThemes: true,
+      businessChat: true
     }
   }
 };
 
 const LIMIT_KEYS = ["products", "staff", "posProducts"];
-const FEATURE_KEYS = ["invoices", "logoUpload", "customReceiptThemes"];
+const FEATURE_KEYS = ["invoices", "logoUpload", "customReceiptThemes", "businessChat"];
 
 export const normalizePlanAccess = (planAccess = {}) => {
   const normalized = {};

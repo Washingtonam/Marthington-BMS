@@ -69,6 +69,34 @@ const updateAppearance = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    return res.status(400).json({ message: "Enter your current and new passwords." });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ message: "New password must be at least 8 characters." });
+  }
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    const currentPasswordMatches = await bcrypt.compare(currentPassword, user.password);
+    if (!currentPasswordMatches) {
+      return res.status(400).json({ message: "Current password is incorrect." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.json({ message: "Password updated successfully." });
+  } catch (error) {
+    console.error("CHANGE PASSWORD ERROR:", error);
+    return res.status(500).json({ message: "Could not update password." });
+  }
+};
+
 // 🔥 REGISTER (FULL BUSINESS ONBOARDING)
 const register = async (req, res) => {
   try {
@@ -421,5 +449,6 @@ export default {
   ensureBmsWorkspace,
   refresh,
   getCurrentUser,
-  updateAppearance
+  updateAppearance,
+  changePassword
 };

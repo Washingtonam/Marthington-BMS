@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import TenantMessageModal from "../components/TenantMessageModal.jsx";
+import AdminBusinessChatInbox from "../components/AdminBusinessChatInbox.jsx";
 import request from "../api/client.js";
 
 const reportSections = [
@@ -413,6 +414,8 @@ const AdminCommunications = () => {
         </li>)}
       </ul>}
     </section>
+
+    <AdminBusinessChatInbox />
 
     <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
       <div className="border-b border-slate-100 bg-slate-50/60 p-5">

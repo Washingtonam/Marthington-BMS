@@ -38,6 +38,8 @@ import budgetAlertRoutes from "./modules/budgets/budgetAlert.routes.js";
 import syncRoutes from "./modules/sync/sync.routes.js";
 import whatsappRoutes from "./modules/whatsapp/whatsapp.routes.js";
 import reportSubscriptionRoutes from "./modules/admin/reportSubscription.routes.js";
+import supportChatRoutes from "./modules/supportChat/supportChat.routes.js";
+import userGuideRoutes from "./modules/admin/userGuide.routes.js";
 
 const app = express();
 
@@ -93,6 +95,7 @@ app.use("/api/sales", salesRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/business", businessRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/user-guide", userGuideRoutes);
 app.use("/api/staff", staffRoutes);
 // 🔥 PAYMENT ROUTE (VERY IMPORTANT)
 app.use("/api/payments", paymentRoutes);
@@ -130,6 +133,7 @@ app.use("/api/affiliates/payouts", payoutRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/report-subscriptions", reportSubscriptionRoutes);
+app.use("/api/support-chat", supportChatRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

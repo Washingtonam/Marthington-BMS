@@ -150,6 +150,30 @@ describe("Admin tenant directory", () => {
     expect(screen.getByRole("link", { name: "owner@test.com" }).getAttribute("href")).toBe("mailto:owner@test.com");
   });
 
+  it("lets a superadmin update the business owner's password from the details modal", async () => {
+    render(
+      <MemoryRouter>
+        <AdminTenantDirectory />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open details for Test Academy" }));
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-password-123" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "new-password-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update owner password" }));
+
+    await waitFor(() => {
+      expect(mockRequest).toHaveBeenCalledWith(
+        "/admin/business/biz1/owner-password",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ password: "new-password-123" })
+        })
+      );
+    });
+    expect((await screen.findByRole("status")).textContent).toContain("Business owner password updated.");
+  });
+
   it("paginates tenants and opens a bulk message composer as a modal", async () => {
     mockRequest.mockImplementation((path) => path === "/admin/overview"
       ? Promise.resolve({

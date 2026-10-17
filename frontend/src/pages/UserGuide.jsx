@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   FaArrowRight,
@@ -18,6 +18,7 @@ import {
   FaShoppingBag,
   FaUserFriends,
 } from "react-icons/fa";
+import { getUserGuide } from "../api/userGuide.js";
 
 const tabs = [
   { id: "workflows", label: "Core Workflows" },
@@ -205,6 +206,14 @@ const onboardingChecklist = [
   { id: "branding", label: "Upload company logo and branding details", done: false },
 ];
 
+const quickFlow = [
+  "Create your product list and price structure.",
+  "Invite your staff and assign roles and permissions.",
+  "Create a few test sales from the POS.",
+  "Generate invoices and monitor the reports dashboard.",
+  "Update branding and business settings to complete your setup."
+];
+
 const faqItems = [
   {
     question: "Where do I start if I am new to the system?",
@@ -228,20 +237,35 @@ const faqItems = [
   },
 ];
 
-const getStoredChecklist = () => {
-  if (typeof window === "undefined") return onboardingChecklist;
+export const defaultUserGuideContent = {
+  title: "User Guide & Help Center",
+  description: "Learn the common workflows, setup steps, and daily actions your team needs to run the business efficiently.",
+  workflows: workflowCards.map(({ icon, ...workflow }) => workflow),
+  directory: moduleDirectory,
+  checklist: onboardingChecklist,
+  quickFlow,
+  faqs: faqItems
+};
+
+const getStoredChecklist = (items = onboardingChecklist) => {
+  if (typeof window === "undefined") return items;
 
   const saved = window.localStorage.getItem("marthington-guide-checklist");
-  if (!saved) return onboardingChecklist;
+  if (!saved) return items;
 
   try {
     const parsed = JSON.parse(saved);
-    if (Array.isArray(parsed) && parsed.length) return parsed;
+    if (Array.isArray(parsed)) {
+      return items.map((item) => ({
+        ...item,
+        done: parsed.find((savedItem) => savedItem.id === item.id)?.done === true
+      }));
+    }
   } catch {
-    // ignore invalid localStorage values
+    return items;
   }
 
-  return onboardingChecklist;
+  return items;
 };
 
 const UserGuide = () => {
@@ -249,7 +273,20 @@ const UserGuide = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("all");
   const [expandedFaq, setExpandedFaq] = useState(0);
-  const [checklist, setChecklist] = useState(getStoredChecklist);
+  const [guideContent, setGuideContent] = useState(defaultUserGuideContent);
+  const [checklist, setChecklist] = useState(() => getStoredChecklist());
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    getUserGuide()
+      .then(({ guide }) => {
+        if (!guide) return;
+        setGuideContent({ ...defaultUserGuideContent, ...guide });
+        setChecklist(getStoredChecklist(guide.checklist || defaultUserGuideContent.checklist));
+        setLoadError("");
+      })
+      .catch((error) => setLoadError(error.message || "Could not load the latest guide content."));
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem("marthington-guide-checklist", JSON.stringify(checklist));
@@ -258,7 +295,7 @@ const UserGuide = () => {
   const filteredWorkflows = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return workflowCards.filter((item) => {
+    return guideContent.workflows.filter((item) => {
       const matchesTag = selectedTag === "all" || item.tag === selectedTag;
       const matchesSearch =
         !query ||
@@ -269,12 +306,12 @@ const UserGuide = () => {
 
       return matchesTag && matchesSearch;
     });
-  }, [searchQuery, selectedTag]);
+  }, [guideContent.workflows, searchQuery, selectedTag]);
 
   const filteredModules = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return moduleDirectory.filter((item) => {
+    return guideContent.directory.filter((item) => {
       if (!query) return true;
       return (
         item.title.toLowerCase().includes(query) ||
@@ -282,20 +319,25 @@ const UserGuide = () => {
         item.path.toLowerCase().includes(query)
       );
     });
-  }, [searchQuery]);
+  }, [guideContent.directory, searchQuery]);
 
   const filteredFaq = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    if (!query) return faqItems;
+    if (!query) return guideContent.faqs;
 
-    return faqItems.filter((item) => {
+    return guideContent.faqs.filter((item) => {
       return item.question.toLowerCase().includes(query) || item.answer.toLowerCase().includes(query);
     });
-  }, [searchQuery]);
+  }, [guideContent.faqs, searchQuery]);
 
   const completedCount = checklist.filter((item) => item.done).length;
-  const progressPercent = (completedCount / checklist.length) * 100;
+  const progressPercent = checklist.length ? (completedCount / checklist.length) * 100 : 0;
+  const availableTags = [
+    tagOptions[0],
+    ...[...new Set(guideContent.workflows.map((item) => item.tag).filter(Boolean))]
+      .map((tag) => ({ id: tag, label: `#${tag}` }))
+  ];
 
   const toggleChecklistItem = (id) => {
     setChecklist((current) =>
@@ -304,7 +346,7 @@ const UserGuide = () => {
   };
 
   const handleDownload = () => {
-    const markdown = `# Marthington BMS User Guide
+    const markdown = `# ${guideContent.title}
 
 ## Getting Started
 - Open the app and review your dashboard.
@@ -314,7 +356,7 @@ const UserGuide = () => {
 - Start selling with POS and issue customer invoices.
 
 ## Common Workflows
-${workflowCards
+${guideContent.workflows
   .map(
     (item) => `### ${item.title}\n${item.steps.map((step) => `- ${step}`).join("\n")}`
   )
@@ -341,10 +383,10 @@ ${workflowCards
             </span>
             <div>
               <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-                User Guide & Help Center
+                {guideContent.title}
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
-                Learn the common workflows, setup steps, and daily actions your team needs to run the business efficiently.
+                {guideContent.description}
               </p>
             </div>
 
@@ -360,7 +402,7 @@ ${workflowCards
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {tagOptions.map((tag) => (
+              {availableTags.map((tag) => (
                 <button
                   key={tag.id}
                   type="button"
@@ -387,6 +429,12 @@ ${workflowCards
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {loadError} Showing the built-in guide content for now.
+        </div>
+      )}
 
       <div className="border-b border-slate-200 pb-2 dark:border-slate-800">
         <nav className="flex flex-wrap gap-3 md:gap-6">
@@ -427,7 +475,7 @@ ${workflowCards
           {filteredWorkflows.length > 0 ? (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {filteredWorkflows.map((workflow) => {
-                const Icon = workflow.icon;
+                const Icon = workflowCards.find((item) => item.id === workflow.id)?.icon || FaFileAlt;
 
                 return (
                   <div
@@ -562,13 +610,7 @@ ${workflowCards
             </div>
 
             <ol className="mt-6 space-y-5">
-              {[
-                "Create your product list and price structure.",
-                "Invite your staff and assign roles and permissions.",
-                "Create a few test sales from the POS.",
-                "Generate invoices and monitor the reports dashboard.",
-                "Update branding and business settings to complete your setup.",
-              ].map((item, index) => (
+              {guideContent.quickFlow.map((item, index) => (
                 <li key={item} className="flex gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-indigo-500">
                     {index + 1}

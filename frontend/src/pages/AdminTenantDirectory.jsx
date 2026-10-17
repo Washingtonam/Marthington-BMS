@@ -24,6 +24,10 @@ const AdminTenantDirectory = () => {
   const [search, setSearch] = useState("");
   const [contactBusinessId, setContactBusinessId] = useState("");
   const [selectedBusinessId, setSelectedBusinessId] = useState("");
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [ownerPasswordConfirmation, setOwnerPasswordConfirmation] = useState("");
+  const [ownerPasswordSaving, setOwnerPasswordSaving] = useState(false);
+  const [ownerPasswordMessage, setOwnerPasswordMessage] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -81,7 +85,40 @@ const AdminTenantDirectory = () => {
   }, [pageCount]);
 
   const openContactDraft = (business) => setContactBusinessId(business._id);
-  const openBusinessDetail = (business) => setSelectedBusinessId(business._id);
+  const openBusinessDetail = (business) => {
+    setOwnerPassword("");
+    setOwnerPasswordConfirmation("");
+    setOwnerPasswordMessage("");
+    setSelectedBusinessId(business._id);
+  };
+
+  const updateOwnerPassword = async (event) => {
+    event.preventDefault();
+    if (ownerPassword.length < 8) {
+      setOwnerPasswordMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (ownerPassword !== ownerPasswordConfirmation) {
+      setOwnerPasswordMessage("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setOwnerPasswordSaving(true);
+      setOwnerPasswordMessage("");
+      const result = await request(`/admin/business/${selectedBusiness._id}/owner-password`, {
+        method: "PUT",
+        body: JSON.stringify({ password: ownerPassword })
+      });
+      setOwnerPassword("");
+      setOwnerPasswordConfirmation("");
+      setOwnerPasswordMessage(result.message || "Business owner password updated.");
+    } catch (error) {
+      setOwnerPasswordMessage(error.message || "Could not update business owner password.");
+    } finally {
+      setOwnerPasswordSaving(false);
+    }
+  };
 
   const updatePlan = async (business, plan) => {
     if (!window.confirm(`Are you sure you want to ${plan === "pro" ? "upgrade" : "downgrade"} ${business.name}?`)) {
@@ -365,6 +402,43 @@ const AdminTenantDirectory = () => {
                   <Link to={`/admin/business/${selectedBusiness._id}`} onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">Open full business view</Link>
                 </div>
               </div>
+
+              <form onSubmit={updateOwnerPassword} className="mt-5 space-y-4 rounded-2xl border border-slate-200 p-4">
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">Update owner password</h3>
+                  <p className="mt-1 text-xs text-slate-500">Set a new sign-in password for {selectedBusiness.ownerName || "the business owner"}.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                    New password
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                      value={ownerPassword}
+                      onChange={(event) => setOwnerPassword(event.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                    Confirm password
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      required
+                      value={ownerPasswordConfirmation}
+                      onChange={(event) => setOwnerPasswordConfirmation(event.target.value)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                </div>
+                {ownerPasswordMessage && <p role="status" className="text-xs font-semibold text-slate-600">{ownerPasswordMessage}</p>}
+                <button type="submit" disabled={ownerPasswordSaving} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+                  {ownerPasswordSaving ? "Updating..." : "Update owner password"}
+                </button>
+              </form>
             </div>
           </div>
         </div>

@@ -68,6 +68,7 @@ const AdminBusinessView = lazy(() => import("./pages/AdminBusinessView.jsx"));
 const AdminBillingSettings = lazy(() => import("./pages/AdminBillingSettings.jsx"));
 const AdminPlanAccess = lazy(() => import("./pages/AdminPlanAccess.jsx"));
 const AdminOperationLogs = lazy(() => import("./pages/AdminOperationLogs.jsx"));
+const AdminUserGuide = lazy(() => import("./pages/AdminUserGuide.jsx"));
 const Expenses = lazy(() => import("./pages/Expenses.jsx"));
 const SchoolDashboard = lazy(() => import("./pages/SchoolDashboard.jsx"));
 const HospitalDashboard = lazy(() => import("./pages/HospitalDashboard.jsx"));
@@ -325,6 +326,8 @@ const App = () => {
               <Route path="analytics" element={<AdminAnalytics />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="operation-logs" element={<AdminOperationLogs />} />
+              <Route path="user-guide" element={<AdminUserGuide />} />
+              <Route path="user-guide/preview" element={<UserGuide />} />
               <Route path="business/:id" element={<AdminBusinessView />} />
               <Route path="payouts" element={<AdminPayouts />} />
               <Route path="affiliates" element={<AdminPartnersLedger />} />

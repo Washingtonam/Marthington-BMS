@@ -27,6 +27,7 @@ import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } from "../../utils/appearance.js";
+import BusinessChatWidget from "../BusinessChatWidget.jsx";
 
 const defaultNavGroups = [
   {
@@ -133,6 +134,7 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
           {children ?? <Outlet />}
         </main>
       </div>
+      {user?.role !== "affiliate" && (business?._id || business?.businessId || impersonatedBusiness || user?.business) && <BusinessChatWidget />}
     </div>
   );
 }

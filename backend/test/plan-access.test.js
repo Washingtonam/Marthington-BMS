@@ -11,6 +11,8 @@ test("plan access defaults retain the current free and pro limits", () => {
   assert.equal(DEFAULT_PLAN_ACCESS.free.staff, 1);
   assert.equal(DEFAULT_PLAN_ACCESS.pro.products, null);
   assert.equal(DEFAULT_PLAN_ACCESS.pro.staff, null);
+  assert.equal(DEFAULT_PLAN_ACCESS.free.features.businessChat, false);
+  assert.equal(DEFAULT_PLAN_ACCESS.pro.features.businessChat, true);
 });
 
 test("plan access normalization fills missing settings from the defaults", () => {

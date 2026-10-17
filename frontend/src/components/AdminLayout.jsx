@@ -9,6 +9,7 @@ import {
   FiChevronRight,
   FiCreditCard,
   FiDollarSign,
+  FiBookOpen,
   FiFileText,
   FiHome,
   FiMail,
@@ -52,6 +53,7 @@ const navigationGroups = [
       { to: "/admin/users", label: "Users", icon: FiUsers },
       { to: "/admin/analytics", label: "Analytics", icon: FiActivity },
       { to: "/admin/settings", label: "Settings", icon: FiSettings },
+      { to: "/admin/user-guide", label: "User Guide", icon: FiBookOpen },
       { to: "/admin/operation-logs", label: "Operation logs", icon: FiFileText }
     ]
   }

@@ -76,6 +76,28 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | `GET` | `/api/shop/storefront/products` | BMS business-owner token | List the business's products for image and description editing |
 | `PATCH` | `/api/shop/storefront/products/:id` | BMS business-owner token | Upload a product image to Cloudinary or set a Cloudinary URL, and edit the storefront description |
 
+### User guide content
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `GET` | `/api/user-guide` | Authenticated BMS account | Read the platform-wide user guide; `guide` is `null` until a super admin publishes custom content |
+| `PUT` | `/api/user-guide` | BMS super-admin token | Publish guide content for all users using `{ "guide": { "title": "...", "description": "...", "workflows": [], "directory": [], "checklist": [], "quickFlow": [], "faqs": [] } }` |
+
+Workflow entries contain `id`, `title`, `category`, `tag`, `route`, `routeLabel`, `description`, and `steps`. Directory entries contain `title`, `path`, `summary`, and `action`; guide links must stay within `/app`. Checklist entries contain `id` and `label`; quick-start entries are strings; FAQ entries contain `question` and `answer`. The super-admin User Guide page also supports previewing content, restoring the built-in defaults, and publishing edits.
+
+### Business assistant and support chat
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `GET` | `/api/support-chat/access` | Authenticated business account | Check whether the current business can use chat under Free & Pro mode settings |
+| `GET` | `/api/support-chat/threads/:mode` | Authenticated business account | Read the current business conversation for `assistant` or `support` mode |
+| `POST` | `/api/support-chat/threads/:mode/messages` | Authenticated business account | Send a message; assistant mode returns a data-backed answer, support mode queues it for superadmin |
+| `GET` | `/api/support-chat/admin/threads?mode=assistant\|support` | Superadmin | List recent business conversations; omit `mode` to include both modes |
+| `GET` | `/api/support-chat/admin/threads/:id` | Superadmin | Read a conversation and clear its admin unread indicator |
+| `POST` | `/api/support-chat/admin/threads/:id/messages` | Superadmin | Reply to a support conversation; automated assistant threads are read-only |
+
+User messages are sent as `{ "body": "..." }` and are limited to 2,000 characters. Business conversations are scoped by authenticated workspace and kept separately for each chat mode. Assistant answers are generated from that business's product stock, customer totals, and unpaid invoices, subject to the sender's view permissions and branch scope; common how-to questions receive dashboard guides. The feature is enabled for Pro by default and can be toggled for each plan in Free & Pro Modes. Superadmins can use the assistant in a business workspace and can read both modes from Communications.
+
 Shop administration uses the existing protected BMS `super_admin` account. Shopper account registration cannot grant platform administrator access. In the product PATCH endpoint, send `shopSalePrice` as a whole-naira amount below the regular product `price`; send `0` to remove a sale price. The server calculates catalogue and checkout prices from the current BMS selling price and this centrally managed sale price. For image URLs, send `shopImageUrl` as an HTTPS `res.cloudinary.com` URL; uploads continue to be stored in Cloudinary. Owners can edit product images and storefront descriptions only; featured status, sale prices, and listing visibility are controlled by Marthington Super Admin. Hiding a business or product only affects the marketplace storefront and checkout; it does not alter or remove the source BMS business or product. Featured products are prioritized in public listings, and products without images retain a text fallback. A configured delivery-area rate is only a suggestion for the admin: delivery fees remain confirmed after product checkout and are paid separately. Successful product-payment verification creates one in-app `shop_order_received` notification for each active super admin, visible from the BMS admin header. Refunds are recorded per Paystack transaction, support partial amounts, and remain pending until Paystack reports them processed. An unresolved refund blocks another refund request to prevent duplicate payouts. A delivery fee marked paid manually can be recorded as externally refunded only after the admin confirms completion and supplies the external reference; this action does not move money. Cancellation is enabled only when recorded refunds cover the total amount paid.
 
 ## Expense Module - Phase 3 Endpoints

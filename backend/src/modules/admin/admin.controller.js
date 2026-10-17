@@ -10,6 +10,7 @@ import AffiliateClick from "../affiliates/affiliateClick.model.js";
 import Notification from "../notifications/notification.model.js";
 import Transaction from "../transactions/transaction.model.js";
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 import Audit from "./audit.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
@@ -2305,6 +2306,64 @@ const getBusinessDetails = async (req, res) => {
   }
 };
 
+const updateBusinessOwnerPassword = async (req, res) => {
+  const password = req.body?.password;
+  if (typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters." });
+  }
+
+  try {
+    const business = await Business.findById(req.params.id).select("_id owner");
+    if (!business) {
+      return res.status(404).json({ message: "Business not found." });
+    }
+
+    const owner = business.owner
+      ? await User.findOne({ _id: business.owner, business: business._id })
+      : await User.findOne({ business: business._id, role: "owner" });
+    if (!owner) {
+      return res.status(404).json({ message: "Business owner account not found." });
+    }
+
+    owner.password = await bcrypt.hash(password, 10);
+    owner.refreshToken = null;
+    await owner.save();
+
+    return res.json({ message: "Business owner password updated." });
+  } catch (error) {
+    console.error("UPDATE BUSINESS OWNER PASSWORD ERROR:", error);
+    return res.status(500).json({ message: "Could not update business owner password." });
+  }
+};
+
+const updateBusinessUserPassword = async (req, res) => {
+  const password = req.body?.password;
+  if (typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters." });
+  }
+
+  try {
+    const business = await Business.findById(req.params.id).select("_id");
+    if (!business) {
+      return res.status(404).json({ message: "Business not found." });
+    }
+
+    const user = await User.findOne({ _id: req.params.userId, business: business._id });
+    if (!user) {
+      return res.status(404).json({ message: "User not found in this business." });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.refreshToken = null;
+    await user.save();
+
+    return res.json({ message: "User password updated." });
+  } catch (error) {
+    console.error("UPDATE BUSINESS USER PASSWORD ERROR:", error);
+    return res.status(500).json({ message: "Could not update user password." });
+  }
+};
+
 export default {
   getOverview,
   getRevenue,
@@ -2317,6 +2376,8 @@ export default {
   getSubscriptionEmailCampaign,
   updateSubscription,
   getBusinessDetails,
+  updateBusinessOwnerPassword,
+  updateBusinessUserPassword,
   getAffiliateSettings,
   updateAffiliateSettings,
   getPlanAccessSettings,

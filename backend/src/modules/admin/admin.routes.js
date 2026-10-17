@@ -86,6 +86,20 @@ router.get(
   adminController.getBusinessDetails
 );
 
+router.put(
+  "/business/:id/owner-password",
+  protect,
+  onlyAdmin,
+  adminController.updateBusinessOwnerPassword
+);
+
+router.put(
+  "/business/:id/users/:userId/password",
+  protect,
+  onlyAdmin,
+  adminController.updateBusinessUserPassword
+);
+
 // ================= SUBSCRIPTION CONTROL =================
 router.put(
   "/business/:id/subscription",

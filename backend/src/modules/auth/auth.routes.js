@@ -10,5 +10,6 @@ router.post("/modes/bms", protect, authController.ensureBmsWorkspace);
 router.post("/refresh", authController.refresh);
 router.get("/me", protect, authController.getCurrentUser);
 router.patch("/appearance", protect, authController.updateAppearance);
+router.patch("/password", protect, authController.changePassword);
 
 export default router;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -11,6 +11,10 @@ const AdminBusinessView = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("overview");
   const [processing, setProcessing] = useState(false);
+  const [passwordUserId, setPasswordUserId] = useState("");
+  const [passwordForm, setPasswordForm] = useState({ password: "", confirmation: "" });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
 
   const [data, setData] = useState({
     business: null,
@@ -122,6 +126,33 @@ const AdminBusinessView = () => {
       alert(err.message || "Failed to delete business");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (event, user) => {
+    event.preventDefault();
+    if (passwordForm.password.length < 8) {
+      setPasswordMessage("Password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.password !== passwordForm.confirmation) {
+      setPasswordMessage("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setPasswordSaving(true);
+      setPasswordMessage("");
+      const result = await request(`/admin/business/${id}/users/${user._id}/password`, {
+        method: "PUT",
+        body: JSON.stringify({ password: passwordForm.password })
+      });
+      setPasswordForm({ password: "", confirmation: "" });
+      setPasswordMessage(result.message || "User password updated.");
+    } catch (error) {
+      setPasswordMessage(error.message || "Could not update user password.");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -305,8 +336,69 @@ const AdminBusinessView = () => {
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-slate-200">
                 <table className="w-full min-w-[520px] text-left text-sm">
-                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Team member</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Joined</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">{users.map((user) => <tr key={user._id} className="hover:bg-slate-50/70"><td className="px-4 py-3.5 font-semibold text-slate-900">{user.name || "Unnamed user"}</td><td className="px-4 py-3.5 text-slate-600">{user.email || "—"}</td><td className="px-4 py-3.5"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{user.role || "staff"}</span></td><td className="px-4 py-3.5 text-slate-600">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</td></tr>)}</tbody>
+                  <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500"><tr><th className="px-4 py-3">Team member</th><th className="px-4 py-3">Email</th><th className="px-4 py-3">Role</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3">Password</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">{users.map((user) => (
+                    <Fragment key={user._id}>
+                      <tr className="hover:bg-slate-50/70">
+                        <td className="px-4 py-3.5 font-semibold text-slate-900">{user.name || "Unnamed user"}</td>
+                        <td className="px-4 py-3.5 text-slate-600">{user.email || "—"}</td>
+                        <td className="px-4 py-3.5"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold capitalize text-slate-700">{user.role || "staff"}</span></td>
+                        <td className="px-4 py-3.5 text-slate-600">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</td>
+                        <td className="px-4 py-3.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPasswordUserId((current) => current === user._id ? "" : user._id);
+                              setPasswordForm({ password: "", confirmation: "" });
+                              setPasswordMessage("");
+                            }}
+                            className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                          >
+                            {passwordUserId === user._id ? "Cancel" : "Set password"}
+                          </button>
+                        </td>
+                      </tr>
+                      {passwordUserId === user._id && (
+                        <tr>
+                          <td colSpan={5} className="bg-slate-50 p-4">
+                            <form onSubmit={(event) => handlePasswordUpdate(event, user)} className="space-y-3">
+                              <p className="text-xs font-semibold text-slate-700">Set a new password for {user.name || user.email} (at least 8 characters).</p>
+                              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                                <label className="grid gap-1 text-xs font-semibold text-slate-700">
+                                  New password
+                                  <input
+                                    type="password"
+                                    autoComplete="new-password"
+                                    minLength={8}
+                                    required
+                                    value={passwordForm.password}
+                                    onChange={(event) => setPasswordForm((current) => ({ ...current, password: event.target.value }))}
+                                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                                  />
+                                </label>
+                                <label className="grid gap-1 text-xs font-semibold text-slate-700">
+                                  Confirm password
+                                  <input
+                                    type="password"
+                                    autoComplete="new-password"
+                                    minLength={8}
+                                    required
+                                    value={passwordForm.confirmation}
+                                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmation: event.target.value }))}
+                                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal"
+                                  />
+                                </label>
+                                <button type="submit" disabled={passwordSaving} className="self-end rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+                                  {passwordSaving ? "Updating..." : "Update password"}
+                                </button>
+                              </div>
+                              {passwordMessage && <p role="status" className="text-xs font-semibold text-slate-600">{passwordMessage}</p>}
+                            </form>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}</tbody>
                 </table>
               </div>
             )}

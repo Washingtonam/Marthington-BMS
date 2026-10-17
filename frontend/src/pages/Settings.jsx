@@ -59,6 +59,13 @@ const Settings = () => {
 
   const [loading, setLoading] = useState(false);
   const [savingAppearance, setSavingAppearance] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
   const [personalAccentColor, setPersonalAccentColor] = useState(user?.appearance?.accentColor || defaultAccentColor);
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -303,6 +310,40 @@ const Settings = () => {
       setUpgradeMsg(err.message || "Could not save appearance preferences.");
     } finally {
       setSavingAppearance(false);
+    }
+  };
+
+  const changePassword = async (event) => {
+    event.preventDefault();
+    if (!passwordForm.currentPassword) {
+      setPasswordMessage("Enter your current password.");
+      return;
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage("New passwords do not match.");
+      return;
+    }
+
+    try {
+      setSavingPassword(true);
+      setPasswordMessage("");
+      const result = await request("/auth/password", {
+        method: "PATCH",
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswordMessage(result.message || "Password updated successfully.");
+    } catch (error) {
+      setPasswordMessage(error.message || "Could not update password.");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -591,6 +632,53 @@ const Settings = () => {
                 <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{business?.name || user?.businessName || "Not linked"}</dd>
               </div>
             </dl>
+            <div className="space-y-4 border-t border-slate-200 pt-5 dark:border-slate-700">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Change password</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Enter your current password and choose a new one.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Current password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={passwordForm.currentPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal dark:border-slate-600 dark:bg-slate-800"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  New password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={passwordForm.newPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal dark:border-slate-600 dark:bg-slate-800"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Confirm new password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    value={passwordForm.confirmPassword}
+                    onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                    className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal dark:border-slate-600 dark:bg-slate-800"
+                  />
+                </label>
+              </div>
+              {passwordMessage && <p role="status" className="text-sm font-semibold text-slate-600 dark:text-slate-300">{passwordMessage}</p>}
+              <button type="button" onClick={changePassword} disabled={savingPassword} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+                {savingPassword ? "Updating..." : "Change password"}
+              </button>
+            </div>
           </div>
         )}
 
