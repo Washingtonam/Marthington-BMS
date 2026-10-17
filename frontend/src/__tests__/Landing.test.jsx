@@ -29,6 +29,8 @@ describe("public landing page", () => {
     expect(screen.getByRole("heading", { name: "Partner wallet & conversions" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Delegate the work. Keep control." })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "The Referral Partnership Program" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Partners" }).getAttribute("href")).toBe("/login?next=%2Fpartners%2Fdashboard");
+    expect(screen.getAllByRole("link", { name: "Storefronts" }).every((link) => link.getAttribute("href") === "/shop")).toBe(true);
     expect(screen.getAllByRole("link", { name: /Become a Partner/ }).every((link) => link.getAttribute("href") === "/affiliate-register")).toBe(true);
   });
 

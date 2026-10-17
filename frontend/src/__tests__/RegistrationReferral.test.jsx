@@ -73,6 +73,7 @@ describe("workspace registration referral code", () => {
   it("allows an organic signup with an explicitly optional empty referral code", async () => {
     render(<MemoryRouter><Register /></MemoryRouter>);
 
+    expect(screen.getByRole("link", { name: "Back to home" }).getAttribute("href")).toBe("/");
     expect(screen.getByPlaceholderText("Enter an agent code if you have one")).toBeTruthy();
     expect(screen.getByText("Leave this blank if you were not referred by an agent.")).toBeTruthy();
     completeRequiredFields();
@@ -122,6 +123,14 @@ describe("workspace registration referral code", () => {
 
 describe("login route navigation", () => {
   afterEach(cleanup);
+
+  it("provides a route back to the landing page from login", () => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: false, user: null, login: mockRegister });
+
+    render(<MemoryRouter><Login /></MemoryRouter>);
+
+    expect(screen.getByRole("link", { name: "Back to home" }).getAttribute("href")).toBe("/");
+  });
 
   const renderLogin = (role, initialEntry) => {
     mockUseAuth.mockReturnValue({

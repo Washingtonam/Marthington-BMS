@@ -1686,6 +1686,7 @@ label input:focus {
 .hero-graphic::before {
   content: "";
   position: absolute;
+  pointer-events: none;
   left: -80px;
   top: 20%;
   width: 420px;
@@ -1698,6 +1699,7 @@ label input:focus {
 .hero-graphic::after {
   content: "";
   position: absolute;
+  pointer-events: none;
   right: -120px;
   bottom: 10%;
   width: 360px;
@@ -2289,4 +2291,3 @@ label input:focus {
   .staff-modal { max-height: calc(100vh - 24px); padding: 20px; border-radius: 20px; }
   .staff-modal .permission-grid { grid-template-columns: 1fr; }
 }
-

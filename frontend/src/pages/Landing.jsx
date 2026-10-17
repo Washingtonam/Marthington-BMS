@@ -344,23 +344,23 @@ const Landing = () => {
             </div>
           </div>
 
-          <nav aria-label="Main navigation" className="flex items-center gap-2 sm:gap-5">
+          <nav aria-label="Main navigation" className="flex items-center gap-1 sm:gap-5">
             <a href="#platform" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
               Platform
             </a>
             <a href="#team" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
               Team
             </a>
-            <a href="#partners" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
+            <Link to="/login?next=%2Fpartners%2Fdashboard" className="inline px-1 text-[10px] font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:px-0 sm:text-sm">
               Partners
-            </a>
-            <Link to="/shop" className="text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-900 sm:text-sm">
-              Shop
             </Link>
-            <Link to="/login" className="text-xs font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:text-sm">
+            <Link to="/shop" className="px-1 text-[10px] font-semibold text-emerald-700 transition-colors hover:text-emerald-900 sm:px-0 sm:text-sm">
+              Storefronts
+            </Link>
+            <Link to="/login" className="px-1 text-[10px] font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:px-0 sm:text-sm">
               Login
             </Link>
-            <Link to={registerPath} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 sm:px-4 sm:text-sm">
+            <Link to={registerPath} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-slate-900 px-2 py-2 text-[10px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 sm:min-h-10 sm:px-4 sm:text-sm">
               Deploy
             </Link>
           </nav>
@@ -751,7 +751,7 @@ const Landing = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-semibold text-slate-500">
-            <Link to="/shop" className="transition-colors hover:text-emerald-700">Shop</Link>
+            <Link to="/shop" className="transition-colors hover:text-emerald-700">Storefronts</Link>
             <Link to="/login" className="transition-colors hover:text-emerald-700">Login</Link>
             <Link to="/affiliate-register" className="transition-colors hover:text-emerald-700">Become a Partner</Link>
             <span>© {new Date().getFullYear()} Marthington Systems Ltd. All rights reserved.</span>

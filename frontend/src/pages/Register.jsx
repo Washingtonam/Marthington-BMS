@@ -128,6 +128,9 @@ const Register = () => {
 
       <section className="auth-panel">
         <form className="auth-form" onSubmit={handleSubmit}>
+          <Link to="/" className="inline-flex min-h-10 items-center self-start rounded-lg px-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+            <span aria-hidden="true" className="mr-2">←</span> Back to home
+          </Link>
           <img src="/logo-icon.png" className="auth-icon logo-left" alt="logo" />
 
           <div>
