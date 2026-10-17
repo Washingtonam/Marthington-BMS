@@ -335,16 +335,16 @@ const Landing = () => {
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fbff_45%,#ffffff_100%)] text-slate-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
       {/* NAVBAR */}
       <header className="sticky top-0 z-50 border-b border-slate-100/80 bg-white/70 backdrop-blur-md transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <img src="/logo-icon.png" alt="Marthington" className="w-10 h-10 rounded-xl shadow-sm" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3.5">
+            <img src="/logo-icon.png" alt="Marthington" className="h-9 w-9 rounded-xl shadow-sm sm:h-10 sm:w-10" />
             <div>
               <h2 className="font-bold text-lg tracking-tight text-slate-900">Marthington</h2>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Business OS</p>
             </div>
           </div>
 
-          <nav aria-label="Main navigation" className="flex items-center gap-1 sm:gap-5">
+          <nav aria-label="Main navigation" className="flex items-center gap-0 sm:gap-5">
             <a href="#platform" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
               Platform
             </a>
