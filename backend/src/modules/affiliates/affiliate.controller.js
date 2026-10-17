@@ -5,6 +5,7 @@ import PayoutRequest from "./payoutRequest.model.js";
 import WithdrawalHistory from "./withdrawalHistory.model.js";
 import AffiliateClick from "./affiliateClick.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
+import { defaultCommissionSchedule } from "./commissionSchedule.js";
 
 const activateAgentMode = async (req, res) => {
   try {
@@ -204,6 +205,7 @@ const getAffiliateDashboard = async (req, res) => {
         pending: pendingAmount,
         paid: paidAmount,
         currentRate: Number(settings?.globalAffiliateRate ?? 20),
+        commissionSchedule: settings?.commissionSchedule || defaultCommissionSchedule,
         totalConversions,
         totalReferrals,
         totalLifetimeEarnings: totalEarned,

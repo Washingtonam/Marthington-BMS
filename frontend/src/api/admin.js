@@ -38,6 +38,15 @@ export const updateAffiliateSettings = async (payload) => request(`/admin/affili
   body: JSON.stringify(payload)
 });
 
+export const getCommissionClaims = (query = "status=pending") =>
+  request(`/admin/commission-claims${query ? `?${query}` : ""}`);
+
+export const processCommissionClaim = (id, decision, note = "") =>
+  request(`/admin/commission-claims/${id}/${decision}`, {
+    method: "POST",
+    body: JSON.stringify({ note })
+  });
+
 export const getPartnersLedger = async (query = "") => {
   const q = query ? `?${query}` : "";
   return request(`/admin/partners-ledger${q}`);

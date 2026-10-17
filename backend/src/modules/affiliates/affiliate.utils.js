@@ -2,6 +2,23 @@ import User from "../users/user.model.js";
 import Business from "../businesses/business.model.js";
 import SystemSettings from "../admin/systemSettings.model.js";
 import AffiliatePayout from "./affiliatePayout.model.js";
+import CommissionClaim from "./commissionClaim.model.js";
+import {
+  getCommissionScheduleItemKey,
+  getEligibleCommissionMilestones
+} from "./commissionSchedule.js";
+
+const createAutomatedClaim = async (claim, session) => {
+  try {
+    await CommissionClaim.updateOne(
+      { claimKey: claim.claimKey },
+      { $setOnInsert: claim },
+      { upsert: true, session, runValidators: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    if (error.code !== 11000) throw error;
+  }
+};
 
 export const creditAffiliate = async (businessId, paymentAmount, session = null, paymentReference = null) => {
   if (!businessId) {
@@ -71,8 +88,28 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null,
   // ✅ STEP 3: FETCH GLOBAL AFFILIATE RATE
   const settings = await SystemSettings.findOne().session(session).lean();
   const affiliateRate = Number(settings?.globalAffiliateRate ?? 20);
+  const schedule = settings?.commissionSchedule || {};
 
   console.log("[creditAffiliate] ✅ Global affiliate rate fetched", { affiliateRate: `${affiliateRate}%` });
+
+  const previousBusinessPayment = await AffiliatePayout.findOne({
+    business: business._id,
+    status: "credited"
+  }).session(session).lean();
+  const bonusAmount = Number(schedule.directReferralBonus?.amount || 0);
+  if (!previousBusinessPayment && bonusAmount > 0) {
+    await createAutomatedClaim({
+      claimKey: `direct-bonus:${affiliate._id}:${business._id}`,
+      affiliate: affiliate._id,
+      affiliateCode: affiliate.affiliateCode,
+      business: business._id,
+      kind: "direct_referral_bonus",
+      title: "Direct referral bonus",
+      description: schedule.directReferralBonus.description || "Bonus for a referred business's first paid subscription.",
+      amount: bonusAmount,
+      evidence: `First paid subscription: ${paymentReference || business._id}`
+    }, session);
+  }
 
   // ✅ STEP 4: CALCULATE COMMISSION
   const commissionAmount = Number((amount * affiliateRate) / 100);
@@ -133,6 +170,25 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null,
   };
 
   const ledgerResult = await AffiliatePayout.create([payoutRecord], { session });
+
+  const newConfirmedEarnings = Number(affiliate.totalEarned || 0) + commissionAmount;
+  for (const milestone of getEligibleCommissionMilestones(newConfirmedEarnings, schedule.payoutMilestones)) {
+    const threshold = Number(milestone.thresholdAmount);
+    const reward = Number(milestone.rewardAmount);
+    const milestoneKey = getCommissionScheduleItemKey(milestone);
+    if (!milestoneKey) continue;
+    await createAutomatedClaim({
+      claimKey: `milestone:${affiliate._id}:${milestoneKey}`,
+      affiliate: affiliate._id,
+      affiliateCode: affiliate.affiliateCode,
+      kind: "payout_milestone",
+      actionKey: milestoneKey,
+      title: milestone.name,
+      description: milestone.description || `Confirmed earnings reached ₦${threshold.toLocaleString()}.`,
+      amount: reward,
+      evidence: `Confirmed earnings after this subscription commission: ₦${newConfirmedEarnings.toLocaleString()}.`
+    }, session);
+  }
 
   console.log("[creditAffiliate] ✅ Transaction ledger created", {
     payoutId: ledgerResult[0]?._id,

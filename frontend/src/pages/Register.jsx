@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Icon from "../components/Icon.jsx";
 import LocationFields from "../components/LocationFields.jsx";
 import { trackAffiliateClick } from "../api/affiliates.js";
@@ -49,11 +49,13 @@ const Register = () => {
   const [refCode, setRefCode] = useState("");
 
   const { register } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const referral = params.get("ref") || "";
+    const referral = new URLSearchParams(location.search).get("ref")
+      || new URLSearchParams(window.location.search).get("ref")
+      || "";
 
     if (referral) {
       localStorage.setItem("bms_referral", referral);
@@ -63,7 +65,7 @@ const Register = () => {
       const savedReferral = localStorage.getItem("bms_referral") || "";
       setRefCode(savedReferral);
     }
-  }, []);
+  }, [location.search]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -99,7 +101,7 @@ const Register = () => {
         addressState: businessLocation.state,
         addressLocalGovernment: businessLocation.localGovernment,
         addressCity: businessLocation.city,
-        referredBy: refCode || localStorage.getItem("bms_referral") || null
+        referralCode: refCode.trim() || null
       };
 
       await register(payload);
@@ -237,6 +239,22 @@ const Register = () => {
               {industryOptions.find((o) => o.value === form.industryType)?.description}
             </p>
           </div>
+
+          <label>
+            Agent / Referral Code (Optional)
+            <input
+              name="referralCode"
+              value={refCode}
+              onChange={(event) => setRefCode(event.target.value)}
+              placeholder="Enter an agent code if you have one"
+              className="input-field"
+              autoComplete="off"
+              aria-describedby="referral-code-help"
+            />
+            <span id="referral-code-help" className="text-xs text-slate-400">
+              Leave this blank if you were not referred by an agent.
+            </span>
+          </label>
 
           <button className="primary-button" type="submit" disabled={loading}>
             <Icon

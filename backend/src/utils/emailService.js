@@ -34,6 +34,24 @@ const sendEmailMessage = async ({ to, subject, html }) => {
   });
 };
 
+export const sendPasswordResetEmail = async ({ email, resetUrl }) => {
+  const safeUrl = escapeHtml(resetUrl);
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
+      <h1 style="color:#047857">Reset your Marthington BMS password</h1>
+      <p>We received a request to reset the password for your account.</p>
+      <p><a href="${safeUrl}" style="display:inline-block;padding:12px 20px;background:#047857;color:#fff;text-decoration:none;border-radius:8px">Reset password</a></p>
+      <p>This link expires in 30 minutes. If you did not request a password reset, you can ignore this email.</p>
+      <p style="color:#64748b">If the button does not work, copy and paste this link into your browser:<br />${safeUrl}</p>
+    </div>
+  `;
+  return sendEmailMessage({
+    to: email,
+    subject: "Reset your Marthington BMS password",
+    html
+  });
+};
+
 const formatShopEmailCurrency = (amount) => `₦${Number(amount || 0).toLocaleString("en-NG")}`;
 
 const shopOrderItemsHtml = (items) => items.map((item) => `

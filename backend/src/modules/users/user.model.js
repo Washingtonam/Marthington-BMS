@@ -282,6 +282,18 @@ const userSchema = new mongoose.Schema(
       default: null
     },
 
+    passwordResetToken: {
+      type: String,
+      default: null,
+      select: false
+    },
+
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+      select: false
+    },
+
     permissions: {
       type: permissionSchema,
 

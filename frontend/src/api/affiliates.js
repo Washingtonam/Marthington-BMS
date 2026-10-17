@@ -34,3 +34,10 @@ export const getPayoutHistory = async () => {
 		method: "GET"
 	});
 };
+
+export const getCommissionClaims = () => request("/affiliates/commission-claims");
+
+export const submitCpaClaim = (payload) => request("/affiliates/commission-claims", {
+	method: "POST",
+	body: JSON.stringify(payload)
+});

@@ -19,6 +19,7 @@ import {
   FaUserFriends,
 } from "react-icons/fa";
 import { getUserGuide } from "../api/userGuide.js";
+import { defaultPartnerGuides } from "../data/partnerGuides.js";
 
 const tabs = [
   { id: "workflows", label: "Core Workflows" },
@@ -240,6 +241,7 @@ const faqItems = [
 export const defaultUserGuideContent = {
   title: "User Guide & Help Center",
   description: "Learn the common workflows, setup steps, and daily actions your team needs to run the business efficiently.",
+  agentTutorials: defaultPartnerGuides,
   workflows: workflowCards.map(({ icon, ...workflow }) => workflow),
   directory: moduleDirectory,
   checklist: onboardingChecklist,

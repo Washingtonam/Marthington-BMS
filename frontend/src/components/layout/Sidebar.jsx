@@ -104,6 +104,7 @@ const defaultNavGroups = [
 
 export default function Sidebar({
   navigationGroups = defaultNavGroups,
+  brandTitle = "Business Hub",
   mobileOpen,
   setMobileOpen,
   theme,
@@ -203,7 +204,7 @@ export default function Sidebar({
                   Marthington
                 </p>
                 <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Business Hub
+                  {brandTitle}
                 </p>
               </div>
             </div>
@@ -299,6 +300,7 @@ export default function Sidebar({
             className={`flex w-full items-center rounded-xl border border-slate-200/80 bg-white/70 text-sm font-medium text-slate-700 shadow-sm shadow-slate-200/50 transition-all duration-150 hover:bg-slate-50/90 active:scale-[0.99] dark:border-slate-700/80 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-800/80 ${isCollapsed ? "justify-center px-0 py-2.5" : "justify-between px-3 py-2.5"}`}
             type="button"
             title={theme === "dark" ? "Light mode" : "Dark mode"}
+            aria-label={theme === "dark" ? "Light mode" : "Dark mode"}
           >
             <span className="[&>svg]:h-4 [&>svg]:w-4">
               {theme === "dark" ? <FiSun aria-hidden="true" /> : <FiMoon aria-hidden="true" />}

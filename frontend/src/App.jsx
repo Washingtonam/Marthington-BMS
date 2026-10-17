@@ -26,6 +26,8 @@ const ShopAdmin = lazy(() => import("./pages/ShopAdmin.jsx"));
 const ShopStorefront = lazy(() => import("./pages/ShopStorefront.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword.jsx"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword.jsx"));
 const AffiliateRegister = lazy(() => import("./pages/AffiliateRegister.jsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Products = lazy(() => import("./pages/Products.jsx"));
@@ -80,6 +82,8 @@ const PartnerDashboardHome = lazy(() => import("./pages/PartnerDashboardHome.jsx
 const PartnerConversions = lazy(() => import("./pages/PartnerConversions.jsx"));
 const PartnerWithdrawals = lazy(() => import("./pages/PartnerWithdrawals.jsx"));
 const PartnerLinkHistory = lazy(() => import("./pages/PartnerLinkHistory.jsx"));
+const PartnerGuides = lazy(() => import("./pages/PartnerGuides.jsx"));
+const PartnerCommission = lazy(() => import("./pages/PartnerCommission.jsx"));
 const AdminPayouts = lazy(() => import("./pages/AdminPayouts.jsx"));
 const AdminPartnersLedger = lazy(() => import("./pages/AdminPartnersLedger.jsx"));
 const UserGuide = lazy(() => import("./pages/UserGuide.jsx"));
@@ -208,6 +212,8 @@ const App = () => {
             {/* AUTH */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/affiliate-register" element={<AffiliateRegister />} />
 
             {/* PUBLIC RECEIPT */}
@@ -227,6 +233,8 @@ const App = () => {
               <Route path="conversions" element={<PartnerConversions />} />
               <Route path="withdrawals" element={<PartnerWithdrawals />} />
               <Route path="link-history" element={<PartnerLinkHistory />} />
+              <Route path="guides" element={<PartnerGuides />} />
+              <Route path="commission" element={<PartnerCommission />} />
               <Route path="profile" element={<PartnerProfile />} />
               <Route path="referrals" element={<Navigate to="/partners/conversions" replace />} />
             </Route>

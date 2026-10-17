@@ -5,6 +5,11 @@ import { defaultUserGuideContent } from "./UserGuide.jsx";
 
 const listFields = [
   {
+    key: "agentTutorials",
+    label: "Agent guides & tutorials",
+    help: "Each tutorial needs id, title, category, summary, and a steps array. These appear in the Agent Guides & Tutorials hub."
+  },
+  {
     key: "workflows",
     label: "Workflow guides",
     help: "Each guide needs id, title, category, tag, route, routeLabel, description, and a steps array."

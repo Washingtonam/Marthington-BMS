@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
 
@@ -66,9 +66,251 @@ const categoryTabs = [
   { value: "hospital", label: "Hospitals" }
 ];
 
+const useRegistrationPath = () => {
+  const { search } = useLocation();
+  const referralCode = new URLSearchParams(search).get("ref") || new URLSearchParams(window.location.search).get("ref");
+  return referralCode ? `/register?ref=${encodeURIComponent(referralCode)}` : "/register";
+};
+
+const PreviewCard = ({ eyebrow, title, description, children, className = "" }) => (
+  <article className={`overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm ${className}`}>
+    <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
+      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700">{eyebrow}</p>
+      <h3 className="mt-2 text-lg font-bold tracking-tight text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p>
+    </div>
+    <div className="p-4 sm:p-5">{children}</div>
+  </article>
+);
+
+const ProductPreviews = () => (
+  <section id="platform" className="scroll-mt-24 border-y border-slate-200 bg-slate-50/80 py-20 sm:py-24">
+    <div className="mx-auto max-w-7xl px-5 sm:px-6">
+      <div className="mx-auto mb-12 max-w-2xl text-center sm:mb-14">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">One connected workspace</p>
+        <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          See your business clearly, wherever you are.
+        </h2>
+        <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">
+          A closer look at checkout, cross-sector operations and partner performance. These illustrative previews adapt to desktop and phone screens.
+        </p>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-3">
+        <PreviewCard
+          eyebrow="Sales · Checkout"
+          title="Smart POS & digital receipts"
+          description="Move from basket to a shareable receipt with a clear, reliable checkout flow."
+        >
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-slate-800">New sale</p>
+                <p className="mt-1 text-[10px] text-slate-400">Counter 01 · Today, 10:42</p>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">Ready</span>
+            </div>
+            <div className="mt-4 space-y-2">
+              {[["Everyday backpack", "1 × ₦18,500"], ["A5 exercise book", "3 × ₦1,200"]].map(([item, price]) => (
+                <div key={item} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5">
+                  <span className="text-xs font-semibold text-slate-700">{item}</span>
+                  <span className="shrink-0 text-[10px] font-medium text-slate-500">{price}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+              <span className="text-xs font-semibold text-slate-500">Total</span>
+              <span className="text-base font-extrabold text-slate-900">₦22,100</span>
+            </div>
+            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Digital receipt</p>
+                  <p className="mt-1 text-[10px] text-emerald-700">Sale recorded · Customer copy ready</p>
+                </div>
+                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">✓</span>
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative workspace preview</p>
+        </PreviewCard>
+
+        <PreviewCard
+          eyebrow="Management · Reporting"
+          title="Executive, multi-sector view"
+          description="Switch between retail, school and hospital workflows with relevant operational signals."
+        >
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+            <div className="flex flex-wrap gap-1.5">
+              {["Retail", "Schools", "Hospitals"].map((sector, index) => (
+                <span key={sector} className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold ${index === 0 ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-500"}`}>
+                  {sector}
+                </span>
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {[["Sales today", "₦482k", "↑ 12%"], ["Stock alerts", "08", "2 urgent"]].map(([label, value, note]) => (
+                <div key={label} className="rounded-xl border border-slate-100 bg-white p-3">
+                  <p className="text-[10px] font-medium text-slate-400">{label}</p>
+                  <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-1">
+                    <span className="text-lg font-extrabold text-slate-900">{value}</span>
+                    <span className="text-[9px] font-bold text-emerald-600">{note}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-slate-700">Operations overview</p>
+                <p className="text-[9px] text-slate-400">This week</p>
+              </div>
+              <div className="mt-3 flex h-14 items-end gap-1.5" aria-label="Illustrative weekly activity chart">
+                {[38, 58, 45, 76, 54, 88, 68, 100, 73, 84, 60, 92].map((height, index) => (
+                  <span key={index} className={`flex-1 rounded-t-sm ${index === 7 ? "bg-emerald-600" : "bg-emerald-200"}`} style={{ height: `${height}%` }} />
+                ))}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
+                {[["RETAIL", "Stock & sales"], ["SCHOOLS", "Fees & classes"], ["HOSPITALS", "Care & supplies"]].map(([sector, detail]) => (
+                  <div key={sector}>
+                    <p className="text-[8px] font-bold tracking-wide text-slate-500">{sector}</p>
+                    <p className="mt-1 text-[8px] leading-tight text-slate-400">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative workspace preview</p>
+        </PreviewCard>
+
+        <PreviewCard
+          eyebrow="Partnerships · Performance"
+          title="Partner wallet & conversions"
+          description="Follow referral activity, qualifying commissions and payout progress in one place."
+        >
+          <div className="rounded-2xl bg-slate-950 p-4 text-white">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-semibold text-slate-400">Available balance</p>
+                <p className="mt-1 text-2xl font-extrabold tracking-tight">₦184,500</p>
+              </div>
+              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[9px] font-bold text-emerald-300">Wallet</span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <p className="text-[9px] text-slate-400">Conversions</p>
+                <p className="mt-1 text-lg font-bold">24</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <p className="text-[9px] text-slate-400">Pending payout</p>
+                <p className="mt-1 text-lg font-bold">₦32,000</p>
+              </div>
+            </div>
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <p className="text-[10px] font-bold text-slate-200">Recent activity</p>
+                <p className="text-[9px] text-slate-400">Status</p>
+              </div>
+              {[["Northstar Stores", "Confirmed"], ["Bright Future School", "Processing"], ["Greenview Clinic", "Confirmed"]].map(([name, status]) => (
+                <div key={name} className="flex items-center justify-between gap-2 border-b border-white/5 py-2 last:border-0 last:pb-0">
+                  <span className="truncate text-[9px] text-slate-300">{name}</span>
+                  <span className={`shrink-0 text-[9px] font-semibold ${status === "Confirmed" ? "text-emerald-300" : "text-amber-300"}`}>{status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative partner preview</p>
+        </PreviewCard>
+      </div>
+    </div>
+  </section>
+);
+
+const TeamManagement = () => {
+  const registerPath = useRegistrationPath();
+
+  return <section id="team" className="scroll-mt-24 bg-white py-20 sm:py-24">
+    <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 sm:px-6 lg:grid-cols-2 lg:gap-16">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">People · Permissions · Oversight</p>
+        <h2 className="mt-3 max-w-xl text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          Delegate the work. Keep control.
+        </h2>
+        <p className="mt-4 max-w-xl text-sm leading-6 text-slate-500 sm:text-base">
+          Bring assistants into your workspace, give each person access that matches their role, and keep an eye on day-to-day activity without being at the counter.
+        </p>
+        <ul className="mt-7 space-y-4">
+          {[
+            ["Invite assistants", "Add team members to the business workspace you manage."],
+            ["Choose permissions", "Allow the tasks they need—such as checkout or inventory—without handing over owner-level settings."],
+            ["Stay in the loop", "Review sales and operating activity remotely from your phone or desktop."]
+          ].map(([title, description]) => (
+            <li key={title} className="flex gap-3">
+              <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">✓</span>
+              <div>
+                <p className="text-sm font-bold text-slate-800">{title}</p>
+                <p className="mt-1 text-sm leading-5 text-slate-500">{description}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Link to={registerPath} className="mt-8 inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800">
+          Set up your workspace
+        </Link>
+      </div>
+
+      <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-4 shadow-sm sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Team access</p>
+            <h3 className="mt-1 text-lg font-bold text-slate-900">Assistant permissions</h3>
+          </div>
+          <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-[10px] font-bold text-emerald-700">Owner managed</span>
+        </div>
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+            <span>Team member</span><span>Checkout</span><span>Inventory</span>
+          </div>
+          {[
+            ["AO", "Amara Okafor", "Store assistant", true, true],
+            ["TO", "Tunde Ojo", "Sales assistant", true, false],
+            ["NK", "Ngozi Kalu", "Stock manager", false, true]
+          ].map(([initials, name, role, checkout, inventory]) => (
+            <div key={name} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-slate-100 px-4 py-3.5 last:border-0">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-[10px] font-bold text-emerald-700">{initials}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-slate-800">{name}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-slate-400">{role}</p>
+                </div>
+              </div>
+              {[checkout, inventory].map((allowed, index) => (
+                <span key={index} className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${allowed ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"}`} aria-label={allowed ? "Permission granted" : "Permission not granted"}>
+                  {allowed ? "✓" : "—"}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+          <div>
+            <p className="text-xs font-bold text-emerald-900">Workspace activity</p>
+            <p className="mt-1 text-[10px] text-emerald-700">Sales and operations at a glance</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-700">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+            Remote view
+          </span>
+        </div>
+        <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative team access preview</p>
+      </div>
+    </div>
+  </section>;
+};
+
 const Landing = () => {
   const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
   const [selectedTab, setSelectedTab] = useState("retail");
+  const registerPath = useRegistrationPath();
 
   useEffect(() => {
     const loadPricing = async () => {
@@ -102,17 +344,26 @@ const Landing = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <Link to="/shop" className="text-sm font-semibold text-emerald-700 hover:text-emerald-900 transition-colors">
+          <nav aria-label="Main navigation" className="flex items-center gap-2 sm:gap-5">
+            <a href="#platform" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
+              Platform
+            </a>
+            <a href="#team" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
+              Team
+            </a>
+            <a href="#partners" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
+              Partners
+            </a>
+            <Link to="/shop" className="text-xs font-semibold text-emerald-700 transition-colors hover:text-emerald-900 sm:text-sm">
               Shop
             </Link>
-            <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+            <Link to="/login" className="text-xs font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:text-sm">
               Login
             </Link>
-            <Link to="/register" className="inline-flex items-center justify-center px-4.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow transition-all duration-200">
-              Start Free
+            <Link to={registerPath} className="inline-flex min-h-10 items-center justify-center rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 sm:px-4 sm:text-sm">
+              Deploy
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
@@ -139,12 +390,15 @@ const Landing = () => {
               One unified workspace engineered for cross-channel sales management, continuous inventory controls, automated analytics, and absolute administrative security.
             </p>
 
-            <div className="mb-10 flex max-w-md rounded-full border border-slate-200/70 bg-slate-100/80 p-1 shadow-inner">
+            <div role="tablist" aria-label="Business sectors" className="mb-10 flex w-full max-w-md rounded-full border border-slate-200/70 bg-slate-100/80 p-1 shadow-inner">
               {categoryTabs.map((tab) => (
                 <button
                   key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedTab === tab.value}
                   onClick={() => setSelectedTab(tab.value)}
-                  className={`rounded-full px-5 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                  className={`flex-1 rounded-full px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all duration-200 sm:px-5 sm:text-xs ${
                     selectedTab === tab.value
                       ? "border border-slate-200/40 bg-white text-slate-900 shadow-sm"
                       : "text-slate-400 hover:text-slate-600"
@@ -156,7 +410,7 @@ const Landing = () => {
             </div>
 
             <div className="flex w-full flex-wrap items-center gap-4">
-              <Link to="/register" className="inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
+              <Link to={registerPath} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
                 Deploy Workspace
               </Link>
               <Link to="/affiliate-register" className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-slate-50">
@@ -164,25 +418,25 @@ const Landing = () => {
               </Link>
             </div>
 
-            <div className="mt-14 grid w-full grid-cols-3 gap-8 border-t border-slate-200/60 pt-8">
+            <div className="mt-14 grid w-full grid-cols-3 gap-3 border-t border-slate-200/60 pt-8 sm:gap-8">
               <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">99.9%</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Uptime SLA</span>
+                <span className="block text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">One</span>
+                <span className="mt-1 block text-[9px] font-medium uppercase tracking-wider text-slate-400 sm:text-xs">Connected workspace</span>
               </div>
               <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">Instant</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Receipt Stream</span>
+                <span className="block text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">Your team</span>
+                <span className="mt-1 block text-[9px] font-medium uppercase tracking-wider text-slate-400 sm:text-xs">Role-based access</span>
               </div>
               <div>
-                <span className="block text-2xl font-bold tracking-tight text-slate-900">Multi-Tenancy</span>
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1 block">Data Isolation</span>
+                <span className="block text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">Mobile</span>
+                <span className="mt-1 block text-[9px] font-medium uppercase tracking-wider text-slate-400 sm:text-xs">Ready for business</span>
               </div>
             </div>
           </div>
 
           <div className="lg:col-span-5 relative w-full">
             <div className="absolute -top-3 -right-3 bg-slate-900 text-white text-[10px] uppercase font-bold tracking-widest px-3.5 py-1.5 rounded-full shadow-lg z-10 border border-slate-800">
-              Live Preview
+              Workspace Preview
             </div>
 
             <div className="bg-white border border-slate-200 shadow-xl rounded-[32px] p-8 relative overflow-hidden transition-all duration-300 hover:shadow-2xl">
@@ -235,16 +489,16 @@ const Landing = () => {
               {selectedTab === "school" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Enrolled</span>
                       <span className="text-2xl font-bold text-slate-900 mt-1 block">1,248</span>
                     </div>
-                    <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tuition Ledger</span>
                       <span className="text-2xl font-bold text-slate-900 mt-1 block">₦1.5M</span>
                     </div>
                   </div>
-                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                     <div className="flex justify-between text-xs font-semibold border-b border-slate-200/60 pb-2 mb-2">
                       <span className="text-slate-400">Class</span>
                       <span className="text-slate-400">Instructor</span>
@@ -259,12 +513,12 @@ const Landing = () => {
 
               {selectedTab === "hospital" && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 border border-slate-150 rounded-2xl flex items-center justify-between">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">Patient Registry Sync</p>
                       <p className="text-xs text-slate-400 mt-0.5 font-medium">Bed Count & Wards</p>
                     </div>
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-center">
                     <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
@@ -283,32 +537,35 @@ const Landing = () => {
         </div>
       </section>
 
+      <ProductPreviews />
+      <TeamManagement />
+
       {/* THREE CARDS OF TRUST */}
       <section className="mx-auto max-w-7xl px-6 py-24">
         <div className="grid md:grid-cols-3 gap-6">
           <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
             <h3 className="font-bold text-xl text-slate-900 tracking-tight">Rapid Processing</h3>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Compile customer transactions, parse credit balance states, and deploy operational workflows within seconds.
+              Handle in-person checkout with searchable sales records and digital receipt sharing.
             </p>
           </div>
           <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <h3 className="font-bold text-xl text-slate-900 tracking-tight">Isolated Tenancy</h3>
+            <h3 className="font-bold text-xl text-slate-900 tracking-tight">Workspace access</h3>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Your organizational databases are cryptographically and logic-isolated for absolute multi-tenant platform integrity.
+              Give team members the access they need for their role while keeping workspace ownership and settings in your hands.
             </p>
           </div>
           <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
             <h3 className="font-bold text-xl text-slate-900 tracking-tight">Scalable Monetization</h3>
             <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              A comprehensive architecture built to evolve with commercial retail shops, corporate schools, and specialized medical clinics.
+              Choose retail, school or hospital workflows designed around the day-to-day needs of your sector.
             </p>
           </div>
         </div>
       </section>
 
       {/* CORE CAPABILITIES GRID */}
-      <section className="border-y border-slate-150 bg-white/80 py-28 backdrop-blur-sm">
+      <section className="border-y border-slate-200 bg-white/80 py-28 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center max-w-2xl mx-auto mb-20">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Enterprise management architecture.</h2>
@@ -332,32 +589,46 @@ const Landing = () => {
       </section>
 
       {/* REVENUE SHARING PARTNERSHIP ECOSYSTEM */}
-      <section className="border-b border-slate-150 bg-slate-50/70 py-28">
+      <section className="border-b border-slate-200 bg-slate-50/70 py-20 sm:py-28">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">The Referral Partnership Program</h2>
-            <p className="text-slate-400 text-sm font-medium mt-3 leading-relaxed">
-              Earn generous, continuous revenue streams while deploying enterprise platform logic to thousands of expanding retail businesses.
+          <div id="partners" className="scroll-mt-24 text-center max-w-2xl mx-auto mb-10">
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Grow with Marthington</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">The Referral Partnership Program</h2>
+            <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
+              Introduce businesses to a workspace they can grow with—and follow your referrals, commissions and payouts with transparent tracking.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 mb-16">
+          <div className="mb-10 grid gap-6 overflow-hidden rounded-[30px] bg-slate-950 p-6 text-white sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:p-10">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">For commission agents</p>
+              <h3 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Build recurring income through referrals.</h3>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                Earn commissions on qualifying payments from businesses you refer, according to your current partner rate and program terms. See referral conversions, each recorded earning, and payout status in your partner wallet.
+              </p>
+            </div>
+            <Link to="/affiliate-register" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-emerald-400">
+              Become a Partner <span aria-hidden="true" className="ml-2">→</span>
+            </Link>
+          </div>
+
+          <div className="mb-12 grid gap-6 md:grid-cols-3">
             <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm text-center">
-              <h3 className="font-bold text-lg text-slate-900 tracking-tight">20% Recurring Share</h3>
+              <h3 className="font-bold text-lg text-slate-900 tracking-tight">Recurring commissions</h3>
               <p className="mt-3 text-sm text-slate-500 font-medium leading-relaxed">
-                Receive predictable commissions for every corporate entity or commercial workspace using your code reference.
+                Qualifying payments from referred workspaces can continue to earn commission under the applicable program terms.
               </p>
             </div>
             <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm text-center">
-              <h3 className="font-bold text-lg text-slate-900 tracking-tight">Granular Wallet Monitoring</h3>
+              <h3 className="font-bold text-lg text-slate-900 tracking-tight">Transparent performance tracking</h3>
               <p className="mt-3 text-sm text-slate-500 font-medium leading-relaxed">
-                Inspect conversion logs, clear payouts, and track dynamic processing parameters from your dedicated partner screen.
+                Review clicks, conversions, your current commission rate and the exact amounts credited to your account.
               </p>
             </div>
             <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm text-center">
-              <h3 className="font-bold text-lg text-slate-900 tracking-tight">Instant Bank Payouts</h3>
+              <h3 className="font-bold text-lg text-slate-900 tracking-tight">Payout visibility</h3>
               <p className="mt-3 text-sm text-slate-500 font-medium leading-relaxed">
-                Trigger withdrawals directly into your active corporate bank account with absolute transparency and receipt access.
+                Follow available balances, submitted withdrawals and payout activity from your partner dashboard.
               </p>
             </div>
           </div>
@@ -366,9 +637,9 @@ const Landing = () => {
             <h3 className="text-xl font-bold text-slate-900 tracking-tight mb-5">Partner Onboarding Workflow</h3>
             <ol className="space-y-3.5 text-sm text-slate-600 font-medium">
               <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">1</span> <span>Initialize your verified partner profile via the application link.</span></li>
-              <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">2</span> <span>Extract your cryptographic reference code directly from the standalone dashboard.</span></li>
+              <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">2</span> <span>Get your unique referral code and link from the partner dashboard.</span></li>
               <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">3</span> <span>Deploy promotional pipelines to active retail heads, institutional schools, and clinics.</span></li>
-              <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">4</span> <span>Track workspace conversions, processing payouts, and account state histories.</span></li>
+              <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">4</span> <span>Track referred workspaces, commission earnings and payout status.</span></li>
             </ol>
           </div>
         </div>
@@ -394,7 +665,7 @@ const Landing = () => {
                 <li className="flex items-center gap-2">✔ Standard POS Module</li>
                 <li className="flex items-center gap-2">✔ Digital Receipt Sharing</li>
               </ul>
-              <Link to="/register" className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
+              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
                 Deploy Free Hub
               </Link>
             </div>
@@ -423,7 +694,7 @@ const Landing = () => {
                 <li className="flex items-center gap-2">✔ Granular Personnel Control</li>
                 <li className="flex items-center gap-2">✔ Dynamic Multi-Sector UI</li>
               </ul>
-              <Link to="/register" className="inline-flex items-center justify-center w-full px-4 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl mt-8 shadow-sm transition-all">
+              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl mt-8 shadow-sm transition-all">
                 Upgrade Workspace
               </Link>
             </div>
@@ -438,7 +709,7 @@ const Landing = () => {
                 <li className="flex items-center gap-2">✔ Dedicated Database Backing</li>
                 <li className="flex items-center gap-2">✔ 24/7 Priority SLA Routing</li>
               </ul>
-              <Link to="/register" className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
+              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
                 Contact Strategy Team
               </Link>
             </div>
@@ -458,9 +729,14 @@ const Landing = () => {
           <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed mb-10">
             Provision your dynamic business, school, or hospital ecosystem parameters in minutes. Join a high-velocity network today.
           </p>
-          <Link to="/register" className="inline-flex items-center justify-center px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg transition-all duration-200">
-            Initialize Free Hub
-          </Link>
+          <div className="flex flex-col justify-center gap-3 sm:flex-row">
+            <Link to={registerPath} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-emerald-600 px-8 py-4 font-bold text-white shadow-lg transition-all duration-200 hover:bg-emerald-700">
+              Deploy Workspace
+            </Link>
+            <Link to="/affiliate-register" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/20 px-8 py-4 font-bold text-white transition-colors hover:bg-white/10">
+              Become a Partner
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -474,9 +750,12 @@ const Landing = () => {
               <p className="text-xs text-slate-400 font-medium">Next-generation institutional software automation.</p>
             </div>
           </div>
-          <p className="text-slate-400 text-xs font-medium">
-            © {new Date().getFullYear()} Marthington Systems Ltd. All rights reserved.
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-semibold text-slate-500">
+            <Link to="/shop" className="transition-colors hover:text-emerald-700">Shop</Link>
+            <Link to="/login" className="transition-colors hover:text-emerald-700">Login</Link>
+            <Link to="/affiliate-register" className="transition-colors hover:text-emerald-700">Become a Partner</Link>
+            <span>© {new Date().getFullYear()} Marthington Systems Ltd. All rights reserved.</span>
+          </div>
         </div>
       </footer>
     </div>

@@ -6,6 +6,82 @@ import generateToken from "../../utils/generateToken.js";
 import jwt from "jsonwebtoken";
 import { getBusinessPlanAccess } from "../subscriptions/planAccess.js";
 import { validateAndNormalizeLocation } from "../../utils/locationData.js";
+import { sendPasswordResetEmail } from "../../utils/emailService.js";
+import { createPasswordResetToken, hashPasswordResetToken } from "./passwordResetToken.js";
+
+const forgotPassword = async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: "Enter a valid email address." });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+    if (user) {
+      const resetToken = createPasswordResetToken();
+      user.passwordResetToken = resetToken.hashedToken;
+      user.passwordResetExpires = resetToken.expiresAt;
+      await user.save();
+
+      const frontendUrl = String(
+        process.env.FRONTEND_URL || process.env.APP_URL || "https://bms.marthington.com.ng"
+      ).replace(/\/$/, "");
+      try {
+        await sendPasswordResetEmail({
+          email: user.email,
+          resetUrl: `${frontendUrl}/#/reset-password?token=${encodeURIComponent(resetToken.token)}`
+        });
+      } catch (emailError) {
+        user.passwordResetToken = null;
+        user.passwordResetExpires = null;
+        await user.save();
+        console.error("PASSWORD RESET EMAIL ERROR:", emailError);
+        return res.status(503).json({
+          message: "Could not send the password reset email. Please try again later."
+        });
+      }
+    }
+
+    return res.json({
+      message: "If an account exists for that email, a password reset link will be sent."
+    });
+  } catch (error) {
+    console.error("FORGOT PASSWORD ERROR:", error);
+    return res.status(500).json({ message: "Could not process the password reset request." });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body || {};
+  if (typeof token !== "string" || !/^[a-f0-9]{64}$/i.test(token)) {
+    return res.status(400).json({ message: "This password reset link is invalid or has expired." });
+  }
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    return res.status(400).json({ message: "Password must be at least 8 characters." });
+  }
+
+  try {
+    const hashedToken = hashPasswordResetToken(token);
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() }
+    }).select("+passwordResetToken +passwordResetExpires");
+    if (!user) {
+      return res.status(400).json({ message: "This password reset link is invalid or has expired." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    user.refreshToken = null;
+    await user.save();
+
+    return res.json({ message: "Password reset successfully. You can now log in." });
+  } catch (error) {
+    console.error("RESET PASSWORD ERROR:", error);
+    return res.status(500).json({ message: "Could not reset the password." });
+  }
+};
 
 const getCurrentUser = async (req, res) => {
   try {
@@ -112,7 +188,9 @@ const register = async (req, res) => {
       addressCity,
       phone,
       industryType = "retail",
-      referredBy = null
+      referralCode,
+      agentCode,
+      referredBy
     } = req.body;
 
     const location = validateAndNormalizeLocation({
@@ -123,6 +201,19 @@ const register = async (req, res) => {
     if (location.error) return res.status(400).json({ message: location.error });
     if (!String(address || "").trim() || !String(addressCity || "").trim()) {
       return res.status(400).json({ message: "Enter a street address and city or town." });
+    }
+
+    const referralValue = [referralCode, agentCode, referredBy]
+      .find((value) => typeof value === "string" && value.trim());
+    const normalizedReferralCode = referralValue ? referralValue.trim().toUpperCase() : null;
+    if (normalizedReferralCode) {
+      const affiliate = await User.findOne({
+        affiliateCode: normalizedReferralCode,
+        isActive: true
+      }).select("_id");
+      if (!affiliate) {
+        return res.status(400).json({ message: "Agent / referral code is invalid or inactive." });
+      }
     }
 
     // CHECK EXISTING USER
@@ -150,7 +241,7 @@ const register = async (req, res) => {
       addressCity: String(addressCity).trim(),
       phone,
       industryType,
-      referredBy: referredBy || null
+      referredBy: normalizedReferralCode
     });
 
     // CREATE OWNER (🔥 FULL PERMISSIONS)
@@ -444,6 +535,8 @@ const refresh = async (req, res) => {
 };
 
 export default {
+  forgotPassword,
+  resetPassword,
   register,
   login,
   ensureBmsWorkspace,

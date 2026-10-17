@@ -29,6 +29,7 @@ import { normalizePlanAccess, validatePlanAccess } from "../subscriptions/planAc
 import { getSubscriptionRecipients, processEmailCampaignById } from "../../jobs/emailCampaign.job.js";
 import SubscriptionPayment from "../payments/subscriptionPayment.model.js";
 import { buildRevenueWindow, calculatePercentChange, resolveRevenueRange } from "./adminRevenue.utils.js";
+import { defaultCommissionSchedule, validateCommissionSchedule } from "../affiliates/commissionSchedule.js";
 
 const subscriptionEmailAudiences = [
   "subscription_all",
@@ -903,7 +904,10 @@ const getAffiliateSettings = async (req, res) => {
 
     res.json({
       message: "Affiliate settings fetched successfully",
-      settings
+      settings: {
+        ...settings.toObject(),
+        commissionSchedule: settings.commissionSchedule || defaultCommissionSchedule
+      }
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -912,24 +916,35 @@ const getAffiliateSettings = async (req, res) => {
 
 const updateAffiliateSettings = async (req, res) => {
   try {
-    const { globalAffiliateRate } = req.body;
+    const { globalAffiliateRate, commissionSchedule } = req.body;
 
     if (typeof globalAffiliateRate !== "number" || globalAffiliateRate < 0 || globalAffiliateRate > 100) {
       return res.status(400).json({ message: "globalAffiliateRate must be a number between 0 and 100" });
+    }
+    if (commissionSchedule !== undefined) {
+      const validationError = validateCommissionSchedule(commissionSchedule);
+      if (validationError) return res.status(400).json({ message: validationError });
     }
 
     let settings = await SystemSettings.findOne();
 
     if (!settings) {
-      settings = await SystemSettings.create({ globalAffiliateRate });
+      settings = await SystemSettings.create({
+        globalAffiliateRate,
+        ...(commissionSchedule ? { commissionSchedule } : {})
+      });
     } else {
       settings.globalAffiliateRate = globalAffiliateRate;
+      if (commissionSchedule !== undefined) settings.commissionSchedule = commissionSchedule;
       await settings.save();
     }
 
     res.json({
       message: "Affiliate settings updated successfully",
-      settings
+      settings: {
+        ...settings.toObject(),
+        commissionSchedule: settings.commissionSchedule || defaultCommissionSchedule
+      }
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

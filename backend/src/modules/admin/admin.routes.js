@@ -7,6 +7,10 @@ import {
   getWildThoughts,
   updateWildThought
 } from "./wildThought.controller.js";
+import {
+  listAdminCommissionClaims,
+  processAdminCommissionClaim
+} from "../affiliates/commissionClaims.controller.js";
 
 const router = express.Router();
 
@@ -261,6 +265,13 @@ router.get(
   protect,
   onlyAdmin,
   adminController.listAffiliates
+);
+router.get("/commission-claims", protect, onlyAdmin, listAdminCommissionClaims);
+router.post(
+  "/commission-claims/:id/:decision",
+  protect,
+  onlyAdmin,
+  processAdminCommissionClaim
 );
 
 // Operation logs (imports)

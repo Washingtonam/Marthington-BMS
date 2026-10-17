@@ -1,5 +1,14 @@
 # Marthington BMS - API Documentation
 
+## Account password recovery
+
+Password reset requests always return the same response for an unknown email address to avoid disclosing registered accounts. For known accounts, a single-use reset link is sent by the configured Resend or SMTP provider; the link expires after 30 minutes. If email delivery fails, the request returns `503` and the reset token is invalidated. Resetting a password invalidates the user's refresh token.
+
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `POST` | `/api/auth/forgot-password` | Public | Request a password-reset email with `{ "email": "owner@example.com" }` |
+| `POST` | `/api/auth/reset-password` | Public | Reset with `{ "token": "<reset-token>", "newPassword": "<new-password>" }` |
+
 ## Marthington Storefront
 
 ### Browse marketplace products
@@ -81,9 +90,22 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | Method | Endpoint | Authorization | Description |
 |--------|----------|---------------|-------------|
 | `GET` | `/api/user-guide` | Authenticated BMS account | Read the platform-wide user guide; `guide` is `null` until a super admin publishes custom content |
-| `PUT` | `/api/user-guide` | BMS super-admin token | Publish guide content for all users using `{ "guide": { "title": "...", "description": "...", "workflows": [], "directory": [], "checklist": [], "quickFlow": [], "faqs": [] } }` |
+| `PUT` | `/api/user-guide` | BMS super-admin token | Publish guide content for all users and agent tutorials using `{ "guide": { "title": "...", "description": "...", "agentTutorials": [], "workflows": [], "directory": [], "checklist": [], "quickFlow": [], "faqs": [] } }` |
 
 Workflow entries contain `id`, `title`, `category`, `tag`, `route`, `routeLabel`, `description`, and `steps`. Directory entries contain `title`, `path`, `summary`, and `action`; guide links must stay within `/app`. Checklist entries contain `id` and `label`; quick-start entries are strings; FAQ entries contain `question` and `answer`. The super-admin User Guide page also supports previewing content, restoring the built-in defaults, and publishing edits.
+
+Agent tutorial entries contain `id`, `title`, `category`, `summary`, and a list of `steps`. The Agent Guides & Tutorials page reads these from the same MongoDB-backed guide document, so super-admin guide edits are reflected without a frontend redeploy.
+
+| `GET` | `/api/affiliates/dashboard` | Authenticated affiliate | Returns agent KPIs and the current commission schedule, including `affiliate.currentRate` and `affiliate.commissionSchedule` |
+| `GET` | `/api/admin/affiliate-settings` | BMS super-admin token | Read the global affiliate rate and commission schedule |
+| `PUT` | `/api/admin/affiliate-settings` | BMS super-admin token | Update with `{ "globalAffiliateRate": 20, "commissionSchedule": { "directReferralBonus": null, "cpaActions": [], "payoutMilestones": [] } }` |
+| `GET` | `/api/affiliates/commission-claims` | Authenticated affiliate | List the agent's own supplemental claims and outcomes |
+| `POST` | `/api/affiliates/commission-claims` | Authenticated affiliate | Submit an active CPA action for an attributed business using `{ "businessId": "...", "action": "verified-signup", "evidence": "..." }`; one claim per action/business |
+| `GET` | `/api/admin/commission-claims?status=pending&page=1&limit=50` | BMS super-admin token | List pending or processed supplemental claims |
+| `POST` | `/api/admin/commission-claims/:id/approve` | BMS super-admin token | Approve a pending claim and atomically credit agent wallet and lifetime earnings |
+| `POST` | `/api/admin/commission-claims/:id/reject` | BMS super-admin token | Reject a pending claim with optional `{ "note": "..." }` |
+
+`commissionSchedule.directReferralBonus` is `null` or `{ "amount": 0, "description": "..." }`. CPA actions contain `name`, `flatFee`, optional stable `id`, `description`, and `active`. Payout milestones contain `name`, `thresholdAmount`, `rewardAmount`, and optional stable `id` and `description`. Values are NGN. Set stable IDs before publishing terms so renaming an action or milestone does not create a new earning identity. CPA claims require a referred business and agent-provided evidence; duplicate action/business claims are rejected. A direct-referral bonus claim is created once after the referred business's first credited subscription payment. A milestone claim is created once when confirmed earnings reach its configured threshold. CPA, direct-bonus, and milestone claims remain pending until a super admin approves or rejects them; approval credits the agent's wallet and lifetime earnings transactionally. Automatic percentage commissions continue to credit directly on qualifying subscription payments.
 
 ### Business assistant and support chat
 

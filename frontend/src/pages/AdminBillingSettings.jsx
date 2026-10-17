@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import request from "../api/client.js";
 
 const AdminBillingSettings = () => {
+  const emptyCommissionSchedule = {
+    directReferralBonus: null,
+    cpaActions: [],
+    payoutMilestones: []
+  };
   const [pricing, setPricing] = useState({
     monthly: { ngn: 15000, usd: 15 },
     yearly: { ngn: 150000, usd: 150 }
@@ -14,6 +19,9 @@ const AdminBillingSettings = () => {
     yearlyUsd: 150
   });
   const [commissionRate, setCommissionRate] = useState(20);
+  const [commissionScheduleJson, setCommissionScheduleJson] = useState(
+    JSON.stringify(emptyCommissionSchedule, null, 2)
+  );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,8 +67,14 @@ const AdminBillingSettings = () => {
         if (typeof settings.globalAffiliateRate === "number") {
           setCommissionRate(settings.globalAffiliateRate);
         }
+        setCommissionScheduleJson(JSON.stringify(
+          settings.commissionSchedule || emptyCommissionSchedule,
+          null,
+          2
+        ));
       } catch (err) {
-        // ignore
+        setNotificationType("error");
+        setNotification(err.message || "Failed to load agent commission settings.");
       }
     })();
   }, []);
@@ -77,6 +91,11 @@ const AdminBillingSettings = () => {
     e.preventDefault();
 
     try {
+      const commissionSchedule = JSON.parse(commissionScheduleJson);
+      if (!commissionSchedule || typeof commissionSchedule !== "object" || Array.isArray(commissionSchedule)) {
+        throw new Error("Commission schedule must be a JSON object.");
+      }
+
       setSaving(true);
       setNotification("");
 
@@ -92,7 +111,10 @@ const AdminBillingSettings = () => {
 
       await request("/admin/affiliate-settings", {
         method: "PUT",
-        body: JSON.stringify({ globalAffiliateRate: Number(commissionRate) })
+        body: JSON.stringify({
+          globalAffiliateRate: Number(commissionRate),
+          commissionSchedule
+        })
       });
 
       setNotificationType("success");
@@ -313,6 +335,29 @@ const AdminBillingSettings = () => {
             <span className="text-sm font-semibold text-slate-500">%</span>
           </div>
         </div>
+      </div>
+
+      <div className="mt-8 rounded-3xl bg-white p-8 shadow-xl border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-900">Agent CPA, bonus &amp; milestone schedule</h3>
+        <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">
+          Publish agent commission terms in NGN. CPA actions are submitted as claims against referred businesses; direct bonuses queue after a referred business's first paid subscription; milestones queue when confirmed earnings reach their threshold. Every supplemental credit requires super-admin approval.
+        </p>
+        <pre className="mt-4 overflow-x-auto rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">{`{
+  "directReferralBonus": { "amount": 0, "description": "Optional policy description" },
+  "cpaActions": [{ "id": "qualified-action", "name": "Qualified action", "description": "Eligibility terms", "flatFee": 0, "active": true }],
+  "payoutMilestones": [{ "id": "first-milestone", "name": "Milestone", "description": "Reward terms", "thresholdAmount": 0, "rewardAmount": 0 }]
+}
+Use null for an unconfigured directReferralBonus. Use empty arrays when no CPA fees or payout milestones are configured.`}</pre>
+        <label htmlFor="commission-schedule" className="mt-4 block text-sm font-semibold text-slate-700">Published schedule JSON</label>
+        <textarea
+          id="commission-schedule"
+          value={commissionScheduleJson}
+          onChange={(event) => setCommissionScheduleJson(event.target.value)}
+          disabled={loading || saving}
+          spellCheck="false"
+          rows={12}
+          className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 p-4 font-mono text-xs leading-5 text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+        />
       </div>
 
       {/* ADMIN CONTACT */}

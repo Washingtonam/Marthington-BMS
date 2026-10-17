@@ -31,6 +31,9 @@ const validateGuideContent = (content) => {
   }
 
   const validations = [
+    content.agentTutorials === undefined ? null : validateItems(content.agentTutorials, {
+      id: 80, title: 160, category: 80, summary: 1000
+    }, "Agent tutorials"),
     validateItems(content.workflows, {
       id: 80, title: 160, category: 80, tag: 80, route: 160,
       routeLabel: 80, description: 1000
@@ -51,6 +54,11 @@ const validateGuideContent = (content) => {
     || item.steps.length > 30
     || item.steps.some((step) => !isText(step, 1000)))) {
     return "Each workflow requires a list of valid steps.";
+  }
+  if (content.agentTutorials?.some((item) => !Array.isArray(item.steps)
+    || item.steps.length > 30
+    || item.steps.some((step) => !isText(step, 1000)))) {
+    return "Each agent tutorial requires a list of valid steps.";
   }
   if (content.workflows.some((item) => !/^\/app(?:\/|$)/.test(item.route) || item.route.startsWith("//"))
     || content.directory.some((item) => !/^\/app(?:\/|$)/.test(item.path) || item.path.startsWith("//"))) {

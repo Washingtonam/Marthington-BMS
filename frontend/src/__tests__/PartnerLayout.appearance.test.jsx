@@ -38,4 +38,20 @@ describe("partner layout appearance", () => {
     expect(localStorage.getItem("theme")).toBe("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
   });
+
+  it("provides all partner routes with active-state styling", () => {
+    render(<MemoryRouter initialEntries={["/partners/commission"]}><PartnerLayout /></MemoryRouter>);
+
+    const commissionLink = screen.getByRole("link", { name: /Commission Tiers & Structure/ });
+    expect(commissionLink.getAttribute("href")).toBe("/partners/commission");
+    expect(commissionLink.className).toContain("bg-emerald-50");
+    expect(screen.getByText("Agent Portal")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Guides & Tutorials/ }).getAttribute("href")).toBe("/partners/guides");
+    expect(screen.getByRole("link", { name: /Dashboard/ }).getAttribute("href")).toBe("/partners/dashboard");
+    expect(screen.getByRole("link", { name: /Live Conversions/ }).getAttribute("href")).toBe("/partners/conversions");
+    expect(screen.getByRole("link", { name: /Withdrawals & Payouts/ }).getAttribute("href")).toBe("/partners/withdrawals");
+    expect(screen.getByRole("link", { name: /Link History/ }).getAttribute("href")).toBe("/partners/link-history");
+    expect(screen.getByRole("link", { name: /Profile & Settings/ }).getAttribute("href")).toBe("/partners/profile");
+    expect(screen.getByRole("button", { name: "Log out" })).toBeTruthy();
+  });
 });

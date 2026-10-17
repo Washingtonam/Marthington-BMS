@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import request from "../api/client.js";
+import { getCommissionClaims, processCommissionClaim } from "../api/admin.js";
 
 const currency = (value) =>
   new Intl.NumberFormat("en-NG", {
@@ -10,15 +11,21 @@ const currency = (value) =>
 
 const AdminAffiliateNetwork = () => {
   const [data, setData] = useState({ affiliates: [], globalRate: 20, stats: {} });
+  const [claims, setClaims] = useState([]);
   const [rate, setRate] = useState(20);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
+  const [claimError, setClaimError] = useState("");
 
   const load = async () => {
     try {
-      const response = await request("/admin/affiliates");
+      const [response, claimsResponse] = await Promise.all([
+        request("/admin/affiliates"),
+        getCommissionClaims()
+      ]);
       setData(response);
       setRate(response.globalRate || 20);
+      setClaims(claimsResponse.claims || []);
     } catch (err) {
       alert(err.message || "Failed to load affiliate network");
     } finally {
@@ -65,6 +72,30 @@ const AdminAffiliateNetwork = () => {
     }
   };
 
+  const processClaim = async (claim, decision) => {
+    const prompt = decision === "approve"
+      ? `Approve ${claim.title} for ${currency(claim.amount)} and credit the agent wallet?`
+      : `Reject ${claim.title} for ${claim.affiliate?.name || "this agent"}?`;
+    if (!window.confirm(prompt)) return;
+    let note = "";
+    if (decision === "reject") {
+      const enteredNote = window.prompt("Optional note for the agent:", "");
+      if (enteredNote === null) return;
+      note = enteredNote;
+    }
+
+    try {
+      setActionLoading(`claim-${claim._id}`);
+      setClaimError("");
+      await processCommissionClaim(claim._id, decision, note);
+      setClaims((current) => current.filter((item) => item._id !== claim._id));
+    } catch (err) {
+      setClaimError(err.message || `Failed to ${decision} commission claim.`);
+    } finally {
+      setActionLoading("");
+    }
+  };
+
   return (
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
@@ -95,6 +126,50 @@ const AdminAffiliateNetwork = () => {
           </div>
         </div>
       </div>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-amber-600">Approval queue</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">Supplemental commission claims</h2>
+            <p className="mt-1 text-sm text-slate-500">Approve verified CPA actions, first-subscription bonuses, and earnings milestones. Approval credits the agent wallet.</p>
+          </div>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">{claims.length} pending</span>
+        </div>
+        {claimError && <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{claimError}</p>}
+        {loading ? (
+          <p className="mt-5 text-sm text-slate-500">Loading commission claims…</p>
+        ) : claims.length ? (
+          <div className="mt-5 space-y-3">
+            {claims.map((claim) => (
+              <article key={claim._id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-slate-900">{claim.title}</h3>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">{claim.kind.replaceAll("_", " ")}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {claim.affiliate?.name || "Agent"} · {claim.affiliate?.affiliateCode || "—"}
+                      {claim.business?.name ? ` · ${claim.business.name}` : ""}
+                    </p>
+                    {claim.description && <p className="mt-2 text-sm text-slate-500">{claim.description}</p>}
+                    {claim.evidence && <p className="mt-2 whitespace-pre-wrap rounded-xl bg-white p-3 text-sm leading-5 text-slate-700">{claim.evidence}</p>}
+                    <p className="mt-2 text-xs text-slate-400">Submitted {new Date(claim.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+                    <p className="text-xl font-bold text-emerald-700">{currency(claim.amount)}</p>
+                    <div className="flex gap-2">
+                      <button type="button" disabled={actionLoading === `claim-${claim._id}`} onClick={() => processClaim(claim, "reject")} className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Reject</button>
+                      <button type="button" disabled={actionLoading === `claim-${claim._id}`} onClick={() => processClaim(claim, "approve")} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{actionLoading === `claim-${claim._id}` ? "Processing…" : "Approve & credit"}</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">No supplemental commission claims are awaiting review.</p>}
+      </section>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

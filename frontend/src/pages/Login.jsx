@@ -1,7 +1,19 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { FiEye, FiEyeOff } from 'react-icons/fi';
+
+const getRoleRedirectPath = (role, requestedPath) => {
+  const rolePaths = {
+    super_admin: { prefix: "/admin", fallback: "/admin" },
+    affiliate: { prefix: "/partners", fallback: "/partners/dashboard" },
+    default: { prefix: "/app", fallback: "/app" }
+  };
+  const { prefix, fallback } = rolePaths[role] || rolePaths.default;
+  const isAllowedPath = requestedPath === prefix || requestedPath.startsWith(`${prefix}/`);
+
+  return isAllowedPath && requestedPath !== "/login" ? requestedPath : fallback;
+};
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -15,13 +27,7 @@ const Login = () => {
 
   // 🔥 SMART REDIRECT IF ALREADY LOGGED IN
   if (isAuthenticated) {
-    if (user?.role === "super_admin") {
-      return <Navigate to={redirectPath.startsWith("/admin") ? redirectPath : "/admin"} replace />;
-    }
-    if (user?.role === "affiliate") {
-      return <Navigate to={redirectPath.startsWith("/partners") ? redirectPath : "/partners/dashboard"} replace />;
-    }
-    return <Navigate to={redirectPath.startsWith("/app") ? redirectPath : "/app"} replace />;
+    return <Navigate to={getRoleRedirectPath(user?.role, redirectPath)} replace />;
   }
 
   const handleChange = (event) => {
@@ -37,15 +43,7 @@ const Login = () => {
     try {
       const session = await login(form);
 
-      // 🔥 ROLE-BASED REDIRECT (THIS IS THE FIX)
-      const nextPath = redirectPath === "/login" ? "/app" : redirectPath;
-      if (session.user.role === "super_admin") {
-        navigate(nextPath.startsWith("/admin") ? nextPath : "/admin", { replace: true });
-      } else if (session.user.role === "affiliate") {
-        navigate(nextPath.startsWith("/partners") ? nextPath : "/partners/dashboard", { replace: true });
-      } else {
-        navigate(nextPath.startsWith("/app") || nextPath.startsWith("/") ? nextPath : "/app", { replace: true });
-      }
+      navigate(getRoleRedirectPath(session.user?.role, redirectPath), { replace: true });
 
     } catch (requestError) {
       const contact = requestError?.body?.adminContact;
@@ -111,6 +109,12 @@ const Login = () => {
               </button>
             </div>
           </label>
+
+          <p className="-mt-3 text-right text-sm">
+            <Link className="font-semibold text-emerald-700 hover:underline" to="/forgot-password">
+              Forgot password?
+            </Link>
+          </p>
 
           <button className={`primary-button ${loading ? 'loading' : ''}`} type="submit" disabled={loading}>
             <span className="btn-content">
