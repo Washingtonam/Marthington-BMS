@@ -12,7 +12,7 @@ import { getCustomers, createCustomer } from "../api/customers.js";
 import { getSuppliers } from "../api/suppliers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
-import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiEye, FiFileText, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
+import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiFileText, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 
 const tabOptions = [
@@ -72,10 +72,13 @@ const Invoices = () => {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfInvoice, setPdfInvoice] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfLayoutMode, setPdfLayoutMode] = useState("a4");
+  const [thermalPaperWidth, setThermalPaperWidth] = useState("80mm");
   const pdfRef = useRef(null);
   const [quickViewInvoice, setQuickViewInvoice] = useState(null);
   const [quickViewPayments, setQuickViewPayments] = useState([]);
   const [quickViewLoading, setQuickViewLoading] = useState(false);
+  const [quickViewError, setQuickViewError] = useState("");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareInvoiceData, setShareInvoiceData] = useState(null);
   const [shareEmail, setShareEmail] = useState("");
@@ -333,6 +336,7 @@ const Invoices = () => {
       setInvoices(invoices.map(inv =>
         inv._id === invoiceId ? updatedInvoice : inv
       ));
+      setQuickViewInvoice(current => current?._id === updatedInvoice._id ? updatedInvoice : current);
       alert("Invoice marked as paid successfully.");
     } catch (err) {
       console.error("Failed to mark invoice as paid:", err);
@@ -742,6 +746,7 @@ const Invoices = () => {
       setInvoices(invoices.map(inv =>
         inv._id === updatedInvoice._id ? updatedInvoice : inv
       ));
+      setQuickViewInvoice(current => current?._id === updatedInvoice._id ? updatedInvoice : current);
       
       setPaymentHistory(prev => ({
         ...prev,
@@ -777,6 +782,7 @@ const Invoices = () => {
       const result = await completeInvoicePickup(invoice._id);
       const updatedInvoice = result.invoice || result;
       setInvoices(prev => prev.map(item => item._id === updatedInvoice._id ? updatedInvoice : item));
+      setQuickViewInvoice(current => current?._id === updatedInvoice._id ? updatedInvoice : current);
       alert("Pickup completed and sale recorded successfully.");
     } catch (err) {
       console.error("Failed to complete invoice pickup:", err);
@@ -788,6 +794,7 @@ const Invoices = () => {
     try {
       const updatedInvoice = await updateInvoiceItemProgress(invoice._id, itemIndex, serviceStatus);
       setInvoices(prev => prev.map(item => item._id === updatedInvoice._id ? updatedInvoice : item));
+      setQuickViewInvoice(current => current?._id === updatedInvoice._id ? updatedInvoice : current);
     } catch (err) {
       console.error("Failed to update service progress:", err);
       alert(err.message || "Unable to update service progress.");
@@ -830,14 +837,15 @@ const Invoices = () => {
     try {
       setPdfLoading(true);
       const fileName = format === 'jpg' 
-        ? `invoice-${pdfInvoice.invoiceNumber}.jpg`
-        : `invoice-${pdfInvoice.invoiceNumber}.pdf`;
+        ? `invoice-${pdfInvoice.invoiceNumber}-${pdfLayoutMode === "thermal" ? `thermal-${thermalPaperWidth}` : "a4"}.jpg`
+        : `invoice-${pdfInvoice.invoiceNumber}-${pdfLayoutMode === "thermal" ? `thermal-${thermalPaperWidth}` : "a4"}.pdf`;
       
       await downloadInvoicePDF(
         pdfInvoice,
         pdfRef.current,
         fileName,
-        format
+        format,
+        { layoutMode: pdfLayoutMode, thermalPaperWidth }
       );
       alert(`${format.toUpperCase()} downloaded successfully!`);
     } catch (err) {
@@ -856,6 +864,7 @@ const Invoices = () => {
   const handleOpenQuickView = async (invoice) => {
     setQuickViewInvoice(invoice);
     setQuickViewPayments([]);
+    setQuickViewError("");
     setQuickViewLoading(true);
 
     try {
@@ -867,6 +876,7 @@ const Invoices = () => {
       setQuickViewPayments(paymentsData.payments || paymentsData || []);
     } catch (err) {
       console.error("Failed to load invoice details:", err);
+      setQuickViewError(err.message || "Unable to load invoice details. Please try again.");
     } finally {
       setQuickViewLoading(false);
     }
@@ -875,6 +885,7 @@ const Invoices = () => {
   const handleCloseQuickView = () => {
     setQuickViewInvoice(null);
     setQuickViewPayments([]);
+    setQuickViewError("");
   };
 
   const handleSort = (nextSortBy) => {
@@ -1288,14 +1299,13 @@ const Invoices = () => {
                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </th>
-                    <th className="px-5 py-3 text-left"><SortHeader label="Invoice ID" field="invoiceNumber" /></th>
+                    <th className="px-5 py-3 text-left"><SortHeader label="Invoice #" field="invoiceNumber" /></th>
                     <th className="px-5 py-3 text-left"><SortHeader label="Counterparty" field="customerName" /></th>
                     <th className="px-5 py-3 text-left"><SortHeader label="Issue date" field="createdAt" /></th>
                     <th className="px-5 py-3 text-left"><SortHeader label="Due date" field="dueDate" /></th>
-                    <th className="px-5 py-3 text-right"><SortHeader label="Amount" field="totalAmount" align="right" /></th>
+                    <th className="px-5 py-3 text-right"><SortHeader label="Total" field="totalAmount" align="right" /></th>
+                    <th className="px-5 py-3 text-right font-semibold text-slate-500">Balance</th>
                     <th className="px-5 py-3 text-left font-semibold text-slate-500">Status</th>
-                    <th className="px-5 py-3 text-left font-semibold text-slate-500">Progress</th>
-                    <th className="px-5 py-3 text-right font-semibold text-slate-500">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1303,15 +1313,26 @@ const Invoices = () => {
                     const counterparty = invoiceTab === "incoming"
                       ? (invoice.supplier?.name || invoice.customerName || "Supplier")
                       : (invoice.customerName || invoice.supplier?.name || "Customer");
-                    const productItems = (invoice.items || []).filter(item => item.product);
-                    const serviceItems = (invoice.items || []).filter(item => item.service);
-                    const collectedProducts = productItems.filter(item => item.fulfillmentStatus === "collected" || item.soldQuantity >= item.quantity).length;
-                    const completedServices = serviceItems.filter(item => item.serviceStatus === "completed").length;
-                    const hasCollectibleProducts = invoice.transactionType === "outgoing" && productItems.length > 0 && collectedProducts < productItems.length;
 
                     return (
-                      <tr key={invoice._id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-4 text-center">
+                      <tr
+                        key={invoice._id}
+                        tabIndex={0}
+                        aria-label={`Open invoice ${invoice.invoiceNumber || invoice._id?.slice(-6)} details`}
+                        onClick={() => handleOpenQuickView(invoice)}
+                        onKeyDown={event => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleOpenQuickView(invoice);
+                          }
+                        }}
+                        className="cursor-pointer transition-colors hover:bg-blue-50/60 focus:bg-blue-50/60 focus:outline-none"
+                      >
+                        <td
+                          className="px-4 py-4 text-center"
+                          onClick={event => event.stopPropagation()}
+                          onKeyDown={event => event.stopPropagation()}
+                        >
                           <input
                             type="checkbox"
                             checked={selectedInvoiceIds.has(invoice._id)}
@@ -1321,28 +1342,13 @@ const Invoices = () => {
                           />
                         </td>
                         <td className="px-6 py-4">
-                          <div>
-                            <p className="font-bold text-gray-900">#{invoice.invoiceNumber || invoice._id?.slice(-6)}</p>
-                            <p className="text-xs text-slate-500 mt-1 capitalize">{invoice.invoiceType || "invoice"}</p>
-                          </div>
+                          <p className="font-bold text-gray-900">#{invoice.invoiceNumber || invoice._id?.slice(-6)}</p>
+                          <p className="text-xs text-slate-500 mt-1 capitalize">{invoice.invoiceType || "invoice"}</p>
                         </td>
 
                         <td className="px-6 py-4">
-                          <div
-                            className="cursor-pointer hover:text-blue-600 transition-colors"
-                            onClick={() => invoiceTab === "incoming" ? handleNavigateToSupplier(invoice) : handleNavigateToCustomer(invoice)}
-                            onKeyDown={event => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                invoiceTab === "incoming" ? handleNavigateToSupplier(invoice) : handleNavigateToCustomer(invoice);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <p className="font-semibold text-gray-900 hover:underline">{counterparty}</p>
-                            <p className="text-xs text-slate-500 mt-1">{invoice.customerEmail || invoice.supplier?.email || (invoice.transactionType === "incoming" ? "Supplier invoice" : "Customer invoice")}</p>
-                          </div>
+                          <p className="font-semibold text-gray-900">{counterparty}</p>
+                          <p className="text-xs text-slate-500 mt-1">{invoice.customerEmail || invoice.supplier?.email || (invoice.transactionType === "incoming" ? "Supplier invoice" : "Customer invoice")}</p>
                         </td>
 
                         <td className="px-6 py-4">
@@ -1357,7 +1363,10 @@ const Invoices = () => {
 
                         <td className="px-5 py-4 text-right">
                           <p className="font-bold text-slate-900">{formatCurrency(invoice.totalAmount || 0)}</p>
-                          <p className="mt-1 text-xs text-slate-500">Due {formatCurrency(invoice.balanceDue || 0)}</p>
+                        </td>
+
+                        <td className="px-5 py-4 text-right font-semibold text-slate-700">
+                          {formatCurrency(invoice.balanceDue || 0)}
                         </td>
 
                         <td className="px-5 py-4">
@@ -1376,106 +1385,6 @@ const Invoices = () => {
                               {invoice.paymentStatus || "Unpaid"}
                             </span>
                             <p className="text-xs capitalize text-slate-500">{invoice.status || "draft"}</p>
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {productItems.length > 0 && (
-                            <p className="mt-1 text-xs font-semibold text-indigo-600">Products: {collectedProducts}/{productItems.length} collected</p>
-                          )}
-                          {serviceItems.length > 0 && (
-                            <p className="mt-1 text-xs font-semibold text-violet-600">Services: {completedServices}/{serviceItems.length} completed</p>
-                          )}
-                          {serviceItems.map(item => {
-                            const itemIndex = invoice.items.indexOf(item);
-                            const nextStatus = item.serviceStatus === "pending" ? "in_progress" : "completed";
-                            const actionLabel = item.serviceStatus === "pending" ? "Start service" : item.serviceStatus === "in_progress" ? "Complete service" : "Service completed";
-                            return (
-                              <button
-                                key={`${invoice._id}-${itemIndex}`}
-                                type="button"
-                                onClick={() => item.serviceStatus !== "completed" && handleServiceProgress(invoice, itemIndex, nextStatus)}
-                                disabled={item.serviceStatus === "completed"}
-                                className="mt-1 block text-left text-xs font-bold text-violet-700 underline decoration-dotted underline-offset-2 disabled:no-underline disabled:opacity-70"
-                              >
-                                {item.name}: {actionLabel}
-                              </button>
-                            );
-                          })}
-                        </td>
-
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
-                            <button
-                              onClick={() => handleOpenQuickView(invoice)}
-                              className="rounded-md p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700"
-                              title="Quick view"
-                              aria-label="Quick view invoice"
-                            >
-                              <FiEye className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleViewPDF(invoice)}
-                              className="rounded-md p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-700"
-                              title="View Invoice"
-                              aria-label="View invoice PDF"
-                            >
-                              <FiDownload className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleShareLink(invoice)}
-                              className="rounded-md p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700"
-                              title="Share Invoice"
-                              aria-label="Share invoice"
-                            >
-                              <FiMoreHorizontal className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditModal(invoice)}
-                              className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                              title="Edit Invoice"
-                              aria-label="Edit invoice"
-                            >
-                              <FiEdit2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenDeleteModal(invoice._id)}
-                              className="rounded-md p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-700"
-                              title="Delete Invoice"
-                              aria-label="Delete invoice"
-                            >
-                              <FiTrash2 className="h-4 w-4" />
-                            </button>
-                            {invoice.balanceDue > 0 && ["sent", "draft", "partial", "overdue"].includes(invoice.status) && (
-                              <button
-                                onClick={() => handleOpenPaymentModal(invoice)}
-                                className="rounded-md p-2 text-amber-700 hover:bg-amber-50"
-                                title="Log partial payment"
-                                aria-label="Log partial payment"
-                              >
-                                <FiDollarSign className="h-4 w-4" />
-                              </button>
-                            )}
-                            {(invoice.status === "sent" || invoice.status === "draft") && (
-                              <button
-                                onClick={() => handleMarkAsPaid(invoice._id)}
-                                className="rounded-md p-2 text-emerald-600 hover:bg-emerald-50"
-                                title="Mark as Paid"
-                                aria-label="Mark as paid"
-                              >
-                                <FiCheckCircle className="h-4 w-4" />
-                              </button>
-                            )}
-                            {hasCollectibleProducts && (!invoice.fulfillmentStatus || invoice.fulfillmentStatus === "pending_pickup") && (
-                              <button
-                                onClick={() => handleCompletePickup(invoice)}
-                                className="rounded-md p-2 text-indigo-700 hover:bg-indigo-50"
-                                title="Complete pickup and record sale"
-                                aria-label="Complete pickup and record sale"
-                              >
-                                <FiCheckCircle className="h-4 w-4" />
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -1818,8 +1727,8 @@ const Invoices = () => {
 
       {/* PDF Preview Modal */}
       {pdfModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-8 overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6 overflow-y-auto">
+          <div className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 p-6 border-b border-slate-200 sticky top-0 bg-white">
               <div>
@@ -1839,14 +1748,52 @@ const Invoices = () => {
 
             {/* Modal Body */}
             <div className="overflow-y-auto max-h-[70vh] bg-slate-50 p-6">
-              {pdfLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <p className="text-slate-500">Loading invoice...</p>
-                </div>
-              ) : pdfInvoice ? (
-                <div className="bg-white rounded-lg shadow-sm">
-                  <InvoicePDFTemplate ref={pdfRef} invoice={pdfInvoice} />
-                </div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1" aria-label="Invoice layout">
+                <button
+                  type="button"
+                  onClick={() => setPdfLayoutMode("a4")}
+                  aria-pressed={pdfLayoutMode === "a4"}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold ${pdfLayoutMode === "a4" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  A4
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfLayoutMode("thermal")}
+                  aria-pressed={pdfLayoutMode === "thermal"}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold ${pdfLayoutMode === "thermal" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}
+                >
+                  Thermal
+                </button>
+              </div>
+              {pdfLayoutMode === "thermal" && (
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  Paper width
+                  <select
+                    value={thermalPaperWidth}
+                    onChange={event => setThermalPaperWidth(event.target.value)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+                  >
+                    <option value="58mm">58 mm</option>
+                    <option value="80mm">80 mm</option>
+                  </select>
+                </label>
+              )}
+            </div>
+            {pdfLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <p className="text-slate-500">Loading invoice...</p>
+              </div>
+            ) : pdfInvoice ? (
+              <div className="overflow-x-auto rounded-lg bg-white p-3 shadow-sm">
+                <InvoicePDFTemplate
+                  ref={pdfRef}
+                  invoice={pdfInvoice}
+                  layoutMode={pdfLayoutMode}
+                  thermalPaperWidth={thermalPaperWidth}
+                />
+              </div>
               ) : (
                 <div className="flex items-center justify-center h-64">
                   <p className="text-slate-500">Unable to load invoice</p>
@@ -1891,13 +1838,18 @@ const Invoices = () => {
       )}
 
       {quickViewInvoice && (
-        <div className="fixed inset-0 z-50 flex">
-          <button type="button" className="absolute inset-0 bg-slate-950/35 backdrop-blur-[2px]" onClick={handleCloseQuickView} aria-label="Close invoice details" />
-          <aside className="relative ml-auto flex h-full w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 p-4 backdrop-blur-[2px]">
+          <button type="button" className="absolute inset-0" onClick={handleCloseQuickView} aria-label="Close invoice details" />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invoice-details-title"
+            className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
+          >
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">Invoice details</p>
-                <h2 className="mt-1 text-xl font-bold text-slate-950 dark:text-slate-100">#{quickViewInvoice.invoiceNumber || quickViewInvoice._id?.slice(-6)}</h2>
+                <h2 id="invoice-details-title" className="mt-1 text-xl font-bold text-slate-950 dark:text-slate-100">#{quickViewInvoice.invoiceNumber || quickViewInvoice._id?.slice(-6)}</h2>
                 <p className="mt-1 text-sm text-slate-500">{quickViewInvoice.customerName || quickViewInvoice.customer?.name || quickViewInvoice.supplier?.name || "Counterparty unavailable"}</p>
               </div>
               <button type="button" onClick={handleCloseQuickView} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800" aria-label="Close invoice details">
@@ -1906,9 +1858,20 @@ const Invoices = () => {
             </div>
 
             {quickViewLoading ? (
-              <div className="flex flex-1 items-center justify-center text-sm text-slate-500">Loading invoice details...</div>
+              <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">Loading invoice details...</div>
+            ) : quickViewError ? (
+              <div className="space-y-4 p-6 text-center">
+                <p className="text-sm text-rose-700">{quickViewError}</p>
+                <button
+                  type="button"
+                  onClick={() => handleOpenQuickView(quickViewInvoice)}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Try again
+                </button>
+              </div>
             ) : (
-              <div className="space-y-6 p-6">
+              <div className="space-y-6 overflow-y-auto p-6">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total amount</p>
@@ -1927,6 +1890,30 @@ const Invoices = () => {
                   <div><p className="text-xs text-slate-400">Invoice status</p><p className="mt-1 font-semibold capitalize text-slate-800 dark:text-slate-200">{quickViewInvoice.status || "draft"}</p></div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-slate-200 py-5 text-sm dark:border-slate-800">
+                  <div><p className="text-xs text-slate-400">Issue date</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.createdAt ? new Date(quickViewInvoice.createdAt).toLocaleDateString() : "N/A"}</p></div>
+                  <div><p className="text-xs text-slate-400">Due date</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.dueDate ? new Date(quickViewInvoice.dueDate).toLocaleDateString() : "No due date"}</p></div>
+                  <div><p className="text-xs text-slate-400">Payment status</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{quickViewInvoice.paymentStatus || "Unpaid"}</p></div>
+                  <div><p className="text-xs text-slate-400">Invoice status</p><p className="mt-1 font-semibold capitalize text-slate-800 dark:text-slate-200">{quickViewInvoice.status || "draft"}</p></div>
+                </div>
+
+                <div>
+                  <h3 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">Items</h3>
+                  <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+                    {(quickViewInvoice.items || []).length > 0 ? quickViewInvoice.items.map((item, index) => (
+                      <div key={`${item.name || "item"}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-800 dark:text-slate-200">{item.name || "Item"}</p>
+                          <p className="text-xs text-slate-500">Qty {item.quantity || 0} · {formatCurrency(item.price || 0)} each</p>
+                        </div>
+                        <span className="shrink-0 font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(item.total || 0)}</span>
+                      </div>
+                    )) : (
+                      <p className="px-4 py-3 text-sm text-slate-500">No invoice items.</p>
+                    )}
+                  </div>
+                </div>
+
                 <div>
                   <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Payment history</h3><span className="text-xs text-slate-400">{quickViewPayments.length} entries</span></div>
                   {quickViewPayments.length === 0 ? (
@@ -1943,13 +1930,39 @@ const Invoices = () => {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleOpenPaymentModal(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"><FiDollarSign className="h-4 w-4" /> Log payment</button>
-                  <button type="button" onClick={() => handleViewPDF(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiDownload className="h-4 w-4" /> View PDF</button>
+                <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-5 dark:border-slate-800">
+                  <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleViewPDF(invoice); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"><FiDownload className="h-4 w-4" /> Preview / print</button>
+                  <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleShareLink(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiMoreHorizontal className="h-4 w-4" /> Share</button>
+                  <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleOpenEditModal(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiEdit2 className="h-4 w-4" /> Edit</button>
+                  {quickViewInvoice.balanceDue > 0 && ["sent", "draft", "partial", "overdue"].includes(quickViewInvoice.status) && (
+                    <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleOpenPaymentModal(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-amber-200 px-4 py-2.5 text-sm font-semibold text-amber-800 hover:bg-amber-50"><FiDollarSign className="h-4 w-4" /> Log payment</button>
+                  )}
+                  {(quickViewInvoice.status === "sent" || quickViewInvoice.status === "draft") && (
+                    <button type="button" onClick={() => { const invoiceId = quickViewInvoice._id; handleCloseQuickView(); handleMarkAsPaid(invoiceId); }} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"><FiCheckCircle className="h-4 w-4" /> Mark paid</button>
+                  )}
+                  {quickViewInvoice.transactionType === "outgoing" && (quickViewInvoice.items || []).some(item => item.product && item.fulfillmentStatus !== "collected" && !(item.soldQuantity >= item.quantity)) && (!quickViewInvoice.fulfillmentStatus || quickViewInvoice.fulfillmentStatus === "pending_pickup") && (
+                    <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleCompletePickup(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 px-4 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"><FiCheckCircle className="h-4 w-4" /> Complete pickup</button>
+                  )}
+                  {(quickViewInvoice.items || []).map((item, itemIndex) => item.service && item.serviceStatus !== "completed" && (
+                    <button
+                      key={`${quickViewInvoice._id}-service-${itemIndex}`}
+                      type="button"
+                      onClick={() => handleServiceProgress(quickViewInvoice, itemIndex, item.serviceStatus === "pending" ? "in_progress" : "completed")}
+                      className="inline-flex items-center gap-2 rounded-lg border border-violet-200 px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50"
+                    >
+                      {item.serviceStatus === "pending" ? "Start" : "Complete"} {item.name || "service"}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => { const invoiceId = quickViewInvoice._id; handleCloseQuickView(); handleOpenDeleteModal(invoiceId); }} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50"><FiTrash2 className="h-4 w-4" /> Delete</button>
+                  {((quickViewInvoice.transactionType === "incoming" && quickViewInvoice.supplier) || (quickViewInvoice.transactionType !== "incoming" && quickViewInvoice.customer)) && (
+                    <button type="button" onClick={() => quickViewInvoice.transactionType === "incoming" ? handleNavigateToSupplier(quickViewInvoice) : handleNavigateToCustomer(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                      View {quickViewInvoice.transactionType === "incoming" ? "supplier" : "customer"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
-          </aside>
+          </section>
         </div>
       )}
 

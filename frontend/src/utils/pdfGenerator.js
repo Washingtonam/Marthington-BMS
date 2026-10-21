@@ -8,7 +8,7 @@ import html2canvas from "html2canvas";
  * @param {string} fileName - Name for the downloaded file
  * @param {string} format - Output format: 'pdf' or 'jpg' (default: 'pdf')
  */
-export const downloadInvoicePDF = async (invoice, elementOrId, fileName, format = 'pdf') => {
+export const downloadInvoicePDF = async (invoice, elementOrId, fileName, format = 'pdf', options = {}) => {
   let exportElement;
 
   try {
@@ -81,16 +81,27 @@ export const downloadInvoicePDF = async (invoice, elementOrId, fileName, format 
     }
 
     // Default: Export as PDF
+    const isThermal = options.layoutMode === "thermal";
+    const paperWidth = options.thermalPaperWidth === "58mm" ? 58 : 80;
+    const pageFormat = isThermal
+      ? [paperWidth, Math.max(40, (canvas.height * paperWidth) / canvas.width)]
+      : "a4";
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: "a4",
+      format: pageFormat,
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth - 20; // 10mm margins on each side
+    const imgWidth = isThermal ? pageWidth : pageWidth - 20; // A4 uses 10mm margins on each side
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    if (isThermal) {
+      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      pdf.save(fileName || `invoice-${invoice.invoiceNumber}.pdf`);
+      return true;
+    }
 
     let heightLeft = imgHeight;
     let position = 10; // Top margin

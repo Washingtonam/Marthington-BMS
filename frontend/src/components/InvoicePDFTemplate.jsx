@@ -7,7 +7,7 @@ import "./InvoicePDFTemplate.css";
  * Renders a printable/downloadable invoice layout
  * This component is designed to look professional when printed or converted to PDF
  */
-const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
+const InvoicePDFTemplate = React.forwardRef(({ invoice, layoutMode = "a4", thermalPaperWidth = "80mm" }, ref) => {
   if (!invoice) {
     return <div>No invoice data available</div>;
   }
@@ -32,7 +32,13 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
   } = invoice;
 
   const isOutgoing = transactionType === "outgoing";
+  const isThermal = layoutMode === "thermal";
   const counterparty = isOutgoing ? customer : supplier;
+  const templateClassName = [
+    "invoice-pdf-template",
+    isThermal ? "invoice-pdf-template--thermal" : "invoice-pdf-template--a4",
+    isThermal ? `invoice-pdf-template--${thermalPaperWidth}` : "",
+  ].filter(Boolean).join(" ");
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-NG", {
@@ -69,7 +75,13 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
   };
 
   return (
-    <div ref={ref} id="invoice-pdf-template" className="invoice-pdf-template">
+    <div
+      ref={ref}
+      id="invoice-pdf-template"
+      className={templateClassName}
+      data-layout-mode={layoutMode}
+      data-thermal-width={thermalPaperWidth}
+    >
       {/* Header */}
       <div className="invoice-header">
         <div className="header-left">
@@ -140,43 +152,64 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice }, ref) => {
       </div>
 
       {/* Items Table */}
-      <table className="invoice-items-table">
-        <thead>
-          <tr>
-            <th className="desc-col">Description</th>
-            <th className="qty-col">Quantity</th>
-            <th className="price-col">Unit Price</th>
-            <th className="amount-col">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length > 0 ? (
-            items.map((item, index) => (
-              <tr key={index}>
-                <td className="desc-col">
-                  <div className="item-name">{item.name}</div>
-                  {item.product && (
-                    <div className="item-product">
-                      Product ID: {typeof item.product === 'object' ? item.product._id : item.product}
-                    </div>
-                  )}
-                  {item.serialNumber && <div className="item-product">Serial number: {item.serialNumber}</div>}
-                  {item.note && <div className="item-product">Note: {item.note}</div>}
-                </td>
-                <td className="qty-col">{item.quantity}</td>
-                <td className="price-col">{formatCurrency(item.price)}</td>
-                <td className="amount-col">{formatCurrency(item.total)}</td>
-              </tr>
-            ))
-          ) : (
+      {isThermal ? (
+        <div className="thermal-items">
+          {items.length > 0 ? items.map((item, index) => (
+            <div className="thermal-item" key={index}>
+              <p className="item-name">{item.name}</p>
+              {item.product && (
+                <p className="item-product thermal-product-id">
+                  Product ID: {typeof item.product === "object" ? item.product._id : item.product}
+                </p>
+              )}
+              {item.serialNumber && <p className="item-product">Serial number: {item.serialNumber}</p>}
+              {item.note && <p className="item-product">Note: {item.note}</p>}
+              <div className="thermal-item-details">
+                <span>{item.quantity} × {formatCurrency(item.price)}</span>
+                <strong>{formatCurrency(item.total)}</strong>
+              </div>
+            </div>
+          )) : <p className="thermal-empty">No items</p>}
+        </div>
+      ) : (
+        <table className="invoice-items-table">
+          <thead>
             <tr>
-              <td colSpan="4" style={{ textAlign: "center", padding: "20px" }}>
-                No items
-              </td>
+              <th className="desc-col">Description</th>
+              <th className="qty-col">Quantity</th>
+              <th className="price-col">Unit Price</th>
+              <th className="amount-col">Amount</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.length > 0 ? (
+              items.map((item, index) => (
+                <tr key={index}>
+                  <td className="desc-col">
+                    <div className="item-name">{item.name}</div>
+                    {item.product && (
+                      <div className="item-product">
+                        Product ID: {typeof item.product === "object" ? item.product._id : item.product}
+                      </div>
+                    )}
+                    {item.serialNumber && <div className="item-product">Serial number: {item.serialNumber}</div>}
+                    {item.note && <div className="item-product">Note: {item.note}</div>}
+                  </td>
+                  <td className="qty-col">{item.quantity}</td>
+                  <td className="price-col">{formatCurrency(item.price)}</td>
+                  <td className="amount-col">{formatCurrency(item.total)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" style={{ textAlign: "center", padding: "20px" }}>
+                  No items
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
 
       {/* Summary Section */}
       <div className="invoice-summary">
@@ -252,6 +285,8 @@ InvoicePDFTemplate.propTypes = {
     notes: PropTypes.string,
     paymentStatus: PropTypes.oneOf(["Unpaid", "Partially Paid", "Fully Paid", "Returned"]),
   }),
+  layoutMode: PropTypes.oneOf(["a4", "thermal"]),
+  thermalPaperWidth: PropTypes.oneOf(["58mm", "80mm"]),
 };
 
 export default InvoicePDFTemplate;
