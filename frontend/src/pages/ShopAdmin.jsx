@@ -25,6 +25,7 @@ const ShopAdmin = () => {
   const [productPagination, setProductPagination] = useState({ currentPage: 1, totalPages: 1 });
   const [productPage, setProductPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [imageFilter, setImageFilter] = useState("all");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -36,6 +37,7 @@ const ShopAdmin = () => {
 
   const loadProducts = useCallback(async () => {
     const params = new URLSearchParams({ limit: "100", search, page: String(productPage) });
+    if (imageFilter === "missing") params.set("imageStatus", "missing");
     const data = await shopRequest(`/admin/products?${params}`, { token: localStorage.getItem("bms_token") });
     setProducts(data.products || []);
     setSalePriceDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
@@ -47,7 +49,7 @@ const ShopAdmin = () => {
       current[product._id] ?? product.shopImage ?? ""
     ])));
     setProductPagination(data.pagination || { currentPage: 1, totalPages: 1 });
-  }, [search, productPage]);
+  }, [search, productPage, imageFilter]);
 
   const loadCategories = useCallback(async () => {
     const data = await shopRequest("/admin/categories", { token: localStorage.getItem("bms_token") });
@@ -406,6 +408,19 @@ const ShopAdmin = () => {
     return Math.max(0, sourcePaid - sourceRefunded);
   };
 
+  const pageNumbers = (() => {
+    const totalPages = Number(productPagination.totalPages) || 1;
+    const currentPage = Number(productPagination.currentPage) || productPage;
+    const pages = new Set([1, totalPages]);
+    for (let pageNumber = Math.max(1, currentPage - 2); pageNumber <= Math.min(totalPages, currentPage + 2); pageNumber += 1) {
+      pages.add(pageNumber);
+    }
+    return [...pages].sort((a, b) => a - b).flatMap((pageNumber, index, values) => {
+      const previous = values[index - 1];
+      return previous && pageNumber - previous > 1 ? ["ellipsis", pageNumber] : [pageNumber];
+    });
+  })();
+
   return (
     <main className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -554,10 +569,20 @@ const ShopAdmin = () => {
         </section>
       ) : tab === "products" ? (
         <section className="mt-5">
-          <label className="block max-w-lg"><span className="sr-only">Search all BMS products</span><input value={search} onChange={(event) => { setProductPage(1); setSearch(event.target.value); }} placeholder="Search all BMS products" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" /></label>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="block min-w-0 flex-1 sm:max-w-lg"><span className="sr-only">Search all BMS products</span><input value={search} onChange={(event) => { setProductPage(1); setSearch(event.target.value); }} placeholder="Search all BMS products" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" /></label>
+            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+              Product images
+              <select aria-label="Filter products by image" value={imageFilter} onChange={(event) => { setProductPage(1); setImageFilter(event.target.value); }} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm">
+                <option value="all">All products</option>
+                <option value="missing">Missing storefront images</option>
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">A lower storefront price appears as a discount; a higher price replaces the BMS price without a discount label. Set 0 to use the regular BMS price.</p>
           <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <table className="min-w-[1050px] text-left text-sm">
-              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Product</th><th className="p-3">Source business</th><th className="p-3">Regular price</th><th className="p-3">Sale price</th><th className="p-3">Storefront image</th><th className="p-3">Featured</th><th className="p-3">Listing</th></tr></thead>
+              <thead className="bg-slate-100 text-xs uppercase text-slate-500"><tr><th className="p-3">Product</th><th className="p-3">Source business</th><th className="p-3">Regular price</th><th className="p-3">Storefront price</th><th className="p-3">Storefront image</th><th className="p-3">Featured</th><th className="p-3">Listing</th></tr></thead>
               <tbody>{products.map((product) => (
                 <tr key={product._id} className="border-t border-slate-100">
                   <td className="p-3"><p className="font-bold">{product.name}</p><p className="text-xs text-slate-500">{product.category}</p></td>
@@ -565,19 +590,18 @@ const ShopAdmin = () => {
                   <td className="p-3">{formatCurrency(product.price)}</td>
                   <td className="p-3">
                     <label className="block text-xs font-semibold text-slate-600">
-                      Sale price (NGN)
+                      Storefront price (NGN)
                       <input
                         type="number"
                         min="0"
-                        max={Math.max(0, product.price - 1)}
                         step="1"
-                        aria-label={`${product.name} storefront sale price`}
+                        aria-label={`${product.name} storefront price`}
                         value={salePriceDrafts[product._id] ?? ""}
                         onChange={(event) => setSalePriceDrafts((current) => ({ ...current, [product._id]: event.target.value }))}
                         className="mt-1 w-32 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
                       />
                     </label>
-                    <p className="mt-1 text-[11px] text-slate-500">0 removes the sale price.</p>
+                    <p className="mt-1 text-[11px] text-slate-500">0 uses BMS price</p>
                   </td>
                   <td className="p-3">
                     <div className="flex items-center gap-3">{product.shopImage && <img src={product.shopImage} alt="" className="h-12 w-12 rounded-lg object-cover" />}<label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">{busy === String(product._id) ? "Uploading..." : product.shopImage ? "Replace image" : "Add image"}<input type="file" accept="image/*" className="hidden" disabled={busy === String(product._id)} onChange={(event) => { const image = event.target.files?.[0]; if (image) changeProduct(product, { image }); event.target.value = ""; }} /></label></div>
@@ -601,7 +625,7 @@ const ShopAdmin = () => {
                       })}
                       className="mt-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                     >
-                      Save price and URL
+                      Save product changes
                     </button>
                   </td>
                   <td className="p-3"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={product.shopFeatured === true} disabled={busy === String(product._id)} onChange={(event) => changeProduct(product, { shopFeatured: event.target.checked })} />Feature</label></td>
@@ -609,12 +633,24 @@ const ShopAdmin = () => {
                 </tr>
               ))}</tbody>
             </table>
-            {products.length === 0 && <p className="p-8 text-center text-slate-500">No products match the search.</p>}
+            {products.length === 0 && <p className="p-8 text-center text-slate-500">{imageFilter === "missing" ? "No products without storefront images match this search." : "No products match the search."}</p>}
           </div>
           {productPagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-4">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
               <button type="button" disabled={productPage <= 1} onClick={() => setProductPage((current) => current - 1)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
-              <span className="text-sm text-slate-600">Page {productPagination.currentPage} of {productPagination.totalPages}</span>
+              {pageNumbers.map((pageNumber, index) => pageNumber === "ellipsis"
+                ? <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-sm text-slate-400">…</span>
+                : <button
+                  key={pageNumber}
+                  type="button"
+                  aria-label={`Page ${pageNumber}`}
+                  aria-current={pageNumber === (Number(productPagination.currentPage) || productPage) ? "page" : undefined}
+                  onClick={() => setProductPage(pageNumber)}
+                  className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-semibold ${pageNumber === (Number(productPagination.currentPage) || productPage) ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}
+                >
+                  {pageNumber}
+                </button>
+              )}
               <button type="button" disabled={productPage >= productPagination.totalPages} onClick={() => setProductPage((current) => current + 1)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
             </div>
           )}

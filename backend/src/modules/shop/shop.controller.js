@@ -20,8 +20,8 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCategory = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 const storefrontPrice = (product) => {
   const price = Number(product.price) || 0;
-  const salePrice = Number(product.shopSalePrice) || 0;
-  return salePrice > 0 && salePrice < price ? salePrice : price;
+  const configuredPrice = Number(product.shopSalePrice) || 0;
+  return configuredPrice > 0 ? configuredPrice : price;
 };
 const validateCloudinaryImageUrl = (value) => {
   if (typeof value !== "string" || value.length > 2048) return { error: "Enter a valid Cloudinary image URL." };
@@ -934,6 +934,13 @@ export const getShopAdminProducts = async (req, res) => {
     const search = String(req.query.search || "").trim().slice(0, 100);
     const filter = {};
     if (search) filter.name = { $regex: escapeRegex(search), $options: "i" };
+    if (req.query.imageStatus === "missing") {
+      filter.$or = [
+        { shopImage: "" },
+        { shopImage: { $exists: false } },
+        { shopImage: null }
+      ];
+    }
     const [total, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
@@ -1075,9 +1082,6 @@ export const updateShopAdminProduct = async (req, res) => {
     }
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found." });
-    if (shopSalePrice > 0 && shopSalePrice >= Number(product.price)) {
-      return res.status(400).json({ message: "Sale price must be lower than the product's regular selling price." });
-    }
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
       const result = await cloudinary.uploader.upload(base64, { folder: "marthington_shop_products", resource_type: "image" });

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getShopSession, saveShopSession, shopRequest } from "../api/shop.js";
+import { getShopSession, refreshShopCartItems, saveShopSession, shopRequest } from "../api/shop.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import LocationFields from "../components/LocationFields.jsx";
@@ -20,7 +20,7 @@ const emptyAddress = {
 
 const ShopCheckout = () => {
   const navigate = useNavigate();
-  const { items, subtotal } = useShopCart();
+  const { items, replaceItems, subtotal } = useShopCart();
   const [customer, setCustomer] = useState(getShopSession().customer);
   const [addresses, setAddresses] = useState([]);
   const [addressId, setAddressId] = useState("");
@@ -29,12 +29,25 @@ const ShopCheckout = () => {
   const [addressFormOpen, setAddressFormOpen] = useState(true);
   const [savingAddress, setSavingAddress] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [refreshingPrices, setRefreshingPrices] = useState(true);
+  const [cartNeedsRefresh, setCartNeedsRefresh] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
+    refreshShopCartItems(items)
+      .then((latestItems) => {
+        if (active) replaceItems(latestItems);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message || "Could not refresh storefront prices.");
+      })
+      .finally(() => {
+        if (active) setRefreshingPrices(false);
+      });
     if (!getShopSession().token) {
       navigate("/shop/account?next=%2Fshop%2Fcheckout", { replace: true });
-      return;
+      return () => { active = false; };
     }
     shopRequest("/customers/me")
       .then(({ customer: current }) => {
@@ -45,6 +58,7 @@ const ShopCheckout = () => {
         saveShopSession({ token: getShopSession().token, customer: current });
       })
       .catch((requestError) => setError(requestError.message));
+    return () => { active = false; };
   }, [navigate]);
 
   const saveAddress = async () => {
@@ -120,6 +134,10 @@ const ShopCheckout = () => {
       setError("Save and select a delivery address before placing your order.");
       return;
     }
+    if (refreshingPrices || items.some((item) => !item.canPurchase)) {
+      setError("Review your cart: current prices must load and unavailable products must be removed before checkout.");
+      return;
+    }
     setPlacingOrder(true);
     setError("");
     try {
@@ -133,7 +151,22 @@ const ShopCheckout = () => {
       window.location.assign(result.authorizationUrl);
     } catch (requestError) {
       setError(requestError.message || "Could not place your order.");
+      if (requestError.status === 409) setCartNeedsRefresh(true);
       setPlacingOrder(false);
+    }
+  };
+
+  const refreshCartPrices = async () => {
+    setRefreshingPrices(true);
+    setError("");
+    try {
+      const latestItems = await refreshShopCartItems(items);
+      replaceItems(latestItems);
+      setCartNeedsRefresh(false);
+    } catch (requestError) {
+      setError(requestError.message || "Could not refresh storefront prices.");
+    } finally {
+      setRefreshingPrices(false);
     }
   };
 
@@ -144,6 +177,8 @@ const ShopCheckout = () => {
       <h1 className="text-3xl font-black">Checkout</h1>
       <p className="mt-2 text-sm text-slate-500">Signed in as {customer?.email || "your shop account"}. Delivery fees are confirmed after Marthington reviews the order.</p>
       {error && <div role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      {cartNeedsRefresh && <button type="button" disabled={refreshingPrices || placingOrder} onClick={refreshCartPrices} className="mt-3 rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{refreshingPrices ? "Refreshing prices…" : "Refresh prices and review cart"}</button>}
+      {refreshingPrices && <p role="status" className="mt-3 text-sm text-slate-500">Checking current storefront prices…</p>}
       <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -187,13 +222,20 @@ const ShopCheckout = () => {
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="font-bold">Order summary</h2>
           <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
-            {items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm"><span>{item.name} × {item.quantity}</span><strong>{formatCurrency(item.price * item.quantity)}</strong></div>)}
+            {items.map((item) => <div key={item.id} className="flex justify-between gap-3 text-sm">
+              <span>{item.name} × {item.quantity}
+                {item.salePrice > 0 && item.originalPrice > item.price && <span className="ml-2 text-xs text-slate-400 line-through">{formatCurrency(item.originalPrice * item.quantity)}</span>}
+                {!item.canPurchase && <span className="mt-1 block text-xs font-semibold text-rose-700">Currently unavailable</span>}
+              </span>
+              <strong>{formatCurrency(item.price * item.quantity)}</strong>
+            </div>)}
           </div>
+          {items.some((item) => !item.canPurchase) && <p className="mt-3 text-xs font-semibold text-rose-700">Remove unavailable items from your <Link to="/shop/cart" className="underline">cart</Link> before checkout.</p>}
           <div className="mt-4 border-t border-slate-200 pt-4">
             <div className="flex justify-between"><span>Products subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
             <p className="mt-2 text-xs text-slate-500">Delivery fee billed separately after confirmation.</p>
           </div>
-          <button type="button" disabled={placingOrder} onClick={placeOrder} className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{placingOrder ? "Preparing secure payment..." : `Pay ${formatCurrency(subtotal)} with Paystack`}</button>
+          <button type="button" disabled={placingOrder || refreshingPrices || Boolean(error) || items.some((item) => !item.canPurchase)} onClick={placeOrder} className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{placingOrder ? "Preparing secure payment..." : `Pay ${formatCurrency(subtotal)} with Paystack`}</button>
         </aside>
       </div>
     </main>

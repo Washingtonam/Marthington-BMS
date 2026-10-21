@@ -1,6 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import request from "../api/client.js";
+
+const useSafeSearchParams = () => {
+  try {
+    return useSearchParams();
+  } catch {
+    const [params, setParams] = useState(() => new URLSearchParams(window.location.search));
+
+    const setSafeSearchParams = useCallback((next) => {
+      const nextParams = typeof next === "function"
+        ? next(new URLSearchParams(window.location.search))
+        : new URLSearchParams(next || {});
+      const url = new URL(window.location.href);
+      if (nextParams.toString()) url.search = nextParams.toString();
+      else url.search = "";
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      setParams(new URLSearchParams(window.location.search));
+    }, []);
+
+    return [params, setSafeSearchParams];
+  }
+};
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { formatCurrency } from "../utils/formatters.js";
@@ -22,7 +43,7 @@ const initialForm = {
 };
 
 const Products = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSafeSearchParams();
   const linkedProductId = searchParams.get("edit");
   const { business, isPro, user } = useAuth(); // Using the boolean from context
   const currentMode = isPro ? "Pro mode" : "Free mode";

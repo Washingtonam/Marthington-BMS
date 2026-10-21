@@ -44,6 +44,18 @@ export const shopRequest = async (path, options = {}) => {
   return data;
 };
 
+export const refreshShopCartItems = async (items) => Promise.all(items.map(async (item) => {
+  try {
+    const { product } = await shopRequest(`/products/${encodeURIComponent(item.id)}`);
+    return { ...item, ...product, quantity: item.quantity };
+  } catch (error) {
+    if (error.status === 404) {
+      return { ...item, available: false, canPurchase: false };
+    }
+    throw error;
+  }
+}));
+
 export const linkMarketplaceAccount = (token, marketplacePassword) => shopRequest("/customers/link", {
   method: "POST",
   token,

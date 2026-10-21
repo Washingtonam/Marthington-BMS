@@ -62,7 +62,7 @@ describe("Shop administration", () => {
           }
         };
       }
-      if (path === "/admin/products?limit=100&search=&page=1") {
+      if (path.startsWith("/admin/products?")) {
         return {
           products: [{
             _id: "product-1",
@@ -148,19 +148,78 @@ describe("Shop administration", () => {
   it("lets the super admin set a fixed sale price and Cloudinary image URL", async () => {
     renderShopAdmin();
     fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
-    fireEvent.change(await screen.findByRole("spinbutton", { name: "Gift set storefront sale price" }), {
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Gift set storefront price" }), {
       target: { value: "7500" }
     });
     fireEvent.change(screen.getByLabelText("Gift set Cloudinary image URL"), {
       target: { value: "https://res.cloudinary.com/demo/image/upload/gift.jpg" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save price and URL" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save product changes" }));
 
     await waitFor(() => {
       const updateCall = shopRequest.mock.calls.find(([path]) => path === "/admin/products/product-1");
       expect(updateCall[1].body.get("shopSalePrice")).toBe("7500");
       expect(updateCall[1].body.get("shopImageUrl")).toBe("https://res.cloudinary.com/demo/image/upload/gift.jpg");
     });
+  });
+
+  it("allows a storefront price above the BMS price as a direct price override", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "Gift set storefront price" }), {
+      target: { value: "12000" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save product changes" }));
+
+    await waitFor(() => {
+      const updateCall = shopRequest.mock.calls.find(([path]) => path === "/admin/products/product-1");
+      expect(updateCall).toBeTruthy();
+      expect(updateCall[1].body.get("shopSalePrice")).toBe("12000");
+    });
+  });
+
+  it("filters products without images and sends the filter to the admin API", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Filter products by image" }), {
+      target: { value: "missing" }
+    });
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/admin/products?limit=100&search=&page=1&imageStatus=missing",
+        expect.objectContaining({ token: "admin-token" })
+      );
+    });
+  });
+
+  it("shows a compact page-number window with nearby pages", async () => {
+    shopRequest.mockImplementation(async (path) => {
+      if (path === "/admin/orders") return { orders: [] };
+      if (path.startsWith("/admin/products?")) {
+        const page = Number(new URL(path, "http://localhost").searchParams.get("page"));
+        return {
+          products: [],
+          pagination: { currentPage: page, totalPages: 12, totalProducts: 1200 }
+        };
+      }
+      return {};
+    });
+
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    await screen.findByRole("button", { name: "Page 1" });
+    for (let page = 1; page < 5; page += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+
+    expect((await screen.findByRole("button", { name: "Page 5" })).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Page 3" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Page 4" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Page 6" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Page 7" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Page 2" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Page 8" })).toBeNull();
   });
 
   it("lets the super admin add a delivery-area fee preset", async () => {

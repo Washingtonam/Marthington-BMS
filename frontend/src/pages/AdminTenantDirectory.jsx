@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import request from "../api/client.js";
 import TenantMessageModal from "../components/TenantMessageModal.jsx";
@@ -32,6 +32,8 @@ const AdminTenantDirectory = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [openMenuId, setOpenMenuId] = useState("");
+  const businessDetailDialogRef = useRef(null);
+  const closeBusinessDetailRef = useRef(null);
 
   const load = async () => {
     try {
@@ -91,6 +93,40 @@ const AdminTenantDirectory = () => {
     setOwnerPasswordMessage("");
     setSelectedBusinessId(business._id);
   };
+
+  useEffect(() => {
+    if (!selectedBusinessId) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const previouslyFocused = document.activeElement;
+    document.body.style.overflow = "hidden";
+    closeBusinessDetailRef.current?.focus();
+    const handleDialogKeys = (event) => {
+      if (event.key === "Escape") {
+        setSelectedBusinessId("");
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = businessDetailDialogRef.current?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleDialogKeys);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleDialogKeys);
+      previouslyFocused?.focus?.();
+    };
+  }, [selectedBusinessId]);
 
   const updateOwnerPassword = async (event) => {
     event.preventDefault();
@@ -364,83 +400,111 @@ const AdminTenantDirectory = () => {
         </div>
       </section>
       {selectedBusiness && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="business-detail-title">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-700">Tenant profile</p>
-                <h2 id="business-detail-title" className="mt-2 text-2xl font-black text-slate-900">{selectedBusiness.name}</h2>
-              </div>
-              <button type="button" onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Close</button>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Business owner</p>
-                <p className="mt-2 text-base font-extrabold text-slate-900">{selectedBusiness.ownerName || "Unknown owner"}</p>
-                <a href={`mailto:${selectedBusiness.ownerEmail || ""}`} className="mt-2 block text-sm font-semibold text-emerald-700 hover:underline">{selectedBusiness.ownerEmail || "No email on file"}</a>
-                <p className="mt-2 text-sm text-slate-600">{selectedBusiness.ownerPhone || selectedBusiness.businessPhone || "No phone on file"}</p>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Business overview</p>
-                <dl className="mt-2 space-y-2 text-sm text-slate-700">
-                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Industry</dt><dd className="font-semibold capitalize">{selectedBusiness.industryType || "retail"}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Plan</dt><dd className="font-semibold capitalize">{selectedBusiness.subscription?.plan || "free"}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Status</dt><dd className="font-semibold capitalize">{selectedBusiness.subscription?.status || "trial"}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-slate-500">Business phone</dt><dd className="font-semibold">{selectedBusiness.businessPhone || "—"}</dd></div>
-                </dl>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-extrabold text-slate-900">Manage this tenant</h3>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => { setSelectedBusinessId(""); setContactBusinessId(selectedBusiness._id); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Contact owner</button>
-                  <button type="button" onClick={() => { setSelectedBusinessId(""); startImpersonation(selectedBusiness._id); navigate("/app"); }} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">Access account</button>
-                  <Link to={`/admin/business/${selectedBusiness._id}`} onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">Open full business view</Link>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/65 p-3 backdrop-blur-sm sm:p-6"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedBusinessId("");
+          }}
+        >
+          <section
+            ref={businessDetailDialogRef}
+            className="my-auto max-h-[min(92vh,900px)] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] border border-white/70 bg-white shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="business-detail-title"
+          >
+            <header className="relative overflow-hidden rounded-t-[1.75rem] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-6 text-white sm:px-7">
+              <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/10 text-xl font-black uppercase text-emerald-200">
+                    {String(selectedBusiness.name || "?").slice(0, 1)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-emerald-300">Tenant profile</p>
+                    <h2 id="business-detail-title" className="mt-1 break-words text-2xl font-black tracking-tight sm:text-3xl">{selectedBusiness.name}</h2>
+                    <p className="mt-1 text-sm text-slate-300">{selectedBusiness.industryType || "Retail"} workspace</p>
+                  </div>
                 </div>
-              </div>
-
-              <form onSubmit={updateOwnerPassword} className="mt-5 space-y-4 rounded-2xl border border-slate-200 p-4">
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900">Update owner password</h3>
-                  <p className="mt-1 text-xs text-slate-500">Set a new sign-in password for {selectedBusiness.ownerName || "the business owner"}.</p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
-                    New password
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={8}
-                      required
-                      value={ownerPassword}
-                      onChange={(event) => setOwnerPassword(event.target.value)}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
-                    Confirm password
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={8}
-                      required
-                      value={ownerPasswordConfirmation}
-                      onChange={(event) => setOwnerPasswordConfirmation(event.target.value)}
-                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                </div>
-                {ownerPasswordMessage && <p role="status" className="text-xs font-semibold text-slate-600">{ownerPasswordMessage}</p>}
-                <button type="submit" disabled={ownerPasswordSaving} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
-                  {ownerPasswordSaving ? "Updating..." : "Update owner password"}
+                <button
+                  ref={closeBusinessDetailRef}
+                  type="button"
+                  onClick={() => setSelectedBusinessId("")}
+                  aria-label="Close business details"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/10 text-lg text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                >
+                  ×
                 </button>
-              </form>
+              </div>
+              <div className="relative mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-bold capitalize text-slate-100">{selectedBusiness.subscription?.plan || "free"} plan</span>
+                <span className="rounded-full bg-emerald-300/15 px-3 py-1 text-[10px] font-bold capitalize text-emerald-200">{selectedBusiness.subscription?.status || "trial"}</span>
+                <span className={`rounded-full px-3 py-1 text-[10px] font-bold capitalize ${selectedBusiness.status === "suspended" || selectedBusiness.status === "deleted" ? "bg-rose-300/15 text-rose-200" : "bg-white/10 text-slate-200"}`}>Workspace {selectedBusiness.status || "active"}</span>
+              </div>
+            </header>
+
+            <div className="space-y-5 p-4 sm:p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Business owner</p>
+                  <p className="mt-2 text-base font-extrabold text-slate-900">{selectedBusiness.ownerName || "Unknown owner"}</p>
+                  {selectedBusiness.ownerEmail ? (
+                    <a href={`mailto:${selectedBusiness.ownerEmail}`} className="mt-2 block break-all text-sm font-semibold text-emerald-700 hover:underline">{selectedBusiness.ownerEmail}</a>
+                  ) : <p className="mt-2 text-sm text-slate-500">No email on file</p>}
+                  {(selectedBusiness.ownerPhone || selectedBusiness.businessPhone) ? (
+                    <a href={`tel:${selectedBusiness.ownerPhone || selectedBusiness.businessPhone}`} className="mt-2 block text-sm text-slate-700 hover:text-emerald-700">
+                    {selectedBusiness.ownerPhone || selectedBusiness.businessPhone}
+                    </a>
+                  ) : <p className="mt-2 text-sm text-slate-500">No phone on file</p>}
+                </section>
+
+                <section className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">Subscription & workspace</p>
+                  <dl className="mt-3 space-y-2.5 text-sm text-slate-700">
+                    <div className="flex justify-between gap-3"><dt className="text-slate-500">Industry</dt><dd className="font-semibold capitalize">{selectedBusiness.industryType || "retail"}</dd></div>
+                    <div className="flex justify-between gap-3"><dt className="text-slate-500">Billing cycle</dt><dd className="font-semibold capitalize">{selectedBusiness.subscription?.billingCycle || "—"}</dd></div>
+                    {selectedBusiness.subscription?.expiresAt && <div className="flex justify-between gap-3"><dt className="text-slate-500">Expires</dt><dd className="font-semibold">{new Date(selectedBusiness.subscription.expiresAt).toLocaleDateString()}</dd></div>}
+                    {selectedBusiness.whatsappPhone && <div className="flex justify-between gap-3"><dt className="text-slate-500">WhatsApp</dt><dd className="font-semibold">{selectedBusiness.whatsappPhone}</dd></div>}
+                  </dl>
+                </section>
+              </div>
+
+              <section className="rounded-2xl border border-slate-200 p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Manage this tenant</h3>
+                    <p className="mt-1 text-xs text-slate-500">Contact the owner or continue to the full workspace controls.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => { setSelectedBusinessId(""); setContactBusinessId(selectedBusiness._id); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">Contact owner</button>
+                    <button type="button" onClick={() => { setSelectedBusinessId(""); startImpersonation(selectedBusiness._id); navigate("/app"); }} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">Access account</button>
+                    <Link to={`/admin/business/${selectedBusiness._id}`} onClick={() => setSelectedBusinessId("")} className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100">Full business view</Link>
+                  </div>
+                </div>
+
+                <form onSubmit={updateOwnerPassword} className="mt-5 space-y-4 rounded-xl bg-slate-50 p-4">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">Update owner password</h3>
+                    <p className="mt-1 text-xs text-slate-500">Set a new sign-in password for {selectedBusiness.ownerName || "the business owner"}.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                    New password
+                    <input type="password" autoComplete="new-password" minLength={8} required value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                    Confirm password
+                    <input type="password" autoComplete="new-password" minLength={8} required value={ownerPasswordConfirmation} onChange={(event) => setOwnerPasswordConfirmation(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    </label>
+                  </div>
+                  {ownerPasswordMessage && <p role="status" className="text-xs font-semibold text-slate-600">{ownerPasswordMessage}</p>}
+                  <button type="submit" disabled={ownerPasswordSaving} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50">
+                    {ownerPasswordSaving ? "Updating..." : "Update owner password"}
+                  </button>
+                </form>
+              </section>
             </div>
-          </div>
+          </section>
         </div>
       )}
 

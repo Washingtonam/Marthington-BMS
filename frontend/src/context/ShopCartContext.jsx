@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { getShopCart, saveShopCart } from "../api/shop.js";
 
 const ShopCartContext = createContext(null);
@@ -15,10 +15,11 @@ export const ShopCartProvider = ({ children }) => {
     if (!product.canPurchase) return;
     const existing = items.find((item) => item.id === product.id);
     update(existing
-      ? items.map((item) => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item)
+      ? items.map((item) => item.id === product.id ? { ...item, ...product, quantity: item.quantity + 1 } : item)
       : [...items, { ...product, quantity: 1 }]);
   };
 
+  const replaceItems = useCallback((nextItems) => update(nextItems), []);
   const setQuantity = (productId, quantity) => {
     if (!Number.isInteger(quantity) || quantity < 1) {
       update(items.filter((item) => item.id !== productId));
@@ -32,7 +33,7 @@ export const ShopCartProvider = ({ children }) => {
   const count = items.reduce((total, item) => total + item.quantity, 0);
   const subtotal = items.reduce((total, item) => total + Number(item.price) * item.quantity, 0);
 
-  const value = useMemo(() => ({ items, add, setQuantity, remove, clear, count, subtotal }), [items, count, subtotal]);
+  const value = useMemo(() => ({ items, add, replaceItems, setQuantity, remove, clear, count, subtotal }), [items, replaceItems, count, subtotal]);
   return <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>;
 };
 
