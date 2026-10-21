@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("Storefront product details", () => {
-  it("shows WhatsApp inquiries and only the related featured products returned for the supplier", async () => {
+  it("shows WhatsApp inquiries, same-business products, and discoveries from other businesses", async () => {
     mockShopRequest.mockResolvedValue({
       product: {
         id: "product-1",
@@ -31,15 +31,37 @@ describe("Storefront product details", () => {
         canPurchase: true,
         featured: false,
         business: { name: "Market Goods" },
-        relatedFeatured: [{
+        relatedProducts: [{
           id: "product-2",
-          name: "Featured bowl",
+          name: "Everyday bowl",
           category: "Home",
           price: 1500,
           available: true,
           canPurchase: true,
           image: "",
+          featured: false,
           business: { name: "Market Goods" }
+        }],
+        discoverProducts: [{
+          id: "product-3",
+          name: "Handmade lamp",
+          category: "Decor",
+          price: 4500,
+          available: true,
+          canPurchase: true,
+          image: "",
+          featured: true,
+          business: { name: "Bright Home" }
+        }, {
+          id: "product-4",
+          name: "Leather wallet",
+          category: "Accessories",
+          price: 3000,
+          available: true,
+          canPurchase: true,
+          image: "",
+          featured: false,
+          business: { name: "Craft Corner" }
         }]
       }
     });
@@ -59,7 +81,12 @@ describe("Storefront product details", () => {
     expect(await screen.findByRole("heading", { name: "Market basket" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Ask about this on WhatsApp" }).getAttribute("href")).toContain("wa.me/2348012345678");
     expect(decodeURIComponent(screen.getByRole("link", { name: "Ask about this on WhatsApp" }).getAttribute("href"))).toContain("Ada Owner");
-    expect(screen.getByRole("region", { name: "More featured products from Market Goods" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Featured bowl/ }).getAttribute("href")).toBe("/shop/product/product-2");
+    expect(screen.getByRole("region", { name: "More products from Market Goods" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Everyday bowl/ }).getAttribute("href")).toBe("/shop/product/product-2");
+    expect(screen.getByRole("region", { name: "Explore products from other businesses" })).toBeTruthy();
+    expect(screen.getByText("From Bright Home")).toBeTruthy();
+    expect(screen.getByText("From Craft Corner")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Handmade lamp/ }).getAttribute("href")).toBe("/shop/product/product-3");
+    expect(screen.getByRole("link", { name: /Leather wallet/ }).getAttribute("href")).toBe("/shop/product/product-4");
   });
 });

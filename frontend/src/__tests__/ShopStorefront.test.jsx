@@ -17,6 +17,8 @@ const storefrontData = {
     name: "Laptop",
     category: "Computers",
     price: 200000,
+    shopSalePrice: 0,
+    shopPriceMode: "discount",
     stock: 4,
     shopVisible: true,
     shopDescription: "Fast and reliable"
@@ -42,12 +44,14 @@ describe("Owner storefront management", () => {
     vi.clearAllMocks();
   });
 
-  it("shows the business storefront and only allows storefront content edits", async () => {
+  it("shows the business storefront and saves photos, description, and storefront pricing", async () => {
     render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "Steve Computer Warehouse storefront" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Laptop" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Laptop" })).toBeTruthy();
     expect(screen.getByLabelText("Storefront description").value).toBe("Fast and reliable");
+    fireEvent.change(screen.getByLabelText("Laptop storefront price"), { target: { value: "180000" } });
+    fireEvent.change(screen.getByLabelText("Laptop storefront price mode"), { target: { value: "discount" } });
     expect(screen.queryByLabelText("Product name")).toBeNull();
     expect(screen.getByRole("link", { name: "Edit product in BMS" }).getAttribute("href")).toBe("/app/products?edit=product-1");
 
@@ -58,11 +62,28 @@ describe("Owner storefront management", () => {
       const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products/product-1");
       expect(options.method).toBe("PATCH");
       expect(options.body.get("shopDescription")).toBe("Updated storefront description");
+      expect(options.body.get("shopSalePrice")).toBe("180000");
+      expect(options.body.get("shopPriceMode")).toBe("discount");
       expect(options.token).toBe("owner-token");
     });
   });
 
-  it("lets owners paste a Cloudinary URL while restricting settings to images and descriptions", async () => {
+  it("saves a replacement storefront price without marking it as a discount", async () => {
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Laptop" });
+    fireEvent.change(screen.getByLabelText("Laptop storefront price"), { target: { value: "230000" } });
+    fireEvent.change(screen.getByLabelText("Laptop storefront price mode"), { target: { value: "override" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save storefront details" }));
+
+    await waitFor(() => {
+      const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products/product-1");
+      expect(options.body.get("shopSalePrice")).toBe("230000");
+      expect(options.body.get("shopPriceMode")).toBe("override");
+    });
+  });
+
+  it("lets owners paste a Cloudinary URL while restricting listing controls", async () => {
     render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
 
     await screen.findByRole("heading", { name: "Laptop" });
@@ -75,12 +96,39 @@ describe("Owner storefront management", () => {
       const [, options] = shopRequest.mock.calls.find(([path]) => path === "/storefront/products/product-1");
       expect(options.body.get("shopImageUrl")).toBe("https://res.cloudinary.com/demo/image/upload/laptop.jpg");
       expect(options.body.has("shopFeatured")).toBe(false);
-      expect(options.body.has("shopSalePrice")).toBe(false);
+      expect(options.body.has("shopSalePrice")).toBe(true);
       expect(options.body.has("shopVisible")).toBe(false);
     });
     expect(screen.queryByLabelText(/Feature Laptop/)).toBeNull();
-    expect(screen.queryByLabelText(/storefront discount/i)).toBeNull();
+    expect(screen.getByLabelText("Laptop storefront price mode")).toBeTruthy();
     expect(screen.queryByRole("checkbox", { name: "Select Laptop" })).toBeNull();
+  });
+
+  it("filters owner products with or without storefront photos", async () => {
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Laptop" });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter products by image" }), {
+      target: { value: "missing" }
+    });
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/storefront/products?page=1&limit=12&search=&imageStatus=missing",
+        expect.objectContaining({ token: "owner-token" })
+      );
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Filter products by image" }), {
+      target: { value: "present" }
+    });
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/storefront/products?page=1&limit=12&search=&imageStatus=present",
+        expect.objectContaining({ token: "owner-token" })
+      );
+    });
   });
 
   it("does not treat an unset legacy business visibility as hidden", async () => {

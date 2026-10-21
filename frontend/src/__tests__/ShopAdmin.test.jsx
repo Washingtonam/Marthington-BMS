@@ -169,12 +169,16 @@ describe("Shop administration", () => {
     fireEvent.change(await screen.findByRole("spinbutton", { name: "Gift set storefront price" }), {
       target: { value: "12000" }
     });
+    fireEvent.change(screen.getByLabelText("Gift set storefront price mode"), {
+      target: { value: "override" }
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save product changes" }));
 
     await waitFor(() => {
       const updateCall = shopRequest.mock.calls.find(([path]) => path === "/admin/products/product-1");
       expect(updateCall).toBeTruthy();
       expect(updateCall[1].body.get("shopSalePrice")).toBe("12000");
+      expect(updateCall[1].body.get("shopPriceMode")).toBe("override");
     });
   });
 
@@ -188,6 +192,21 @@ describe("Shop administration", () => {
     await waitFor(() => {
       expect(shopRequest).toHaveBeenCalledWith(
         "/admin/products?limit=100&search=&page=1&imageStatus=missing",
+        expect.objectContaining({ token: "admin-token" })
+      );
+    });
+  });
+
+  it("filters products with storefront images and sends the filter to the admin API", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Filter products by image" }), {
+      target: { value: "present" }
+    });
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/admin/products?limit=100&search=&page=1&imageStatus=present",
         expect.objectContaining({ token: "admin-token" })
       );
     });
@@ -220,6 +239,15 @@ describe("Shop administration", () => {
     expect(screen.getByRole("button", { name: "Page 7" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Page 2" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Page 8" })).toBeNull();
+
+    for (let page = 5; page < 12; page += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    }
+    expect((await screen.findByRole("button", { name: "Page 12" })).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByRole("button", { name: "Page 10" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Page 11" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Page 9" })).toBeNull();
+    expect(screen.getByText((_, element) => element.tagName === "P" && element.textContent.replace(/\s+/g, " ").trim() === "Showing 1,101–1,200 of 1,200 products")).toBeTruthy();
   });
 
   it("lets the super admin add a delivery-area fee preset", async () => {

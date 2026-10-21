@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { shopRequest } from "../api/shop.js";
+import { formatCurrency } from "../utils/formatters.js";
 
 const PAGE_SIZE = 12;
 
@@ -8,11 +9,14 @@ const ShopStorefront = () => {
   const [business, setBusiness] = useState(null);
   const [products, setProducts] = useState([]);
   const [descriptions, setDescriptions] = useState({});
+  const [priceDrafts, setPriceDrafts] = useState({});
+  const [priceModeDrafts, setPriceModeDrafts] = useState({});
   const [images, setImages] = useState({});
   const [imageUrls, setImageUrls] = useState({});
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalProducts: 0 });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [imageFilter, setImageFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -24,6 +28,7 @@ const ShopStorefront = () => {
     setError("");
     try {
       const query = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), search });
+      if (imageFilter !== "all") query.set("imageStatus", imageFilter);
       const data = await shopRequest(`/storefront/products?${query}`, {
         token: localStorage.getItem("bms_token")
       });
@@ -34,6 +39,19 @@ const ShopStorefront = () => {
         product._id,
         current[product._id] ?? product.shopDescription ?? ""
       ])));
+      setPriceDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
+        product._id,
+        current[product._id] ?? (product.shopSalePrice > 0 ? String(product.shopSalePrice) : "")
+      ])));
+      setPriceModeDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
+        product._id,
+        current[product._id] ?? (
+          product.shopSalePrice > 0 &&
+          (product.shopPriceMode === "override" || product.shopSalePrice >= product.price)
+            ? "override"
+            : "discount"
+        )
+      ])));
       setImageUrls((current) => Object.fromEntries((data.products || []).map((product) => [
         product._id,
         current[product._id] ?? product.shopImage ?? ""
@@ -43,7 +61,7 @@ const ShopStorefront = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, imageFilter]);
 
   useEffect(() => {
     load();
@@ -60,6 +78,8 @@ const ShopStorefront = () => {
     try {
       const form = new FormData();
       form.append("shopDescription", descriptions[product._id] || "");
+      form.append("shopSalePrice", String(Number(priceDrafts[product._id]) || 0));
+      form.append("shopPriceMode", priceModeDrafts[product._id] || "discount");
       if (images[product._id]) form.append("image", images[product._id].file);
       else if ((imageUrls[product._id] ?? product.shopImage ?? "") !== (product.shopImage || "")) {
         form.append("shopImageUrl", imageUrls[product._id] ?? "");
@@ -71,6 +91,14 @@ const ShopStorefront = () => {
       });
       setProducts((current) => current.map((item) => item._id === product._id ? response.product : item));
       setDescriptions((current) => ({ ...current, [product._id]: response.product.shopDescription || "" }));
+      setPriceDrafts((current) => ({
+        ...current,
+        [product._id]: response.product.shopSalePrice > 0 ? String(response.product.shopSalePrice) : ""
+      }));
+      setPriceModeDrafts((current) => ({
+        ...current,
+        [product._id]: response.product.shopPriceMode || "discount"
+      }));
       setImageUrls((current) => ({ ...current, [product._id]: response.product.shopImage || "" }));
       if (imageDrafts.current[product._id]) URL.revokeObjectURL(imageDrafts.current[product._id].previewUrl);
       delete imageDrafts.current[product._id];
@@ -94,7 +122,7 @@ const ShopStorefront = () => {
           <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-700">Storefront manager</p>
           <h1 className="mt-2 text-3xl font-black text-slate-900 sm:text-4xl">{business?.name || "Your business"} storefront</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-            Add product photos and descriptions for shoppers. Product names, prices, stock, and categories are managed in your BMS catalogue.
+            Add storefront photos, descriptions, and pricing for your products. Product names, base prices, stock, and categories remain managed in your BMS catalogue.
           </p>
         </div>
         <Link to="/shop" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">View public storefront</Link>
@@ -108,8 +136,8 @@ const ShopStorefront = () => {
         </p>
       )}
 
-      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 sm:max-w-xl">
+      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <label className="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 lg:max-w-xl">
           <span aria-hidden="true" className="text-slate-400">🔎</span>
           <input
             type="search"
@@ -123,15 +151,31 @@ const ShopStorefront = () => {
             className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
         </label>
+        <label className="grid gap-1 text-xs font-semibold text-slate-600">
+          Product photos
+          <select
+            aria-label="Filter products by image"
+            value={imageFilter}
+            onChange={(event) => {
+              setPage(1);
+              setImageFilter(event.target.value);
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+          >
+            <option value="all">All products</option>
+            <option value="present">With photos</option>
+            <option value="missing">Without photos</option>
+          </select>
+        </label>
       </div>
 
       {loading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Loading your storefront products...</div>
       ) : !error && products.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <h2 className="text-lg font-bold text-slate-900">{search ? "No matching products" : "No products in your BMS catalogue yet"}</h2>
-          <p className="mt-2 text-sm text-slate-500">{search ? "Try another product name, category, or SKU." : "Add products in BMS, then return here to add storefront photos and descriptions."}</p>
-          {!search && <Link to="/app/products" className="mt-5 inline-flex rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">Open BMS product catalogue</Link>}
+          <h2 className="text-lg font-bold text-slate-900">{imageFilter !== "all" ? "No products match this photo filter" : search ? "No matching products" : "No products in your BMS catalogue yet"}</h2>
+          <p className="mt-2 text-sm text-slate-500">{imageFilter !== "all" ? "Choose a different photo filter or search term." : search ? "Try another product name, category, or SKU." : "Add products in BMS, then return here to manage their storefront details."}</p>
+          {!search && imageFilter === "all" && <Link to="/app/products" className="mt-5 inline-flex rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">Open BMS product catalogue</Link>}
         </div>
       ) : (
         <>
@@ -147,11 +191,44 @@ const ShopStorefront = () => {
                   <div className="p-4">
                     <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{product.category || "General"}</p>
                     <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{product.name}</h2>
-                    <p className="mt-1 text-xs text-slate-500">Name, price, stock, and category are read-only here.</p>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-black text-slate-900">{formatCurrency(Number(priceDrafts[product._id]) > 0 ? Number(priceDrafts[product._id]) : product.price)}</span>
+                      {priceModeDrafts[product._id] === "discount" && Number(priceDrafts[product._id]) > 0 && Number(priceDrafts[product._id]) < product.price && <span className="text-xs text-slate-400 line-through">{formatCurrency(product.price)}</span>}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">Base BMS price: {formatCurrency(product.price)} · Stock: {product.stock}</p>
                     <Link to={`/app/products?edit=${encodeURIComponent(product._id)}`} className="mt-2 inline-block text-xs font-bold text-emerald-700 underline">Edit product in BMS</Link>
                   </div>
                 </div>
                 <div className="space-y-3 border-t border-slate-100 p-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-bold text-slate-600">
+                      Storefront price (NGN)
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        aria-label={`${product.name} storefront price`}
+                        value={priceDrafts[product._id] ?? ""}
+                        onChange={(event) => setPriceDrafts((current) => ({ ...current, [product._id]: event.target.value }))}
+                        placeholder={String(product.price)}
+                        className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800"
+                      />
+                      <span className="mt-1 block font-normal text-slate-400">Leave blank or enter 0 to use the BMS price.</span>
+                    </label>
+                    <label className="block text-xs font-bold text-slate-600">
+                      Price display
+                      <select
+                        aria-label={`${product.name} storefront price mode`}
+                        value={priceModeDrafts[product._id] || "discount"}
+                        onChange={(event) => setPriceModeDrafts((current) => ({ ...current, [product._id]: event.target.value }))}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"
+                      >
+                        <option value="discount">Show as discount (strike through BMS price)</option>
+                        <option value="override">Replace price (no strike-through)</option>
+                      </select>
+                      <span className="mt-1 block font-normal text-slate-400">Discount price must be lower than the base price.</span>
+                    </label>
+                  </div>
                   <label className="block text-xs font-bold text-slate-600">
                     Product photo
                     <input type="file" accept="image/*" onChange={(event) => {
@@ -207,13 +284,30 @@ const ShopStorefront = () => {
         </>
       )}
 
-      {pagination.totalPages > 1 && (
-        <nav aria-label="Storefront product pages" className="mt-8 flex items-center justify-center gap-4">
-          <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
-          <span className="text-sm text-slate-600">Page {pagination.currentPage || page} of {pagination.totalPages}</span>
-          <button type="button" disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
-        </nav>
-      )}
+      {pagination.totalPages > 1 && (() => {
+        const currentPage = Number(pagination.currentPage) || page;
+        const totalPages = Number(pagination.totalPages);
+        const pages = new Set([1, totalPages]);
+        for (let pageNumber = Math.max(1, currentPage - 2); pageNumber <= Math.min(totalPages, currentPage + 2); pageNumber += 1) pages.add(pageNumber);
+        const pageNumbers = [...pages].sort((a, b) => a - b).flatMap((pageNumber, index, values) => {
+          const previous = values[index - 1];
+          return previous && pageNumber - previous > 1 ? ["ellipsis", pageNumber] : [pageNumber];
+        });
+        const totalProducts = Number(pagination.totalProducts) || 0;
+        return (
+          <nav aria-label="Storefront product pages" className="mt-8 flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-xs text-slate-500">Showing {((currentPage - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(currentPage * PAGE_SIZE, totalProducts).toLocaleString()} of {totalProducts.toLocaleString()} products</p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Previous</button>
+              {pageNumbers.map((pageNumber, index) => pageNumber === "ellipsis"
+                ? <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-sm text-slate-400">…</span>
+                : <button key={pageNumber} type="button" aria-label={`Page ${pageNumber}`} aria-current={pageNumber === currentPage ? "page" : undefined} disabled={loading} onClick={() => setPage(pageNumber)} className={`min-w-10 rounded-lg border px-3 py-2 text-sm font-semibold ${pageNumber === currentPage ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>{pageNumber}</button>
+              )}
+              <button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Next</button>
+            </div>
+          </nav>
+        );
+      })()}
     </main>
   );
 };

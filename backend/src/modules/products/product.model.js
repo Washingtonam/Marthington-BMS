@@ -55,6 +55,12 @@ const productSchema = new mongoose.Schema(
       validate: Number.isSafeInteger
     },
 
+    shopPriceMode: {
+      type: String,
+      enum: ["discount", "override"],
+      default: "discount"
+    },
+
     shopImage: {
       type: String,
       default: ""

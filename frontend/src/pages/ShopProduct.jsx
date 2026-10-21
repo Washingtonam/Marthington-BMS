@@ -4,6 +4,37 @@ import { shopRequest } from "../api/shop.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
+const RecommendedProduct = ({ item, add }) => (
+  <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <Link to={`/shop/product/${item.id}`} className="group block">
+      <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50 to-slate-100">
+        {item.image
+          ? <img src={item.image} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+          : <span className="text-5xl font-black text-emerald-700">{String(item.name || "?").slice(0, 1).toUpperCase()}</span>}
+        {item.featured && <span className="absolute left-3 top-3 rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-amber-950">Featured</span>}
+      </div>
+    </Link>
+    <div className="p-4">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{item.category || "General"}</p>
+      <Link to={`/shop/product/${item.id}`} className="mt-1 block truncate font-extrabold text-slate-900 hover:text-emerald-700">{item.name}</Link>
+      <p className="mt-1 truncate text-xs text-slate-500">From {item.business.name}</p>
+      <p className={`mt-2 text-xs font-semibold ${item.available ? "text-emerald-700" : "text-amber-700"}`}>{item.available ? "In stock" : "Currently out of stock"}</p>
+      <div className="mt-3 flex items-baseline gap-2">
+        <span className="text-lg font-black text-slate-900">{formatCurrency(item.price)}</span>
+        {item.salePrice > 0 && <span className="text-xs text-slate-400 line-through">{formatCurrency(item.originalPrice)}</span>}
+      </div>
+      <button
+        type="button"
+        disabled={!item.canPurchase}
+        onClick={() => add(item)}
+        className="mt-3 w-full rounded-lg bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+      >
+        {item.available ? item.canPurchase ? "Add to cart" : "Price unavailable" : "Out of stock"}
+      </button>
+    </div>
+  </article>
+);
+
 const ShopProduct = () => {
   const { id } = useParams();
   const { add } = useShopCart();
@@ -67,34 +98,33 @@ const ShopProduct = () => {
           <p className="mt-3 text-xs leading-5 text-slate-500">Orders and payment are handled by Marthington. The supplier does not receive customer orders directly.</p>
         </div>
       </section>
-      {product.relatedFeatured?.length > 0 && (
-        <section className="mt-12" aria-label={`More featured products from ${product.business.name}`}>
+      {product.relatedProducts?.length > 0 && (
+        <section className="mt-12" aria-label={`More products from ${product.business.name}`}>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">More from this business</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-900">Featured products</h2>
-              <p className="mt-1 text-sm text-slate-500">Only featured products from {product.business.name} are shown here.</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">More from {product.business.name}</h2>
+              <p className="mt-1 text-sm text-slate-500">Explore other products listed by this business.</p>
             </div>
             <Link to="/shop" className="text-sm font-bold text-emerald-700 hover:underline">Explore all products</Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {product.relatedFeatured.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                <Link to={`/shop/product/${item.id}`} className="block">
-                  <div className="flex h-48 items-center justify-center overflow-hidden bg-slate-100">
-                    {item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <span className="text-5xl font-black text-emerald-700">{String(item.name || "?").slice(0, 1).toUpperCase()}</span>}
-                  </div>
-                  <div className="p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{item.category}</p>
-                    <h3 className="mt-1 truncate font-extrabold text-slate-900">{item.name}</h3>
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="text-lg font-black text-slate-900">{formatCurrency(item.price)}</span>
-                      {item.salePrice > 0 && <span className="text-xs text-slate-400 line-through">{formatCurrency(item.originalPrice)}</span>}
-                    </div>
-                  </div>
-                </Link>
-              </article>
-            ))}
+            {product.relatedProducts.map((item) => <RecommendedProduct key={item.id} item={item} add={add} />)}
+          </div>
+        </section>
+      )}
+      {product.discoverProducts?.length > 0 && (
+        <section className="mt-12" aria-label="Explore products from other businesses">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Discover more</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">More from across the storefront</h2>
+              <p className="mt-1 text-sm text-slate-500">A selection of products from other Marthington businesses.</p>
+            </div>
+            <Link to="/shop" className="text-sm font-bold text-emerald-700 hover:underline">Browse the storefront</Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {product.discoverProducts.map((item) => <RecommendedProduct key={item.id} item={item} add={add} />)}
           </div>
         </section>
       )}

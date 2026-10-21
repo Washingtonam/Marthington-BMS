@@ -18,11 +18,20 @@ import { validateAndNormalizeLocation } from "../../utils/locationData.js";
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeCategory = (value) => String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+const storefrontPriceMode = (product) => {
+  const configuredPrice = Number(product.shopSalePrice) || 0;
+  const price = Number(product.price) || 0;
+  if (configuredPrice > 0 && (product.shopPriceMode === "override" || configuredPrice >= price)) return "override";
+  return "discount";
+};
 const storefrontPrice = (product) => {
   const price = Number(product.price) || 0;
   const configuredPrice = Number(product.shopSalePrice) || 0;
   return configuredPrice > 0 ? configuredPrice : price;
 };
+const isStorefrontDiscount = (product) =>
+  storefrontPriceMode(product) === "discount" &&
+  storefrontPrice(product) < (Number(product.price) || 0);
 const validateCloudinaryImageUrl = (value) => {
   if (typeof value !== "string" || value.length > 2048) return { error: "Enter a valid Cloudinary image URL." };
   if (!value.trim()) return { url: "" };
@@ -186,7 +195,7 @@ export const getShopListings = async (req, res) => {
         { $sort: { shopFeatured: -1, _storefrontHasImage: -1, _storefrontRandom: 1, _id: 1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit },
-        { $project: { _id: 1, name: 1, category: 1, price: 1, stock: 1, business: 1, shopImage: 1, shopDescription: 1, shopFeatured: 1, shopSalePrice: 1 } }
+        { $project: { _id: 1, name: 1, category: 1, price: 1, stock: 1, business: 1, shopImage: 1, shopDescription: 1, shopFeatured: 1, shopSalePrice: 1, shopPriceMode: 1 } }
       ])
     ]);
 
@@ -198,7 +207,8 @@ export const getShopListings = async (req, res) => {
         category: resolveShopCategory(product.category, shopCategories),
         price: storefrontPrice(product),
         originalPrice: Number(product.price) || 0,
-        salePrice: storefrontPrice(product) < (Number(product.price) || 0) ? storefrontPrice(product) : 0,
+        salePrice: isStorefrontDiscount(product) ? storefrontPrice(product) : 0,
+        priceMode: storefrontPriceMode(product),
         available: Number(product.stock) > 0,
         canPurchase: Number(product.stock) > 0 && storefrontPrice(product) > 0,
         image: product.shopImage || "",
@@ -309,7 +319,7 @@ export const updateShopAdminSettings = async (req, res) => {
 export const getShopProduct = async (req, res) => {
   try {
     const product = await Product.findOne({ _id: req.params.id, shopVisible: { $ne: false } })
-      .select("_id name category price stock business shopImage shopDescription shopFeatured shopSalePrice")
+      .select("_id name category price stock business shopImage shopDescription shopFeatured shopSalePrice shopPriceMode")
       .populate({
         path: "business",
         match: {
@@ -323,30 +333,111 @@ export const getShopProduct = async (req, res) => {
       .lean();
     if (!product?.business) return res.status(404).json({ message: "Product not found in the shop." });
     const shopCategories = await ShopCategory.find().select("name sourceCategories").lean();
-    const relatedProducts = await Product.find({
-        business: product.business._id,
-        _id: { $ne: product._id },
-        shopVisible: { $ne: false },
-        shopFeatured: true
-      })
-        .select("_id name category price stock business shopImage shopDescription shopFeatured shopSalePrice")
-        .sort({ updatedAt: -1, _id: 1 })
-        .limit(6)
-        .lean();
-    const relatedFeatured = relatedProducts.map((related) => ({
+    const otherBusinesses = await Business.find({
+      _id: { $ne: product.business._id },
+      $and: [
+        { $or: [{ status: "active" }, { status: { $exists: false } }] },
+        { shopVisible: { $ne: false } }
+      ]
+    }).select("_id name logo").lean();
+    const [relatedProducts, otherBusinessProducts] = await Promise.all([
+      Product.aggregate([
+        {
+          $match: {
+            business: product.business._id,
+            _id: { $ne: product._id },
+            shopVisible: { $ne: false }
+          }
+        },
+        {
+          $addFields: {
+            _hasStorefrontImage: {
+              $cond: [{ $gt: [{ $strLenCP: { $ifNull: ["$shopImage", ""] } }, 0] }, 1, 0]
+            },
+            _recommendationRandom: { $rand: {} }
+          }
+        },
+        { $sort: { shopFeatured: -1, _hasStorefrontImage: -1, _recommendationRandom: 1, _id: 1 } },
+        { $limit: 8 },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            category: 1,
+            price: 1,
+            stock: 1,
+            shopImage: 1,
+            shopDescription: 1,
+            shopFeatured: 1,
+            shopSalePrice: 1,
+            shopPriceMode: 1
+          }
+        }
+      ]),
+      otherBusinesses.length
+        ? Product.aggregate([
+          {
+            $match: {
+              business: { $in: otherBusinesses.map((business) => business._id) },
+              shopVisible: { $ne: false }
+            }
+          },
+          {
+            $addFields: {
+              _hasStorefrontImage: {
+                $cond: [{ $gt: [{ $strLenCP: { $ifNull: ["$shopImage", ""] } }, 0] }, 1, 0]
+              },
+              _recommendationRandom: { $rand: {} }
+            }
+          },
+          { $sort: { shopFeatured: -1, _hasStorefrontImage: -1, _recommendationRandom: 1, _id: 1 } },
+          { $group: { _id: "$business", product: { $first: "$$ROOT" } } },
+          { $replaceRoot: { newRoot: "$product" } },
+          { $sort: { _recommendationRandom: 1, _id: 1 } },
+          { $limit: 8 },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              category: 1,
+              price: 1,
+              stock: 1,
+              business: 1,
+              shopImage: 1,
+              shopDescription: 1,
+              shopFeatured: 1,
+              shopSalePrice: 1,
+              shopPriceMode: 1
+            }
+          }
+        ])
+        : Promise.resolve([])
+    ]);
+    const serializeRecommendation = (related, business) => ({
       id: String(related._id),
       name: related.name,
       category: resolveShopCategory(related.category, shopCategories),
       price: storefrontPrice(related),
       originalPrice: Number(related.price) || 0,
-      salePrice: storefrontPrice(related) < (Number(related.price) || 0) ? storefrontPrice(related) : 0,
+      salePrice: isStorefrontDiscount(related) ? storefrontPrice(related) : 0,
+      priceMode: storefrontPriceMode(related),
       available: Number(related.stock) > 0,
       canPurchase: Number(related.stock) > 0 && storefrontPrice(related) > 0,
       image: related.shopImage || "",
       description: related.shopDescription || "",
-      featured: true,
-      business: { name: product.business.name, logo: product.business.logo || "", description: "" }
-    }));
+      featured: related.shopFeatured === true,
+      business: { name: business.name, logo: business.logo || "", description: "" }
+    });
+    const relatedProductsForBusiness = relatedProducts.map((related) =>
+      serializeRecommendation(related, product.business)
+    );
+    const businessById = new Map(otherBusinesses.map((business) => [String(business._id), business]));
+    const discoverProducts = otherBusinessProducts
+      .map((related) => {
+        const business = businessById.get(String(related.business));
+        return business ? serializeRecommendation(related, business) : null;
+      })
+      .filter(Boolean);
     return res.json({
       product: {
         id: String(product._id),
@@ -354,7 +445,8 @@ export const getShopProduct = async (req, res) => {
         category: resolveShopCategory(product.category, shopCategories),
         price: storefrontPrice(product),
         originalPrice: Number(product.price) || 0,
-        salePrice: storefrontPrice(product) < (Number(product.price) || 0) ? storefrontPrice(product) : 0,
+        salePrice: isStorefrontDiscount(product) ? storefrontPrice(product) : 0,
+        priceMode: storefrontPriceMode(product),
         available: Number(product.stock) > 0,
         canPurchase: Number(product.stock) > 0 && storefrontPrice(product) > 0,
         image: product.shopImage || "",
@@ -365,7 +457,8 @@ export const getShopProduct = async (req, res) => {
           logo: product.business.logo || "",
           description: ""
         },
-        relatedFeatured
+        relatedProducts: relatedProductsForBusiness,
+        discoverProducts
       }
     });
   } catch (error) {
@@ -940,11 +1033,13 @@ export const getShopAdminProducts = async (req, res) => {
         { shopImage: { $exists: false } },
         { shopImage: null }
       ];
+    } else if (req.query.imageStatus === "present") {
+      filter.shopImage = { $nin: ["", null], $exists: true };
     }
     const [total, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
-        .select("_id name category price stock business shopVisible shopImage shopFeatured shopSalePrice")
+        .select("_id name category price stock business shopVisible shopImage shopFeatured shopSalePrice shopPriceMode")
         .populate("business", "name status phone supportPhone")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
@@ -976,10 +1071,18 @@ export const getOwnerStorefrontProducts = async (req, res) => {
         { sku: expression }
       ];
     }
+    if (req.query.imageStatus === "missing") {
+      filter.$and = [
+        ...(filter.$and || []),
+        { $or: [{ shopImage: "" }, { shopImage: { $exists: false } }, { shopImage: null }] }
+      ];
+    } else if (req.query.imageStatus === "present") {
+      filter.shopImage = { $nin: ["", null], $exists: true };
+    }
     const [totalProducts, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
-        .select("_id name category price stock sku shopImage shopDescription")
+        .select("_id name category price stock sku shopImage shopDescription shopSalePrice shopPriceMode")
         .sort({ name: 1, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)
@@ -1005,9 +1108,23 @@ export const updateOwnerStorefrontProduct = async (req, res) => {
     if (req.body.shopDescription?.length > 1000) {
       return res.status(400).json({ message: "Product description must be 1,000 characters or fewer." });
     }
-    if (req.body.shopFeatured !== undefined || req.body.shopSalePrice !== undefined ||
+    if (req.body.shopFeatured !== undefined ||
       req.body.shopDiscountPercent !== undefined || req.body.shopVisible !== undefined) {
-      return res.status(403).json({ message: "Only Marthington Super Admin can feature, price, or control storefront listings." });
+      return res.status(403).json({ message: "Only Marthington Super Admin can feature or control storefront listings." });
+    }
+    const hasStorefrontPrice = req.body.shopSalePrice !== undefined;
+    const shopPriceMode = req.body.shopPriceMode === undefined
+      ? undefined
+      : String(req.body.shopPriceMode);
+    if (shopPriceMode !== undefined && !["discount", "override"].includes(shopPriceMode)) {
+      return res.status(400).json({ message: "Choose discount or replace price for the storefront price mode." });
+    }
+    let shopSalePrice;
+    if (hasStorefrontPrice) {
+      shopSalePrice = Number(req.body.shopSalePrice);
+      if (!Number.isSafeInteger(shopSalePrice) || shopSalePrice < 0) {
+        return res.status(400).json({ message: "Storefront price must be a non-negative whole amount in naira." });
+      }
     }
     let shopImageUrl;
     if (req.body.shopImageUrl !== undefined) {
@@ -1023,8 +1140,13 @@ export const updateOwnerStorefrontProduct = async (req, res) => {
     }
     const product = await Product.findOne({ _id: req.params.id, business: req.user.businessId });
     if (!product) return res.status(404).json({ message: "Product not found in your business catalogue." });
-    if (!req.file && shopImageUrl === undefined && req.body.shopDescription === undefined) {
+    if (!req.file && shopImageUrl === undefined && req.body.shopDescription === undefined &&
+      !hasStorefrontPrice && shopPriceMode === undefined) {
       return res.status(400).json({ message: "Change a storefront field before saving." });
+    }
+    const selectedPriceMode = shopPriceMode || storefrontPriceMode(product);
+    if (hasStorefrontPrice && shopSalePrice > 0 && selectedPriceMode === "discount" && shopSalePrice >= Number(product.price)) {
+      return res.status(400).json({ message: "A discount price must be lower than the BMS selling price. Choose replace price to use another price." });
     }
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
@@ -1035,6 +1157,8 @@ export const updateOwnerStorefrontProduct = async (req, res) => {
     if (req.body.shopDescription !== undefined) {
       product.shopDescription = req.body.shopDescription.trim();
     }
+    if (hasStorefrontPrice) product.shopSalePrice = shopSalePrice;
+    if (shopPriceMode !== undefined) product.shopPriceMode = shopPriceMode;
     await product.save();
     return res.json({
       product: {
@@ -1042,6 +1166,8 @@ export const updateOwnerStorefrontProduct = async (req, res) => {
         name: product.name,
         category: product.category,
         price: product.price,
+        shopSalePrice: product.shopSalePrice,
+        shopPriceMode: storefrontPriceMode(product),
         stock: product.stock,
         shopImage: product.shopImage,
         shopDescription: product.shopDescription
@@ -1060,6 +1186,12 @@ export const updateShopAdminProduct = async (req, res) => {
     }
     if (req.body.shopFeatured !== undefined && ![true, false, "true", "false"].includes(req.body.shopFeatured)) {
       return res.status(400).json({ message: "Featured status must be true or false." });
+    }
+    const shopPriceMode = req.body.shopPriceMode === undefined
+      ? undefined
+      : String(req.body.shopPriceMode);
+    if (shopPriceMode !== undefined && !["discount", "override"].includes(shopPriceMode)) {
+      return res.status(400).json({ message: "Choose discount or replace price for the storefront price mode." });
     }
     let shopImageUrl;
     if (req.body.shopImageUrl !== undefined) {
@@ -1082,6 +1214,10 @@ export const updateShopAdminProduct = async (req, res) => {
     }
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: "Product not found." });
+    const selectedPriceMode = shopPriceMode || storefrontPriceMode(product);
+    if (shopSalePrice > 0 && selectedPriceMode === "discount" && shopSalePrice >= Number(product.price)) {
+      return res.status(400).json({ message: "A discount price must be lower than the product's regular selling price." });
+    }
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
       const result = await cloudinary.uploader.upload(base64, { folder: "marthington_shop_products", resource_type: "image" });
@@ -1095,6 +1231,7 @@ export const updateShopAdminProduct = async (req, res) => {
       product.shopFeatured = req.body.shopFeatured === true || req.body.shopFeatured === "true";
     }
     if (shopSalePrice !== undefined) product.shopSalePrice = shopSalePrice;
+    if (shopPriceMode !== undefined) product.shopPriceMode = shopPriceMode;
     await product.save();
     return res.json({ product });
   } catch (error) {
