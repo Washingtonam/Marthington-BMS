@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { shopRequest } from "../api/shop.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
 const Shop = () => {
   const { add } = useShopCart();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(searchParams.get("category") || "");
   const [page, setPage] = useState(1);
   const [retryCount, setRetryCount] = useState(0);
   const [catalog, setCatalog] = useState({ products: [], categories: [], pagination: {} });
@@ -18,6 +19,12 @@ const Shop = () => {
     [catalog.products]
   );
   const [slideIndex, setSlideIndex] = useState(0);
+
+  useEffect(() => {
+    const nextCategory = searchParams.get("category") || "";
+    setCategory(nextCategory);
+    setPage(1);
+  }, [searchParams]);
 
   useEffect(() => {
     if (slideshowProducts.length < 2) return undefined;
@@ -75,7 +82,14 @@ const Shop = () => {
             />
             <select
               value={category}
-              onChange={(event) => { setPage(1); setCategory(event.target.value); }}
+              onChange={(event) => {
+                setPage(1);
+                setCategory(event.target.value);
+                const nextParams = new URLSearchParams(searchParams);
+                if (event.target.value) nextParams.set("category", event.target.value);
+                else nextParams.delete("category");
+                setSearchParams(nextParams, { replace: true });
+              }}
               aria-label="Filter by category"
               className="rounded-xl border border-white/15 bg-white px-4 py-3 text-sm text-slate-900 outline-none ring-emerald-400 focus:ring-2"
             >

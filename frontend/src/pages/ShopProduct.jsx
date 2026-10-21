@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useOutletContext, useParams } from "react-router-dom";
 import { shopRequest } from "../api/shop.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
@@ -7,6 +7,9 @@ import { formatCurrency } from "../utils/formatters.js";
 const ShopProduct = () => {
   const { id } = useParams();
   const { add } = useShopCart();
+  const outletContext = useOutletContext() || {};
+  const settings = outletContext.settings || {};
+  const customer = outletContext.customer;
   const [product, setProduct] = useState(null);
   const [error, setError] = useState("");
 
@@ -20,6 +23,18 @@ const ShopProduct = () => {
 
   if (error) return <main role="alert" className="mx-auto max-w-5xl px-5 py-16 text-center text-rose-700">{error}<div><Link to="/shop" className="mt-4 inline-block font-semibold underline">Back to storefront</Link></div></main>;
   if (!product) return <main className="mx-auto max-w-5xl px-5 py-16 text-center text-slate-500">Loading product...</main>;
+
+  const whatsappPhone = String(settings.whatsappNumber || "").replace(/\D/g, "").replace(/^0(?=\d{10}$)/, "234");
+  const whatsappText = [
+    `Hello Marthington, I’m interested in ${product.name}.`,
+    `Price: ${formatCurrency(product.price)}.`,
+    customer?.name ? `My name is ${customer.name}.` : "",
+    customer?.phone ? `You can reach me on ${customer.phone}.` : "",
+    "Please share more details and help me place an order."
+  ].filter(Boolean).join(" ");
+  const whatsappLink = whatsappPhone
+    ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(whatsappText)}`
+    : "";
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
@@ -38,10 +53,51 @@ const ShopProduct = () => {
             <p className="text-3xl font-black">{formatCurrency(product.price)}</p>
             {product.salePrice > 0 && <><span className="text-sm font-black text-rose-600">Save {formatCurrency(product.originalPrice - product.price)}</span><p className="text-lg font-semibold text-slate-400 line-through">{formatCurrency(product.originalPrice)}</p></>}
           </div>
-          <button type="button" disabled={!product.canPurchase} onClick={() => add(product)} className="mt-6 rounded-xl bg-emerald-600 px-5 py-4 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">{!product.available ? "Out of stock" : product.canPurchase ? "Add to cart" : "Price unavailable"}</button>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button type="button" disabled={!product.canPurchase} onClick={() => add(product)} className="rounded-xl bg-emerald-600 px-5 py-4 font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">{!product.available ? "Out of stock" : product.canPurchase ? "Add to cart" : "Price unavailable"}</button>
+            {whatsappLink ? (
+              <a href={whatsappLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-bold text-emerald-900 transition hover:bg-emerald-100">
+                <span aria-hidden="true">◉</span> Ask about this on WhatsApp
+              </a>
+            ) : (
+              <button type="button" disabled title="WhatsApp contact has not been configured yet" className="rounded-xl border border-slate-200 bg-slate-100 px-5 py-4 font-bold text-slate-400">WhatsApp unavailable</button>
+            )}
+          </div>
+          {!whatsappPhone && <p className="mt-2 text-xs text-slate-500">WhatsApp inquiries are not available right now.</p>}
           <p className="mt-3 text-xs leading-5 text-slate-500">Orders and payment are handled by Marthington. The supplier does not receive customer orders directly.</p>
         </div>
       </section>
+      {product.relatedFeatured?.length > 0 && (
+        <section className="mt-12" aria-label={`More featured products from ${product.business.name}`}>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">More from this business</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-900">Featured products</h2>
+              <p className="mt-1 text-sm text-slate-500">Only featured products from {product.business.name} are shown here.</p>
+            </div>
+            <Link to="/shop" className="text-sm font-bold text-emerald-700 hover:underline">Explore all products</Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {product.relatedFeatured.map((item) => (
+              <article key={item.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Link to={`/shop/product/${item.id}`} className="block">
+                  <div className="flex h-48 items-center justify-center overflow-hidden bg-slate-100">
+                    {item.image ? <img src={item.image} alt={item.name} className="h-full w-full object-cover" /> : <span className="text-5xl font-black text-emerald-700">{String(item.name || "?").slice(0, 1).toUpperCase()}</span>}
+                  </div>
+                  <div className="p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{item.category}</p>
+                    <h3 className="mt-1 truncate font-extrabold text-slate-900">{item.name}</h3>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-900">{formatCurrency(item.price)}</span>
+                      {item.salePrice > 0 && <span className="text-xs text-slate-400 line-through">{formatCurrency(item.originalPrice)}</span>}
+                    </div>
+                  </div>
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 };

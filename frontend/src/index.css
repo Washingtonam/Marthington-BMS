@@ -42,6 +42,52 @@ body {
   transition: background 0.2s ease, color 0.2s ease;
 }
 
+.storefront-shell[data-storefront-theme="dark"] .bg-white,
+.storefront-shell[data-storefront-theme="dark"] .bg-white\/95,
+.storefront-shell[data-storefront-theme="dark"] .bg-slate-50,
+.storefront-shell[data-storefront-theme="dark"] .bg-slate-100 {
+  background-color: #111827 !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] .bg-slate-200 {
+  background-color: #1e293b !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] .text-slate-950,
+.storefront-shell[data-storefront-theme="dark"] .text-slate-900,
+.storefront-shell[data-storefront-theme="dark"] .text-slate-800 {
+  color: #f8fafc !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] .text-slate-700,
+.storefront-shell[data-storefront-theme="dark"] .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] .text-slate-500,
+.storefront-shell[data-storefront-theme="dark"] .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] .border-slate-100,
+.storefront-shell[data-storefront-theme="dark"] .border-slate-200,
+.storefront-shell[data-storefront-theme="dark"] .border-slate-300 {
+  border-color: #334155 !important;
+}
+
+.storefront-shell[data-storefront-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+.storefront-shell[data-storefront-theme="dark"] select,
+.storefront-shell[data-storefront-theme="dark"] textarea {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+.storefront-shell[data-storefront-theme="dark"] input::placeholder,
+.storefront-shell[data-storefront-theme="dark"] textarea::placeholder {
+  color: #94a3b8;
+}
+
 html.dark body {
   background: #020617;
   color: #f8fafc;

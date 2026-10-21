@@ -4,3 +4,4 @@ dist-electron
 .env
 .env.local
 .env.production
+.env.*.local

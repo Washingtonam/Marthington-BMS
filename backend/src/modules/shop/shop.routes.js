@@ -19,7 +19,12 @@ import {
   getShopAdminProducts,
   refreshShopAdminRefund,
   getShopCustomer,
+  updateShopCustomer,
   getShopListings,
+  getShopCategories,
+  getShopSettings,
+  getShopAdminSettings,
+  updateShopAdminSettings,
   getShopProduct,
   initializeDeliveryFeePayment,
   loginShopCustomer,
@@ -53,6 +58,8 @@ const upload = multer({
 });
 
 router.get("/", getShopListings);
+router.get("/categories", getShopCategories);
+router.get("/settings", getShopSettings);
 router.get("/products/:id", getShopProduct);
 router.get("/storefront/products", protect, authorize("owner"), getOwnerStorefrontProducts);
 router.patch("/storefront/products/:id", protect, authorize("owner"), upload.single("image"), updateOwnerStorefrontProduct);
@@ -61,6 +68,7 @@ router.post("/customers/register", registerShopCustomer);
 router.post("/customers/login", loginShopCustomer);
 router.post("/customers/link", protect, linkShopCustomer);
 router.get("/customers/me", protectShopCustomer, getShopCustomer);
+router.patch("/customers/me", protectShopCustomer, upload.single("profilePicture"), updateShopCustomer);
 router.post("/customers/addresses", protectShopCustomer, addShopCustomerAddress);
 router.patch("/customers/addresses/:addressId", protectShopCustomer, updateShopCustomerAddress);
 router.delete("/customers/addresses/:addressId", protectShopCustomer, deleteShopCustomerAddress);
@@ -72,6 +80,8 @@ router.post("/orders/verify-delivery-payment", protectShopCustomer, verifyDelive
 router.post("/orders/:id/delivery-fee/initialize", protectShopCustomer, initializeDeliveryFeePayment);
 
 router.get("/admin/products", protect, authorize("super_admin"), getShopAdminProducts);
+router.get("/admin/settings", protect, authorize("super_admin"), getShopAdminSettings);
+router.patch("/admin/settings", protect, authorize("super_admin"), updateShopAdminSettings);
 router.patch("/admin/products/:id", protect, authorize("super_admin"), upload.single("image"), updateShopAdminProduct);
 router.get("/admin/categories", protect, authorize("super_admin"), getShopAdminCategories);
 router.post("/admin/categories", protect, authorize("super_admin"), createShopAdminCategory);

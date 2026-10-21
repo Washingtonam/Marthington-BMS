@@ -7,7 +7,12 @@ import {
   queueOperation
 } from "./offlineDb.js";
 
-export const API_URL = "https://marthington.onrender.com/api";
+import { requestAffiliateDemo } from "./affiliateDemo.js";
+
+export const AFFILIATE_DEMO_MODE = import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true";
+export const API_URL = AFFILIATE_DEMO_MODE
+  ? "http://127.0.0.1:5000/api"
+  : import.meta.env.VITE_API_URL || "https://marthington.onrender.com/api";
 
 const isSuperAdminBusinessMode = () => {
   if (typeof window === "undefined" || !window.location.hash.startsWith("#/app")) return false;
@@ -75,6 +80,10 @@ const getSnapshotFallback = async (path) => {
 };
 
 const request = async (path, options = {}) => {
+  if (AFFILIATE_DEMO_MODE) {
+    return requestAffiliateDemo(path, options);
+  }
+
   const token = localStorage.getItem("bms_token");
   const impersonation = localStorage.getItem("bms_impersonation");
   const businessWorkspaceMode = isSuperAdminBusinessMode();

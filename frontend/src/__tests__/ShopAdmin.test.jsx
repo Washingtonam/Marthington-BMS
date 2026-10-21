@@ -53,6 +53,15 @@ describe("Shop administration", () => {
           }]
         };
       }
+      if (path === "/admin/settings") {
+        return {
+          settings: {
+            whatsappNumber: "2348012345678",
+            accentColor: "#10b981",
+            theme: "light"
+          }
+        };
+      }
       if (path === "/admin/products?limit=100&search=&page=1") {
         return {
           products: [{
@@ -102,6 +111,23 @@ describe("Shop administration", () => {
       expect(shopRequest).toHaveBeenCalledWith("/admin/businesses/business-1", expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ shopVisible: false })
+      }));
+    });
+  });
+
+  it("saves the shared storefront theme, accent color, and shopper WhatsApp number", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Appearance & contact" }));
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "Marthington WhatsApp number" }), { target: { value: "+234 809 999 0000" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Color mode" }), { target: { value: "dark" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Storefront accent hex value" }), { target: { value: "#2563eb" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save storefront settings" }));
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith("/admin/settings", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ whatsappNumber: "+234 809 999 0000", accentColor: "#2563eb", theme: "dark" })
       }));
     });
   });

@@ -18,6 +18,12 @@ GET /api/shop?page=1&limit=24&search=notebook&category=Stationery
 
 This public endpoint automatically lists products from every active BMS business unless a Marthington super admin has hidden the business or an individual product. New BMS businesses and products appear automatically by default. Featured products and products with images are prioritized, while the remaining catalogue is randomized on refresh. Results include product names, storefront-normalized categories, regular and sale prices, stock availability, images, and the source business name. Cost prices, exact stock quantities, and supplier contact information are never returned.
 
+| Method | Endpoint | Authorization | Description |
+|--------|----------|---------------|-------------|
+| `GET` | `/api/shop/categories` | Public | Return the available normalized storefront categories |
+| `GET` | `/api/shop/settings` | Public | Return public storefront appearance settings and Marthington's shopper WhatsApp contact |
+| `GET` | `/api/shop/products/:id` | Public | Read a product and up to six featured products from that same business |
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `page` | number | 1 | Results page |
@@ -36,6 +42,7 @@ Shopper registration collects a WhatsApp contact number and an initial delivery 
 | `POST` | `/api/shop/customers/register` | Public | Create a separate shopper account |
 | `POST` | `/api/shop/customers/login` | Public | Sign in to the shop |
 | `GET` | `/api/shop/customers/me` | Shop customer token | Read account and saved addresses |
+| `PATCH` | `/api/shop/customers/me` | Shop customer token | Update name, email, phone, Cloudinary profile picture, or password (password change requires the current password); profile image uploads use multipart field `profilePicture` |
 | `POST` | `/api/shop/customers/addresses` | Shop customer token | Save a delivery address |
 | `PATCH` | `/api/shop/customers/addresses/:addressId` | Shop customer token | Edit a saved delivery address |
 | `DELETE` | `/api/shop/customers/addresses/:addressId` | Shop customer token | Remove a saved delivery address |
@@ -61,6 +68,8 @@ Paid orders cannot be marked cancelled through the shop admin API; refund proces
 | Method | Endpoint | Authorization | Description |
 |--------|----------|---------------|-------------|
 | `GET` | `/api/shop/admin/products` | BMS super-admin token | Search all BMS products |
+| `GET` | `/api/shop/admin/settings` | BMS super-admin token | Read storefront WhatsApp contact, accent color, and color mode |
+| `PATCH` | `/api/shop/admin/settings` | BMS super-admin token | Update the shared storefront presentation (`whatsappNumber`, `accentColor`, and `theme` set to `light` or `dark`) |
 | `PATCH` | `/api/shop/admin/products/:id` | BMS super-admin token | Upload an image to Cloudinary, set a Cloudinary image URL, feature/hide a listing, or set a fixed whole-naira sale price |
 | `GET` | `/api/shop/admin/categories` | BMS super-admin token | List shop categories and distinct BMS categories with product counts |
 | `POST` | `/api/shop/admin/categories` | BMS super-admin token | Create a canonical shop category (`{ "name": "Perfumes" }`) |

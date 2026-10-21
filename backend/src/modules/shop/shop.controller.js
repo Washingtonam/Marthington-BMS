@@ -4,6 +4,7 @@ import ShopCustomer from "./shopCustomer.model.js";
 import ShopOrder from "./shopOrder.model.js";
 import ShopCategory from "./shopCategory.model.js";
 import ShopDeliveryArea from "./shopDeliveryArea.model.js";
+import ShopSettings from "./shopSettings.model.js";
 import Notification from "../notifications/notification.model.js";
 import User from "../users/user.model.js";
 import bcrypt from "bcryptjs";
@@ -48,8 +49,18 @@ const publicCustomer = (customer) => ({
   name: customer.name,
   email: customer.email,
   phone: customer.phone || "",
+  avatar: customer.avatar || "",
   addresses: customer.addresses || []
 });
+
+const getStorefrontSettings = async () => {
+  const settings = await ShopSettings.findOne({ key: "storefront" }).lean();
+  return {
+    whatsappNumber: settings?.whatsappNumber || "",
+    accentColor: settings?.accentColor || "#10b981",
+    theme: settings?.theme || "light"
+  };
+};
 
 const customerToken = (customer) => jwt.sign(
   { id: customer._id.toString(), type: "shop_customer" },
@@ -217,6 +228,84 @@ export const getShopListings = async (req, res) => {
   }
 };
 
+export const getShopCategories = async (req, res) => {
+  try {
+    const businesses = await Business.find({
+      $and: [
+        { $or: [{ status: "active" }, { status: { $exists: false } }] },
+        { shopVisible: { $ne: false } }
+      ]
+    }).select("_id").lean();
+    if (!businesses.length) return res.json({ categories: [] });
+    const [shopCategories, sourceCategories] = await Promise.all([
+      ShopCategory.find().select("name sourceCategories").lean(),
+      Product.distinct("category", {
+        business: { $in: businesses.map((business) => business._id) },
+        shopVisible: { $ne: false }
+      })
+    ]);
+    return res.json({
+      categories: [...new Set(sourceCategories.map((source) => resolveShopCategory(source, shopCategories)))]
+        .sort((a, b) => a.localeCompare(b))
+    });
+  } catch (error) {
+    console.error("GET SHOP CATEGORIES ERROR:", error);
+    return res.status(500).json({ message: "Could not load storefront categories." });
+  }
+};
+
+export const getShopSettings = async (req, res) => {
+  try {
+    return res.json({ settings: await getStorefrontSettings() });
+  } catch (error) {
+    console.error("GET SHOP SETTINGS ERROR:", error);
+    return res.status(500).json({ message: "Could not load storefront settings." });
+  }
+};
+
+export const getShopAdminSettings = async (req, res) => {
+  try {
+    const settings = await getStorefrontSettings();
+    return res.json({ settings });
+  } catch (error) {
+    console.error("GET SHOP ADMIN SETTINGS ERROR:", error);
+    return res.status(500).json({ message: "Could not load storefront settings." });
+  }
+};
+
+export const updateShopAdminSettings = async (req, res) => {
+  const whatsappNumber = String(req.body.whatsappNumber || "").trim();
+  const accentColor = String(req.body.accentColor || "").trim();
+  const theme = String(req.body.theme || "").trim();
+  const normalizedPhone = whatsappNumber.replace(/[^\d]/g, "");
+  if (whatsappNumber && (normalizedPhone.length < 8 || normalizedPhone.length > 15)) {
+    return res.status(400).json({ message: "Enter a valid WhatsApp number with 8 to 15 digits." });
+  }
+  if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) {
+    return res.status(400).json({ message: "Choose a valid six-digit storefront accent color." });
+  }
+  if (!["light", "dark"].includes(theme)) {
+    return res.status(400).json({ message: "Choose a light or dark storefront theme." });
+  }
+  try {
+    const settings = await ShopSettings.findOneAndUpdate(
+      { key: "storefront" },
+      { $set: { whatsappNumber: normalizedPhone, accentColor, theme } },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    ).lean();
+    return res.json({
+      settings: {
+        whatsappNumber: settings.whatsappNumber || "",
+        accentColor: settings.accentColor,
+        theme: settings.theme
+      }
+    });
+  } catch (error) {
+    console.error("SHOP ADMIN SETTINGS UPDATE ERROR:", error);
+    return res.status(500).json({ message: "Could not save storefront settings." });
+  }
+};
+
 export const getShopProduct = async (req, res) => {
   try {
     const product = await Product.findOne({ _id: req.params.id, shopVisible: { $ne: false } })
@@ -234,6 +323,30 @@ export const getShopProduct = async (req, res) => {
       .lean();
     if (!product?.business) return res.status(404).json({ message: "Product not found in the shop." });
     const shopCategories = await ShopCategory.find().select("name sourceCategories").lean();
+    const relatedProducts = await Product.find({
+        business: product.business._id,
+        _id: { $ne: product._id },
+        shopVisible: { $ne: false },
+        shopFeatured: true
+      })
+        .select("_id name category price stock business shopImage shopDescription shopFeatured shopSalePrice")
+        .sort({ updatedAt: -1, _id: 1 })
+        .limit(6)
+        .lean();
+    const relatedFeatured = relatedProducts.map((related) => ({
+      id: String(related._id),
+      name: related.name,
+      category: resolveShopCategory(related.category, shopCategories),
+      price: storefrontPrice(related),
+      originalPrice: Number(related.price) || 0,
+      salePrice: storefrontPrice(related) < (Number(related.price) || 0) ? storefrontPrice(related) : 0,
+      available: Number(related.stock) > 0,
+      canPurchase: Number(related.stock) > 0 && storefrontPrice(related) > 0,
+      image: related.shopImage || "",
+      description: related.shopDescription || "",
+      featured: true,
+      business: { name: product.business.name, logo: product.business.logo || "", description: "" }
+    }));
     return res.json({
       product: {
         id: String(product._id),
@@ -251,7 +364,8 @@ export const getShopProduct = async (req, res) => {
           name: product.business.name,
           logo: product.business.logo || "",
           description: ""
-        }
+        },
+        relatedFeatured
       }
     });
   } catch (error) {
@@ -367,6 +481,63 @@ export const linkShopCustomer = async (req, res) => {
 };
 
 export const getShopCustomer = (req, res) => res.json({ customer: publicCustomer(req.shopCustomer) });
+
+export const updateShopCustomer = async (req, res) => {
+  const customer = req.shopCustomer;
+  const name = req.body.name === undefined ? customer.name : String(req.body.name).trim();
+  const email = req.body.email === undefined ? customer.email : String(req.body.email).trim().toLowerCase();
+  const phone = req.body.phone === undefined ? customer.phone : String(req.body.phone).trim();
+  const currentPassword = String(req.body.currentPassword || "");
+  const newPassword = String(req.body.newPassword || "");
+  if (!name || name.length > 120 || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return res.status(400).json({ message: "Enter a valid name and email address." });
+  }
+  if (phone.length > 40) return res.status(400).json({ message: "Phone number must be 40 characters or fewer." });
+  if (newPassword && newPassword.length < 8) {
+    return res.status(400).json({ message: "New password must be at least 8 characters." });
+  }
+  let avatarUrl;
+  if (req.body.avatarUrl !== undefined) {
+    const rawUrl = String(req.body.avatarUrl || "").trim();
+    if (rawUrl) {
+      try {
+        const parsedUrl = new URL(rawUrl);
+        if (parsedUrl.protocol !== "https:" || parsedUrl.hostname !== "res.cloudinary.com") {
+          return res.status(400).json({ message: "Profile image URLs must use the secure Cloudinary delivery domain." });
+        }
+        avatarUrl = parsedUrl.toString();
+      } catch {
+        return res.status(400).json({ message: "Enter a valid Cloudinary profile image URL." });
+      }
+    } else {
+      avatarUrl = "";
+    }
+  }
+  try {
+    if (newPassword) {
+      const passwordRecord = await ShopCustomer.findById(customer._id).select("+password");
+      if (!passwordRecord || !await bcrypt.compare(currentPassword, passwordRecord.password)) {
+        return res.status(401).json({ message: "Current password is incorrect." });
+      }
+    }
+    if (req.file) {
+      const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+      const result = await cloudinary.uploader.upload(base64, { folder: "marthington_shop_customers", resource_type: "image" });
+      avatarUrl = result.secure_url;
+    }
+    customer.name = name;
+    customer.email = email;
+    customer.phone = phone;
+    if (avatarUrl !== undefined) customer.avatar = avatarUrl;
+    if (newPassword) customer.password = await bcrypt.hash(newPassword, 12);
+    await customer.save();
+    return res.json({ customer: publicCustomer(customer) });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ message: "An account with this email already exists." });
+    console.error("SHOP CUSTOMER PROFILE UPDATE ERROR:", error);
+    return res.status(500).json({ message: "Could not update shopper profile." });
+  }
+};
 
 export const addShopCustomerAddress = async (req, res) => {
   const addressError = validateAddress(req.body);

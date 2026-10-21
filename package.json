@@ -12,6 +12,8 @@
 
     "electron": "electron .",
 
+    "demo": "npm --prefix frontend run dev -- --mode demo --host 127.0.0.1",
+
     "dev": "concurrently \"npm run client\" \"wait-on http://localhost:5173 && npm run electron\"",
 
     "dist": "npm run build-client && electron-builder"

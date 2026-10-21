@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useOutletContext } from "react-router-dom";
 import { shopRequest } from "../api/shop.js";
 import { formatCurrency } from "../utils/formatters.js";
 
 const orderStatuses = ["received", "sourcing", "preparing_delivery", "out_for_delivery", "delivered", "cancelled"];
 
 const ShopAdmin = () => {
+  const outletContext = useOutletContext() || {};
   const [tab, setTab] = useState("orders");
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
@@ -16,6 +17,7 @@ const ShopAdmin = () => {
   const [categoryNames, setCategoryNames] = useState({});
   const [businesses, setBusinesses] = useState([]);
   const [deliveryAreas, setDeliveryAreas] = useState([]);
+  const [storefrontSettings, setStorefrontSettings] = useState({ whatsappNumber: "", accentColor: "#10b981", theme: "light" });
   const [deliveryAreaDrafts, setDeliveryAreaDrafts] = useState({});
   const [newDeliveryArea, setNewDeliveryArea] = useState({ state: "", city: "", fee: "" });
   const [refundSources, setRefundSources] = useState({});
@@ -69,6 +71,11 @@ const ShopAdmin = () => {
     }])));
   }, []);
 
+  const loadStorefrontSettings = useCallback(async () => {
+    const data = await shopRequest("/admin/settings", { token: localStorage.getItem("bms_token") });
+    setStorefrontSettings({ whatsappNumber: "", accentColor: "#10b981", theme: "light", ...(data.settings || {}) });
+  }, []);
+
   useEffect(() => {
     setError("");
     const loaders = {
@@ -76,11 +83,12 @@ const ShopAdmin = () => {
       products: loadProducts,
       categories: loadCategories,
       businesses: loadBusinesses,
-      delivery: loadDeliveryAreas
+      delivery: loadDeliveryAreas,
+      settings: loadStorefrontSettings
     };
     const loader = loaders[tab];
     loader().catch((requestError) => setError(requestError.message || "Could not load storefront admin data."));
-  }, [tab, loadOrders, loadProducts, loadCategories, loadBusinesses, loadDeliveryAreas]);
+  }, [tab, loadOrders, loadProducts, loadCategories, loadBusinesses, loadDeliveryAreas, loadStorefrontSettings]);
 
   useEffect(() => {
     if (tab !== "orders") return undefined;
@@ -361,6 +369,27 @@ const ShopAdmin = () => {
     }
   };
 
+  const saveStorefrontSettings = async (event) => {
+    event.preventDefault();
+    setBusy("storefront-settings");
+    setError("");
+    setMessage("");
+    try {
+      const result = await shopRequest("/admin/settings", {
+        method: "PATCH",
+        token: localStorage.getItem("bms_token"),
+        body: JSON.stringify(storefrontSettings)
+      });
+      setStorefrontSettings(result.settings);
+      outletContext.updateStorefrontSettings?.(result.settings);
+      setMessage("Storefront appearance and WhatsApp contact settings saved.");
+    } catch (requestError) {
+      setError(requestError.message || "Could not save storefront settings.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const findDeliverySuggestion = (address) => deliveryAreas.find((area) =>
     area.isActive &&
     area.state.toLocaleLowerCase().trim().replace(/\s+/g, " ") === String(address.state || "").toLocaleLowerCase().trim().replace(/\s+/g, " ") &&
@@ -388,7 +417,7 @@ const ShopAdmin = () => {
         <Link to="/shop" className="text-sm font-semibold text-emerald-700">View storefront</Link>
       </div>
       <div className="mt-7 flex gap-2 border-b border-slate-200">
-        {[["orders", "Orders"], ["products", "Products & images"], ["categories", "Categories"], ["businesses", "Businesses"], ["delivery", "Delivery areas"]].map(([value, label]) => (
+        {[["orders", "Orders"], ["products", "Products & images"], ["categories", "Categories"], ["businesses", "Businesses"], ["delivery", "Delivery areas"], ["settings", "Appearance & contact"]].map(([value, label]) => (
           <button key={value} type="button" onClick={() => setTab(value)} className={`border-b-2 px-4 py-3 text-sm font-bold ${tab === value ? "border-emerald-600 text-emerald-700" : "border-transparent text-slate-500"}`}>{label}</button>
         ))}
       </div>
@@ -652,7 +681,7 @@ const ShopAdmin = () => {
           </table>
           {businesses.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No businesses found.</p>}
         </section>
-      ) : (
+      ) : tab === "delivery" ? (
         <section className="mt-5 space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-black">Delivery areas and fee presets</h2>
@@ -687,6 +716,47 @@ const ShopAdmin = () => {
             {deliveryAreas.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No delivery fee presets yet.</p>}
           </div>
         </section>
+      ) : (
+        <form onSubmit={saveStorefrontSettings} className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-emerald-700">Storefront experience</p>
+            <h2 className="mt-2 text-xl font-black text-slate-900">Branding and customer contact</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">These settings are shared with storefront visitors. The WhatsApp number receives product questions and purchase inquiries.</p>
+            <div className="mt-5 space-y-5">
+              <label className="grid gap-1.5 text-xs font-bold text-slate-600">Marthington WhatsApp number
+                <input aria-label="Marthington WhatsApp number" type="tel" inputMode="tel" value={storefrontSettings.whatsappNumber} onChange={(event) => setStorefrontSettings((current) => ({ ...current, whatsappNumber: event.target.value }))} placeholder="e.g. +234 801 234 5678" className="rounded-xl border border-slate-200 px-3 py-3 text-sm font-medium text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100" />
+                <span className="font-normal text-slate-400">Use the number that should receive shopper inquiries. Enter country code where possible.</span>
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-bold text-slate-600">Accent color
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 p-2">
+                    <input type="color" aria-label="Storefront accent color" value={storefrontSettings.accentColor} onChange={(event) => setStorefrontSettings((current) => ({ ...current, accentColor: event.target.value }))} className="h-10 w-12 cursor-pointer rounded-lg border-0 bg-transparent" />
+                    <input aria-label="Storefront accent hex value" value={storefrontSettings.accentColor} onChange={(event) => setStorefrontSettings((current) => ({ ...current, accentColor: event.target.value }))} pattern="^#[0-9A-Fa-f]{6}$" className="min-w-0 flex-1 border-0 bg-transparent text-sm font-semibold uppercase text-slate-800 outline-none" />
+                  </div>
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-slate-600">Color mode
+                  <select value={storefrontSettings.theme} onChange={(event) => setStorefrontSettings((current) => ({ ...current, theme: event.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-400">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end border-t border-slate-100 pt-5">
+              <button type="submit" disabled={busy === "storefront-settings"} className="rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:opacity-50">{busy === "storefront-settings" ? "Saving..." : "Save storefront settings"}</button>
+            </div>
+          </section>
+          <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-slate-400">Preview</p>
+            <h3 className="mt-2 text-base font-extrabold text-slate-900">Shopper contact button</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">A WhatsApp inquiry link appears beside Add to Cart on product detail pages once a valid number is saved.</p>
+            <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-700">Marthington Storefront</p>
+              <button type="button" disabled={!storefrontSettings.whatsappNumber} style={{ borderColor: storefrontSettings.accentColor, color: storefrontSettings.accentColor }} className="mt-3 w-full rounded-xl border px-3 py-2.5 text-xs font-bold disabled:opacity-40">Ask about this on WhatsApp</button>
+              <p className="mt-2 text-center text-[10px] text-slate-400">{storefrontSettings.theme === "dark" ? "Dark" : "Light"} storefront · {storefrontSettings.accentColor}</p>
+            </div>
+          </aside>
+        </form>
       )}
     </main>
   );

@@ -4,8 +4,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 const AffiliateRegister = () => {
   const [form, setForm] = useState({
-    name: "",
-    email: "",
+    name: import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true" ? "Video Demo Partner" : "",
+    email: import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true" ? "demo@marthington.com" : "",
     password: "",
     bankName: "",
     accountNumber: "",
@@ -51,12 +51,22 @@ const AffiliateRegister = () => {
           <div className="mb-8">
             <p className="text-sm uppercase tracking-[0.35em] text-emerald-300">Partner Signup</p>
             <h1 className="mt-3 text-4xl font-extrabold tracking-tight text-white">
-              Join the Marthington partner network.
+              {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true"
+                ? "Set up your local video demo."
+                : "Join the Marthington partner network."}
             </h1>
             <p className="mt-4 max-w-2xl text-slate-400">
-              Create your affiliate account, get a unique referral link, and start earning commission on every business that subscribes.
+              {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true"
+                ? "This browser-only sample account uses illustrative data. It is not connected to real referrals, commissions, or payouts."
+                : "Create your affiliate account, get a unique referral link, and start earning commission on every business that subscribes."}
             </p>
           </div>
+
+          {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true" && (
+            <p className="mb-6 rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+              Local demo only: your password is not stored or sent. Do not enter banking details or real customer information.
+            </p>
+          )}
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
@@ -102,6 +112,7 @@ const AffiliateRegister = () => {
               />
             </label>
 
+            {import.meta.env.VITE_AFFILIATE_DEMO_MODE !== "true" && (
             <div className="grid gap-4 sm:grid-cols-3">
               <label className="block space-y-2 text-sm text-slate-300">
                 Bank name
@@ -136,13 +147,18 @@ const AffiliateRegister = () => {
                 />
               </label>
             </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
               className="inline-flex w-full items-center justify-center rounded-full bg-emerald-500 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Creating partner account..." : "Become a Partner"}
+              {loading
+                ? "Creating partner account..."
+                : import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true"
+                  ? "Create local demo account"
+                  : "Become a Partner"}
             </button>
 
             <p className="text-center text-sm text-slate-500">

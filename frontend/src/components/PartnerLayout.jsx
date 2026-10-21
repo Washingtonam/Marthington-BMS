@@ -91,6 +91,11 @@ const PartnerLayout = () => {
           </div>
         </header>
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><Outlet /></div>
+        {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true" && (
+          <div className="fixed bottom-3 right-3 z-50 rounded-full border border-amber-300/40 bg-amber-950/95 px-4 py-2 text-xs font-bold tracking-wide text-amber-200 shadow-xl">
+            DEMO ONLY · SAMPLE DATA · NO REAL PAYOUTS
+          </div>
+        )}
       </main>
     </div>
   );

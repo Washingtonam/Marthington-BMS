@@ -79,8 +79,19 @@ const Login = () => {
 
           <div>
             <h2 className="welcome">Welcome back</h2>
-            <p className="welcome-sub">Use your owner or staff account.</p>
+            <p className="welcome-sub">
+              {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true"
+                ? "Local video demo: sign in with the demo account email and any non-empty password."
+                : "Use your owner or staff account."}
+            </p>
           </div>
+
+          {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true" && (
+            <div className="form-error" role="status">
+              Demo mode is browser-only. No password is saved, and no real commission or payout actions are sent.
+              <Link to="/affiliate-register" className="ml-1 underline">Create the local demo account</Link>
+            </div>
+          )}
 
           {error ? <div className="form-error">{error}</div> : null}
 

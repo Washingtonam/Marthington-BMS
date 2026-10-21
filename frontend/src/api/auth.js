@@ -1,6 +1,9 @@
-import request from "./client.js";
+import request, { AFFILIATE_DEMO_MODE } from "./client.js";
+import { loginAffiliateDemo } from "./affiliateDemo.js";
 
 export const loginUser = async (payload) => {
+  if (AFFILIATE_DEMO_MODE) return loginAffiliateDemo(payload);
+
   return request("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload)

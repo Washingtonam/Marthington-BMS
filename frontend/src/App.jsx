@@ -18,6 +18,7 @@ import { ShopCartProvider } from "./context/ShopCartContext.jsx";
 const Landing = lazy(() => import("./pages/Landing.jsx"));
 const Shop = lazy(() => import("./pages/Shop.jsx"));
 const ShopAccount = lazy(() => import("./pages/ShopAccount.jsx"));
+const ShopProfile = lazy(() => import("./pages/ShopProfile.jsx"));
 const ShopProduct = lazy(() => import("./pages/ShopProduct.jsx"));
 const ShopCart = lazy(() => import("./pages/ShopCart.jsx"));
 const ShopCheckout = lazy(() => import("./pages/ShopCheckout.jsx"));
@@ -187,6 +188,7 @@ const App = () => {
             <Route path="/shop" element={<ShopLayout />}>
               <Route index element={<Shop />} />
               <Route path="account" element={<ShopAccount />} />
+              <Route path="profile" element={<ShopProfile />} />
               <Route path="product/:id" element={<ShopProduct />} />
               <Route path="cart" element={<ShopCart />} />
               <Route path="checkout" element={<ShopCheckout />} />
