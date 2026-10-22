@@ -34,6 +34,8 @@ const generateReceiptId = () => {
   return Math.random().toString(36).substring(2, 10).toUpperCase();
 };
 
+const FOLLOW_UP_DELAY_DAYS = 7;
+
 export const buildInvoiceCounterUpdate = ({ businessId }) => ({
   $setOnInsert: {
     business: businessId,
@@ -814,6 +816,94 @@ const getSales = async (req, res) => {
   }
 };
 
+const getDueFollowUps = async (req, res) => {
+  try {
+    const baseQuery = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin"
+    });
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, req.query.branchId);
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to these sales" });
+
+    const consentedCustomers = await Customer.find({
+      business: req.user.businessId,
+      whatsappFollowUpConsent: true,
+      phone: { $exists: true, $nin: ["", null] }
+    }).select("_id").lean();
+
+    if (!consentedCustomers.length) {
+      return res.json({ sales: [], followUpDelayDays: FOLLOW_UP_DELAY_DAYS });
+    }
+
+    const dueBefore = new Date(Date.now() - FOLLOW_UP_DELAY_DAYS * 24 * 60 * 60 * 1000);
+    const sales = await Sale.find({
+      ...baseQuery,
+      ...branchQuery,
+      customer: { $in: consentedCustomers.map((customer) => customer._id) },
+      createdAt: { $lte: dueBefore },
+      status: { $ne: "reversed" },
+      followUpStatus: { $nin: ["contacted", "dismissed"] }
+    })
+      .sort({ createdAt: 1 })
+      .limit(100)
+      .populate("customer", "name phone whatsappFollowUpConsent")
+      .populate("items.product", "name")
+      .lean();
+
+    return res.json({ sales, followUpDelayDays: FOLLOW_UP_DELAY_DAYS });
+  } catch (error) {
+    console.error("[sales.getDueFollowUps]", error);
+    return res.status(500).json({ message: "Unable to load customer follow-up reminders" });
+  }
+};
+
+const updateSaleFollowUp = async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!["contacted", "dismissed"].includes(status)) {
+      return res.status(400).json({ message: "Follow-up status must be contacted or dismissed" });
+    }
+
+    const baseQuery = buildSalesQuery({
+      businessId: req.user.businessId,
+      isSuperAdmin: req.user.role === "super_admin"
+    });
+    const sale = await Sale.findOne({ _id: req.params.id, ...baseQuery });
+    if (!sale) return res.status(404).json({ message: "Sale not found" });
+
+    const branchQuery = getScopedBranchQuery(req.user, req.user.businessId, sale.branch?.toString());
+    if (!branchQuery) return res.status(403).json({ message: "You do not have access to this sale" });
+    if (sale.status === "reversed") {
+      return res.status(409).json({ message: "Reversed sales cannot be followed up" });
+    }
+
+    const dueBefore = new Date(Date.now() - FOLLOW_UP_DELAY_DAYS * 24 * 60 * 60 * 1000);
+    if (sale.createdAt > dueBefore) {
+      return res.status(409).json({ message: "This sale is not due for follow-up yet" });
+    }
+
+    const customer = sale.customer
+      ? await Customer.findOne({
+        _id: sale.customer,
+        business: req.user.businessId,
+        whatsappFollowUpConsent: true,
+        phone: { $exists: true, $nin: ["", null] }
+      }).select("_id").lean()
+      : null;
+    if (!customer) {
+      return res.status(409).json({ message: "A customer with recorded WhatsApp follow-up consent and a phone number is required" });
+    }
+
+    sale.followUpStatus = status;
+    sale.followUpCompletedAt = new Date();
+    await sale.save();
+    return res.json({ sale });
+  } catch (error) {
+    console.error("[sales.updateSaleFollowUp]", error);
+    return res.status(500).json({ message: "Unable to update customer follow-up reminder" });
+  }
+};
+
 const getDeletedSales = async (req, res) => {
   try {
     if (!canDeleteSale(req.user)) {
@@ -1161,4 +1251,4 @@ const getPublicSale = async (req, res) => {
   }
 };
 
-export default { createSale, getSales, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, updateServiceSchedule, verifyPaymentProof };
+export default { createSale, getSales, getDueFollowUps, updateSaleFollowUp, getDeletedSales, getSaleById, getPublicSale, deleteSale, restoreSale, updateSaleStatus, bulkUpdateSaleStatus, updatePaymentMethod, updateServiceSchedule, verifyPaymentProof };

@@ -5,6 +5,7 @@ import { useShopCart } from "../../context/ShopCartContext.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import AdminModeToggle from "../AdminModeToggle.jsx";
 import { applyAccentColor, defaultAccentColor } from "../../utils/appearance.js";
+import DemoGuideBadge from "../DemoGuideBadge.jsx";
 
 const StorefrontAssistant = () => {
   const [open, setOpen] = useState(false);
@@ -258,6 +259,7 @@ const ShopLayout = () => {
         </div>
       </div>
       <StorefrontAssistant />
+      <DemoGuideBadge />
     </div>
   );
 };

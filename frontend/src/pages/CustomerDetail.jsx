@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiCalendar, FiMail, FiMapPin, FiPhone, FiUser } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiMail, FiMapPin, FiMessageCircle, FiPhone, FiUser } from "react-icons/fi";
 import { getCustomer } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
 
@@ -102,6 +102,13 @@ const CustomerDetail = () => {
               <div className="flex items-start gap-3"><FiMapPin className="mt-0.5 shrink-0" /><span>{customer.address || "No address on file"}</span></div>
               <div className="flex items-start gap-3"><FiUser className="mt-0.5 shrink-0" /><span>{customer.loyaltyPoints || 0} loyalty points</span></div>
               <div className="flex items-start gap-3"><FiCalendar className="mt-0.5 shrink-0" /><span>Last purchase: {formatDate(customer.lastPurchaseAt)}</span></div>
+              <div className="flex items-start gap-3">
+                <FiMessageCircle className="mt-0.5 shrink-0" />
+                <span>
+                  WhatsApp follow-ups: {customer.whatsappFollowUpConsent ? "Opted in" : "Not opted in"}
+                  {customer.whatsappFollowUpConsentAt && <span className="block text-xs text-slate-500">Recorded {formatDate(customer.whatsappFollowUpConsentAt)}</span>}
+                </span>
+              </div>
             </div>
           </section>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">

@@ -1,121 +1,156 @@
 const STORAGE_KEY = "marthington_affiliate_demo_v1";
 const DEMO_TOKEN = "local-affiliate-demo-session";
+const SAMPLE_DATA_VERSION = 2;
+
+import { createDemoBusiness, requestDemoWorkspace } from "./demoWorkspace.js";
+
+const demoPermissions = {
+  canViewDashboard: true,
+  canViewProducts: true,
+  canViewBranches: true,
+  canViewBranchInventory: true,
+  canAccessPOS: true,
+  canViewSales: true,
+  canManageStaff: true,
+  canManageSettings: true,
+  canViewReports: true,
+  canViewFinancialReports: true,
+  canViewInvoices: true,
+  canViewPayments: true,
+  canManagePayments: true,
+  canManageBilling: true,
+  canViewCustomers: true,
+  canViewExpenses: true,
+  canViewPurchaseOrders: true,
+  canViewStaffReports: true
+};
+
+const toDemoUser = (user) => ({
+  ...user,
+  role: "owner",
+  isDemo: true,
+  affiliateCode: "VIDEO204",
+  industryType: "retail",
+  isPro: true,
+  business: createDemoBusiness(),
+  permissions: demoPermissions
+});
 
 const createDemoDashboard = () => ({
   affiliate: {
     affiliateCode: "VIDEO204",
-    currentRate: 20,
-    walletBalance: 12500,
-    available: 12500,
-    earned: 35500,
-    totalEarned: 35500,
-    totalLifetimeEarnings: 35500,
-    totalClicks: 80,
-    totalConversions: 2,
-    totalReferrals: 3,
-    conversionRate: 2.5,
-    pending: 5000,
-    paid: 18000,
+    currentRate: 10,
+    walletBalance: 78000,
+    available: 78000,
+    earned: 78000,
+    totalEarned: 78000,
+    totalLifetimeEarnings: 78000,
+    totalClicks: 230,
+    totalConversions: 7,
+    totalReferrals: 10,
+    conversionRate: 3.04,
+    pending: 0,
+    paid: 0,
     commissionSchedule: {
-      directReferralBonus: {
-        amount: 5000,
-        description: "Illustrative one-time referral reward; subject to approval."
-      },
-      cpaActions: [
-        {
-          id: "verified-demo-action",
-          name: "Verified demo action",
-          description: "Sample action for illustrating a claim. No real payout is made.",
-          flatFee: 2500,
-          active: true
-        }
-      ],
-      payoutMilestones: [
-        {
-          id: "starter-demo-milestone",
-          name: "Demo milestone",
-          thresholdAmount: 25000,
-          rewardAmount: 2500,
-          description: "Illustrative milestone for the demo account."
-        }
-      ]
+      monthlySubscriptionPrice: 15000,
+      yearlySubscriptionPrice: 150000,
+      yearlySavings: 30000,
+      subscriptionCommissionRate: 10,
+      subscriptionCommissionDescription: "10% of each qualifying paid subscription payment, including monthly renewals.",
+      directReferralBonus: null,
+      cpaActions: [],
+      payoutMilestones: []
     }
   },
   referrals: [
-    {
-      businessId: "demo-business-001",
-      businessName: "Sample Harbor Grocers",
-      ownerName: "Demo Business Owner",
-      ownerEmail: "owner@example.test",
-      industry: "Retail",
+    ...[
+      ["Harbor Grocers", "Retail"],
+      ["Oakfield Pharmacy", "Healthcare"],
+      ["Cedar Home Supplies", "Home goods"],
+      ["Northstar Services", "Professional services"],
+      ["Meadow Fresh Foods", "Food retail"]
+    ].map(([businessName, industry], index) => ({
+      businessId: `demo-business-yearly-${index + 1}`,
+      businessName,
+      ownerName: `Demo Business Owner ${index + 1}`,
+      ownerEmail: `owner${index + 1}@example.test`,
+      industry,
       plan: "pro",
+      billingCycle: "yearly",
+      subscriptionAmount: 150000,
       subscriptionStatus: "active",
       isPro: true,
       converted: true,
-      commissionEarned: 18000,
-      referredAt: "12 Oct 2026",
-      transactionDate: "14 Oct 2026"
-    },
-    {
-      businessId: "demo-business-002",
-      businessName: "Sample Northstar Services",
-      ownerName: "Demo Service Owner",
-      ownerEmail: "service@example.test",
-      industry: "Professional services",
+      commissionRate: 10,
+      commissionEarned: 15000,
+      referredAt: `${12 + index} Oct 2026`,
+      transactionDate: `${14 + index} Oct 2026`
+    })),
+    ...[
+      ["Northstar Design Studio", "Creative services"],
+      ["Willow Learning Centre", "Education"],
+      ["Clearwater Repairs", "Repairs"]
+    ].map(([businessName, industry], index) => ({
+      businessId: `demo-business-free-${index + 1}`,
+      businessName,
+      ownerName: `Demo Free Business Owner ${index + 1}`,
+      ownerEmail: `free${index + 1}@example.test`,
+      industry,
       plan: "free",
-      subscriptionStatus: "trial",
+      billingCycle: null,
+      subscriptionAmount: 0,
+      subscriptionStatus: "free",
       isPro: false,
       converted: false,
+      commissionRate: 10,
       commissionEarned: 0,
-      referredAt: "15 Oct 2026",
+      referredAt: `${18 + index} Oct 2026`,
       transactionDate: null
-    },
-    {
-      businessId: "demo-business-003",
-      businessName: "Sample Oakfield Pharmacy",
-      ownerName: "Demo Pharmacy Owner",
-      ownerEmail: "pharmacy@example.test",
-      industry: "Healthcare",
+    })),
+    ...[
+      ["Parkview Electronics", "Electronics"],
+      ["Sunrise Fashion House", "Fashion retail"]
+    ].map(([businessName, industry], index) => ({
+      businessId: `demo-business-monthly-${index + 1}`,
+      businessName,
+      ownerName: `Demo Monthly Business Owner ${index + 1}`,
+      ownerEmail: `monthly${index + 1}@example.test`,
+      industry,
       plan: "pro",
+      billingCycle: "monthly",
+      subscriptionAmount: 15000,
       subscriptionStatus: "active",
       isPro: true,
       converted: true,
-      commissionEarned: 17500,
-      referredAt: "17 Oct 2026",
-      transactionDate: "18 Oct 2026"
-    }
+      commissionRate: 10,
+      commissionEarned: 1500,
+      referredAt: `${19 + index} Oct 2026`,
+      transactionDate: `${20 + index} Oct 2026`
+    }))
   ],
   conversions: [],
-  payoutRequests: [
-    {
-      _id: "demo-payout-pending",
-      amountRequested: 5000,
-      createdAt: "2026-10-16T12:00:00.000Z",
-      status: "pending",
-      note: "Illustrative pending request. No money was requested."
-    }
-  ],
-  withdrawalHistory: [
-    {
-      _id: "demo-payout-paid",
-      amount: 18000,
-      date: "2026-10-10T12:00:00.000Z",
-      status: "paid"
-    }
-  ]
+  payoutRequests: [],
+  withdrawalHistory: []
 });
 
 function readState() {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === null) {
-    return { version: 1, user: null, profile: {}, claims: [], dashboard: createDemoDashboard() };
+    return { version: 1, sampleDataVersion: SAMPLE_DATA_VERSION, user: null, profile: {}, claims: [], dashboard: createDemoDashboard() };
   }
 
   const state = JSON.parse(stored);
   if (!state || state.version !== 1 || !Array.isArray(state.claims)) {
     throw new Error("Local demo data is invalid. Clear this site's local demo data and create the demo account again.");
   }
-  return { ...state, dashboard: state.dashboard || createDemoDashboard() };
+  return {
+    ...state,
+    sampleDataVersion: SAMPLE_DATA_VERSION,
+    user: state.user ? toDemoUser(state.user) : null,
+    dashboard: state.sampleDataVersion === SAMPLE_DATA_VERSION && state.dashboard
+      ? state.dashboard
+      : createDemoDashboard()
+  };
 }
 
 function writeState(state) {
@@ -123,7 +158,17 @@ function writeState(state) {
 }
 
 function createSession(user) {
-  return { token: DEMO_TOKEN, refreshToken: DEMO_TOKEN, user };
+  const state = readState();
+  const demoUser = toDemoUser(user);
+  state.user = demoUser;
+  state.sampleDataVersion = SAMPLE_DATA_VERSION;
+  writeState(state);
+  return {
+    token: DEMO_TOKEN,
+    refreshToken: DEMO_TOKEN,
+    user: demoUser,
+    business: createDemoBusiness()
+  };
 }
 
 export function registerAffiliateDemo(payload) {
@@ -142,10 +187,12 @@ export function registerAffiliateDemo(payload) {
     _id: "local-demo-affiliate",
     name,
     email,
-    role: "affiliate",
+    role: "owner",
+    isDemo: true,
     affiliateCode: "VIDEO204",
     industryType: "retail",
-    isPro: false
+    isPro: true,
+    permissions: demoPermissions
   };
   state.user = user;
   state.profile = { phone: "", address: "", paymentDetails: {} };
@@ -157,7 +204,17 @@ export function loginAffiliateDemo(payload) {
   const state = readState();
   const email = String(payload?.email || "").trim().toLowerCase();
   if (!state.user || state.user.email !== email) {
-    throw new Error("No local demo account matches this email. Create one from the Partner Signup page first.");
+    if (email !== "demo@marthington.com") {
+      throw new Error("No local demo account matches this email. Use demo@marthington.com.");
+    }
+    state.user = toDemoUser({
+      _id: "local-demo-affiliate",
+      name: "Video Demo Partner",
+      email,
+      role: "owner",
+      affiliateCode: "VIDEO204"
+    });
+    writeState(state);
   }
   if (!payload?.password) throw new Error("Enter any non-empty demo password to continue.");
   return createSession(state.user);
@@ -184,13 +241,19 @@ export async function requestAffiliateDemo(path, options = {}) {
   const method = options.method || "GET";
   if (path === "/auth/me" && method === "GET") {
     const state = requireDemoAccount();
-    return { user: state.user, business: null };
+    return { user: state.user, business: createDemoBusiness() };
   }
   if (path === "/billing/pricing" && method === "GET") return { data: {} };
-  if (path === "/business" && method === "GET") return null;
 
   const state = requireDemoAccount();
+  if (path.startsWith("/shop")) return requestDemoWorkspace(path, options);
   const body = parseBody(options);
+
+  if (path === "/auth/modes/bms" && method === "POST") return createSession(state.user);
+  if (path === "/business/workspace" && method === "POST") return { business: createDemoBusiness() };
+  if (!path.startsWith("/affiliates/") && path !== "/auth/appearance" && !path.startsWith("/notifications")) {
+    return requestDemoWorkspace(path, options);
+  }
 
   if (path === "/affiliates/dashboard" && method === "GET") {
     return state.dashboard;

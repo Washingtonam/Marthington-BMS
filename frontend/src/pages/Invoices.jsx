@@ -12,7 +12,8 @@ import { getCustomers, createCustomer } from "../api/customers.js";
 import { getSuppliers } from "../api/suppliers.js";
 import InvoicePDFTemplate from "../components/InvoicePDFTemplate.jsx";
 import { downloadInvoicePDF } from "../utils/pdfGenerator.js";
-import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiFileText, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
+import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
+import { FiAlertCircle, FiArrowDown, FiArrowUp, FiCheckCircle, FiChevronsUp, FiClock, FiDollarSign, FiDownload, FiEdit2, FiFileText, FiMessageCircle, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiX } from "react-icons/fi";
 import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 
 const tabOptions = [
@@ -688,6 +689,28 @@ const Invoices = () => {
   const handleShareLink = (invoice) => {
     // Open share modal instead of just copying link
     handleOpenShareModal(invoice);
+  };
+
+  const handleInvoiceWhatsApp = (invoice, messageType = "summary") => {
+    const phone = invoice.customerPhone || invoice.customer?.phone || window.prompt("Enter customer WhatsApp number");
+    if (!phone) return;
+
+    const message = messageType === "follow-up"
+      ? buildCustomerFollowUpMessage({
+        record: invoice,
+        businessName: business?.name,
+        customerName: invoice.customer?.name || invoice.customerName
+      })
+      : buildTransactionWhatsAppMessage({
+        record: invoice,
+        recordType: "invoice",
+        businessName: business?.name,
+        customerName: invoice.customer?.name || invoice.customerName
+      });
+
+    if (!openWhatsAppMessage(phone, message)) {
+      alert("Could not open WhatsApp. Check the phone number and allow pop-ups, then try again.");
+    }
   };
 
   const handleOpenPaymentModal = (invoice) => {
@@ -1932,6 +1955,12 @@ const Invoices = () => {
 
                 <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-5 dark:border-slate-800">
                   <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleViewPDF(invoice); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"><FiDownload className="h-4 w-4" /> Preview / print</button>
+                  {quickViewInvoice.transactionType === "outgoing" && (
+                    <>
+                      <button type="button" onClick={() => handleInvoiceWhatsApp(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"><FiMessageCircle className="h-4 w-4" /> WhatsApp summary</button>
+                      <button type="button" onClick={() => handleInvoiceWhatsApp(quickViewInvoice, "follow-up")} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"><FiMessageCircle className="h-4 w-4" /> Draft follow-up</button>
+                    </>
+                  )}
                   <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleShareLink(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiMoreHorizontal className="h-4 w-4" /> Share</button>
                   <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleOpenEditModal(invoice); }} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"><FiEdit2 className="h-4 w-4" /> Edit</button>
                   {quickViewInvoice.balanceDue > 0 && ["sent", "draft", "partial", "overdue"].includes(quickViewInvoice.status) && (

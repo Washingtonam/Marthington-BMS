@@ -5,7 +5,9 @@ import request from "../api/client.js";
 import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
+import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
+import { FiMessageCircle } from "react-icons/fi";
 
 const localDateInputValue = (date) => {
   const year = date.getFullYear();
@@ -64,6 +66,10 @@ const Sales = () => {
   const [viewMode, setViewMode] = useState("active");
   const [deletedRecords, setDeletedRecords] = useState([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [dueFollowUps, setDueFollowUps] = useState([]);
+  const [followUpsLoading, setFollowUpsLoading] = useState(false);
+  const [followUpsError, setFollowUpsError] = useState("");
+  const [followUpDelayDays, setFollowUpDelayDays] = useState(7);
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
@@ -71,13 +77,26 @@ const Sales = () => {
   const [updatingSaleStatusId, setUpdatingSaleStatusId] = useState(null);
   const [selectedSaleIds, setSelectedSaleIds] = useState(new Set());
   const [bulkUpdating, setBulkUpdating] = useState(false);
-  const { user } = useAuth();
+  const { user, business } = useAuth();
   const isOwner = user?.role === "owner" || user?.role === "super_admin";
   const canManageSaleStatus = Boolean(
     user?.role === "owner" ||
     user?.role === "super_admin" ||
     user?.permissions?.canManagePayments
   );
+
+  const handleShareSaleWhatsApp = (sale) => {
+    const phone = sale.customerPhone || window.prompt("Enter customer WhatsApp number");
+    if (!phone) return;
+    const message = buildTransactionWhatsAppMessage({
+      record: sale,
+      businessName: business?.name,
+      customerName: sale.customerName
+    });
+    if (!openWhatsAppMessage(phone, message)) {
+      setStatusMessage("Could not open WhatsApp. Check the phone number and allow pop-ups, then try again.");
+    }
+  };
 
   const normalizeSaleStatus = (value) => (value && ["pending", "posted", "reversed"].includes(value)) ? value : "pending";
   const saleSearchSuggestions = useMemo(
@@ -357,6 +376,31 @@ const Sales = () => {
     }
   }, [isOwner, viewMode]);
 
+  useEffect(() => {
+    if (viewMode !== "follow-ups") return undefined;
+    const controller = new AbortController();
+
+    const loadDueFollowUps = async () => {
+      try {
+        setFollowUpsLoading(true);
+        setFollowUpsError("");
+        const result = await request("/sales/follow-ups/due", { signal: controller.signal });
+        setDueFollowUps(result.sales || []);
+        setFollowUpDelayDays(result.followUpDelayDays || 7);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Failed to load customer follow-up reminders:", error);
+          setFollowUpsError(error.message || "Unable to load follow-up reminders.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setFollowUpsLoading(false);
+      }
+    };
+
+    loadDueFollowUps();
+    return () => controller.abort();
+  }, [viewMode]);
+
   const loadDeletedRecords = async () => {
     if (!isOwner) return;
 
@@ -369,6 +413,32 @@ const Sales = () => {
       setDeletedRecords([]);
     } finally {
       setArchiveLoading(false);
+    }
+  };
+
+  const handleDraftFollowUp = (sale) => {
+    const message = buildCustomerFollowUpMessage({
+      record: sale,
+      businessName: business?.name,
+      customerName: sale.customer?.name || sale.customerName
+    });
+    if (!openWhatsAppMessage(sale.customer?.phone || sale.customerPhone, message)) {
+      setFollowUpsError("Could not open WhatsApp. Check the customer's phone number and allow pop-ups, then try again.");
+    }
+  };
+
+  const handleUpdateFollowUp = async (sale, status) => {
+    try {
+      await request(`/sales/${sale._id}/follow-up`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+      setDueFollowUps((current) => current.filter((item) => item._id !== sale._id));
+      setFollowUpsError("");
+      setStatusMessage(status === "contacted" ? "Customer marked as contacted." : "Follow-up reminder dismissed.");
+    } catch (error) {
+      console.error("Failed to update customer follow-up reminder:", error);
+      setFollowUpsError(error.message || "Unable to update this follow-up reminder.");
     }
   };
 
@@ -531,23 +601,28 @@ const Sales = () => {
               </div>
             </div>
             <div className="relative flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode("active")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewMode === "active" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-emerald-500 dark:text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"}`}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("follow-ups")}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewMode === "follow-ups" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-emerald-500 dark:text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"}`}
+              >
+                Follow-ups
+              </button>
               {isOwner && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("active")}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewMode === "active" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-emerald-500 dark:text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"}`}
-                  >
-                    Active
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("archived")}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewMode === "archived" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-emerald-500 dark:text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"}`}
-                  >
-                    Archive
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("archived")}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${viewMode === "archived" ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20 dark:bg-emerald-500 dark:text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"}`}
+                >
+                  Archive
+                </button>
               )}
               <button
                 type="button"
@@ -879,7 +954,13 @@ const Sales = () => {
           )}
 
           <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-950/60">
-            <div className="hidden grid-cols-[44px_1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] gap-0 border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 md:grid">
+            {viewMode === "follow-ups" ? (
+              <div className="border-b border-slate-200 bg-slate-100/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/80">
+                <h2 className="font-bold text-slate-800 dark:text-slate-100">Customer follow-ups</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Reminders appear {followUpDelayDays} days after a sale, for customers with recorded WhatsApp consent.</p>
+              </div>
+            ) : (
+              <div className="hidden grid-cols-[44px_1.25fr_1.5fr_0.9fr_1fr_1fr_1.1fr] gap-0 border-b border-slate-200 bg-slate-100/80 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400 md:grid">
               <div className="flex items-center justify-center px-2 py-3">
                 <input
                   type="checkbox"
@@ -895,9 +976,61 @@ const Sales = () => {
               <div className="px-4 py-3">Payment</div>
               <div className="px-4 py-3">Staff</div>
               <div className="px-4 py-3 text-right">Status</div>
-            </div>
+              </div>
+            )}
 
-            {viewMode === "active" ? (
+            {viewMode === "follow-ups" ? (
+              <div className="divide-y divide-slate-200 dark:divide-slate-700">
+                {followUpsLoading ? (
+                  <p className="p-6 text-sm text-slate-500 dark:text-slate-400">Loading follow-up reminders...</p>
+                ) : followUpsError ? (
+                  <div className="p-6 text-sm text-rose-700 dark:text-rose-300">{followUpsError}</div>
+                ) : dueFollowUps.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">No customer follow-ups due.</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Customers must have WhatsApp consent recorded and a purchase at least {followUpDelayDays} days ago.</p>
+                  </div>
+                ) : dueFollowUps.map((sale) => (
+                  <article key={sale._id} className="flex flex-col gap-4 bg-white p-5 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-slate-900 dark:text-slate-100">{sale.customer?.name || sale.customerName || "Customer"}</h3>
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Due {followUpDelayDays}+ days after purchase</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        {sale.items?.map((item) => item.name).filter(Boolean).join(", ") || "Recent purchase"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        Receipt #{sale.receiptId} · {new Date(sale.createdAt).toLocaleDateString()} · {formatCurrency(sale.totalAmount || 0)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDraftFollowUp(sale)}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        <FiMessageCircle className="h-4 w-4" /> Draft WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFollowUp(sale, "contacted")}
+                        className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      >
+                        Mark contacted
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateFollowUp(sale, "dismissed")}
+                        className="rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : viewMode === "active" ? (
               <>
                 {!filteredSales.length && (
                   <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -933,10 +1066,22 @@ const Sales = () => {
                         />
                       </div>
 
-                      <button type="button" onClick={() => navigate(`/app/sales/${sale._id}`)} className="px-4 py-3 text-left md:py-4">
-                        <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">#{sale.receiptId}</div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(sale.createdAt).toLocaleString()}</div>
-                      </button>
+                      <div className="flex items-center justify-between gap-2 px-4 py-3 md:py-4">
+                        <button type="button" onClick={() => navigate(`/app/sales/${sale._id}`)} className="text-left">
+                          <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">#{sale.receiptId}</div>
+                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(sale.createdAt).toLocaleString()}</div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleShareSaleWhatsApp(sale)}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-500/30 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                          aria-label={`Share receipt ${sale.receiptId} on WhatsApp`}
+                          title="Share transaction summary on WhatsApp"
+                        >
+                          <FiMessageCircle className="h-4 w-4" />
+                          <span className="hidden lg:inline">WhatsApp</span>
+                        </button>
+                      </div>
 
                       <div className="px-4 py-3 md:py-4">
                         <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">

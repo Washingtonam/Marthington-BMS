@@ -59,6 +59,16 @@ const customerSchema =
       sparse: true
     },
 
+    whatsappFollowUpConsent: {
+      type: Boolean,
+      default: false
+    },
+
+    whatsappFollowUpConsentAt: {
+      type: Date,
+      default: null
+    },
+
     email: {
       type: String,
       default: ""
@@ -122,6 +132,7 @@ customerSchema.pre("save", function (next) {
 });
 
 customerSchema.index({ business: 1, phoneNormalized: 1 }, { sparse: true });
+customerSchema.index({ business: 1, whatsappFollowUpConsent: 1 });
 
 export default mongoose.model(
   "Customer",

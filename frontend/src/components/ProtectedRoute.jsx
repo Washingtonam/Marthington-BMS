@@ -2,6 +2,8 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
+const DEMO_MODE = import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true";
+
 const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPermission }) => {
   const { isAuthenticated, user, industryType, impersonatedBusiness } = useAuth();
 
@@ -9,7 +11,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPerm
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.role === "affiliate" && user?.affiliateCode && requiredRole !== "affiliate") {
+  if (!DEMO_MODE && user?.role === "affiliate" && user?.affiliateCode && requiredRole !== "affiliate") {
     return <Navigate to="/partners/dashboard" replace />;
   }
 

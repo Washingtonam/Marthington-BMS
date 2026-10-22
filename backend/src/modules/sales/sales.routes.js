@@ -23,6 +23,20 @@ router.get(
   salesController.getSales
 );
 
+router.get(
+  "/follow-ups/due",
+  protect,
+  checkPermission("canViewSales"),
+  salesController.getDueFollowUps
+);
+
+router.patch(
+  "/:id/follow-up",
+  protect,
+  checkPermission("canViewSales"),
+  salesController.updateSaleFollowUp
+);
+
 // 🔥 DELETE SALE (OWNER ONLY)
 router.delete(
   "/:id",

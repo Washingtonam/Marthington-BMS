@@ -1,4 +1,5 @@
-import { API_URL } from "./client.js";
+import { AFFILIATE_DEMO_MODE, API_URL } from "./client.js";
+import { requestAffiliateDemo } from "./affiliateDemo.js";
 
 const SHOP_TOKEN_KEY = "marthington_shop_token";
 const SHOP_CUSTOMER_KEY = "marthington_shop_customer";
@@ -25,6 +26,9 @@ export const clearShopSession = () => {
 };
 
 export const shopRequest = async (path, options = {}) => {
+  if (AFFILIATE_DEMO_MODE) {
+    return requestAffiliateDemo(`/shop${path}`, options);
+  }
   const { token: requestToken, ...fetchOptions } = options;
   const token = requestToken ?? getShopSession().token;
   const headers = {

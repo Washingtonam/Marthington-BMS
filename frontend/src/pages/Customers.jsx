@@ -11,6 +11,7 @@ const createEmptyForm = () => ({
   phone: "",
   email: "",
   address: "",
+  whatsappFollowUpConsent: false,
   status: "active",
   outstandingBalance: "0",
   totalSpent: "0",
@@ -27,7 +28,7 @@ const Customers = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewCustomer, setPreviewCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true });
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false });
   const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(createEmptyForm());
 
@@ -102,8 +103,8 @@ const Customers = () => {
   };
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setForm((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
   };
 
   const handleSubmit = async (event) => {
@@ -140,7 +141,8 @@ const Customers = () => {
         totalSpent: Number(form.totalSpent || 0),
         totalOrders: Number(form.totalOrders || 1),
         outstandingBalance: Number(form.outstandingBalance || 0),
-        isActive: form.status !== "inactive"
+        isActive: form.status !== "inactive",
+        whatsappFollowUpConsent: form.whatsappFollowUpConsent
       };
 
       const newCustomer = await createCustomer(payload);
@@ -160,7 +162,8 @@ const Customers = () => {
       email: customer.email || "",
       address: customer.address || "",
       notes: customer.notes || "",
-      isActive: customer.isActive !== false
+      isActive: customer.isActive !== false,
+      whatsappFollowUpConsent: customer.whatsappFollowUpConsent === true
     });
     setEditingCustomer(customer);
   };
@@ -192,7 +195,8 @@ const Customers = () => {
         email,
         address: editForm.address.trim(),
         notes: editForm.notes.trim(),
-        isActive: editForm.isActive
+        isActive: editForm.isActive,
+        whatsappFollowUpConsent: editForm.whatsappFollowUpConsent
       });
       setCustomers((current) => current.map((customer) => customer._id === updated._id ? updated : customer));
       setPreviewCustomer(updated);
@@ -524,6 +528,20 @@ const Customers = () => {
                 </label>
               </div>
 
+              <label className="flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-slate-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  name="whatsappFollowUpConsent"
+                  checked={form.whatsappFollowUpConsent}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  Customer agreed to WhatsApp follow-ups
+                  <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Only opted-in customers appear in the 7-day follow-up reminders.</span>
+                </span>
+              </label>
+
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 <span className="mb-2 block">Address</span>
                 <input
@@ -700,7 +718,13 @@ const Customers = () => {
                     type={field.type || "text"}
                     required={field.required}
                     value={editForm[field.name]}
-                    onChange={(event) => setEditForm((current) => ({ ...current, [field.name]: event.target.value }))}
+                    onChange={(event) => setEditForm((current) => ({
+                      ...current,
+                      [field.name]: event.target.value,
+                      ...(field.name === "phone" && event.target.value !== editingCustomer.phone
+                        ? { whatsappFollowUpConsent: false }
+                        : {})
+                    }))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
                   />
                 </label>
@@ -724,6 +748,22 @@ const Customers = () => {
                   className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
                 Active customer
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-slate-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={editForm.whatsappFollowUpConsent}
+                  onChange={(event) => setEditForm((current) => ({ ...current, whatsappFollowUpConsent: event.target.checked }))}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span>
+                  Customer agreed to WhatsApp follow-ups
+                  <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Turn this off if the customer withdraws consent. Only opted-in customers receive reminders.</span>
+                  {editingCustomer.whatsappFollowUpConsentAt && (
+                    <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Consent recorded {new Date(editingCustomer.whatsappFollowUpConsentAt).toLocaleDateString()}.</span>
+                  )}
+                </span>
               </label>
             </div>
 

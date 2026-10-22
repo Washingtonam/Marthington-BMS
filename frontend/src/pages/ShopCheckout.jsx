@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getShopSession, refreshShopCartItems, saveShopSession, shopRequest } from "../api/shop.js";
+import { AFFILIATE_DEMO_MODE } from "../api/client.js";
 import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import LocationFields from "../components/LocationFields.jsx";
@@ -32,6 +33,7 @@ const ShopCheckout = () => {
   const [refreshingPrices, setRefreshingPrices] = useState(true);
   const [cartNeedsRefresh, setCartNeedsRefresh] = useState(false);
   const [error, setError] = useState("");
+  const [demoOrderNotice, setDemoOrderNotice] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -148,6 +150,12 @@ const ShopCheckout = () => {
           items: items.map((item) => ({ productId: item.id, quantity: item.quantity, expectedPrice: Number(item.price) }))
         })
       });
+      if (result.demo === true) {
+        setDemoOrderNotice(result.message || "Demo order preview saved locally. No payment was started.");
+        replaceItems([]);
+        setPlacingOrder(false);
+        return;
+      }
       window.location.assign(result.authorizationUrl);
     } catch (requestError) {
       setError(requestError.message || "Could not place your order.");
@@ -170,6 +178,15 @@ const ShopCheckout = () => {
     }
   };
 
+  if (!items.length && demoOrderNotice) return (
+    <main className="mx-auto max-w-3xl px-5 py-16 text-center">
+      <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Local demo</p>
+      <h1 className="mt-2 text-2xl font-black">Demo order preview complete</h1>
+      <p role="status" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{demoOrderNotice}</p>
+      <Link to="/shop" className="mt-5 inline-block font-semibold text-emerald-700">Return to shop</Link>
+    </main>
+  );
+
   if (!items.length) return <main className="mx-auto max-w-3xl px-5 py-16 text-center"><h1 className="text-2xl font-black">Your cart is empty</h1><Link to="/shop" className="mt-5 inline-block font-semibold text-emerald-700">Return to shop</Link></main>;
 
   return (
@@ -177,6 +194,7 @@ const ShopCheckout = () => {
       <h1 className="text-3xl font-black">Checkout</h1>
       <p className="mt-2 text-sm text-slate-500">Signed in as {customer?.email || "your shop account"}. Delivery fees are confirmed after Marthington reviews the order.</p>
       {error && <div role="alert" className="mt-5 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
+      {demoOrderNotice && <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{demoOrderNotice}</p>}
       {cartNeedsRefresh && <button type="button" disabled={refreshingPrices || placingOrder} onClick={refreshCartPrices} className="mt-3 rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold text-emerald-800 disabled:opacity-50">{refreshingPrices ? "Refreshing prices…" : "Refresh prices and review cart"}</button>}
       {refreshingPrices && <p role="status" className="mt-3 text-sm text-slate-500">Checking current storefront prices…</p>}
       <div className="mt-7 grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -216,7 +234,9 @@ const ShopCheckout = () => {
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-bold">Payment and delivery</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Pay the product subtotal securely to Marthington through Paystack. Marthington will review your order, contact suppliers, arrange delivery, then confirm the delivery fee for a separate payment.</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{AFFILIATE_DEMO_MODE
+              ? "This is a local demo checkout. Preview a sample order to see the flow; no payment, supplier request, or real order will be created."
+              : "Pay the product subtotal securely to Marthington through Paystack. Marthington will review your order, contact suppliers, arrange delivery, then confirm the delivery fee for a separate payment."}</p>
           </div>
         </section>
         <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-5">
@@ -235,7 +255,7 @@ const ShopCheckout = () => {
             <div className="flex justify-between"><span>Products subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
             <p className="mt-2 text-xs text-slate-500">Delivery fee billed separately after confirmation.</p>
           </div>
-          <button type="button" disabled={placingOrder || refreshingPrices || Boolean(error) || items.some((item) => !item.canPurchase)} onClick={placeOrder} className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{placingOrder ? "Preparing secure payment..." : `Pay ${formatCurrency(subtotal)} with Paystack`}</button>
+          <button type="button" disabled={placingOrder || refreshingPrices || Boolean(error) || items.some((item) => !item.canPurchase)} onClick={placeOrder} className="mt-5 w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{placingOrder ? (AFFILIATE_DEMO_MODE ? "Preparing demo preview..." : "Preparing secure payment...") : AFFILIATE_DEMO_MODE ? `Preview demo order · ${formatCurrency(subtotal)}` : `Pay ${formatCurrency(subtotal)} with Paystack`}</button>
         </aside>
       </div>
     </main>

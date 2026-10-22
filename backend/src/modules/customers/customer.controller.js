@@ -8,6 +8,13 @@ const createCustomer =
   async (req, res) => {
 
     try {
+      if (req.body.whatsappFollowUpConsent !== undefined && typeof req.body.whatsappFollowUpConsent !== "boolean") {
+        return res.status(400).json({ message: "WhatsApp follow-up consent must be true or false" });
+      }
+      if (req.body.whatsappFollowUpConsent === true && !String(req.body.phone || "").trim()) {
+        return res.status(400).json({ message: "A phone number is required to record WhatsApp follow-up consent" });
+      }
+
       const normalizedPhone = req.body.phone
         ? Customer.normalizePhoneNumber(req.body.phone)
         : "";
@@ -22,6 +29,8 @@ const createCustomer =
           ...req.body,
           phone: normalizedPhone || req.body.phone || "",
           phoneNormalized: normalizedPhone,
+          whatsappFollowUpConsent: req.body.whatsappFollowUpConsent === true,
+          whatsappFollowUpConsentAt: req.body.whatsappFollowUpConsent === true ? new Date() : null,
           business: req.user.businessId,
           branch: branchId
         });
@@ -132,7 +141,12 @@ const updateCustomer = async (req, res) => {
     const customerQuery = getScopedBranchQuery(req.user, req.user.businessId, customer.branch?.toString());
     if (!customerQuery) return res.status(403).json({ message: "You do not have access to this customer" });
 
-    const { name, phone, email, address, notes, isActive } = req.body || {};
+    const previousNormalizedPhone = customer.phoneNormalized || Customer.normalizePhoneNumber(customer.phone);
+    const { name, phone, email, address, notes, isActive, whatsappFollowUpConsent } = req.body || {};
+    if (whatsappFollowUpConsent !== undefined && typeof whatsappFollowUpConsent !== "boolean") {
+      return res.status(400).json({ message: "WhatsApp follow-up consent must be true or false" });
+    }
+    let phoneChanged = false;
     if (name !== undefined) {
       const trimmedName = String(name).trim();
       if (!trimmedName) return res.status(400).json({ message: "Customer name is required" });
@@ -145,6 +159,14 @@ const updateCustomer = async (req, res) => {
       }
       customer.phone = Customer.normalizePhoneNumber(trimmedPhone) || trimmedPhone;
       customer.phoneNormalized = Customer.normalizePhoneNumber(trimmedPhone);
+      phoneChanged = customer.phoneNormalized !== previousNormalizedPhone;
+      if (phoneChanged) {
+        customer.whatsappFollowUpConsent = false;
+        customer.whatsappFollowUpConsentAt = null;
+      }
+    }
+    if (whatsappFollowUpConsent === true && !phoneChanged && !customer.phoneNormalized) {
+      return res.status(400).json({ message: "A phone number is required to record WhatsApp follow-up consent" });
     }
     if (email !== undefined) {
       const trimmedEmail = String(email).trim();
@@ -158,6 +180,12 @@ const updateCustomer = async (req, res) => {
     if (isActive !== undefined) {
       if (typeof isActive !== "boolean") return res.status(400).json({ message: "Customer active status must be true or false" });
       customer.isActive = isActive;
+    }
+    if (whatsappFollowUpConsent !== undefined && !phoneChanged) {
+      customer.whatsappFollowUpConsent = whatsappFollowUpConsent;
+      customer.whatsappFollowUpConsentAt = whatsappFollowUpConsent
+        ? customer.whatsappFollowUpConsentAt || new Date()
+        : null;
     }
 
     await customer.save();

@@ -221,6 +221,18 @@ const saleSchema = new mongoose.Schema(
       index: true
     },
 
+    followUpStatus: {
+      type: String,
+      enum: ["pending", "contacted", "dismissed"],
+      default: "pending",
+      index: true
+    },
+
+    followUpCompletedAt: {
+      type: Date,
+      default: null
+    },
+
     clientOperationId: {
       type: String
     },
@@ -284,6 +296,7 @@ saleSchema.index(
   { business: 1, clientOperationId: 1 },
   { unique: true, sparse: true }
 );
+saleSchema.index({ business: 1, customer: 1, createdAt: 1, followUpStatus: 1 });
 
 
 export default mongoose.model(

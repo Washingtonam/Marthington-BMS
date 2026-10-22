@@ -78,7 +78,9 @@ const PartnerCommission = () => {
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-300">Earnings transparency</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Commission Tiers &amp; Structure</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-          Your account's current published commission terms, supplemental CPA fees, referral bonuses, and payout milestones.
+          {import.meta.env.VITE_AFFILIATE_DEMO_MODE === "true"
+            ? "Video-guide example using fictional registered businesses, plan prices, and qualifying payments. Actual earnings depend on current terms and payments received."
+            : "Your account's current published commission terms, supplemental CPA fees, referral bonuses, and payout milestones."}
         </p>
       </header>
 
@@ -91,9 +93,36 @@ const PartnerCommission = () => {
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-200">Subscription commission</p>
             <p className="mt-3 text-4xl font-semibold text-white">{Number(affiliate?.currentRate || 0)}%</p>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              This is the current global rate for eligible subscription payments. The rate applied to each earning is recorded when it is credited, so older earnings can reflect a previous rate.
+              Commission is based on qualifying subscription payments made by businesses registered through your agent link. The rate applied to each earning is recorded when it is credited.
             </p>
           </section>
+
+          {Number(schedule.monthlySubscriptionPrice) > 0 && Number(schedule.yearlySubscriptionPrice) > 0 && (
+            <section className="rounded-2xl border border-white/10 bg-slate-900 p-5">
+              <h2 className="font-semibold text-white">Subscription pricing example</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-slate-950 p-4">
+                  <p className="text-sm text-slate-400">Pro · Monthly</p>
+                  <p className="mt-2 text-xl font-semibold text-white">{currency(schedule.monthlySubscriptionPrice)} / month</p>
+                  <p className="mt-1 text-sm text-emerald-300">{currency(schedule.monthlySubscriptionPrice * Number(affiliate?.currentRate || 0) / 100)} per qualifying payment at {Number(affiliate?.currentRate || 0)}%</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950 p-4">
+                  <p className="text-sm text-slate-400">Pro · Yearly</p>
+                  <p className="mt-2 text-xl font-semibold text-white">{currency(schedule.yearlySubscriptionPrice)} / year</p>
+                  <p className="mt-1 text-sm text-emerald-300">{currency(schedule.yearlySubscriptionPrice * Number(affiliate?.currentRate || 0) / 100)} per qualifying payment at {Number(affiliate?.currentRate || 0)}%</p>
+                  <p className="mt-1 text-xs text-slate-500">Save {currency(schedule.yearlySavings)} versus 12 monthly payments.</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-slate-950 p-4">
+                  <p className="text-sm text-slate-400">Free plan</p>
+                  <p className="mt-2 text-xl font-semibold text-white">{currency(0)}</p>
+                  <p className="mt-1 text-sm text-slate-400">No paid subscription payment, so no subscription commission.</p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-400">
+                {schedule.subscriptionCommissionDescription || "Commission is calculated only on qualifying subscription payments actually received."}
+              </p>
+            </section>
+          )}
 
           <section className="grid gap-4 md:grid-cols-2">
             <article className="rounded-2xl border border-white/10 bg-slate-900 p-5">

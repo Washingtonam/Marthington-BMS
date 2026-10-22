@@ -4,6 +4,7 @@ import html2canvas from "html2canvas";
 import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
+import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
 import "../styles/receipt.css";
 
 const Divider = () => <div className="receipt-divider" style={{ borderTop: "2px dashed #000", margin: "8px 0" }} />;
@@ -76,14 +77,26 @@ const SaleDetails = () => {
 
   const getReceiptLink = (receiptId) => `${window.location.origin}/r/${receiptId}`;
 
-  const sendWhatsApp = (saleData, phone) => {
-    if (!phone) return;
-    const cleanPhone = phone.replace(/\D/g, "").replace(/^0/, "234");
-    const link = getReceiptLink(saleData.receiptId);
+  const sendWhatsApp = (saleData, phone, messageType = "summary") => {
+    const recipient = phone || saleData.customerPhone || window.prompt("Enter customer WhatsApp number");
+    if (!recipient) return;
 
-    const message = `🧾 *${saleData.business?.name || "Receipt"}*\n\nHello ${saleData.customerName || "Customer"},\n\nYour receipt is ready.\n\n💰 *Total: ${formatCurrency(saleData.totalAmount)}*\n\n🔗 *View online:*\n${link}\n\nThank you for your patronage!`;
+    const message = messageType === "follow-up"
+      ? buildCustomerFollowUpMessage({
+        record: saleData,
+        businessName: saleData.business?.name,
+        customerName: saleData.customerName
+      })
+      : buildTransactionWhatsAppMessage({
+        record: saleData,
+        businessName: saleData.business?.name,
+        customerName: saleData.customerName,
+        receiptUrl: getReceiptLink(saleData.receiptId)
+      });
 
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+    if (!openWhatsAppMessage(recipient, message)) {
+      setStatusMsg({ type: "error", text: "Could not open WhatsApp. Check the phone number and allow pop-ups, then try again." });
+    }
   };
 
   const handleCopyLink = () => {
@@ -417,13 +430,17 @@ const SaleDetails = () => {
               </button>
 
               <button 
-                onClick={() => {
-                  const phone = prompt("Enter customer WhatsApp number (e.g. 080123...)");
-                  if (phone) sendWhatsApp(sale, phone);
-                }}
+                onClick={() => sendWhatsApp(sale)}
                 className="flex items-center justify-center gap-2 w-full bg-green-600 text-white py-3.5 rounded-2xl font-bold hover:bg-green-700 transition-all"
               >
-                💬 Share via WhatsApp
+                💬 Share receipt via WhatsApp
+              </button>
+
+              <button
+                onClick={() => sendWhatsApp(sale, null, "follow-up")}
+                className="flex items-center justify-center gap-2 w-full border border-green-200 bg-white text-green-700 py-3.5 rounded-2xl font-bold hover:bg-green-50 transition-all"
+              >
+                ✉️ Draft customer follow-up
               </button>
 
               <button 
