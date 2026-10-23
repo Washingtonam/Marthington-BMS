@@ -444,6 +444,7 @@ const ShopAdmin = () => {
     });
   })();
   const currentProductPage = Number(productPagination.currentPage) || productPage;
+  const selectedBusiness = businesses.find((business) => business._id === businessFilter);
   const productRangeStart = Number(productPagination.totalProducts) > 0
     ? (currentProductPage - 1) * 100 + 1
     : 0;
@@ -625,6 +626,22 @@ const ShopAdmin = () => {
               </select>
             </label>
           </div>
+          {businessFilter !== "all" && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <p>
+                Showing {Number(productPagination.totalProducts) || 0}{" "}
+                {(Number(productPagination.totalProducts) || 0) === 1 ? "product" : "products"} from{" "}
+                <span className="font-bold">{selectedBusiness?.name || "the selected business"}</span>.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setProductPage(1); setBusinessFilter("all"); }}
+                className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+              >
+                Show all businesses
+              </button>
+            </div>
+          )}
           <p className="mt-2 text-xs text-slate-500">Choose whether to show a lower price as a discount or replace the BMS price without a strike-through. Set 0 to use the regular BMS price.</p>
           <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <table className="min-w-[1050px] text-left text-sm">

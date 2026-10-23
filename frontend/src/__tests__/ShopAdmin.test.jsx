@@ -225,6 +225,19 @@ describe("Shop administration", () => {
         expect.objectContaining({ token: "admin-token" })
       );
     });
+    const selectedBusinessNotice = (content, element) =>
+      element.tagName === "P" &&
+      element.textContent.replace(/\s+/g, " ").trim() === "Showing 1 product from Market Goods.";
+    expect(await screen.findByText(selectedBusinessNotice)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all businesses" }));
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/admin/products?limit=100&search=&page=1",
+        expect.objectContaining({ token: "admin-token" })
+      );
+    });
+    expect(screen.queryByText(selectedBusinessNotice)).toBeNull();
   });
 
   it("shows a compact page-number window with nearby pages", async () => {
