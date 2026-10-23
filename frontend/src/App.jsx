@@ -313,6 +313,10 @@ const App = () => {
               <Route path="businesses" element={<AdminBusinesses />} />
               <Route path="affiliate-network" element={<AdminAffiliateNetwork />} />
               <Route path="communications" element={<AdminCommunications />} />
+              <Route path="communications/compose" element={<AdminCommunications />} />
+              <Route path="communications/chats" element={<AdminCommunications />} />
+              <Route path="communications/messages" element={<AdminCommunications />} />
+              <Route path="communications/recipients" element={<AdminCommunications />} />
               <Route path="campaigns" element={<AdminCampaigns />} />
               <Route path="wild-thoughts" element={<AdminWildThoughts />} />
               <Route path="email-registry" element={<AdminEmailRegistry />} />

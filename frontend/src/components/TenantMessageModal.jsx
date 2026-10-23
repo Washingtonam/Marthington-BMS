@@ -58,6 +58,7 @@ const TenantMessageModal = ({
   savedDrafts = [],
   initialDraft = null,
   allowRecipientSelection = false,
+  fullPage = false,
   title = "Draft tenant message"
 }) => {
   const [recipientId, setRecipientId] = useState(recipients[0]?._id || "");
@@ -224,8 +225,8 @@ const TenantMessageModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-message-title">
-      <section className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
+    <div className={fullPage ? "w-full" : "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"} role={fullPage ? undefined : "dialog"} aria-modal={fullPage ? undefined : "true"} aria-labelledby="tenant-message-title">
+      <section className={`${fullPage ? "w-full max-w-4xl" : "my-auto max-h-[90vh] w-full max-w-2xl"} overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">Tenant messaging</p>
