@@ -163,6 +163,22 @@ describe("Shop administration", () => {
     });
   });
 
+  it("uploads a product image dropped onto its storefront image area", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+
+    const dropTarget = await screen.findByLabelText("Drop image for Gift set");
+    const image = new File(["image content"], "gift-set.jpg", { type: "image/jpeg" });
+    fireEvent.drop(dropTarget, { dataTransfer: { files: [image] } });
+
+    await waitFor(() => {
+      const updateCall = shopRequest.mock.calls.find(([path]) => path === "/admin/products/product-1");
+      expect(updateCall).toBeTruthy();
+      expect(updateCall[1].method).toBe("PATCH");
+      expect(updateCall[1].body.get("image")).toBe(image);
+    });
+  });
+
   it("allows a storefront price above the BMS price as a direct price override", async () => {
     renderShopAdmin();
     fireEvent.click(screen.getByRole("button", { name: "Products & images" }));

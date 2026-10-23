@@ -32,6 +32,7 @@ const ShopAdmin = () => {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
+  const [draggedProductId, setDraggedProductId] = useState("");
 
   const loadOrders = useCallback(async () => {
     const data = await shopRequest("/admin/orders", { token: localStorage.getItem("bms_token") });
@@ -249,6 +250,18 @@ const ShopAdmin = () => {
     } finally {
       setBusy("");
     }
+  };
+
+  const uploadProductImage = (product, file) => {
+    if (!file.type.startsWith("image/")) {
+      setError("Choose a valid image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Choose an image no larger than 5 MB.");
+      return;
+    }
+    changeProduct(product, { image: file });
   };
 
   const createCategory = async (event) => {
@@ -674,7 +687,48 @@ const ShopAdmin = () => {
                     <p className="mt-1 text-[11px] text-slate-500">0 uses BMS price</p>
                   </td>
                   <td className="p-3">
-                    <div className="flex items-center gap-3">{product.shopImage && <img src={product.shopImage} alt="" className="h-12 w-12 rounded-lg object-cover" />}<label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">{busy === String(product._id) ? "Uploading..." : product.shopImage ? "Replace image" : "Add image"}<input type="file" accept="image/*" className="hidden" disabled={busy === String(product._id)} onChange={(event) => { const image = event.target.files?.[0]; if (image) changeProduct(product, { image }); event.target.value = ""; }} /></label></div>
+                    <div
+                      aria-label={`Drop image for ${product.name}`}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        if (event.dataTransfer.types.includes("Files")) setDraggedProductId(String(product._id));
+                      }}
+                      onDragLeave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) setDraggedProductId("");
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setDraggedProductId("");
+                        const files = [...(event.dataTransfer.files || [])];
+                        if (files.length > 1) {
+                          setError("Drop one image at a time for each product.");
+                          return;
+                        }
+                        if (files[0]) uploadProductImage(product, files[0]);
+                      }}
+                      className={`min-w-64 rounded-xl border border-dashed p-2 transition-colors ${draggedProductId === String(product._id) ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-200" : "border-slate-200"}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {product.shopImage && <img src={product.shopImage} alt="" className="h-12 w-12 rounded-lg object-cover" />}
+                        <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">
+                          {busy === String(product._id) ? "Uploading..." : product.shopImage ? "Replace image" : "Add image"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={busy === String(product._id)}
+                            onChange={(event) => {
+                              const image = event.target.files?.[0];
+                              if (image) uploadProductImage(product, image);
+                              event.target.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <p className="mt-2 text-[11px] text-slate-500">
+                        {draggedProductId === String(product._id) ? "Drop to upload this product image" : "Drag and drop an image here"}
+                      </p>
+                    </div>
                     <label className="mt-2 block text-xs font-semibold text-slate-600">
                       Or paste Cloudinary URL
                       <input
