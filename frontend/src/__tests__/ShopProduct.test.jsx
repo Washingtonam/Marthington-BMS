@@ -27,6 +27,7 @@ describe("Storefront product details", () => {
         name: "Market basket",
         category: "Home",
         price: 2500,
+        image: "/market-basket.jpg",
         available: true,
         canPurchase: true,
         featured: false,
@@ -38,7 +39,7 @@ describe("Storefront product details", () => {
           price: 1500,
           available: true,
           canPurchase: true,
-          image: "",
+          image: "/everyday-bowl.jpg",
           featured: false,
           business: { name: "Market Goods" }
         }],
@@ -79,10 +80,12 @@ describe("Storefront product details", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Market basket" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Market basket" }).className).toContain("object-contain");
+    expect(screen.getByRole("img", { name: "Everyday bowl" }).className).toContain("object-contain");
     expect(screen.getByRole("link", { name: "Ask about this on WhatsApp" }).getAttribute("href")).toContain("wa.me/2348012345678");
     expect(decodeURIComponent(screen.getByRole("link", { name: "Ask about this on WhatsApp" }).getAttribute("href"))).toContain("Ada Owner");
     expect(screen.getByRole("region", { name: "More products from Market Goods" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Everyday bowl/ }).getAttribute("href")).toBe("/shop/product/product-2");
+    expect(screen.getAllByRole("link", { name: /Everyday bowl/ })[0].getAttribute("href")).toBe("/shop/product/product-2");
     expect(screen.getByRole("region", { name: "Explore products from other businesses" })).toBeTruthy();
     expect(screen.getByText("From Bright Home")).toBeTruthy();
     expect(screen.getByText("From Craft Corner")).toBeTruthy();

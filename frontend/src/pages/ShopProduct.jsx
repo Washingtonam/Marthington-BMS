@@ -5,29 +5,29 @@ import { useShopCart } from "../context/ShopCartContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
 const RecommendedProduct = ({ item, add }) => (
-  <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+  <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
     <Link to={`/shop/product/${item.id}`} className="group block">
-      <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50 to-slate-100">
+      <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50 to-slate-100">
         {item.image
-          ? <img src={item.image} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-[1.02]" />
+          ? <img src={item.image} alt={item.name} className="h-full w-full object-contain p-3 transition group-hover:scale-[1.02]" />
           : <span className="text-5xl font-black text-emerald-700">{String(item.name || "?").slice(0, 1).toUpperCase()}</span>}
         {item.featured && <span className="absolute left-3 top-3 rounded-full bg-amber-300 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-amber-950">Featured</span>}
       </div>
     </Link>
-    <div className="p-4">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">{item.category || "General"}</p>
-      <Link to={`/shop/product/${item.id}`} className="mt-1 block truncate font-extrabold text-slate-900 hover:text-emerald-700">{item.name}</Link>
-      <p className="mt-1 truncate text-xs text-slate-500">From {item.business.name}</p>
-      <p className={`mt-2 text-xs font-semibold ${item.available ? "text-emerald-700" : "text-amber-700"}`}>{item.available ? "In stock" : "Currently out of stock"}</p>
-      <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-lg font-black text-slate-900">{formatCurrency(item.price)}</span>
+    <div className="flex flex-1 flex-col p-3">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">{item.category || "General"}</p>
+      <Link to={`/shop/product/${item.id}`} className="mt-1 block h-10 overflow-hidden text-sm font-extrabold leading-5 text-slate-900 hover:text-emerald-700">{item.name}</Link>
+      <p className="mt-1 truncate text-[11px] text-slate-500">From {item.business.name}</p>
+      <p className={`mt-1 text-[11px] font-semibold ${item.available ? "text-emerald-700" : "text-amber-700"}`}>{item.available ? "In stock" : "Currently out of stock"}</p>
+      <div className="mt-auto flex items-baseline gap-2 pt-2">
+        <span className="text-base font-black text-slate-900">{formatCurrency(item.price)}</span>
         {item.salePrice > 0 && <span className="text-xs text-slate-400 line-through">{formatCurrency(item.originalPrice)}</span>}
       </div>
       <button
         type="button"
         disabled={!item.canPurchase}
         onClick={() => add(item)}
-        className="mt-3 w-full rounded-lg bg-emerald-700 px-3 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        className="mt-2 w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
       >
         {item.available ? item.canPurchase ? "Add to cart" : "Price unavailable" : "Out of stock"}
       </button>
@@ -71,8 +71,8 @@ const ShopProduct = () => {
     <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
       <Link to="/shop" className="text-sm font-semibold text-emerald-700">← Back to storefront</Link>
       <section className="mt-6 grid gap-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2 md:p-8">
-        <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
-          {product.image ? <img src={product.image} alt={product.name} className="h-full max-h-[520px] w-full object-cover" /> : <span className="text-7xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
+        <div className="mx-auto flex aspect-square w-full max-w-[520px] items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+          {product.image ? <img src={product.image} alt={product.name} className="h-full w-full object-contain p-4" /> : <span className="text-7xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
         </div>
         <div className="flex flex-col justify-center">
           <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">{product.category}</p>{product.featured && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Featured</span>}</div>

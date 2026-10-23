@@ -1957,7 +1957,7 @@ const Invoices = () => {
                   <button type="button" onClick={() => { const invoice = quickViewInvoice; handleCloseQuickView(); handleViewPDF(invoice); }} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"><FiDownload className="h-4 w-4" /> Preview / print</button>
                   {quickViewInvoice.transactionType === "outgoing" && (
                     <>
-                      <button type="button" onClick={() => handleInvoiceWhatsApp(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"><FiMessageCircle className="h-4 w-4" /> WhatsApp summary</button>
+                      <button type="button" onClick={() => handleInvoiceWhatsApp(quickViewInvoice)} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"><FiMessageCircle className="h-4 w-4" /> Share to WhatsApp</button>
                       <button type="button" onClick={() => handleInvoiceWhatsApp(quickViewInvoice, "follow-up")} className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50"><FiMessageCircle className="h-4 w-4" /> Draft follow-up</button>
                     </>
                   )}

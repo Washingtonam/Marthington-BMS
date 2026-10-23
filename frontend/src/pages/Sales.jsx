@@ -50,6 +50,7 @@ const Sales = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
   const [reconciliation, setReconciliation] = useState({
     transactionCount: 0,
     totalAmount: 0,
@@ -342,6 +343,7 @@ const Sales = () => {
       if (endDate) query.set("endDate", endDate);
       if (startDate || endDate) query.set("timezoneOffset", String(new Date().getTimezoneOffset()));
       if (statusFilter) query.set("status", statusFilter);
+      if (paymentStatusFilter) query.set("paymentStatus", paymentStatusFilter);
 
       const data = await request(`/sales?${query.toString()}`, { signal });
       const nextSales = Array.isArray(data) ? data : data?.sales || [];
@@ -363,12 +365,12 @@ const Sales = () => {
     const controller = new AbortController();
     loadSales(controller.signal);
     return () => controller.abort();
-  }, [page, deferredSearch, startDate, endDate, statusFilter]);
+  }, [page, deferredSearch, startDate, endDate, statusFilter, paymentStatusFilter]);
 
   useEffect(() => {
     setPage(1);
     setSelectedSaleIds(new Set());
-  }, [deferredSearch, startDate, endDate, statusFilter]);
+  }, [deferredSearch, startDate, endDate, statusFilter, paymentStatusFilter]);
 
   useEffect(() => {
     if (isOwner && viewMode === "archived") {
@@ -881,9 +883,9 @@ const Sales = () => {
                     />
                   </label>
                   <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Status
+                    Transaction status
                     <select
-                      aria-label="Filter sales by status"
+                      aria-label="Filter sales by transaction status"
                       value={statusFilter}
                       onChange={(event) => setStatusFilter(event.target.value)}
                       className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
@@ -892,6 +894,20 @@ const Sales = () => {
                       <option value="pending">Pending</option>
                       <option value="posted">Posted</option>
                       <option value="reversed">Reversed</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                    Payment status
+                    <select
+                      aria-label="Filter sales by payment status"
+                      value={paymentStatusFilter}
+                      onChange={(event) => setPaymentStatusFilter(event.target.value)}
+                      className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                    >
+                      <option value="">All payment statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="verified">Verified</option>
+                      <option value="rejected">Rejected</option>
                     </select>
                   </label>
                 </div>
