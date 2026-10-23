@@ -47,6 +47,12 @@ const AdminUsers = () => {
 
   const changeRole = async (user, role) => {
     if (role === user.role) return;
+    if (
+      role === "super_admin" &&
+      !window.confirm(`Promote ${user.name} to super admin? This grants full access to platform administration.`)
+    ) {
+      return;
+    }
     setUpdatingUserId(user._id);
     setError("");
     setNotice("");

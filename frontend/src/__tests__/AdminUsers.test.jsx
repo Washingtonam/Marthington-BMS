@@ -14,6 +14,7 @@ describe("Admin users", () => {
 
   beforeEach(() => {
     mockRequest.mockReset();
+    window.confirm = vi.fn(() => true);
     mockRequest.mockImplementation((path) => {
       if (path.startsWith("/admin/users?")) {
         return Promise.resolve({
@@ -54,6 +55,9 @@ describe("Admin users", () => {
     fireEvent.change(screen.getByLabelText("Role for Ada Owner"), {
       target: { value: "super_admin" }
     });
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Promote Ada Owner to super admin? This grants full access to platform administration."
+    );
 
     await waitFor(() => {
       expect(mockRequest).toHaveBeenCalledWith("/admin/users/user-1/role", {
@@ -63,6 +67,19 @@ describe("Admin users", () => {
     });
     expect((await screen.findByRole("status")).textContent).toContain("Updated Ada Owner's role to super admin.");
     expect(screen.getByLabelText("Role for Ada Owner").value).toBe("super_admin");
+  });
+
+  it("does not promote an account if the confirmation is declined", async () => {
+    window.confirm = vi.fn(() => false);
+    render(<AdminUsers />);
+
+    fireEvent.change(await screen.findByLabelText("Role for Ada Owner"), {
+      target: { value: "super_admin" }
+    });
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Role for Ada Owner").value).toBe("owner");
   });
 
   it("displays a server error when a role update is rejected", async () => {
