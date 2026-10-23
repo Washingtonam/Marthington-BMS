@@ -1013,14 +1013,14 @@ const listReportSubscriptions = async (req, res) => {
     }
 
     const subscriptions = await ReportSubscription.find(query)
-      .populate("business", "name industryType plan subscription isPro reportNotificationsEnabled")
+      .populate("business", "name industryType plan subscription isPro reportNotificationsEnabled phone whatsapp")
       .populate("updatedBy", "name email")
       .sort({ createdAt: -1 })
       .lean();
 
     const businesses = await Business.find({ status: { $ne: "deleted" } })
-      .select("name owner email industryType plan subscription isPro reportNotificationsEnabled")
-      .populate("owner", "name email")
+      .select("name owner email phone whatsapp industryType plan subscription isPro reportNotificationsEnabled")
+      .populate("owner", "name email phone phoneNumber")
       .lean();
     const configuredBusinessIds = new Set(subscriptions.map((item) => item.business?._id?.toString() || item.business?.toString()));
     const removedBusinessIds = new Set((await ReportSubscription.find({ isRemoved: true }).select("business").lean()).map((item) => item.business.toString()));
@@ -1031,7 +1031,18 @@ const listReportSubscriptions = async (req, res) => {
         isAutomatic: true,
         recipientEmail: business.owner?.email || business.email || "",
         recipientName: business.owner?.name || "",
-        business: { _id: business._id, name: business.name, industryType: business.industryType, plan: business.subscription?.plan || "free", subscription: business.subscription, isPro: business.subscription?.plan === "pro" && business.subscription?.status === "active" },
+        recipientPhone: business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "",
+        business: {
+          _id: business._id,
+          name: business.name,
+          industryType: business.industryType,
+          plan: business.subscription?.plan || "free",
+          subscription: business.subscription,
+          isPro: business.subscription?.plan === "pro" && business.subscription?.status === "active",
+          phone: business.phone || "",
+          whatsappPhone: business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "",
+          ownerPhone: business.owner?.phoneNumber || business.owner?.phone || ""
+        },
         reportType: "overview",
         reportSections: ["summary", "sales", "expenses", "inventory", "staff", "paymentMethods"],
         frequency: "daily",
@@ -1309,18 +1320,26 @@ const listCommunicationDeliveries = async (_req, res) => {
   }
 };
 
+const resolvePreferredCommunicationChannel = (channel, recipientEmail, recipientPhone) => {
+  if (channel === "email") return "email";
+  if (channel === "whatsapp") return "whatsapp";
+  if (channel === "email-first") return recipientEmail ? "email" : recipientPhone ? "whatsapp" : "email";
+  if (channel === "whatsapp-first") return recipientPhone ? "whatsapp" : recipientEmail ? "email" : "whatsapp";
+  return recipientEmail ? "email" : recipientPhone ? "whatsapp" : "email";
+};
+
 const sendCommunicationMessage = async (req, res) => {
   const { businessIds, channel, subject = "", message, whatsappOptInConfirmed = false } = req.body || {};
   if (!Array.isArray(businessIds) || businessIds.length === 0 || businessIds.length > 50) {
     return res.status(400).json({ message: "Select between 1 and 50 businesses" });
   }
-  if (!["email", "whatsapp"].includes(channel)) {
+  if (!["email", "whatsapp", "email-first", "whatsapp-first"].includes(channel)) {
     return res.status(400).json({ message: "Choose a valid message channel" });
   }
   if (typeof message !== "string" || !message.trim() || message.length > 5000) {
     return res.status(400).json({ message: "Message must be between 1 and 5,000 characters" });
   }
-  if (channel === "email" && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
+  if (["email", "email-first", "whatsapp-first"].includes(channel) && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
     return res.status(400).json({ message: "Email subject must be between 1 and 200 characters" });
   }
   if (channel === "whatsapp" && (message.length > 1024 || whatsappOptInConfirmed !== true)) {
@@ -1340,14 +1359,27 @@ const sendCommunicationMessage = async (req, res) => {
       return res.status(400).json({ message: "A selected business no longer exists or is unavailable" });
     }
 
+    const whatsappRecipients = businesses.filter((business) => {
+      const recipientEmail = business.owner?.email || business.email || "";
+      const recipientPhone = business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "";
+      return resolvePreferredCommunicationChannel(channel, recipientEmail, recipientPhone) === "whatsapp";
+    });
+    if (whatsappRecipients.length && message.length > 1024) {
+      return res.status(400).json({ message: "WhatsApp messages must be 1,024 characters or fewer" });
+    }
+    if (whatsappRecipients.length && whatsappOptInConfirmed !== true) {
+      return res.status(400).json({ message: "WhatsApp messages require confirmed recipient opt-in" });
+    }
+
     const deliverToBusiness = async (business) => {
       const recipientName = business.owner?.name || "";
       const recipientEmail = business.owner?.email || business.email || "";
       const recipientPhone = business.whatsapp?.number || business.owner?.phoneNumber || business.owner?.phone || business.phone || "";
+      const selectedChannel = resolvePreferredCommunicationChannel(channel, recipientEmail, recipientPhone);
       let status = "sent";
       let errorMessage = "";
       try {
-        if (channel === "email") {
+        if (selectedChannel === "email") {
           if (!recipientEmail) throw new Error("No recipient email address is available");
           const sent = await sendSubscriptionEmail({
             recipientEmail,
@@ -1376,10 +1408,10 @@ const sendCommunicationMessage = async (req, res) => {
         recipientName,
         recipientEmail,
         recipientPhone,
-        channel,
-        whatsappOptInConfirmed: channel === "whatsapp" && whatsappOptInConfirmed === true,
-        whatsappOptInConfirmedAt: channel === "whatsapp" && whatsappOptInConfirmed === true ? new Date() : null,
-        subject: channel === "email" ? subject.trim() : "",
+        channel: selectedChannel,
+        whatsappOptInConfirmed: selectedChannel === "whatsapp" && whatsappOptInConfirmed === true,
+        whatsappOptInConfirmedAt: selectedChannel === "whatsapp" && whatsappOptInConfirmed === true ? new Date() : null,
+        subject: selectedChannel === "email" ? subject.trim() : "",
         message: message.trim(),
         status,
         errorMessage,
@@ -1390,7 +1422,7 @@ const sendCommunicationMessage = async (req, res) => {
         _id: delivery._id,
         business: { _id: business._id, name: business.name },
         recipientName,
-        channel,
+        channel: selectedChannel,
         subject: delivery.subject,
         message: delivery.message,
         status,
@@ -1427,16 +1459,16 @@ const validateCommunicationDraft = (body) => {
   if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
     return "Draft name must be between 1 and 100 characters";
   }
-  if (!["email", "whatsapp"].includes(channel)) {
+  if (!["email", "whatsapp", "email-first", "whatsapp-first"].includes(channel)) {
     return "Choose a valid message channel";
   }
   if (typeof message !== "string" || !message.trim() || message.length > 5000) {
     return "Message must be between 1 and 5,000 characters";
   }
-  if (channel === "whatsapp" && message.length > 1024) {
-    return "WhatsApp messages must be 1,024 characters or fewer";
+  if (["whatsapp", "whatsapp-first", "email-first"].includes(channel) && message.length > 1024) {
+    return "Messages using a WhatsApp channel must be 1,024 characters or fewer";
   }
-  if (channel === "email" && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
+  if (["email", "email-first", "whatsapp-first"].includes(channel) && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
     return "Email subject must be between 1 and 200 characters";
   }
   return null;
@@ -1449,7 +1481,7 @@ const createCommunicationDraft = async (req, res) => {
     const draft = await CommunicationDraft.create({
       name: req.body.name.trim(),
       channel: req.body.channel,
-      subject: req.body.channel === "email" ? req.body.subject.trim() : "",
+      subject: ["email", "email-first", "whatsapp-first"].includes(req.body.channel) ? req.body.subject.trim() : "",
       message: req.body.message.trim(),
       createdBy: req.user.id
     });
@@ -1471,7 +1503,7 @@ const updateCommunicationDraft = async (req, res) => {
       {
         name: req.body.name.trim(),
         channel: req.body.channel,
-        subject: req.body.channel === "email" ? req.body.subject.trim() : "",
+        subject: ["email", "email-first", "whatsapp-first"].includes(req.body.channel) ? req.body.subject.trim() : "",
         message: req.body.message.trim()
       },
       { new: true, runValidators: true }

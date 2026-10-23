@@ -21,6 +21,12 @@ const statusFilters = [
   ["disabled", "Paused"]
 ];
 const defaultSections = reportSections.map(([value]) => value);
+const formatMessageChannel = (channel) => ({
+  email: "Email",
+  whatsapp: "WhatsApp",
+  "email-first": "Email first",
+  "whatsapp-first": "WhatsApp first"
+}[channel] || "Email");
 const emptyForm = {
   recipientName: "", recipientEmail: "", recipientPhone: "", whatsappOptInConfirmed: false, businessId: "", reportType: "overview", channel: "email",
   frequencies: ["daily"], reportSections: defaultSections, sendTimes: { daily: "18:00", weekly: "18:00", monthly: "18:00" }, weeklyDay: 1, monthlyDay: "last", timezone: "Africa/Lagos"
@@ -46,6 +52,8 @@ const AdminCommunications = () => {
   const [menuOpenId, setMenuOpenId] = useState("");
   const [historyRecipient, setHistoryRecipient] = useState(null);
   const [contactRecipients, setContactRecipients] = useState(null);
+  const [allowRecipientSelection, setAllowRecipientSelection] = useState(false);
+  const [initialComposerDraft, setInitialComposerDraft] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -93,6 +101,7 @@ const AdminCommunications = () => {
       const haystack = [
         recipient.recipientName,
         recipient.recipientEmail,
+        recipient.recipientPhone || recipient.business?.whatsappPhone || recipient.business?.ownerPhone || recipient.business?.phone,
         recipient.business?.name,
         formatReportType(recipient.reportType),
         (recipient.reportSections || defaultSections).map((section) => reportSections.find(([value]) => value === section)?.[1]).filter(Boolean).join(" "),
@@ -112,6 +121,8 @@ const AdminCommunications = () => {
   }, [pageCount]);
 
   const openContactDraft = (recipientList) => {
+    setAllowRecipientSelection(false);
+    setInitialComposerDraft(null);
     setContactRecipients(recipientList.map((recipient) => {
       const businessId = recipient.business?._id || recipient.business || recipient.businessId || recipient._id;
       const business = businesses.find((item) => item._id === businessId)
@@ -128,11 +139,23 @@ const AdminCommunications = () => {
         ownerEmail: recipientEmail,
         recipientName,
         recipientEmail,
-        whatsappPhone: business.whatsappPhone || business.ownerPhone || business.businessPhone,
+        recipientPhone: recipient.recipientPhone || business.whatsappPhone || business.ownerPhone || business.businessPhone || "",
+        whatsappPhone: recipient.recipientPhone || business.whatsappPhone || business.ownerPhone || business.businessPhone,
         ownerPhone: business.ownerPhone,
         businessPhone: business.businessPhone
       };
     }));
+  };
+
+  const openCentralComposer = (draft = null) => {
+    setAllowRecipientSelection(true);
+    setInitialComposerDraft(draft);
+    setContactRecipients(businesses.map((business) => ({
+      ...business,
+      businessId: business._id,
+      recipientName: business.ownerName || "",
+      recipientEmail: business.ownerEmail || ""
+    })));
   };
 
   const scrollToRecipients = () => document.getElementById("report-recipient-registry")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -434,7 +457,7 @@ const AdminCommunications = () => {
         </div>
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={() => setIsFormOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-lg transition hover:bg-emerald-50"><FiFileText /> Add report recipient</button>
-          <button type="button" onClick={scrollToRecipients} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/15"><FiSend /> Draft a message</button>
+          <button type="button" onClick={() => openCentralComposer()} disabled={!businesses.length} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"><FiSend /> Compose a message</button>
         </div>
       </div>
       <div className="grid grid-cols-2 border-t border-white/10 bg-white/[0.04] sm:grid-cols-4">
@@ -469,7 +492,7 @@ const AdminCommunications = () => {
           <h2 className="mt-5 text-xl font-black text-slate-900">Direct messages</h2>
           <p className="mt-1 max-w-md text-sm leading-6 text-slate-600">Draft an email or WhatsApp message to selected business owners. Track what was sent and see delivery issues.</p>
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={scrollToRecipients} className="inline-flex items-center gap-2 rounded-xl bg-sky-800 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-sky-900"><FiMail /> Choose recipients &amp; draft <FiArrowUpRight /></button>
+            <button type="button" onClick={() => openCentralComposer()} disabled={!businesses.length} className="inline-flex items-center gap-2 rounded-xl bg-sky-800 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-sky-900 disabled:cursor-not-allowed disabled:opacity-50"><FiMail /> Compose a message <FiArrowUpRight /></button>
             <span className="text-xs font-medium text-slate-500">{businesses.length} businesses available</span>
           </div>
         </div>
@@ -504,13 +527,13 @@ const AdminCommunications = () => {
 
     <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm" aria-labelledby="saved-messages-title">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-sky-50/70 px-5 py-4">
-        <div><h2 id="saved-messages-title" className="text-sm font-extrabold text-slate-900">Saved messages</h2><p className="mt-1 text-xs text-slate-600">Reusable message text, channel, and email subject. Open any business composer to load one.</p></div>
+        <div><h2 id="saved-messages-title" className="text-sm font-extrabold text-slate-900">Saved messages</h2><p className="mt-1 text-xs text-slate-600">Reusable message text, channel preference, and email subject. Open any business composer to load one.</p></div>
         <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-sky-800">{savedDrafts.length} saved</span>
       </div>
       {savedDrafts.length === 0 ? <div className="px-5 py-5 text-sm text-slate-500">No saved messages yet. Draft a message for a business and save it for future follow-ups.</div> : <ul className="divide-y divide-slate-100">
         {savedDrafts.slice(0, 6).map((draft) => <li key={draft._id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3">
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-800">{draft.name}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">{draft.channel}</span></div><p className="mt-1 truncate text-xs text-slate-500">{draft.channel === "email" && draft.subject ? `${draft.subject} · ` : ""}{draft.message}</p><p className="mt-1 text-[10px] text-slate-400">Updated {new Date(draft.updatedAt).toLocaleDateString()}</p></div>
-          <button type="button" onClick={() => deleteCommunicationDraft(draft)} aria-label={`Delete ${draft.name}`} className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"><FiTrash2 size={14} /></button>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-800">{draft.name}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">{formatMessageChannel(draft.channel)}</span></div><p className="mt-1 truncate text-xs text-slate-500">{["email", "email-first", "whatsapp-first"].includes(draft.channel) && draft.subject ? `${draft.subject} · ` : ""}{draft.message}</p><p className="mt-1 text-[10px] text-slate-400">Updated {new Date(draft.updatedAt).toLocaleDateString()}</p></div>
+          <div className="flex shrink-0 items-center gap-2"><button type="button" onClick={() => openCentralComposer(draft)} disabled={!businesses.length} className="rounded-lg bg-sky-800 px-3 py-2 text-xs font-bold text-white hover:bg-sky-900 disabled:opacity-50">Use message</button><button type="button" onClick={() => deleteCommunicationDraft(draft)} aria-label={`Delete ${draft.name}`} className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"><FiTrash2 size={14} /></button></div>
         </li>)}
       </ul>}
     </section>
@@ -578,6 +601,7 @@ const AdminCommunications = () => {
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-extrabold text-slate-900">{recipient.recipientName || "Unnamed recipient"}</strong><span className={`rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>{isEnabled ? "Active" : "Paused"}</span></span>
                   <span className="mt-1 block truncate text-xs text-slate-500">{recipient.recipientEmail || "No email address"}</span>
+                  <span className="mt-1 block truncate text-xs text-slate-500">{recipient.recipientPhone || recipient.business?.whatsappPhone || recipient.business?.ownerPhone || recipient.business?.businessPhone || recipient.business?.phone || "No phone number"}</span>
                   <span className="mt-1 block truncate text-xs font-semibold text-slate-700">{recipient.business?.name || "General business"}</span>
                 </span>
               </label>
@@ -631,7 +655,7 @@ const AdminCommunications = () => {
       </div>
     </div>
 
-    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} onSendDirect={sendDirectMessage} onSaveDraft={saveCommunicationDraft} savedDrafts={savedDrafts} title={contactRecipients.length > 1 ? `Message ${contactRecipients.length} selected tenants` : `Message ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
+    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => { setContactRecipients(null); setInitialComposerDraft(null); }} onSendDirect={sendDirectMessage} onSaveDraft={saveCommunicationDraft} savedDrafts={savedDrafts} initialDraft={initialComposerDraft} allowRecipientSelection={allowRecipientSelection} title={allowRecipientSelection ? "Compose a business message" : contactRecipients.length > 1 ? `Message ${contactRecipients.length} selected tenants` : `Message ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
     {historyRecipient && <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/30" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title">
       <aside className="h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
