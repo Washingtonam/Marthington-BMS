@@ -212,6 +212,21 @@ describe("Shop administration", () => {
     });
   });
 
+  it("filters products by source business", async () => {
+    renderShopAdmin();
+    fireEvent.click(screen.getByRole("button", { name: "Products & images" }));
+    fireEvent.change(await screen.findByRole("combobox", { name: "Filter products by source business" }), {
+      target: { value: "business-1" }
+    });
+
+    await waitFor(() => {
+      expect(shopRequest).toHaveBeenCalledWith(
+        "/admin/products?limit=100&search=&page=1&businessId=business-1",
+        expect.objectContaining({ token: "admin-token" })
+      );
+    });
+  });
+
   it("shows a compact page-number window with nearby pages", async () => {
     shopRequest.mockImplementation(async (path) => {
       if (path === "/admin/orders") return { orders: [] };

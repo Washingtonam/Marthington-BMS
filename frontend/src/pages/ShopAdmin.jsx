@@ -17,6 +17,7 @@ const ShopAdmin = () => {
   const [sourceCategories, setSourceCategories] = useState([]);
   const [categoryNames, setCategoryNames] = useState({});
   const [businesses, setBusinesses] = useState([]);
+  const [businessesLoaded, setBusinessesLoaded] = useState(false);
   const [deliveryAreas, setDeliveryAreas] = useState([]);
   const [storefrontSettings, setStorefrontSettings] = useState({ whatsappNumber: "", accentColor: "#10b981", theme: "light" });
   const [deliveryAreaDrafts, setDeliveryAreaDrafts] = useState({});
@@ -27,6 +28,7 @@ const ShopAdmin = () => {
   const [productPage, setProductPage] = useState(1);
   const [search, setSearch] = useState("");
   const [imageFilter, setImageFilter] = useState("all");
+  const [businessFilter, setBusinessFilter] = useState("all");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -39,6 +41,7 @@ const ShopAdmin = () => {
   const loadProducts = useCallback(async () => {
     const params = new URLSearchParams({ limit: "100", search, page: String(productPage) });
     if (imageFilter !== "all") params.set("imageStatus", imageFilter);
+    if (businessFilter !== "all") params.set("businessId", businessFilter);
     const data = await shopRequest(`/admin/products?${params}`, { token: localStorage.getItem("bms_token") });
     setProducts(data.products || []);
     setSalePriceDrafts((current) => Object.fromEntries((data.products || []).map((product) => [
@@ -59,7 +62,7 @@ const ShopAdmin = () => {
       current[product._id] ?? product.shopImage ?? ""
     ])));
     setProductPagination(data.pagination || { currentPage: 1, totalPages: 1 });
-  }, [search, productPage, imageFilter]);
+  }, [search, productPage, imageFilter, businessFilter]);
 
   const loadCategories = useCallback(async () => {
     const data = await shopRequest("/admin/categories", { token: localStorage.getItem("bms_token") });
@@ -71,6 +74,7 @@ const ShopAdmin = () => {
   const loadBusinesses = useCallback(async () => {
     const data = await shopRequest("/admin/businesses", { token: localStorage.getItem("bms_token") });
     setBusinesses(data.businesses || []);
+    setBusinessesLoaded(true);
   }, []);
 
   const loadDeliveryAreas = useCallback(async () => {
@@ -101,6 +105,11 @@ const ShopAdmin = () => {
     const loader = loaders[tab];
     loader().catch((requestError) => setError(requestError.message || "Could not load storefront admin data."));
   }, [tab, loadOrders, loadProducts, loadCategories, loadBusinesses, loadDeliveryAreas, loadStorefrontSettings]);
+
+  useEffect(() => {
+    if (tab !== "products" || businessesLoaded) return;
+    loadBusinesses().catch((requestError) => setError(requestError.message || "Could not load storefront businesses."));
+  }, [tab, businessesLoaded, loadBusinesses]);
 
   useEffect(() => {
     if (tab !== "orders") return undefined;
@@ -591,8 +600,22 @@ const ShopAdmin = () => {
         </section>
       ) : tab === "products" ? (
         <section className="mt-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <label className="block min-w-0 flex-1 sm:max-w-lg"><span className="sr-only">Search all BMS products</span><input value={search} onChange={(event) => { setProductPage(1); setSearch(event.target.value); }} placeholder="Search all BMS products" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3" /></label>
+            <label className="grid gap-1 text-xs font-semibold text-slate-600">
+              Source business
+              <select
+                aria-label="Filter products by source business"
+                value={businessFilter}
+                onChange={(event) => { setProductPage(1); setBusinessFilter(event.target.value); }}
+                className="min-w-52 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm"
+              >
+                <option value="all">All businesses</option>
+                {businesses.map((business) => (
+                  <option key={business._id} value={business._id}>{business.name}</option>
+                ))}
+              </select>
+            </label>
             <label className="grid gap-1 text-xs font-semibold text-slate-600">
               Product images
               <select aria-label="Filter products by image" value={imageFilter} onChange={(event) => { setProductPage(1); setImageFilter(event.target.value); }} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm">

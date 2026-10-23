@@ -1026,6 +1026,13 @@ export const getShopAdminProducts = async (req, res) => {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 100);
     const search = String(req.query.search || "").trim().slice(0, 100);
     const filter = {};
+    if (req.query.businessId !== undefined) {
+      const businessId = String(req.query.businessId);
+      if (!/^[a-f\d]{24}$/i.test(businessId)) {
+        return res.status(400).json({ message: "Choose a valid source business." });
+      }
+      filter.business = businessId;
+    }
     if (search) filter.name = { $regex: escapeRegex(search), $options: "i" };
     if (req.query.imageStatus === "missing") {
       filter.$or = [

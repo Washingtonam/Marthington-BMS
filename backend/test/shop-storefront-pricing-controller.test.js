@@ -163,3 +163,47 @@ test("admin product listing filters for products with storefront images", async 
   assert.deepEqual(findFilter, expectedFilter);
   assert.equal(res.statusCode, 200);
 });
+
+test("admin product listing filters products by source business", async (t) => {
+  const businessId = "0123456789abcdef01234567";
+  let countFilter;
+  let findFilter;
+  t.mock.method(Product, "countDocuments", async (filter) => {
+    countFilter = filter;
+    return 0;
+  });
+  t.mock.method(Product, "find", (filter) => {
+    findFilter = filter;
+    return {
+      select: () => ({
+        populate: () => ({
+          sort: () => ({
+            skip: () => ({
+              limit: () => ({
+                lean: async () => []
+              })
+            })
+          })
+        })
+      })
+    };
+  });
+  const res = createResponse();
+
+  await getShopAdminProducts({ query: { businessId } }, res);
+
+  assert.deepEqual(countFilter, { business: businessId });
+  assert.deepEqual(findFilter, { business: businessId });
+  assert.equal(res.statusCode, 200);
+});
+
+test("admin product listing rejects malformed source business identifiers", async (t) => {
+  const countDocuments = t.mock.method(Product, "countDocuments", async () => 0);
+  const res = createResponse();
+
+  await getShopAdminProducts({ query: { businessId: "not-an-object-id" } }, res);
+
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.message, /valid source business/i);
+  assert.equal(countDocuments.mock.callCount(), 0);
+});
