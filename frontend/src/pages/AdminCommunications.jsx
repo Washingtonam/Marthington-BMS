@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiArrowUpRight, FiFileText, FiMail, FiMessageCircle, FiSend } from "react-icons/fi";
 import TenantMessageModal from "../components/TenantMessageModal.jsx";
 import AdminBusinessChatInbox from "../components/AdminBusinessChatInbox.jsx";
 import request from "../api/client.js";
@@ -109,22 +110,29 @@ const AdminCommunications = () => {
 
   const openContactDraft = (recipientList) => {
     setContactRecipients(recipientList.map((recipient) => {
-      const businessId = recipient.business?._id || recipient.business;
-      const business = businesses.find((item) => item._id === businessId) || (typeof recipient.business === "object" ? recipient.business : {});
+      const businessId = recipient.business?._id || recipient.business || recipient.businessId || recipient._id;
+      const business = businesses.find((item) => item._id === businessId)
+        || (typeof recipient.business === "object" ? recipient.business : null)
+        || recipient;
+      const recipientEmail = recipient.recipientEmail || business.ownerEmail || "";
+      const recipientName = recipient.recipientName || business.ownerName || "";
       return {
         ...business,
-        _id: getRecipientKey(recipient),
+        _id: businessId || getRecipientKey(recipient),
         businessId,
         name: business.name || recipient.business?.name,
-        ownerName: recipient.recipientName || business.ownerName,
-        ownerEmail: recipient.recipientEmail || business.ownerEmail,
-        recipientEmail: recipient.recipientEmail,
+        ownerName: recipientName,
+        ownerEmail: recipientEmail,
+        recipientName,
+        recipientEmail,
         whatsappPhone: business.whatsappPhone || business.ownerPhone || business.businessPhone,
         ownerPhone: business.ownerPhone,
         businessPhone: business.businessPhone
       };
     }));
   };
+
+  const scrollToRecipients = () => document.getElementById("report-recipient-registry")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const sendDirectMessage = async ({ recipients, channel, subject, message, whatsappOptInConfirmed }) => {
     const response = await request("/admin/communications/messages", {
@@ -383,31 +391,81 @@ const AdminCommunications = () => {
     }
   };
 
+  const enabledScheduleCount = subscriptions.filter((subscription) => subscription.status === "enabled").length;
+  const activeRecipientCount = groupedRecipients.filter((recipient) => recipient.schedules.some((schedule) => schedule.status === "enabled")).length;
+  const successfulDirectCount = messageDeliveries.filter((delivery) => delivery.status === "sent").length;
+
   return <section className="page-stack mx-auto max-w-7xl">
-    <div className="page-heading items-start">
-      <div><span className="text-sm font-bold uppercase tracking-[0.3em] text-emerald-600">Super Admin</span><h1 className="mt-2 text-4xl font-extrabold text-slate-900">Communications</h1></div>
-      <div className="flex flex-col items-start gap-3 sm:items-end"><p className="max-w-2xl text-sm text-slate-500">Choose report contents and turn daily, weekly, or monthly delivery on for each recipient.</p><button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white">Add report recipient</button></div>
+    <header className="overflow-hidden rounded-[2rem] bg-slate-950 text-white shadow-xl">
+      <div className="grid gap-8 px-6 py-7 sm:px-8 lg:grid-cols-[1fr_auto] lg:items-end lg:px-10 lg:py-9">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.22em] text-emerald-200"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Super Admin · Control center</span>
+          <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Communications</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Message the right business, manage report schedules, and follow up on chats—all from one workspace.</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => setIsFormOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-lg transition hover:bg-emerald-50"><FiFileText /> Add report recipient</button>
+          <button type="button" onClick={scrollToRecipients} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/15"><FiSend /> Draft a message</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 border-t border-white/10 bg-white/[0.04] sm:grid-cols-4">
+        {[
+          ["Businesses", businesses.length, "Available to contact"],
+          ["Active recipients", activeRecipientCount, "With live reports"],
+          ["Live schedules", enabledScheduleCount, "Across all frequencies"],
+          ["Messages sent", successfulDirectCount, "Recent direct messages"]
+        ].map(([label, value, hint]) => <div key={label} className="border-b border-r border-white/10 px-5 py-4 last:border-r-0 sm:border-b-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+          <div className="mt-1 flex items-baseline gap-2"><strong className="text-2xl font-black text-white">{value}</strong><span className="hidden text-[10px] text-slate-400 sm:inline">{hint}</span></div>
+        </div>)}
+      </div>
+    </header>
+
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${emailHealth === null ? "border-slate-200 bg-white text-slate-700" : emailHealth.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+      <div className="flex items-center gap-3">
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] ${emailHealth === null ? "bg-slate-100 text-slate-600" : emailHealth.verified ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+          <span className={`h-2 w-2 rounded-full ${emailHealth === null ? "bg-slate-400" : emailHealth.verified ? "bg-emerald-500" : "bg-amber-500"}`} />
+          {emailHealth === null ? "Checking email" : emailHealth.verified ? `${emailHealth.email?.provider === "resend-api" ? "Resend API" : "Email"} connected` : "Email needs attention"}
+        </span>
+        <span className="hidden text-xs text-slate-500 sm:inline">{emailHealth === null ? "Checking delivery provider…" : emailHealth.verified ? "Scheduled reports and direct messages are ready." : emailHealth.email?.lastError || "Check email provider settings on the deployed backend."}</span>
+      </div>
+      <a href="#report-recipient-registry" onClick={(event) => { event.preventDefault(); scrollToRecipients(); }} className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 hover:underline">Manage recipients <FiArrowUpRight /></a>
     </div>
 
-    <div className={`rounded-2xl border px-5 py-4 text-sm ${emailHealth === null ? "border-slate-200 bg-slate-50 text-slate-700" : emailHealth.verified ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] ${emailHealth === null ? "border-slate-200 bg-white text-slate-600" : emailHealth.verified ? "border-emerald-200 bg-emerald-100 text-emerald-700" : "border-amber-200 bg-amber-100 text-amber-700"}`}>
-            <span className={`h-2.5 w-2.5 rounded-full ${emailHealth === null ? "bg-slate-400" : emailHealth.verified ? "bg-emerald-500" : "bg-amber-500"} shadow-[0_0_0_3px_rgba(255,255,255,0.8)]`}></span>
-            {emailHealth === null ? "Checking email" : emailHealth.verified ? "Resend API connected" : "Email delivery needs attention"}
-          </span>
+    <section className="grid gap-4 lg:grid-cols-2" aria-label="Communications tools">
+      <article className="group relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:p-7">
+        <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-sky-100/70 transition group-hover:scale-110" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-700 text-white shadow-md"><FiMessageCircle size={22} /></span><span className="rounded-full border border-sky-100 bg-white/80 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-sky-800">{messageDeliveries.length} recent</span></div>
+          <h2 className="mt-5 text-xl font-black text-slate-900">Direct messages</h2>
+          <p className="mt-1 max-w-md text-sm leading-6 text-slate-600">Draft an email or WhatsApp message to selected business owners. Track what was sent and see delivery issues.</p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={scrollToRecipients} className="inline-flex items-center gap-2 rounded-xl bg-sky-800 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-sky-900"><FiMail /> Choose recipients &amp; draft <FiArrowUpRight /></button>
+            <span className="text-xs font-medium text-slate-500">{businesses.length} businesses available</span>
+          </div>
         </div>
-        <p className="text-xs text-slate-500">{emailHealth === null ? "Verifying the configured email provider..." : emailHealth.verified ? `${emailHealth.email?.provider === "resend-api" ? "Resend API" : "SMTP"} is connected.` : emailHealth.email?.lastError || "Check email provider settings on the deployed backend."}</p>
-      </div>
-    </div>
+      </article>
+      <article className="group relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg sm:p-7">
+        <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-emerald-100/70 transition group-hover:scale-110" />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-4"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-700 text-white shadow-md"><FiFileText size={22} /></span><span className="rounded-full border border-emerald-100 bg-white/80 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-800">{enabledScheduleCount} live schedules</span></div>
+          <h2 className="mt-5 text-xl font-black text-slate-900">Automated business reports</h2>
+          <p className="mt-1 max-w-md text-sm leading-6 text-slate-600">Set up daily, weekly, or monthly business reports by email, WhatsApp, or both. Review delivery history and adjust schedules anytime.</p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => setIsFormOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-emerald-800"><FiFileText /> Add report recipient <FiArrowUpRight /></button>
+            <span className="text-xs font-medium text-slate-500">{activeRecipientCount} active recipients</span>
+          </div>
+        </div>
+      </article>
+    </section>
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="message-activity-title">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <div><h2 id="message-activity-title" className="text-sm font-extrabold text-slate-900">Recent direct messages</h2><p className="mt-1 text-xs text-slate-500">Email and WhatsApp sends to selected business owners.</p></div>
+        <div><h2 id="message-activity-title" className="text-sm font-extrabold text-slate-900">Recent direct messages</h2><p className="mt-1 text-xs text-slate-500">Email and WhatsApp sends to business owners.</p></div>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{messageDeliveries.length} recent</span>
       </div>
-      {messageDeliveries.length === 0 ? <p className="px-5 py-6 text-sm text-slate-500">No direct messages sent yet. Select a business or group below to start.</p> : <ul className="divide-y divide-slate-100">
-        {messageDeliveries.slice(0, 6).map((delivery) => <li key={delivery._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+      {messageDeliveries.length === 0 ? <p className="px-5 py-6 text-sm text-slate-500">No direct messages sent yet. Choose recipients below to draft or send one.</p> : <ul className="divide-y divide-slate-100">
+        {messageDeliveries.slice(0, 4).map((delivery) => <li key={delivery._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
           <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{delivery.business?.name || "Business"} <span className="font-normal text-slate-500">· {delivery.recipientName || "Owner"}</span></p><p className="mt-0.5 truncate text-xs text-slate-500">{delivery.subject || delivery.message}</p></div>
           <div className="flex items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">{delivery.channel || "email"}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${delivery.status === "sent" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{delivery.status}</span><span className="whitespace-nowrap text-[10px] text-slate-400">{new Date(delivery.createdAt).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}</span></div>
           {delivery.errorMessage && <p className="w-full text-xs text-rose-700">{delivery.errorMessage}</p>}
@@ -417,8 +475,12 @@ const AdminCommunications = () => {
 
     <AdminBusinessChatInbox />
 
-    <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
+    <div id="report-recipient-registry" className="scroll-mt-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
       <div className="border-b border-slate-100 bg-slate-50/60 p-5">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-emerald-700">Manage &amp; contact</p><h2 className="mt-1 text-xl font-black text-slate-900">Report recipients</h2><p className="mt-1 text-xs text-slate-500">Choose a business owner to draft an email or WhatsApp, or manage their automated reports.</p></div>
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600">{filteredRecipients.length} recipients</span>
+        </div>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
             <div className="min-w-0 flex-1">
@@ -434,7 +496,7 @@ const AdminCommunications = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <select value={sortBy} onChange={(event) => { setSortBy(event.target.value); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700"><option value="status">Sort by status</option><option value="business">Sort by business</option><option value="email">Sort by email</option><option value="lastSent">Sort by last sent</option></select>
-            <button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white">Add recipient</button>
+            <button type="button" onClick={() => setIsFormOpen(true)} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition hover:bg-emerald-800"><span className="mr-1.5">+</span> Add report recipient</button>
           </div>
         </div>
 
@@ -444,98 +506,74 @@ const AdminCommunications = () => {
             <button type="button" onClick={() => applyBulkAction("enable")} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Enable</button>
             <button type="button" onClick={() => applyBulkAction("disable")} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700">Disable</button>
             <button type="button" onClick={() => applyBulkAction("delete")} className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-rose-700">Delete</button>
-            <button type="button" onClick={() => openContactDraft(selectedRecipients)} className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Draft email / WhatsApp</button>
+            <button type="button" onClick={() => openContactDraft(selectedRecipients)} className="rounded-lg bg-emerald-700 px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-sm hover:bg-emerald-800"><FiSend className="mr-1 inline" /> Draft email / WhatsApp</button>
             <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-600">Clear selection</button>
           </div>
         </div>}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-widest text-slate-500">
-            <tr>
-              <th className="px-5 py-4"><input type="checkbox" checked={pageRecipients.length > 0 && pageRecipients.every((recipient) => selectedIds.includes(getRecipientKey(recipient)))} onChange={() => {
-                const keys = pageRecipients.map((recipient) => getRecipientKey(recipient));
-                const allSelected = keys.every((key) => selectedIds.includes(key));
-                setSelectedIds((current) => allSelected ? current.filter((key) => !keys.includes(key)) : [...new Set([...current, ...keys])]);
-              }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" aria-label="Toggle all recipients" /></th>
-              <th className="px-5 py-4">Recipient</th>
-              <th className="px-5 py-4">Status</th>
-              <th className="px-5 py-4">Frequency</th>
-              <th className="px-5 py-4">Last sent</th>
-              <th className="px-5 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 bg-white text-xs">
-            {filteredRecipients.length === 0 ? <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-400">No report recipients configured.</td></tr> : pageRecipients.map((recipient) => {
-              const primarySchedule = recipient.schedules.find((item) => item.status === "enabled") || recipient.schedules[0];
-              const isPro = recipient.business?.isPro === true || (recipient.business?.plan === "pro" && recipient.business?.subscription?.status === "active");
-              const isEnabled = recipient.schedules.some((item) => item.status === "enabled") || (recipient.isAutomatic && isPro && recipient.business?.reportNotificationsEnabled !== false);
-              const recipientKeyValue = getRecipientKey(recipient);
-              return <tr key={recipientKeyValue} className="align-top transition hover:bg-slate-50/80">
-                <td className="px-5 py-4">
-                  <input type="checkbox" checked={selectedIds.includes(recipientKeyValue)} onChange={() => toggleSelection(recipient)} className="h-4 w-4 rounded border-slate-300 text-emerald-600" aria-label={`Select ${recipient.recipientEmail}`} />
-                </td>
-                <td className="px-5 py-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-bold text-emerald-700">{(recipient.recipientName || recipient.recipientEmail || "U").slice(0, 2).toUpperCase()}</div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <strong className="text-sm font-semibold text-slate-800">{recipient.recipientName || "Unnamed"}</strong>
-                          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase ${isEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>{isEnabled ? "Live" : "Paused"}</span>
-                        </div>
-                        <span className="mt-0.5 block text-slate-500">{recipient.recipientEmail}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-                      <button type="button" onClick={() => openFrequency(recipient, primarySchedule?.frequency || "daily")} className="rounded-full bg-slate-100 px-2 py-1 text-left hover:bg-emerald-50 hover:text-emerald-800" aria-label={`Configure reports for ${recipient.business?.name || "General"}`}>{recipient.business?.name || "General"} · Configure</button>
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{formatReportType(recipient.reportType)}</span>
-                      <span className="rounded-full bg-sky-50 px-2 py-1 text-sky-700">{(recipient.channel || "email").replace("both", "Email + WhatsApp")}</span>
-                      <span className={`rounded-full px-2 py-1 font-bold ${isPro ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600"}`}>{isPro ? "Pro" : "Free"}</span>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${isEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>
-                    {isEnabled ? "Active" : "Paused"}
-                  </span>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="space-y-2">
-                    {frequencies.map(([value, label]) => {
-                      const schedule = recipient.schedules.find((item) => item.frequency === value);
-                      return <label key={value} className="flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold text-slate-700">
-                        <input type="checkbox" checked={schedule?.status === "enabled" || (!schedule && recipient.isAutomatic && isPro && value === "daily")} onChange={(event) => setFrequencyEnabled(recipient, value, event.target.checked)} disabled={saving} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
-                        {label}
-                      </label>;
-                    })}
-                  </div>
-                  <p className="mt-2 text-[10px] text-slate-400">{primarySchedule?.sendTime || "18:00"} · {primarySchedule?.timezone || "Africa/Lagos"}</p>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="font-medium text-slate-700">{primarySchedule?.lastSentAt ? new Date(primarySchedule.lastSentAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never sent"}</span>
-                    <button type="button" onClick={() => openHistory(recipient)} className="w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">History</button>
-                  </div>
-                </td>
-                <td className="relative px-5 py-4 text-right">
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => openContactDraft([recipient])} className="mr-2 rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-emerald-800 hover:bg-emerald-50">Draft email / WhatsApp</button>
-                    <button type="button" onClick={() => setMenuOpenId(menuOpenId === recipientKeyValue ? "" : recipientKeyValue)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg text-slate-600 transition hover:border-slate-300 hover:bg-slate-50">⋮</button>
-                  </div>
-                  {menuOpenId === recipientKeyValue && <div className="absolute right-5 top-14 z-20 w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-                    <button type="button" onClick={() => { setMenuOpenId(""); sendTest(primarySchedule); }} disabled={!primarySchedule?._id || testingId === primarySchedule?._id} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">{testingId === primarySchedule?._id ? "Sending..." : "Send test"}</button>
-                    <button type="button" onClick={() => { setMenuOpenId(""); toggle(primarySchedule); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">{primarySchedule?.status === "enabled" ? "Pause delivery" : "Resume delivery"}</button>
-                    <button type="button" onClick={() => { setMenuOpenId(""); openFrequency(recipient, primarySchedule?.frequency || "daily"); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">Edit schedule</button>
-                    <button type="button" onClick={() => { setMenuOpenId(""); removeRecipient(recipient); }} className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50">Delete</button>
-                  </div>}
-                </td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" checked={pageRecipients.length > 0 && pageRecipients.every((recipient) => selectedIds.includes(getRecipientKey(recipient)))} onChange={() => {
+          const keys = pageRecipients.map((recipient) => getRecipientKey(recipient));
+          const allSelected = keys.every((key) => selectedIds.includes(key));
+          setSelectedIds((current) => allSelected ? current.filter((key) => !keys.includes(key)) : [...new Set([...current, ...keys])]);
+        }} className="h-4 w-4 rounded border-slate-300 text-emerald-600" aria-label="Toggle all recipients" /> Select page</label>
+        <p className="text-xs text-slate-500">Email and WhatsApp drafts are one click away on each business card.</p>
       </div>
+
+      {filteredRecipients.length === 0 ? <div className="px-5 py-14 text-center"><span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"><FiMail size={22} /></span><h3 className="mt-4 text-sm font-bold text-slate-800">No report recipients found</h3><p className="mt-1 text-xs text-slate-500">Try another search or add a recipient to start scheduling reports.</p><button type="button" onClick={() => setIsFormOpen(true)} className="mt-4 rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white">Add report recipient</button></div> : <div className="grid gap-4 bg-slate-50/70 p-4 sm:p-5 xl:grid-cols-2">
+        {pageRecipients.map((recipient) => {
+          const primarySchedule = recipient.schedules.find((item) => item.status === "enabled") || recipient.schedules[0];
+          const isPro = recipient.business?.isPro === true || (recipient.business?.plan === "pro" && recipient.business?.subscription?.status === "active");
+          const isEnabled = recipient.schedules.some((item) => item.status === "enabled") || (recipient.isAutomatic && isPro && recipient.business?.reportNotificationsEnabled !== false);
+          const recipientKeyValue = getRecipientKey(recipient);
+          const lastSentAt = primarySchedule?.lastSentAt;
+          return <article key={recipientKeyValue} className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md">
+            <div className="flex items-start justify-between gap-3">
+              <label className="flex min-w-0 items-start gap-3">
+                <input type="checkbox" checked={selectedIds.includes(recipientKeyValue)} onChange={() => toggleSelection(recipient)} className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600" aria-label={`Select ${recipient.recipientEmail}`} />
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-xs font-black text-emerald-800">{(recipient.recipientName || recipient.recipientEmail || "U").slice(0, 2).toUpperCase()}</span>
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-2"><strong className="text-sm font-extrabold text-slate-900">{recipient.recipientName || "Unnamed recipient"}</strong><span className={`rounded-full border px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-100 text-slate-500"}`}>{isEnabled ? "Active" : "Paused"}</span></span>
+                  <span className="mt-1 block truncate text-xs text-slate-500">{recipient.recipientEmail || "No email address"}</span>
+                  <span className="mt-1 block truncate text-xs font-semibold text-slate-700">{recipient.business?.name || "General business"}</span>
+                </span>
+              </label>
+              <div className="relative shrink-0">
+                <button type="button" aria-label={`More actions for ${recipient.recipientName || recipient.recipientEmail}`} onClick={() => setMenuOpenId(menuOpenId === recipientKeyValue ? "" : recipientKeyValue)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-lg text-slate-600 transition hover:bg-slate-50">⋮</button>
+                {menuOpenId === recipientKeyValue && <div className="absolute right-0 top-10 z-20 w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                  <button type="button" onClick={() => { setMenuOpenId(""); sendTest(primarySchedule); }} disabled={!primarySchedule?._id || testingId === primarySchedule?._id} className="flex w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">{testingId === primarySchedule?._id ? "Sending..." : "Send test report"}</button>
+                  <button type="button" onClick={() => { setMenuOpenId(""); toggle(primarySchedule); }} className="flex w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">{primarySchedule?.status === "enabled" ? "Pause delivery" : "Resume delivery"}</button>
+                  <button type="button" onClick={() => { setMenuOpenId(""); openFrequency(recipient, primarySchedule?.frequency || "daily"); }} className="flex w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50">Edit report schedule</button>
+                  <button type="button" onClick={() => { setMenuOpenId(""); removeRecipient(recipient); }} className="flex w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50">Remove recipient</button>
+                </div>}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-800">{formatReportType(recipient.reportType)}</span>
+              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-800">{(recipient.channel || "email").replace("both", "Email + WhatsApp")}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isPro ? "bg-violet-50 text-violet-700" : "bg-slate-100 text-slate-600"}`}>{isPro ? "Pro" : "Free"}</span>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-500">Report frequency</p><p className="text-[10px] text-slate-500">{primarySchedule?.sendTime || "18:00"} · {primarySchedule?.timezone || "Africa/Lagos"}</p></div>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+                {frequencies.map(([value, label]) => {
+                  const schedule = recipient.schedules.find((item) => item.frequency === value);
+                  return <label key={value} className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <input type="checkbox" checked={schedule?.status === "enabled" || (!schedule && recipient.isAutomatic && isPro && value === "daily")} onChange={(event) => setFrequencyEnabled(recipient, value, event.target.checked)} disabled={saving} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                    {label}
+                  </label>;
+                })}
+              </div>
+              <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-2.5 text-[11px]"><span className="text-slate-500">Last sent: <strong className="text-slate-700">{lastSentAt ? new Date(lastSentAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never"}</strong></span><button type="button" onClick={() => openHistory(recipient)} className="font-extrabold text-emerald-800 hover:underline">View history</button></div>
+            </div>
+
+            <button type="button" onClick={() => openContactDraft([recipient])} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3.5 text-sm font-extrabold text-white shadow-md transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"><FiSend size={16} /> Draft Email / WhatsApp</button>
+          </article>;
+        })}
+      </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
         <label className="flex items-center gap-2">Rows per page
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
