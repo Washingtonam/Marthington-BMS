@@ -250,6 +250,10 @@ router.get(
 
 router.get("/communications/messages", protect, onlyAdmin, adminController.listCommunicationDeliveries);
 router.post("/communications/messages", protect, onlyAdmin, adminController.sendCommunicationMessage);
+router.get("/communications/drafts", protect, onlyAdmin, adminController.listCommunicationDrafts);
+router.post("/communications/drafts", protect, onlyAdmin, adminController.createCommunicationDraft);
+router.patch("/communications/drafts/:id", protect, onlyAdmin, adminController.updateCommunicationDraft);
+router.delete("/communications/drafts/:id", protect, onlyAdmin, adminController.removeCommunicationDraft);
 
 // ================= OUTREACH CAMPAIGNS =================
 router.get("/email-campaigns", protect, onlyAdmin, adminController.listEmailCampaigns);

@@ -31,11 +31,23 @@ const buildWhatsAppLink = (phone, message) => {
   return number ? `https://wa.me/${number}?text=${encodeURIComponent(message)}` : "";
 };
 
-const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft tenant message" }) => {
+const TenantMessageModal = ({
+  recipients,
+  onClose,
+  onSendDirect,
+  onSaveDraft,
+  savedDrafts = [],
+  initialDraft = null,
+  title = "Draft tenant message"
+}) => {
   const [recipientId, setRecipientId] = useState(recipients[0]?._id || "");
   const [messageSubject, setMessageSubject] = useState("");
   const [messageBody, setMessageBody] = useState("");
   const [channel, setChannel] = useState("email");
+  const [draftName, setDraftName] = useState("");
+  const [activeDraftId, setActiveDraftId] = useState("");
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveMessage, setDraftSaveMessage] = useState("");
   const [draftedKeys, setDraftedKeys] = useState([]);
   const [whatsappOptInConfirmed, setWhatsappOptInConfirmed] = useState(false);
   const [sendingDirect, setSendingDirect] = useState(false);
@@ -63,11 +75,23 @@ const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft 
 
   useEffect(() => {
     if (!recipient) return;
+    if (initialDraft) {
+      setMessageSubject(initialDraft.subject || "");
+      setMessageBody(initialDraft.message || "");
+      setChannel(initialDraft.channel || "email");
+      setDraftName(initialDraft.name || "");
+      setActiveDraftId(initialDraft._id || "");
+      setDraftSaveMessage("");
+      return;
+    }
     setMessageSubject(recipients.length > 1 ? "A note from Marthington BMS" : `A note about ${recipient.name || "your business"}`);
     setMessageBody(recipients.length > 1
       ? "Hello,\n\nI’m reaching out regarding your Marthington BMS workspace.\n\n"
       : `Hello ${recipient.ownerName || recipient.recipientName || "there"},\n\nI’m reaching out regarding ${recipient.name || "your business"} and your Marthington BMS workspace.\n\n`);
-  }, [recipient?._id, recipients.length]);
+    setDraftName("");
+    setActiveDraftId("");
+    setDraftSaveMessage("");
+  }, [recipient?._id, recipients.length, initialDraft?._id]);
 
   if (!recipient) return null;
 
@@ -114,6 +138,50 @@ const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft 
     }
   };
 
+  const loadSavedDraft = (draftId) => {
+    if (!draftId) {
+      setActiveDraftId("");
+      setDraftName("");
+      setChannel("email");
+      setMessageSubject(recipients.length > 1 ? "A note from Marthington BMS" : `A note about ${recipient.name || "your business"}`);
+      setMessageBody(recipients.length > 1
+        ? "Hello,\n\nI’m reaching out regarding your Marthington BMS workspace.\n\n"
+        : `Hello ${recipient.ownerName || recipient.recipientName || "there"},\n\nI’m reaching out regarding ${recipient.name || "your business"} and your Marthington BMS workspace.\n\n`);
+      setDraftSaveMessage("");
+      return;
+    }
+    const draft = savedDrafts.find((item) => item._id === draftId);
+    if (!draft) return;
+    setActiveDraftId(draft._id);
+    setDraftName(draft.name);
+    setChannel(draft.channel);
+    setMessageSubject(draft.subject || "");
+    setMessageBody(draft.message);
+    setDraftSaveMessage("");
+  };
+
+  const saveMessageDraft = async () => {
+    if (!onSaveDraft || !draftName.trim() || !messageBody.trim()) return;
+    try {
+      setSavingDraft(true);
+      setDraftSaveMessage("");
+      const savedDraft = await onSaveDraft({
+        _id: activeDraftId || undefined,
+        name: draftName.trim(),
+        channel,
+        subject: messageSubject,
+        message: messageBody
+      });
+      setActiveDraftId(savedDraft._id);
+      setDraftName(savedDraft.name);
+      setDraftSaveMessage("Saved. You can reopen this message from Saved messages.");
+    } catch (error) {
+      setDraftSaveMessage(error.message || "Could not save this message.");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" role="dialog" aria-modal="true" aria-labelledby="tenant-message-title">
       <section className="my-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
@@ -121,12 +189,19 @@ const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft 
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-800">Tenant messaging</p>
             <h2 id="tenant-message-title" className="mt-1 text-xl font-extrabold text-slate-900">{title}</h2>
-            <p className="mt-1 text-sm text-slate-600">Compose once, then send directly or open individual drafts.</p>
+            <p className="mt-1 text-sm text-slate-600">Save reusable messages, send directly, or open individual email and WhatsApp drafts.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close tenant message draft" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100">Close</button>
         </div>
 
         <div className="mt-4 grid gap-3">
+          {savedDrafts.length > 0 && <label className="text-xs font-bold text-slate-600">
+            Load a saved message
+            <select value={activeDraftId} onChange={(event) => loadSavedDraft(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800">
+              <option value="">Start a new message</option>
+              {savedDrafts.map((draft) => <option key={draft._id} value={draft._id}>{draft.name} · {draft.channel === "whatsapp" ? "WhatsApp" : "Email"}</option>)}
+            </select>
+          </label>}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs font-bold text-slate-600">Message channel</span>
             <div className="flex gap-2" role="group" aria-label="Message channel">
@@ -143,6 +218,16 @@ const TenantMessageModal = ({ recipients, onClose, onSendDirect, title = "Draft 
             Message {channel === "whatsapp" && <span className="font-medium text-slate-400">(up to 1,024 characters)</span>}
             <textarea aria-label="Message" rows={5} maxLength={channel === "whatsapp" ? 1024 : 5000} value={messageBody} onChange={(event) => setMessageBody(event.target.value)} className="mt-1.5 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-800" />
           </label>
+          {onSaveDraft && <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-3">
+            <label className="block text-xs font-bold text-slate-700">
+              Saved message name
+              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={100} placeholder="e.g. New shop feature follow-up" className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800" />
+            </label>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <p role="status" className="text-xs text-slate-600">{draftSaveMessage || "Save the message and channel settings to reuse them later."}</p>
+              <button type="button" onClick={saveMessageDraft} disabled={savingDraft || !draftName.trim() || !messageBody.trim() || (channel === "email" && !messageSubject.trim())} className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-900 hover:bg-sky-100 disabled:opacity-50">{savingDraft ? "Saving..." : activeDraftId ? "Update saved message" : "Save message"}</button>
+            </div>
+          </div>}
           {channel === "whatsapp" && <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-900">
             <input type="checkbox" checked={whatsappOptInConfirmed} onChange={(event) => setWhatsappOptInConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-emerald-600" />
             I confirm every selected recipient explicitly opted in to WhatsApp messages.

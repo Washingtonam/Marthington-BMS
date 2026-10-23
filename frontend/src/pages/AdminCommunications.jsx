@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiArrowUpRight, FiFileText, FiMail, FiMessageCircle, FiSend } from "react-icons/fi";
+import { FiArrowUpRight, FiFileText, FiMail, FiMessageCircle, FiSend, FiTrash2 } from "react-icons/fi";
 import TenantMessageModal from "../components/TenantMessageModal.jsx";
 import AdminBusinessChatInbox from "../components/AdminBusinessChatInbox.jsx";
 import request from "../api/client.js";
@@ -40,6 +40,7 @@ const AdminCommunications = () => {
   const [testingId, setTestingId] = useState("");
   const [emailHealth, setEmailHealth] = useState(null);
   const [messageDeliveries, setMessageDeliveries] = useState([]);
+  const [savedDrafts, setSavedDrafts] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [menuOpenId, setMenuOpenId] = useState("");
@@ -49,14 +50,16 @@ const AdminCommunications = () => {
   const [pageSize, setPageSize] = useState(10);
 
   const load = async () => {
-    const [subscriptionData, businessesData, messageData] = await Promise.all([
+    const [subscriptionData, businessesData, messageData, draftData] = await Promise.all([
       request("/admin/report-subscriptions"),
       request("/admin/businesses"),
-      request("/admin/communications/messages")
+      request("/admin/communications/messages"),
+      request("/admin/communications/drafts")
     ]);
     setSubscriptions(subscriptionData.subscriptions || []);
     setBusinesses(businessesData.businesses || []);
     setMessageDeliveries(messageData.deliveries || []);
+    setSavedDrafts(draftData.drafts || []);
     request("/admin/email-health")
       .then(setEmailHealth)
       .catch((error) => setEmailHealth(error.body || { verified: false, email: { lastError: error.message || "Email health check failed" } }));
@@ -147,6 +150,32 @@ const AdminCommunications = () => {
     });
     setMessageDeliveries((current) => [...(response.deliveries || []), ...current].slice(0, 100));
     return response;
+  };
+
+  const saveCommunicationDraft = async (draft) => {
+    const isUpdate = Boolean(draft._id);
+    const response = await request(
+      isUpdate ? `/admin/communications/drafts/${draft._id}` : "/admin/communications/drafts",
+      {
+        method: isUpdate ? "PATCH" : "POST",
+        body: JSON.stringify(draft)
+      }
+    );
+    setSavedDrafts((current) => [
+      response.draft,
+      ...current.filter((item) => item._id !== response.draft._id)
+    ].slice(0, 100));
+    return response.draft;
+  };
+
+  const deleteCommunicationDraft = async (draft) => {
+    if (!window.confirm(`Delete the saved message "${draft.name}"?`)) return;
+    try {
+      await request(`/admin/communications/drafts/${draft._id}`, { method: "DELETE" });
+      setSavedDrafts((current) => current.filter((item) => item._id !== draft._id));
+    } catch (error) {
+      alert(error.message || "Failed to delete saved message");
+    }
   };
 
   const toggleSelection = (recipient) => {
@@ -473,6 +502,19 @@ const AdminCommunications = () => {
       </ul>}
     </section>
 
+    <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm" aria-labelledby="saved-messages-title">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-sky-50/70 px-5 py-4">
+        <div><h2 id="saved-messages-title" className="text-sm font-extrabold text-slate-900">Saved messages</h2><p className="mt-1 text-xs text-slate-600">Reusable message text, channel, and email subject. Open any business composer to load one.</p></div>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-sky-800">{savedDrafts.length} saved</span>
+      </div>
+      {savedDrafts.length === 0 ? <div className="px-5 py-5 text-sm text-slate-500">No saved messages yet. Draft a message for a business and save it for future follow-ups.</div> : <ul className="divide-y divide-slate-100">
+        {savedDrafts.slice(0, 6).map((draft) => <li key={draft._id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3">
+          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-800">{draft.name}</strong><span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-600">{draft.channel}</span></div><p className="mt-1 truncate text-xs text-slate-500">{draft.channel === "email" && draft.subject ? `${draft.subject} · ` : ""}{draft.message}</p><p className="mt-1 text-[10px] text-slate-400">Updated {new Date(draft.updatedAt).toLocaleDateString()}</p></div>
+          <button type="button" onClick={() => deleteCommunicationDraft(draft)} aria-label={`Delete ${draft.name}`} className="rounded-lg border border-slate-200 p-2 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"><FiTrash2 size={14} /></button>
+        </li>)}
+      </ul>}
+    </section>
+
     <AdminBusinessChatInbox />
 
     <div id="report-recipient-registry" className="scroll-mt-6 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xl">
@@ -589,7 +631,7 @@ const AdminCommunications = () => {
       </div>
     </div>
 
-    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} onSendDirect={sendDirectMessage} title={contactRecipients.length > 1 ? `Message ${contactRecipients.length} selected tenants` : `Message ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
+    {contactRecipients && <TenantMessageModal recipients={contactRecipients} onClose={() => setContactRecipients(null)} onSendDirect={sendDirectMessage} onSaveDraft={saveCommunicationDraft} savedDrafts={savedDrafts} title={contactRecipients.length > 1 ? `Message ${contactRecipients.length} selected tenants` : `Message ${contactRecipients[0]?.name || contactRecipients[0]?.ownerName || "tenant"}`} />}
     {historyRecipient && <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/30" role="dialog" aria-modal="true" aria-labelledby="history-drawer-title">
       <aside className="h-full w-full max-w-md overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">

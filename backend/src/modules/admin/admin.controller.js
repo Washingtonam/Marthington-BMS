@@ -17,6 +17,7 @@ import importQueue from "../../queues/importQueue.js";
 import ReportSubscription from "./reportSubscription.model.js";
 import ReportDeliveryLog from "./reportDeliveryLog.model.js";
 import CommunicationDelivery from "./communicationDelivery.model.js";
+import CommunicationDraft from "./communicationDraft.model.js";
 import jwt from "jsonwebtoken";
 import { sendCampaignEmail, sendReportEmail, sendSubscriptionEmail } from "../../utils/emailService.js";
 import { getEmailConfigStatus, verifyEmailConfig } from "../../config/email.js";
@@ -1409,6 +1410,92 @@ const sendCommunicationMessage = async (req, res) => {
   }
 };
 
+const listCommunicationDrafts = async (_req, res) => {
+  try {
+    const drafts = await CommunicationDraft.find({})
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+    res.json({ drafts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const validateCommunicationDraft = (body) => {
+  const { name, channel, subject = "", message } = body || {};
+  if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
+    return "Draft name must be between 1 and 100 characters";
+  }
+  if (!["email", "whatsapp"].includes(channel)) {
+    return "Choose a valid message channel";
+  }
+  if (typeof message !== "string" || !message.trim() || message.length > 5000) {
+    return "Message must be between 1 and 5,000 characters";
+  }
+  if (channel === "whatsapp" && message.length > 1024) {
+    return "WhatsApp messages must be 1,024 characters or fewer";
+  }
+  if (channel === "email" && (typeof subject !== "string" || !subject.trim() || subject.length > 200)) {
+    return "Email subject must be between 1 and 200 characters";
+  }
+  return null;
+};
+
+const createCommunicationDraft = async (req, res) => {
+  const validationError = validateCommunicationDraft(req.body);
+  if (validationError) return res.status(400).json({ message: validationError });
+  try {
+    const draft = await CommunicationDraft.create({
+      name: req.body.name.trim(),
+      channel: req.body.channel,
+      subject: req.body.channel === "email" ? req.body.subject.trim() : "",
+      message: req.body.message.trim(),
+      createdBy: req.user.id
+    });
+    res.status(201).json({ draft });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateCommunicationDraft = async (req, res) => {
+  const validationError = validateCommunicationDraft(req.body);
+  if (validationError) return res.status(400).json({ message: validationError });
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid message draft" });
+  }
+  try {
+    const draft = await CommunicationDraft.findByIdAndUpdate(
+      req.params.id,
+      {
+        name: req.body.name.trim(),
+        channel: req.body.channel,
+        subject: req.body.channel === "email" ? req.body.subject.trim() : "",
+        message: req.body.message.trim()
+      },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!draft) return res.status(404).json({ message: "Message draft not found" });
+    res.json({ draft });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const removeCommunicationDraft = async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid message draft" });
+  }
+  try {
+    const draft = await CommunicationDraft.findByIdAndDelete(req.params.id);
+    if (!draft) return res.status(404).json({ message: "Message draft not found" });
+    res.json({ message: "Message draft deleted" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const unsubscribeReportSubscription = async (req, res) => {
   try {
     const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
@@ -2495,6 +2582,10 @@ export default {
   getEmailHealth,
   listCommunicationDeliveries,
   sendCommunicationMessage,
+  listCommunicationDrafts,
+  createCommunicationDraft,
+  updateCommunicationDraft,
+  removeCommunicationDraft,
   unsubscribeReportSubscription,
   unsubscribeCampaignEmail,
   listEmailCampaigns,
