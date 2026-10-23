@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import Customers from '../pages/Customers.jsx';
-import { updateCustomer } from '../api/customers.js';
+import { getCustomers, updateCustomer } from '../api/customers.js';
+import { getStaff } from '../api/staff.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({
   useAuth: () => ({ user: { role: 'owner' } }),
@@ -25,6 +26,10 @@ vi.mock('../api/customers.js', () => ({
       createdAt: '2026-08-01T00:00:00.000Z',
     },
   ]),
+}));
+
+vi.mock('../api/staff.js', () => ({
+  getStaff: vi.fn()
 }));
 
 describe('Customers page', () => {
@@ -59,5 +64,50 @@ describe('Customers page', () => {
     expect(screen.getAllByText('Ava Stone').length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole('button', { name: 'Add contact details' })[0]);
     expect(screen.getByRole('heading', { name: 'Edit customer' })).toBeTruthy();
+  });
+
+  it('opens a drafted WhatsApp message for a selected customer', async () => {
+    getCustomers.mockResolvedValueOnce([{
+      _id: 'cust-2',
+      name: 'Jordan Lee',
+      phone: '08031234567',
+      whatsappFollowUpConsent: true
+    }]);
+    const openWhatsApp = vi.spyOn(window, 'open').mockReturnValue({ opener: window });
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /draft whatsapp/i }))[0]);
+    expect(screen.getByRole('heading', { name: 'Draft WhatsApp message' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Message'), {
+      target: { value: 'Hello Jordan, our new products are now in stock.' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: /open whatsapp/i }));
+
+    expect(openWhatsApp).toHaveBeenCalledWith(
+      expect.stringContaining('wa.me/2348031234567'),
+      '_blank'
+    );
+    openWhatsApp.mockRestore();
+  });
+
+  it('allows an authorized owner to draft a WhatsApp message to staff', async () => {
+    getStaff.mockResolvedValueOnce([{
+      _id: 'staff-1',
+      name: 'Sam Taylor',
+      phone: '08039876543'
+    }]);
+    const openWhatsApp = vi.spyOn(window, 'open').mockReturnValue({ opener: window });
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /draft whatsapp/i }))[0]);
+    fireEvent.change(screen.getByLabelText('Recipient type'), { target: { value: 'staff' } });
+    expect(await screen.findByRole('option', { name: /Sam Taylor/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /open whatsapp/i }));
+
+    expect(openWhatsApp).toHaveBeenCalledWith(
+      expect.stringContaining('wa.me/2348039876543'),
+      '_blank'
+    );
+    openWhatsApp.mockRestore();
   });
 });

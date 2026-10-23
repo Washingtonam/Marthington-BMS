@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FiArrowLeft, FiCalendar, FiMail, FiMapPin, FiMessageCircle, FiPhone, FiUser } from "react-icons/fi";
 import { getCustomer } from "../api/customers.js";
@@ -56,11 +56,22 @@ const CustomerDetail = () => {
   }
 
   const { customer, sales = [], invoices = [] } = data;
+  const quotes = invoices.filter((invoice) => invoice.invoiceType === "quotation");
+  const regularInvoices = invoices.filter((invoice) => invoice.invoiceType !== "quotation");
+  const serviceItems = invoices.flatMap((invoice) => (invoice.items || [])
+    .filter((item) => item.service)
+    .map((item, index) => ({
+      ...item,
+      invoiceId: invoice._id,
+      invoiceNumber: invoice.invoiceNumber,
+      createdAt: invoice.createdAt,
+      key: `${invoice._id}-${index}`
+    })));
   const summary = [
     { label: "Total spent", value: formatCurrency(customer.totalSpent || 0) },
     { label: "Outstanding balance", value: formatCurrency(customer.outstandingBalance || 0) },
     { label: "Sales", value: sales.length },
-    { label: "Invoices", value: invoices.length }
+    { label: "Quotes", value: quotes.length }
   ];
 
   return (
@@ -119,12 +130,32 @@ const CustomerDetail = () => {
 
         <div className="space-y-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Quotes</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead><tr className="text-xs uppercase tracking-wide text-slate-400"><th className="pb-3 pr-4">Quote</th><th className="pb-3 pr-4">Date created</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Valid until</th><th className="pb-3">Status</th></tr></thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {quotes.length ? quotes.map((invoice) => (
+                    <tr key={invoice._id} className="text-slate-700 dark:text-slate-300">
+                      <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber || "Quote"}</td>
+                      <td className="py-3 pr-4">{formatDate(invoice.createdAt)}</td>
+                      <td className="py-3 pr-4">{formatCurrency(invoice.totalAmount || 0)}</td>
+                      <td className="py-3 pr-4">{formatDate(invoice.dueDate)}</td>
+                      <td className="py-3">{invoice.status || "Draft"}</td>
+                    </tr>
+                  )) : <tr><td colSpan="5" className="py-6 text-center text-slate-500">No quotes recorded for this customer.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Invoices</h2>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead><tr className="text-xs uppercase tracking-wide text-slate-400"><th className="pb-3 pr-4">Invoice</th><th className="pb-3 pr-4">Date</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Balance</th><th className="pb-3">Payment</th></tr></thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {invoices.length ? invoices.map((invoice) => (
+                  {regularInvoices.length ? regularInvoices.map((invoice) => (
                     <tr key={invoice._id} className="text-slate-700 dark:text-slate-300">
                       <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber || "Invoice"}</td>
                       <td className="py-3 pr-4">{formatDate(invoice.createdAt)}</td>
@@ -133,6 +164,25 @@ const CustomerDetail = () => {
                       <td className="py-3">{invoice.paymentStatus || "Unpaid"}</td>
                     </tr>
                   )) : <tr><td colSpan="5" className="py-6 text-center text-slate-500">No invoices recorded for this customer.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Service history</h2>
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead><tr className="text-xs uppercase tracking-wide text-slate-400"><th className="pb-3 pr-4">Service</th><th className="pb-3 pr-4">Order</th><th className="pb-3 pr-4">Recorded</th><th className="pb-3">Progress</th></tr></thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                  {serviceItems.length ? serviceItems.map((item) => (
+                    <tr key={item.key} className="text-slate-700 dark:text-slate-300">
+                      <td className="py-3 pr-4 font-medium">{item.name || "Service"}</td>
+                      <td className="py-3 pr-4">{item.invoiceNumber || "Invoice"}</td>
+                      <td className="py-3 pr-4">{formatDate(item.createdAt)}</td>
+                      <td className="py-3 capitalize">{String(item.serviceStatus || "pending").replace("_", " ")}</td>
+                    </tr>
+                  )) : <tr><td colSpan="4" className="py-6 text-center text-slate-500">No service work recorded for this customer.</td></tr>}
                 </tbody>
               </table>
             </div>

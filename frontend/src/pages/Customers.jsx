@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiEdit2, FiMail, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
+import { FiEdit2, FiMail, FiMessageCircle, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
 import { createCustomer, getCustomers, updateCustomer } from "../api/customers.js";
+import { getStaff } from "../api/staff.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
+import { openWhatsAppMessage } from "../utils/whatsappMessages.js";
 
 const createEmptyForm = () => ({
   name: "",
@@ -20,13 +22,21 @@ const createEmptyForm = () => ({
 
 const Customers = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, business } = useAuth();
   const canManageCustomers = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canManageCustomers === true;
+  const canMessageStaff = user?.role === "owner" || user?.role === "super_admin" || user?.permissions?.canManageStaff === true;
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewCustomer, setPreviewCustomer] = useState(null);
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageRecipientType, setMessageRecipientType] = useState("customer");
+  const [messageCustomerId, setMessageCustomerId] = useState("");
+  const [messageDraft, setMessageDraft] = useState("");
+  const [staff, setStaff] = useState([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffLoadError, setStaffLoadError] = useState("");
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false });
   const [savingEdit, setSavingEdit] = useState(false);
@@ -100,6 +110,83 @@ const Customers = () => {
   const openCreateDrawer = () => {
     setForm(createEmptyForm());
     setDrawerOpen(true);
+  };
+
+  const openMessageComposer = (customer = null) => {
+    const target = customer || customers[0];
+    setMessageRecipientType("customer");
+    setMessageCustomerId(target?._id || "");
+    setMessageDraft(target
+      ? `Hello ${target.name || "there"},\n\nWe have new products in stock and thought you might be interested. Reply to this message if you would like to know more.`
+      : "");
+    setMessageModalOpen(true);
+  };
+
+  const handleMessageCustomerChange = (event) => {
+    const recipient = messageRecipientType === "staff"
+      ? staff.find((item) => item._id === event.target.value)
+      : customers.find((item) => item._id === event.target.value);
+    setMessageCustomerId(event.target.value);
+    setMessageDraft(recipient
+      ? `Hello ${recipient.name || "there"},\n\nWe have new products in stock and thought you might be interested. Reply to this message if you would like to know more.`
+      : "");
+  };
+
+  const handleMessageRecipientTypeChange = async (event) => {
+    const recipientType = event.target.value;
+    setMessageRecipientType(recipientType);
+    setStaffLoadError("");
+    if (recipientType === "customer") {
+      const customer = customers[0];
+      setMessageCustomerId(customer?._id || "");
+      setMessageDraft(customer
+        ? `Hello ${customer.name || "there"},\n\nWe have new products in stock and thought you might be interested. Reply to this message if you would like to know more.`
+        : "");
+      return;
+    }
+
+    if (staff.length) {
+      setMessageCustomerId(staff[0]._id);
+      setMessageDraft(`Hello ${staff[0].name || "there"},\n\n`);
+      return;
+    }
+
+    try {
+      setStaffLoading(true);
+      const staffList = await getStaff();
+      const availableStaff = Array.isArray(staffList) ? staffList : [];
+      setStaff(availableStaff);
+      setMessageCustomerId(availableStaff[0]?._id || "");
+      setMessageDraft(availableStaff[0] ? `Hello ${availableStaff[0].name || "there"},\n\n` : "");
+      if (!availableStaff.length) setStaffLoadError("No staff members are available to message.");
+    } catch (err) {
+      setStaffLoadError(err.message || "Unable to load staff contacts.");
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const handleSendWhatsAppDraft = () => {
+    const recipient = messageRecipientType === "staff"
+      ? staff.find((item) => item._id === messageCustomerId)
+      : customers.find((item) => item._id === messageCustomerId);
+    const phone = recipient?.phone || recipient?.phoneNumber;
+    if (!phone) {
+      alert(`Add a phone number to this ${messageRecipientType} profile before opening WhatsApp.`);
+      return;
+    }
+    if (!messageDraft.trim()) {
+      alert("Write a message before opening WhatsApp.");
+      return;
+    }
+    const message = business?.name
+      ? `${messageDraft.trim()}\n\n${business.name}`
+      : messageDraft.trim();
+    if (!openWhatsAppMessage(phone, message)) {
+      alert("Could not open WhatsApp. Check the phone number and allow pop-ups, then try again.");
+      return;
+    }
+    setMessageModalOpen(false);
   };
 
   const handleChange = (event) => {
@@ -225,16 +312,27 @@ const Customers = () => {
             </p>
           </div>
 
-          {canManageCustomers && (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={openCreateDrawer}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
+              onClick={() => openMessageComposer()}
+              disabled={customers.length === 0 && !canMessageStaff}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-all duration-150 hover:bg-emerald-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/50 dark:bg-slate-900 dark:text-emerald-300"
             >
-              <FiPlus />
-              Add Customer
+              <FiMessageCircle />
+              Draft WhatsApp
             </button>
-          )}
+            {canManageCustomers && (
+              <button
+                type="button"
+                onClick={openCreateDrawer}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-emerald-700 active:scale-[0.99]"
+              >
+                <FiPlus />
+                Add Customer
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -688,6 +786,55 @@ const Customers = () => {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {messageModalOpen && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <section role="dialog" aria-modal="true" aria-labelledby="customer-message-title" className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-600">CRM</p>
+                <h2 id="customer-message-title" className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">Draft WhatsApp message</h2>
+                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Review and edit the message here, then finish sending it in WhatsApp.</p>
+              </div>
+              <button type="button" onClick={() => setMessageModalOpen(false)} aria-label="Close message composer" className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300">
+                <FiX />
+              </button>
+            </div>
+
+            {canMessageStaff && (
+              <label className="mt-5 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                <span className="mb-2 block">Recipient type</span>
+                <select value={messageRecipientType} onChange={handleMessageRecipientTypeChange} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950">
+                  <option value="customer">Customer</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </label>
+            )}
+            <label className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="mb-2 block">{messageRecipientType === "staff" ? "Staff member" : "Customer"}</span>
+              <select value={messageCustomerId} onChange={handleMessageCustomerChange} disabled={staffLoading} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-700 dark:bg-slate-950">
+                {(messageRecipientType === "staff" ? staff : customers).map((recipient) => (
+                  <option key={recipient._id} value={recipient._id}>{recipient.name}{(recipient.phone || recipient.phoneNumber) ? ` · ${recipient.phone || recipient.phoneNumber}` : " · No phone number"}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span className="mb-2 block">Message</span>
+              <textarea value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} rows="7" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950" />
+            </label>
+            {staffLoadError && <p role="alert" className="mt-3 text-sm text-rose-700 dark:text-rose-300">{staffLoadError}</p>}
+            {messageRecipientType === "customer" && !customers.find((customer) => customer._id === messageCustomerId)?.whatsappFollowUpConsent && (
+              <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">WhatsApp follow-up consent is not recorded for this customer. Confirm they have agreed to receive messages before contacting them.</p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setMessageModalOpen(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-300">Cancel</button>
+              <button type="button" onClick={handleSendWhatsAppDraft} disabled={!messageCustomerId || !messageDraft.trim()} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                <FiMessageCircle /> Open WhatsApp
+              </button>
+            </div>
+          </section>
         </div>
       )}
 

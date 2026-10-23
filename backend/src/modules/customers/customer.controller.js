@@ -111,7 +111,7 @@ const getCustomerById =
         transactionType: "outgoing",
         ...(customerQuery.branch ? { branch: customerQuery.branch } : {})
       })
-        .select("invoiceNumber invoiceType status paymentStatus totalAmount amountPaid balanceDue createdAt dueDate")
+        .select("invoiceNumber invoiceType status paymentStatus totalAmount amountPaid balanceDue createdAt dueDate items")
         .sort({ createdAt: -1 });
 
       res.json({
