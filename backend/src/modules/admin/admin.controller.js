@@ -39,6 +39,7 @@ const subscriptionEmailAudiences = [
   "subscription_trial",
   "subscription_expired"
 ];
+const manageableUserRoles = ["super_admin", "owner", "manager", "cashier", "staff", "affiliate"];
 
 // 🔥 NORMALIZER (SINGLE SOURCE OF TRUTH)
 const formatBusiness = (business) => {
@@ -1482,6 +1483,86 @@ const getEmailAudienceCount = async (req, res) => {
   }
 };
 
+const listUsers = async (req, res) => {
+  try {
+    const { search = "", role = "" } = req.query;
+    if (typeof search !== "string") {
+      return res.status(400).json({ message: "Invalid search query" });
+    }
+    const query = {};
+    if (role) {
+      if (!manageableUserRoles.includes(role)) {
+        return res.status(400).json({ message: "Invalid role filter" });
+      }
+      query.role = role;
+    }
+    if (search.trim()) {
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      query.$or = [
+        { name: { $regex: escapedSearch, $options: "i" } },
+        { email: { $regex: escapedSearch, $options: "i" } }
+      ];
+    }
+
+    const users = await User.find(query)
+      .select("name email role business isActive createdAt")
+      .populate("business", "name")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      users: users.map((user) => ({
+        ...user,
+        isCurrentUser: user._id.toString() === req.user.id
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+const updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!manageableUserRoles.includes(role)) {
+      return res.status(400).json({ message: "Invalid role" });
+    }
+    if (req.params.userId === req.user.id) {
+      return res.status(400).json({ message: "You cannot change your own role" });
+    }
+
+    const user = await User.findById(req.params.userId)
+      .select("name email role business isActive createdAt");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.role === "super_admin" && role !== "super_admin" && user.isActive !== false) {
+      const activeSuperAdmins = await User.countDocuments({
+        role: "super_admin",
+        isActive: { $ne: false }
+      });
+      if (activeSuperAdmins <= 1) {
+        return res.status(400).json({ message: "The last active super admin cannot be demoted" });
+      }
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        business: user.business,
+        isActive: user.isActive,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 const listEmailRegistry = async (req, res) => {
   try {
     const { search = "", role, businessId, marketingStatus = "all" } = req.query;
@@ -2418,6 +2499,8 @@ export default {
   unsubscribeCampaignEmail,
   listEmailCampaigns,
   getEmailAudienceCount,
+  listUsers,
+  updateUserRole,
   listEmailRegistry,
   updateEmailPreference,
   sendCampaignTestEmail,

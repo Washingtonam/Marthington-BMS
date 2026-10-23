@@ -51,6 +51,9 @@ router.get(
   adminController.listBusinesses
 );
 
+router.get("/users", protect, onlyAdmin, adminController.listUsers);
+router.patch("/users/:userId/role", protect, onlyAdmin, adminController.updateUserRole);
+
 router.get(
   "/subscriptions",
   protect,

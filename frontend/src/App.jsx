@@ -60,6 +60,7 @@ const CustomerView = lazy(() => import("./pages/CustomerView.jsx"));
 const PublicReceipt = lazy(() => import("./pages/PublicReceipt.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const AdminTenantDirectory = lazy(() => import("./pages/AdminTenantDirectory.jsx"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers.jsx"));
 const AdminSubscriptions = lazy(() => import("./pages/AdminSubscriptions.jsx"));
 const AdminSubscriptionEmailStudio = lazy(() => import("./pages/AdminSubscriptionEmailStudio.jsx"));
 const AdminSubscriptionExpirations = lazy(() => import("./pages/AdminSubscriptionExpirations.jsx"));
@@ -148,19 +149,6 @@ const MedicalInventory = () => (
 );
 
 const AdminBusinesses = AdminTenantDirectory;
-const AdminUsers = () => (
-  <section className="page-stack">
-    <div className="page-heading">
-      <div>
-        <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Super Admin</span>
-        <h1 className="mt-2 text-4xl font-semibold text-slate-900">Users</h1>
-      </div>
-      <p className="max-w-2xl text-sm text-slate-500">
-        Manage platform users, roles, and access across all tenants.
-      </p>
-    </div>
-  </section>
-);
 
 const AdminAnalytics = Reports;
 const AdminSettings = Settings;
