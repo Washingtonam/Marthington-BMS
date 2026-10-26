@@ -36,4 +36,11 @@ router.put(
   customerController.updateCustomer
 );
 
+router.delete(
+  "/:id",
+  protect,
+  checkPermission("canManageCustomers"),
+  customerController.deleteCustomer
+);
+
 export default router;

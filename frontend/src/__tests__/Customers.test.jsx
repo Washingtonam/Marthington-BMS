@@ -1,9 +1,9 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import Customers from '../pages/Customers.jsx';
-import { getCustomers, updateCustomer } from '../api/customers.js';
+import { deleteCustomer, getCustomers, updateCustomer } from '../api/customers.js';
 import { getStaff } from '../api/staff.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({
@@ -11,6 +11,7 @@ vi.mock('../context/AuthContext.jsx', () => ({
 }));
 
 vi.mock('../api/customers.js', () => ({
+  deleteCustomer: vi.fn(async () => ({ message: 'Customer deleted successfully' })),
   updateCustomer: vi.fn(async (id, payload) => ({ _id: id, ...payload })),
   getCustomers: vi.fn(async () => [
     {
@@ -31,6 +32,8 @@ vi.mock('../api/customers.js', () => ({
 vi.mock('../api/staff.js', () => ({
   getStaff: vi.fn()
 }));
+
+afterEach(cleanup);
 
 describe('Customers page', () => {
   it('opens the add customer drawer', async () => {
@@ -66,6 +69,37 @@ describe('Customers page', () => {
     expect(screen.getByRole('heading', { name: 'Edit customer' })).toBeTruthy();
   });
 
+  it('paginates customers and resets to the first page when searching', async () => {
+    getCustomers.mockResolvedValueOnce(Array.from({ length: 12 }, (_, index) => ({
+      _id: `cust-${index + 1}`,
+      name: `Customer ${index + 1}`,
+      isActive: true
+    })));
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    expect(await screen.findByText('Showing 1–10 of 12 customers')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+    expect(screen.getByText('Showing 11–12 of 12 customers')).toBeTruthy();
+    expect(screen.getAllByText('Customer 12').length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByPlaceholderText('Search by name, phone, or email'), {
+      target: { value: 'Customer 1' }
+    });
+    await waitFor(() => expect(screen.getByText('Showing 1–4 of 4 customers')).toBeTruthy());
+    expect(screen.getAllByText('Customer 1').length).toBeGreaterThan(0);
+  });
+
+  it('requires confirmation before deleting a customer', async () => {
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete Ava Stone' }))[0]);
+    expect(screen.getByRole('dialog', { name: 'Delete customer?' })).toBeTruthy();
+    expect(deleteCustomer).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete customer' }));
+    await waitFor(() => expect(deleteCustomer).toHaveBeenCalledWith('cust-1'));
+  });
+
   it('opens a drafted WhatsApp message for a selected customer', async () => {
     getCustomers.mockResolvedValueOnce([{
       _id: 'cust-2',
@@ -76,6 +110,7 @@ describe('Customers page', () => {
     const openWhatsApp = vi.spyOn(window, 'open').mockReturnValue({ opener: window });
     render(<MemoryRouter><Customers /></MemoryRouter>);
 
+    expect((await screen.findAllByText('Jordan Lee')).length).toBeGreaterThan(0);
     fireEvent.click((await screen.findAllByRole('button', { name: /draft whatsapp/i }))[0]);
     expect(screen.getByRole('heading', { name: 'Draft WhatsApp message' })).toBeTruthy();
     fireEvent.change(screen.getByLabelText('Message'), {

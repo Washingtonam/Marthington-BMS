@@ -195,9 +195,72 @@ const updateCustomer = async (req, res) => {
   }
 };
 
+const deleteCustomer = async (req, res) => {
+  try {
+    const customer = await Customer.findOne({
+      _id: req.params.id,
+      business: req.user.businessId
+    });
+
+    if (!customer) return res.status(404).json({ message: "Customer not found" });
+
+    const customerQuery = getScopedBranchQuery(req.user, req.user.businessId, customer.branch?.toString());
+    if (!customerQuery) return res.status(403).json({ message: "You do not have access to this customer" });
+
+    const relatedRecordsQuery = {
+      business: customerQuery.business,
+      customer: customer._id,
+      ...(customerQuery.branch ? { branch: customerQuery.branch } : {})
+    };
+    const [saleCount, invoiceCount] = await Promise.all([
+      Sale.countDocuments(relatedRecordsQuery),
+      Invoice.countDocuments({ ...relatedRecordsQuery, transactionType: "outgoing" })
+    ]);
+    const outstandingBalance = Number(customer.outstandingBalance || customer.balance || 0);
+
+    if (saleCount > 0 || invoiceCount > 0 || outstandingBalance > 0) {
+      return res.status(409).json({
+        message: "This customer cannot be deleted while they have linked sales or invoices, or an outstanding balance. Resolve the balance and retain the customer record to preserve transaction history.",
+        relatedRecords: { sales: saleCount, invoices: invoiceCount },
+        outstandingBalance
+      });
+    }
+
+    const deleteResult = await Customer.deleteOne({
+      _id: customer._id,
+      ...customerQuery,
+      $and: [
+        {
+          $or: [
+            { outstandingBalance: { $lte: 0 } },
+            { outstandingBalance: { $exists: false } }
+          ]
+        },
+        {
+          $or: [
+            { balance: { $lte: 0 } },
+            { balance: { $exists: false } }
+          ]
+        }
+      ]
+    });
+
+    if (deleteResult.deletedCount !== 1) {
+      return res.status(409).json({
+        message: "The customer now has an outstanding balance and cannot be deleted."
+      });
+    }
+
+    return res.json({ message: "Customer deleted successfully" });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 export default {
   createCustomer,
   getCustomers,
   getCustomerById,
-  updateCustomer
+  updateCustomer,
+  deleteCustomer
 };

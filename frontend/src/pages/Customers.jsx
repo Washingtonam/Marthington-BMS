@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiEdit2, FiMail, FiMessageCircle, FiPhone, FiPlus, FiSearch, FiUsers, FiX } from "react-icons/fi";
-import { createCustomer, getCustomers, updateCustomer } from "../api/customers.js";
+import { FiChevronLeft, FiChevronRight, FiEdit2, FiMail, FiMessageCircle, FiPhone, FiPlus, FiSearch, FiTrash2, FiUsers, FiX } from "react-icons/fi";
+import { createCustomer, deleteCustomer, getCustomers, updateCustomer } from "../api/customers.js";
 import { getStaff } from "../api/staff.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -28,6 +28,11 @@ const Customers = () => {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingCustomer, setDeletingCustomer] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [previewCustomer, setPreviewCustomer] = useState(null);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
@@ -50,6 +55,10 @@ const Customers = () => {
 
     load();
   }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter, pageSize]);
 
   const filteredCustomers = useMemo(() => {
     const query = search.toLowerCase();
@@ -82,6 +91,13 @@ const Customers = () => {
       }
     });
   }, [customers, filter, search]);
+
+  const pageCount = Math.ceil(filteredCustomers.length / pageSize);
+  const currentPage = Math.min(page, pageCount || 1);
+  const pageStart = (currentPage - 1) * pageSize;
+  const paginatedCustomers = filteredCustomers.slice(pageStart, pageStart + pageSize);
+  const firstPageButton = Math.max(1, Math.min(currentPage - 2, pageCount - 4));
+  const pageButtons = Array.from({ length: Math.min(pageCount, 5) }, (_, index) => firstPageButton + index);
 
   const summary = useMemo(() => {
     const totalCustomers = customers.length;
@@ -296,6 +312,27 @@ const Customers = () => {
     }
   };
 
+  const openDeleteConfirmation = (customer) => {
+    setDeleteTarget(customer);
+    setDeleteError("");
+  };
+
+  const handleCustomerDelete = async () => {
+    if (!deleteTarget) return;
+
+    try {
+      setDeletingCustomer(true);
+      await deleteCustomer(deleteTarget._id);
+      setCustomers((current) => current.filter((customer) => customer._id !== deleteTarget._id));
+      setDeleteTarget(null);
+      setDeleteError("");
+    } catch (err) {
+      setDeleteError(err.message || "Failed to delete customer.");
+    } finally {
+      setDeletingCustomer(false);
+    }
+  };
+
   return (
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/20">
@@ -399,26 +436,26 @@ const Customers = () => {
           </div>
         </div>
 
-        <div className="mt-5 hidden lg:block overflow-x-auto">
+        <div className="mt-5 hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
             <thead>
-              <tr className="text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                <th className="pb-3">Customer</th>
-                <th className="pb-3">Contact</th>
-                <th className="pb-3">Value</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Actions</th>
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                <th className="px-3 py-3">Customer</th>
+                <th className="px-3 py-3">Contact</th>
+                <th className="px-3 py-3">Value</th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {filteredCustomers.length === 0 ? (
+              {paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     No matching customers found.
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((customer) => {
+                paginatedCustomers.map((customer) => {
                   const totalOutstanding = Number(customer.outstandingBalance || customer.balance || 0);
                   const isActive = customer.status === "active" || customer.isActive === true;
                   const isOwing = totalOutstanding > 0;
@@ -431,7 +468,7 @@ const Customers = () => {
 
                   return (
                     <tr key={customer._id} className="text-sm text-slate-700 dark:text-slate-300">
-                      <td className="py-3 pr-4">
+                      <td className="px-3 py-4">
                         <div>
                           <p className="font-semibold">{customer.name}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -439,13 +476,13 @@ const Customers = () => {
                           </p>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="px-3 py-4">
                         <div>
                           <p>{customer.phone || "—"}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">{customer.email || "—"}</p>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="px-3 py-4">
                         <div>
                           <p>{formatCurrency(customer.totalSpent || 0)}</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -453,7 +490,7 @@ const Customers = () => {
                           </p>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="px-3 py-4">
                         <div className="flex flex-wrap gap-1.5">
                           {needsAttention && <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">Attention required</span>}
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClasses}`}>
@@ -461,7 +498,7 @@ const Customers = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="px-3 py-4">
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
@@ -485,6 +522,16 @@ const Customers = () => {
                           >
                             Invoice
                           </button>
+                          {canManageCustomers && (
+                            <button
+                              type="button"
+                              onClick={() => openDeleteConfirmation(customer)}
+                              aria-label={`Delete ${customer.name}`}
+                              className="inline-flex items-center justify-center rounded-lg border border-rose-200 p-2 text-rose-700 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                            >
+                              <FiTrash2 aria-hidden="true" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -496,12 +543,12 @@ const Customers = () => {
         </div>
 
         <div className="mt-5 space-y-3 lg:hidden">
-          {filteredCustomers.length === 0 ? (
+          {paginatedCustomers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               No matching customers found.
             </div>
           ) : (
-            filteredCustomers.map((customer) => {
+            paginatedCustomers.map((customer) => {
               const totalOutstanding = Number(customer.outstandingBalance || customer.balance || 0);
               const isActive = customer.status === "active" || customer.isActive === true;
               const isOwing = totalOutstanding > 0;
@@ -550,13 +597,124 @@ const Customers = () => {
                     >
                       Invoice
                     </button>
+                    {canManageCustomers && (
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirmation(customer)}
+                        aria-label={`Delete ${customer.name}`}
+                        className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-2 text-rose-700 transition-all duration-150 hover:bg-rose-50 active:scale-[0.99] dark:border-rose-900/60 dark:bg-slate-900 dark:text-rose-300"
+                      >
+                        <FiTrash2 aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })
           )}
         </div>
+
+        <div className="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500 dark:text-slate-400">
+            <span>
+              Showing {filteredCustomers.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + pageSize, filteredCustomers.length)} of {filteredCustomers.length} customers
+            </span>
+            <label className="flex items-center gap-2">
+              Rows per page
+              <select
+                aria-label="Customers per page"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+              >
+                {[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}
+              </select>
+            </label>
+          </div>
+          <nav aria-label="Customer pages" className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label="Previous page"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={currentPage <= 1}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <FiChevronLeft aria-hidden="true" />
+            </button>
+            {pageButtons.map((pageNumber) => (
+              <button
+                key={pageNumber}
+                type="button"
+                aria-label={`Page ${pageNumber}`}
+                aria-current={currentPage === pageNumber ? "page" : undefined}
+                onClick={() => setPage(pageNumber)}
+                className={`min-w-9 rounded-lg px-2.5 py-2 text-sm font-medium ${
+                  currentPage === pageNumber
+                    ? "bg-emerald-600 text-white"
+                    : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-label="Next page"
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              disabled={currentPage >= pageCount}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <FiChevronRight aria-hidden="true" />
+            </button>
+          </nav>
+        </div>
       </div>
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-customer-title"
+        >
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-rose-100 p-3 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                <FiTrash2 aria-hidden="true" />
+              </div>
+              <div>
+                <h2 id="delete-customer-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">Delete customer?</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                  Permanently delete <span className="font-semibold">{deleteTarget.name}</span>? Customers with a balance or linked sales/invoices cannot be deleted, to protect transaction history.
+                </p>
+              </div>
+            </div>
+            {deleteError && (
+              <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+                {deleteError}
+              </p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setDeleteTarget(null); setDeleteError(""); }}
+                disabled={deletingCustomer}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCustomerDelete}
+                disabled={deletingCustomer}
+                className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deletingCustomer ? "Deleting..." : "Delete customer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur-sm">
