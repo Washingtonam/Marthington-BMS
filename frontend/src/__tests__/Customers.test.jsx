@@ -1,7 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Customers from '../pages/Customers.jsx';
 import { deleteCustomer, getCustomers, updateCustomer } from '../api/customers.js';
 import { getStaff } from '../api/staff.js';
@@ -34,6 +34,7 @@ vi.mock('../api/staff.js', () => ({
 }));
 
 afterEach(cleanup);
+beforeEach(() => vi.clearAllMocks());
 
 describe('Customers page', () => {
   it('opens the add customer drawer', async () => {
@@ -98,6 +99,30 @@ describe('Customers page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete customer' }));
     await waitFor(() => expect(deleteCustomer).toHaveBeenCalledWith('cust-1'));
+    expect(screen.queryByRole('dialog', { name: 'Delete customer?' })).toBeNull();
+    expect(screen.queryByText('Ava Stone')).toBeNull();
+  });
+
+  it('keeps the customer and shows the backend reason when deletion is refused', async () => {
+    deleteCustomer.mockRejectedValueOnce(new Error('Resolve the outstanding balance before deleting this customer.'));
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete Ava Stone' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete customer' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Resolve the outstanding balance');
+    expect(screen.getByRole('dialog', { name: 'Delete customer?' })).toBeTruthy();
+    expect(screen.getAllByText('Ava Stone').length).toBeGreaterThan(0);
+  });
+
+  it('closes the delete confirmation with Escape without deleting', async () => {
+    render(<MemoryRouter><Customers /></MemoryRouter>);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete Ava Stone' }))[0]);
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(screen.queryByRole('dialog', { name: 'Delete customer?' })).toBeNull();
+    expect(deleteCustomer).not.toHaveBeenCalled();
   });
 
   it('opens a drafted WhatsApp message for a selected customer', async () => {

@@ -60,6 +60,20 @@ const Customers = () => {
     setPage(1);
   }, [search, filter, pageSize]);
 
+  useEffect(() => {
+    if (!deleteTarget) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && !deletingCustomer) {
+        setDeleteTarget(null);
+        setDeleteError("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deleteTarget, deletingCustomer]);
+
   const filteredCustomers = useMemo(() => {
     const query = search.toLowerCase();
 
@@ -318,10 +332,11 @@ const Customers = () => {
   };
 
   const handleCustomerDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || deletingCustomer) return;
 
     try {
       setDeletingCustomer(true);
+      setDeleteError("");
       await deleteCustomer(deleteTarget._id);
       setCustomers((current) => current.filter((customer) => customer._id !== deleteTarget._id));
       setDeleteTarget(null);
