@@ -84,6 +84,12 @@ const customerSchema =
       default: ""
     },
 
+    categories: {
+      type: [String],
+      default: [],
+      trim: true
+    },
+
     totalSpent: {
       type: Number,
       default: 0

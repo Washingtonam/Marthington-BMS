@@ -24,9 +24,14 @@ const createCustomer =
         return res.status(403).json({ message: "You can only create customers for your assigned branch." });
       }
 
+      const categories = Array.isArray(req.body.categories)
+        ? [...new Set(req.body.categories.map((category) => String(category).trim()).filter(Boolean))]
+        : [];
+
       const customer =
         await Customer.create({
           ...req.body,
+          categories,
           phone: normalizedPhone || req.body.phone || "",
           phoneNormalized: normalizedPhone,
           whatsappFollowUpConsent: req.body.whatsappFollowUpConsent === true,
@@ -142,7 +147,7 @@ const updateCustomer = async (req, res) => {
     if (!customerQuery) return res.status(403).json({ message: "You do not have access to this customer" });
 
     const previousNormalizedPhone = customer.phoneNormalized || Customer.normalizePhoneNumber(customer.phone);
-    const { name, phone, email, address, notes, isActive, whatsappFollowUpConsent } = req.body || {};
+    const { name, phone, email, address, notes, isActive, whatsappFollowUpConsent, categories } = req.body || {};
     if (whatsappFollowUpConsent !== undefined && typeof whatsappFollowUpConsent !== "boolean") {
       return res.status(400).json({ message: "WhatsApp follow-up consent must be true or false" });
     }
@@ -177,6 +182,10 @@ const updateCustomer = async (req, res) => {
     }
     if (address !== undefined) customer.address = String(address).trim();
     if (notes !== undefined) customer.notes = String(notes).trim();
+    if (categories !== undefined) {
+      if (!Array.isArray(categories)) return res.status(400).json({ message: "Customer categories must be an array" });
+      customer.categories = [...new Set(categories.map((category) => String(category).trim()).filter(Boolean))];
+    }
     if (isActive !== undefined) {
       if (typeof isActive !== "boolean") return res.status(400).json({ message: "Customer active status must be true or false" });
       customer.isActive = isActive;

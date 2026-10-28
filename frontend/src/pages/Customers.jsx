@@ -18,6 +18,7 @@ const createEmptyForm = () => ({
   outstandingBalance: "0",
   totalSpent: "0",
   totalOrders: "1",
+  categories: [],
 });
 
 const Customers = () => {
@@ -43,9 +44,18 @@ const Customers = () => {
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffLoadError, setStaffLoadError] = useState("");
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false });
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false, categories: [] });
   const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(createEmptyForm());
+  const [customCategoryName, setCustomCategoryName] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [customCategories, setCustomCategories] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("crm-custom-categories") || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -59,6 +69,10 @@ const Customers = () => {
   useEffect(() => {
     setPage(1);
   }, [search, filter, pageSize]);
+
+  useEffect(() => {
+    localStorage.setItem("crm-custom-categories", JSON.stringify(customCategories));
+  }, [customCategories]);
 
   useEffect(() => {
     if (!deleteTarget) return undefined;
@@ -90,6 +104,14 @@ const Customers = () => {
       const isActive = customer.status === "active" || customer.isActive === true;
       const isOwing = totalOutstanding > 0;
       const needsAttention = !String(customer.phone || "").trim() && !String(customer.email || "").trim();
+
+      if (filter.startsWith("category:")) {
+        const category = filter.slice("category:".length);
+        const customerCategories = Array.isArray(customer.categories)
+          ? customer.categories
+          : Array.isArray(customer.tags) ? customer.tags : [];
+        return customerCategories.some((item) => String(item).toLowerCase() === category.toLowerCase());
+      }
 
       switch (filter) {
         case "active":
@@ -136,6 +158,20 @@ const Customers = () => {
     { key: "vip", label: "VIP / Frequent" },
     { key: "attention", label: `Attention required (${summary.attentionRequired})` },
   ];
+  const customerCategoryNames = customers.flatMap((customer) => Array.isArray(customer.categories)
+    ? customer.categories
+    : Array.isArray(customer.tags) ? customer.tags : []);
+  const categoryOptions = [...new Set([...customCategories, ...customerCategoryNames].map((item) => String(item).trim()).filter(Boolean))];
+
+  const createCustomCategory = (event) => {
+    event.preventDefault();
+    const name = customCategoryName.trim();
+    if (!name) return;
+    setCustomCategories((current) => current.map((item) => item.toLowerCase()).includes(name.toLowerCase()) ? current : [...current, name]);
+    setCustomCategoryName("");
+    setCreatingCategory(false);
+    setFilter(`category:${name}`);
+  };
 
   const openCreateDrawer = () => {
     setForm(createEmptyForm());
@@ -258,6 +294,7 @@ const Customers = () => {
         totalSpent: Number(form.totalSpent || 0),
         totalOrders: Number(form.totalOrders || 1),
         outstandingBalance: Number(form.outstandingBalance || 0),
+        categories: form.categories,
         isActive: form.status !== "inactive",
         whatsappFollowUpConsent: form.whatsappFollowUpConsent
       };
@@ -280,7 +317,8 @@ const Customers = () => {
       address: customer.address || "",
       notes: customer.notes || "",
       isActive: customer.isActive !== false,
-      whatsappFollowUpConsent: customer.whatsappFollowUpConsent === true
+      whatsappFollowUpConsent: customer.whatsappFollowUpConsent === true,
+      categories: Array.isArray(customer.categories) ? customer.categories : Array.isArray(customer.tags) ? customer.tags : []
     });
     setEditingCustomer(customer);
   };
@@ -313,7 +351,8 @@ const Customers = () => {
         address: editForm.address.trim(),
         notes: editForm.notes.trim(),
         isActive: editForm.isActive,
-        whatsappFollowUpConsent: editForm.whatsappFollowUpConsent
+        whatsappFollowUpConsent: editForm.whatsappFollowUpConsent,
+        categories: editForm.categories
       });
       setCustomers((current) => current.map((customer) => customer._id === updated._id ? updated : customer));
       setPreviewCustomer(updated);
@@ -448,6 +487,34 @@ const Customers = () => {
                 {option.label}
               </button>
             ))}
+            {categoryOptions.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setFilter(`category:${category}`)}
+                className={`rounded-full px-3 py-2 text-sm font-medium transition-all duration-150 active:scale-[0.99] ${
+                  filter === `category:${category}` ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+            {creatingCategory ? (
+              <form onSubmit={createCustomCategory} className="flex items-center gap-1">
+                <input
+                  aria-label="New category name"
+                  value={customCategoryName}
+                  onChange={(event) => setCustomCategoryName(event.target.value)}
+                  placeholder="Category name"
+                  className="w-36 rounded-full border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+                  autoFocus
+                />
+                <button type="submit" className="rounded-full bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Add</button>
+                <button type="button" aria-label="Cancel category" onClick={() => { setCreatingCategory(false); setCustomCategoryName(""); }} className="rounded-full border border-slate-200 p-2 text-slate-500 dark:border-slate-700"><FiX /></button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setCreatingCategory(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/30"><FiPlus /> Add category</button>
+            )}
           </div>
         </div>
 
@@ -482,7 +549,7 @@ const Customers = () => {
                       : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
 
                   return (
-                    <tr key={customer._id} className="text-sm text-slate-700 dark:text-slate-300">
+                    <tr key={customer._id} role="link" tabIndex={0} onClick={() => navigate(`/app/customers/${customer._id}`)} onKeyDown={(event) => { if (event.key === "Enter") navigate(`/app/customers/${customer._id}`); }} className="cursor-pointer text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60">
                       <td className="px-3 py-4">
                         <div>
                           <p className="font-semibold">{customer.name}</p>
@@ -513,7 +580,7 @@ const Customers = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-3 py-4">
+                      <td className="px-3 py-4" onClick={(event) => event.stopPropagation()}>
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
@@ -570,7 +637,7 @@ const Customers = () => {
               const needsAttention = !String(customer.phone || "").trim() && !String(customer.email || "").trim();
 
               return (
-                <div key={customer._id} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
+                <div key={customer._id} role="link" tabIndex={0} onClick={() => navigate(`/app/customers/${customer._id}`)} onKeyDown={(event) => { if (event.key === "Enter") navigate(`/app/customers/${customer._id}`); }} className="cursor-pointer rounded-[22px] border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-slate-100">{customer.name}</p>
@@ -589,7 +656,7 @@ const Customers = () => {
                     <span>{customer.totalOrders || 0} orders</span>
                   </div>
 
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex gap-2" onClick={(event) => event.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => setPreviewCustomer(customer)}
@@ -812,6 +879,23 @@ const Customers = () => {
                   <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Only opted-in customers appear in the 7-day follow-up reminders.</span>
                 </span>
               </label>
+
+              {categoryOptions.length > 0 && (
+                <fieldset>
+                  <legend className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Categories</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((category) => {
+                      const checked = form.categories.includes(category);
+                      return (
+                        <label key={category} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold ${checked ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}>
+                          <input type="checkbox" className="sr-only" checked={checked} onChange={(event) => setForm((current) => ({ ...current, categories: event.target.checked ? [...current.categories, category] : current.categories.filter((item) => item !== category) }))} />
+                          {category}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
 
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 <span className="mb-2 block">Address</span>
@@ -1059,6 +1143,23 @@ const Customers = () => {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950"
                 />
               </label>
+
+              {categoryOptions.length > 0 && (
+                <fieldset>
+                  <legend className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Categories</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {categoryOptions.map((category) => {
+                      const checked = editForm.categories.includes(category);
+                      return (
+                        <label key={category} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold ${checked ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}>
+                          <input type="checkbox" className="sr-only" checked={checked} onChange={(event) => setEditForm((current) => ({ ...current, categories: event.target.checked ? [...current.categories, category] : current.categories.filter((item) => item !== category) }))} />
+                          {category}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
 
               <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
                 <input
