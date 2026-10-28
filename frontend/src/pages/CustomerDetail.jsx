@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiCalendar, FiChevronDown, FiMail, FiMapPin, FiMessageCircle, FiPhone, FiSearch, FiTrash2, FiUser } from "react-icons/fi";
+import { FiArrowLeft, FiCalendar, FiChevronDown, FiEdit2, FiMail, FiMapPin, FiMessageCircle, FiPhone, FiSearch, FiTrash2, FiUser, FiX } from "react-icons/fi";
 import { deleteCustomer, getCustomer, updateCustomer } from "../api/customers.js";
 import { getProducts } from "../api/products.js";
 import { formatCurrency } from "../utils/formatters.js";
@@ -35,6 +35,10 @@ const CustomerDetail = () => {
   const [productSearchFocused, setProductSearchFocused] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productLoadError, setProductLoadError] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false, categories: [] });
   const [openSections, setOpenSections] = useState({ quotes: true, invoices: true, services: true, sales: true, chat: true });
   const [catalogCategories, setCatalogCategories] = useState(() => {
     try {
@@ -209,6 +213,62 @@ const CustomerDetail = () => {
     }
   };
 
+  const openCustomerEditor = () => {
+    setEditForm({
+      name: String(customer.name || ""),
+      phone: String(customer.phone || ""),
+      email: String(customer.email || ""),
+      address: String(customer.address || ""),
+      notes: String(customer.notes || ""),
+      isActive: customer.isActive !== false,
+      whatsappFollowUpConsent: customer.whatsappFollowUpConsent === true,
+      categories: Array.isArray(customer.categories)
+        ? customer.categories
+        : Array.isArray(customer.tags) ? customer.tags : []
+    });
+    setEditError("");
+    setEditOpen(true);
+  };
+
+  const handleCustomerUpdate = async (event) => {
+    event.preventDefault();
+    const payload = {
+      name: editForm.name.trim(),
+      phone: editForm.phone.trim(),
+      email: editForm.email.trim(),
+      address: editForm.address.trim(),
+      notes: editForm.notes.trim(),
+      isActive: editForm.isActive,
+      whatsappFollowUpConsent: editForm.whatsappFollowUpConsent,
+      categories: editForm.categories
+    };
+
+    if (!payload.name) {
+      setEditError("Customer name is required.");
+      return;
+    }
+    if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      setEditError("Please enter a valid email address, or leave it blank.");
+      return;
+    }
+    if (payload.phone && !/^[+()\d\s-]{7,20}$/.test(payload.phone)) {
+      setEditError("Please enter a valid phone number, or leave it blank.");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setEditError("");
+      const updated = await updateCustomer(customer._id, payload);
+      setData((current) => ({ ...current, customer: updated?.customer || updated || current.customer }));
+      setEditOpen(false);
+    } catch (err) {
+      setEditError(err.message || "Unable to update customer details.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const toggleCategory = async (category) => {
     setCategoryError("");
     const next = customerCategories.includes(category)
@@ -251,6 +311,7 @@ const CustomerDetail = () => {
             <span className={`rounded-full px-3 py-1.5 text-sm font-medium ${customer.isActive === false ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"}`}>
               {customer.isActive === false ? "Inactive" : "Active"}
             </span>
+            <button type="button" onClick={openCustomerEditor} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"><FiEdit2 /> Edit</button>
             <button type="button" onClick={() => setDeleteOpen(true)} aria-label={`Delete ${customer.name}`} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300"><FiTrash2 /> Delete</button>
           </div>
         </div>
@@ -445,6 +506,71 @@ const CustomerDetail = () => {
           </section>
         </div>
       </div>
+      {editOpen && (
+        <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/70 backdrop-blur-sm">
+          <form onSubmit={handleCustomerUpdate} className="h-full w-full max-w-xl overflow-y-auto bg-white p-5 shadow-2xl dark:bg-slate-900 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-600">CRM</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">Edit customer</h2>
+              </div>
+              <button type="button" onClick={() => { setEditOpen(false); setEditError(""); }} aria-label="Close edit customer" className="rounded-full border border-slate-200 p-2 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"><FiX /></button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              {[
+                { name: "name", label: "Customer name", required: true },
+                { name: "phone", label: "Phone" },
+                { name: "email", label: "Email", type: "email" },
+                { name: "address", label: "Address" }
+              ].map((field) => (
+                <label key={field.name} className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  <span className="mb-2 block">{field.label}</span>
+                  <input name={field.name} type={field.type || "text"} required={field.required} value={editForm[field.name]} onChange={(event) => setEditForm((current) => ({ ...current, [field.name]: event.target.value, ...(field.name === "phone" && event.target.value !== String(customer.phone || "") ? { whatsappFollowUpConsent: false } : {}) }))} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950" />
+                </label>
+              ))}
+
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                <span className="mb-2 block">Notes</span>
+                <textarea value={editForm.notes} onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))} rows="4" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white dark:border-slate-700 dark:bg-slate-950" />
+              </label>
+
+              {[...new Set([...catalogCategories, ...customerCategories])].length > 0 && (
+                <fieldset>
+                  <legend className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">Categories</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {[...new Set([...catalogCategories, ...customerCategories])].map((category) => {
+                      const checked = editForm.categories.some((item) => String(item).toLowerCase() === category.toLowerCase());
+                      return (
+                        <label key={category} className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold ${checked ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300"}`}>
+                          <input type="checkbox" className="sr-only" checked={checked} onChange={(event) => setEditForm((current) => ({ ...current, categories: event.target.checked ? [...current.categories, category] : current.categories.filter((item) => String(item).toLowerCase() !== category.toLowerCase()) }))} />
+                          {category}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <input type="checkbox" checked={editForm.isActive} onChange={(event) => setEditForm((current) => ({ ...current, isActive: event.target.checked }))} className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                Active customer
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-sm text-slate-700 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-slate-200">
+                <input type="checkbox" checked={editForm.whatsappFollowUpConsent} onChange={(event) => setEditForm((current) => ({ ...current, whatsappFollowUpConsent: event.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                <span>Customer agreed to WhatsApp follow-ups<span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Turn this off if the customer withdraws consent.</span></span>
+              </label>
+            </div>
+
+            {editError && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">{editError}</p>}
+            <div className="mt-8 flex justify-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+              <button type="button" onClick={() => { setEditOpen(false); setEditError(""); }} disabled={savingEdit} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-300">Cancel</button>
+              <button type="submit" disabled={savingEdit} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{savingEdit ? "Saving..." : "Save changes"}</button>
+            </div>
+          </form>
+        </div>
+      )}
       {deleteOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
           <section role="dialog" aria-modal="true" aria-labelledby="delete-customer-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900">
