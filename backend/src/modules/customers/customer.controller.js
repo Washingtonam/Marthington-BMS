@@ -147,7 +147,7 @@ const updateCustomer = async (req, res) => {
     if (!customerQuery) return res.status(403).json({ message: "You do not have access to this customer" });
 
     const previousNormalizedPhone = customer.phoneNormalized || Customer.normalizePhoneNumber(customer.phone);
-    const { name, phone, email, address, notes, isActive, whatsappFollowUpConsent, categories } = req.body || {};
+    const { name, phone, email, address, notes, isActive, whatsappFollowUpConsent, categories, messageHistory } = req.body || {};
     if (whatsappFollowUpConsent !== undefined && typeof whatsappFollowUpConsent !== "boolean") {
       return res.status(400).json({ message: "WhatsApp follow-up consent must be true or false" });
     }
@@ -185,6 +185,18 @@ const updateCustomer = async (req, res) => {
     if (categories !== undefined) {
       if (!Array.isArray(categories)) return res.status(400).json({ message: "Customer categories must be an array" });
       customer.categories = [...new Set(categories.map((category) => String(category).trim()).filter(Boolean))];
+    }
+    if (messageHistory !== undefined) {
+      if (!Array.isArray(messageHistory)) return res.status(400).json({ message: "Message history must be an array" });
+      const entries = messageHistory.slice(-100).map((entry) => ({
+        message: String(entry?.message || "").trim().slice(0, 5000),
+        productNames: Array.isArray(entry?.productNames)
+          ? entry.productNames.map((name) => String(name).trim()).filter(Boolean).slice(0, 50)
+          : [],
+        status: entry?.status === "opened_in_whatsapp" ? "opened_in_whatsapp" : "drafted",
+        createdAt: entry?.createdAt && !Number.isNaN(new Date(entry.createdAt).getTime()) ? new Date(entry.createdAt) : new Date()
+      })).filter((entry) => entry.message);
+      customer.messageHistory = entries;
     }
     if (isActive !== undefined) {
       if (typeof isActive !== "boolean") return res.status(400).json({ message: "Customer active status must be true or false" });

@@ -90,6 +90,16 @@ const customerSchema =
       trim: true
     },
 
+    messageHistory: {
+      type: [{
+        message: { type: String, default: "" },
+        productNames: { type: [String], default: [] },
+        status: { type: String, enum: ["drafted", "opened_in_whatsapp"], default: "drafted" },
+        createdAt: { type: Date, default: Date.now }
+      }],
+      default: []
+    },
+
     totalSpent: {
       type: Number,
       default: 0
