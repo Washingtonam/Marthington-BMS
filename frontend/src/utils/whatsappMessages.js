@@ -73,6 +73,42 @@ export const buildTransactionWhatsAppMessage = ({
   ].filter((line) => line !== undefined).join("\n");
 };
 
+export const buildInvoiceReminderMessage = ({
+  record,
+  customerName = "there"
+}) => {
+  if (!record) return "";
+
+  const items = Array.isArray(record.items) ? record.items : [];
+  const itemLines = items.map((item) => {
+    const name = item.name || item.productName || "Item";
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(item.price ?? item.unitPrice ?? item.sellingPrice ?? 0);
+    const total = Number(item.total ?? item.totalAmount ?? (quantity * unitPrice));
+    return `• ${name} × ${quantity} @ ${formatCurrency(unitPrice)} — ${formatCurrency(total)}`;
+  });
+  const balanceDue = Number(record.balanceDue || 0);
+  const paidAmount = Number(record.amountPaid || 0);
+  const totalAmount = Number(record.totalAmount || 0);
+  const paymentStatus = record.paymentStatus
+    || (balanceDue <= 0 ? "Fully Paid" : paidAmount > 0 ? "Partially Paid" : "Unpaid / Outstanding");
+
+  return [
+    `Hello ${customerName || "there"},`,
+    "",
+    "This is a friendly reminder regarding your invoice.",
+    `Invoice reference: ${record.invoiceNumber || record._id || "N/A"}`,
+    "",
+    ...(itemLines.length ? ["Items:", ...itemLines, ""] : []),
+    `Invoice total: ${formatCurrency(totalAmount)}`,
+    `Amount paid: ${formatCurrency(paidAmount)}`,
+    `Outstanding balance: ${formatCurrency(balanceDue > 0 ? balanceDue : totalAmount - paidAmount)}`,
+    `Payment status: ${paymentStatus}`,
+    "",
+    "Please let us know if you have already made payment or if you need any assistance. Thank you."
+  ].join("\n");
+};
+
 export const buildCustomerFollowUpMessage = ({
   record,
   businessName = "our store",

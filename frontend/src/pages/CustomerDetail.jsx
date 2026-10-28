@@ -4,7 +4,7 @@ import { FiArrowLeft, FiCalendar, FiChevronDown, FiEdit2, FiMail, FiMapPin, FiMe
 import { deleteCustomer, getCustomer, updateCustomer } from "../api/customers.js";
 import { getProducts } from "../api/products.js";
 import { formatCurrency } from "../utils/formatters.js";
-import { openWhatsAppMessage } from "../utils/whatsappMessages.js";
+import { buildInvoiceReminderMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
 
 const formatDate = (value) => {
   if (!value) return "—";
@@ -166,14 +166,15 @@ const CustomerDetail = () => {
     generateProductMessage(next);
   };
 
-  const saveMessageHistory = async (status) => {
-    if (!messageDraft.trim()) return false;
+  const saveMessageHistory = async (status, messageOverride = null, productNamesOverride = null) => {
+    const message = String(messageOverride ?? messageDraft).trim();
+    if (!message) return false;
     setHistoryError("");
-    const selectedNames = validProducts
+    const selectedNames = productNamesOverride ?? validProducts
       .filter((product) => selectedProducts.includes(product._id || product.id))
       .map((product) => String(product.name || product.productName || "Product"));
     const entry = {
-      message: messageDraft.trim(),
+      message,
       productNames: selectedNames,
       status,
       createdAt: new Date().toISOString()
@@ -193,6 +194,34 @@ const CustomerDetail = () => {
     if (!customer.phone || !messageDraft.trim()) return;
     if (openWhatsAppMessage(customer.phone, messageDraft)) {
       await saveMessageHistory("opened_in_whatsapp");
+    }
+  };
+
+  const generateInvoiceReminder = async (invoice, openImmediately = false) => {
+    const invoiceItems = Array.isArray(invoice?.items)
+      ? invoice.items.map((item) => item?.name || item?.productName || "Item")
+      : [];
+    const message = buildInvoiceReminderMessage({
+      record: invoice,
+      customerName: customer.name || "there"
+    });
+    if (!message) return;
+
+    setMessageDraft(message);
+    await saveMessageHistory("drafted", message, invoiceItems);
+
+    if (openImmediately) {
+      if (!customer.phone) {
+        setHistoryError("Add a phone number before opening this invoice reminder in WhatsApp.");
+        return;
+      }
+      if (openWhatsAppMessage(customer.phone, message)) {
+        await saveMessageHistory("opened_in_whatsapp", message, invoiceItems);
+      }
+    } else if (typeof document !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document.querySelector('textarea[aria-label="WhatsApp message"]')?.focus();
+      });
     }
   };
 
@@ -435,17 +464,23 @@ const CustomerDetail = () => {
             <button type="button" onClick={() => toggleSection("invoices")} aria-expanded={openSections.invoices} className="flex w-full items-center justify-between gap-3 text-left"><h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Invoices</h2><FiChevronDown className={`transition-transform ${openSections.invoices ? "rotate-180" : ""}`} /></button>
             {openSections.invoices && <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead><tr className="text-xs uppercase tracking-wide text-slate-400"><th className="pb-3 pr-4">Invoice</th><th className="pb-3 pr-4">Date</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Balance</th><th className="pb-3">Payment</th></tr></thead>
+                <thead><tr className="text-xs uppercase tracking-wide text-slate-400"><th className="pb-3 pr-4">Invoice</th><th className="pb-3 pr-4">Date</th><th className="pb-3 pr-4">Total</th><th className="pb-3 pr-4">Balance</th><th className="pb-3 pr-4">Payment</th><th className="pb-3">Follow-up</th></tr></thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {regularInvoices.length ? regularInvoices.map((invoice) => (
                     <tr key={invoice._id} className="text-slate-700 dark:text-slate-300">
                       <td className="py-3 pr-4 font-medium">{invoice.invoiceNumber || "Invoice"}</td>
                       <td className="py-3 pr-4">{formatDate(invoice.createdAt)}</td>
                       <td className="py-3 pr-4">{formatCurrency(invoice.totalAmount || 0)}</td>
-                      <td className="py-3 pr-4">{formatCurrency(invoice.balanceDue || 0)}</td>
-                      <td className="py-3">{invoice.paymentStatus || "Unpaid"}</td>
+                      <td className="py-3 pr-4">{formatCurrency(invoice.balanceDue || (Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0)))}</td>
+                      <td className="py-3 pr-4">{invoice.paymentStatus || (Number(invoice.balanceDue || 0) <= 0 && Number(invoice.totalAmount || 0) > 0 ? "Fully Paid" : Number(invoice.amountPaid || 0) > 0 ? "Partially Paid" : "Unpaid")}</td>
+                      <td className="py-3">
+                        <div className="flex min-w-max gap-2">
+                          <button type="button" onClick={() => generateInvoiceReminder(invoice, false)} aria-label={`Draft WhatsApp follow-up for ${invoice.invoiceNumber || "invoice"}`} className="rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/60 dark:text-emerald-300">Draft reminder</button>
+                          <button type="button" onClick={() => generateInvoiceReminder(invoice, true)} disabled={!customer.phone} aria-label={`Send WhatsApp reminder for ${invoice.invoiceNumber || "invoice"}`} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"><FiMessageCircle /> Send</button>
+                        </div>
+                      </td>
                     </tr>
-                  )) : <tr><td colSpan="5" className="py-6 text-center text-slate-500">No invoices recorded for this customer.</td></tr>}
+                  )) : <tr><td colSpan="6" className="py-6 text-center text-slate-500">No invoices recorded for this customer.</td></tr>}
                 </tbody>
               </table>
             </div>}

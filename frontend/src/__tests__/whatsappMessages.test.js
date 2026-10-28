@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCustomerFollowUpMessage,
+  buildInvoiceReminderMessage,
   buildTransactionWhatsAppMessage,
   buildWhatsAppUrl,
   normalizeWhatsAppNumber
@@ -30,6 +31,26 @@ describe("WhatsApp customer messages", () => {
     expect(message).toContain("Hello Ada");
     expect(message).toContain("Reference: INV-001");
     expect(message).toContain("Paper × 3");
+    expect(message).toContain("Payment status: Partially Paid");
+  });
+
+  it("creates an invoice reminder with quantities, unit prices, totals, and balance", () => {
+    const message = buildInvoiceReminderMessage({
+      customerName: "Ada",
+      record: {
+        invoiceNumber: "INV-2026-10-000276",
+        totalAmount: 4500,
+        amountPaid: 1500,
+        balanceDue: 3000,
+        paymentStatus: "Partially Paid",
+        items: [{ name: "Paper", quantity: 3, price: 1500, total: 4500 }]
+      }
+    });
+
+    expect(message).toContain("Hello Ada");
+    expect(message).toContain("Invoice reference: INV-2026-10-000276");
+    expect(message).toContain("Paper × 3 @");
+    expect(message).toContain("Outstanding balance:");
     expect(message).toContain("Payment status: Partially Paid");
   });
 

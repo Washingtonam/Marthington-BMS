@@ -81,4 +81,33 @@ describe('CustomerDetail page', () => {
     expect(screen.queryByText(/No quotes recorded/i)).toBeNull();
     expect(await screen.findByText('No WhatsApp messages recorded yet.')).toBeTruthy();
   });
+
+  it('drafts an invoice reminder with reference, item quantities, and balance', async () => {
+    getCustomer.mockResolvedValue({
+      customer: { _id: 'cust-1', name: 'Ava Stone', phone: '08031234567', messageHistory: [] },
+      sales: [],
+      invoices: [{
+        _id: 'invoice-1',
+        invoiceNumber: 'INV-2026-10-000276',
+        invoiceType: 'invoice',
+        totalAmount: 4500,
+        amountPaid: 1500,
+        balanceDue: 3000,
+        paymentStatus: 'Partially Paid',
+        items: [{ name: 'Paper', quantity: 3, price: 1500, total: 4500 }]
+      }]
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/app/customers/cust-1']}>
+        <Routes><Route path="/app/customers/:id" element={<CustomerDetail />} /></Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: /draft whatsapp follow-up for inv-2026-10-000276/i }));
+    const message = await screen.findByRole('textbox', { name: 'WhatsApp message' });
+    expect(message.value).toContain('Invoice reference: INV-2026-10-000276');
+    expect(message.value).toContain('Paper × 3');
+    expect(message.value).toContain('Outstanding balance:');
+  });
 });
