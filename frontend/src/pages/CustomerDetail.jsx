@@ -32,6 +32,9 @@ const CustomerDetail = () => {
   const [categoryError, setCategoryError] = useState("");
   const [historyError, setHistoryError] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [productSearchFocused, setProductSearchFocused] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [productLoadError, setProductLoadError] = useState("");
   const [openSections, setOpenSections] = useState({ quotes: true, invoices: true, services: true, sales: true, chat: true });
   const [catalogCategories, setCatalogCategories] = useState(() => {
     try {
@@ -62,7 +65,25 @@ const CustomerDetail = () => {
   }, [id]);
 
   useEffect(() => {
-    getProducts().then(setProducts).catch(() => setProducts([]));
+    let active = true;
+    setLoadingProducts(true);
+    setProductLoadError("");
+
+    getProducts({ limit: 5000, sort: "name-asc" })
+      .then((result) => {
+        if (active) setProducts(Array.isArray(result) ? result : []);
+      })
+      .catch((err) => {
+        if (active) {
+          setProducts([]);
+          setProductLoadError(err.message || "Unable to load products.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingProducts(false);
+      });
+
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -120,6 +141,11 @@ const CustomerDetail = () => {
     ? customer.categories
     : Array.isArray(customer.tags) ? customer.tags : [];
   const validProducts = Array.isArray(products) ? products.filter((product) => product && typeof product === "object") : [];
+  const filteredProducts = validProducts.filter((product) => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return true;
+    return `${product.name || product.productName || ""} ${product.sku || ""}`.toLowerCase().includes(query);
+  });
 
   const generateProductMessage = (productIds = selectedProducts) => {
     const chosen = validProducts.filter((product) => productIds.includes(product._id || product.id));
@@ -289,16 +315,20 @@ const CustomerDetail = () => {
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Search inventory and add products to a personalized WhatsApp message.</p>
             <div className="relative mt-4">
               <FiSearch className="pointer-events-none absolute left-3 top-3 text-slate-400" />
-              <input aria-label="Search products" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Search product name..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950" />
-              {productSearch.trim() && (
-                <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                  {validProducts.filter((product) => String(product.name || product.productName || "").toLowerCase().includes(productSearch.trim().toLowerCase())).slice(0, 20).map((product) => {
-                    const productId = product._id || product.id;
-                    const productName = product.name || product.productName || "Product";
-                    const selected = selectedProducts.includes(productId);
-                    return <button key={productId} type="button" onClick={() => toggleProduct(productId)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"><span><span className="font-medium text-slate-800 dark:text-slate-200">{productName}</span>{selected && <span className="ml-2 text-xs font-semibold text-emerald-600">Selected</span>}</span><span className="text-slate-500">{formatCurrency(product.price || 0)}</span></button>;
-                  })}
-                  {!validProducts.some((product) => String(product.name || product.productName || "").toLowerCase().includes(productSearch.trim().toLowerCase())) && <p className="px-3 py-2 text-sm text-slate-500">No matching products.</p>}
+              <input aria-label="Search products" value={productSearch} onFocus={() => setProductSearchFocused(true)} onBlur={() => window.setTimeout(() => setProductSearchFocused(false), 150)} onChange={(event) => setProductSearch(event.target.value)} placeholder="Search or browse product names..." className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950" />
+              {(productSearchFocused || productSearch.trim()) && (
+                <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                  {loadingProducts && <p className="px-3 py-2 text-sm text-slate-500">Loading products...</p>}
+                  {!loadingProducts && productLoadError && <p className="px-3 py-2 text-sm text-rose-600">{productLoadError}</p>}
+                  {!loadingProducts && !productLoadError && filteredProducts
+                    .map((product) => {
+                      const productId = product._id || product.id;
+                      const productName = product.name || product.productName || "Product";
+                      const selected = selectedProducts.includes(productId);
+                      return <button key={productId} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => toggleProduct(productId)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"><span><span className="font-medium text-slate-800 dark:text-slate-200">{productName}</span>{selected && <span className="ml-2 text-xs font-semibold text-emerald-600">Selected</span>}</span><span className="text-slate-500">{formatCurrency(product.price || 0)}</span></button>;
+                    })}
+                  {!loadingProducts && !productLoadError && filteredProducts.length === 0 && validProducts.length > 0 && <p className="px-3 py-2 text-sm text-slate-500">No matching products.</p>}
+                  {!loadingProducts && !productLoadError && validProducts.length === 0 && <p className="px-3 py-2 text-sm text-slate-500">No products found in inventory.</p>}
                 </div>
               )}
             </div>
