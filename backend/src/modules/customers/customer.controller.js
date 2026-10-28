@@ -28,6 +28,21 @@ const createCustomer =
         ? [...new Set(req.body.categories.map((category) => String(category).trim()).filter(Boolean))]
         : [];
 
+      if (normalizedPhone) {
+        const existingPhoneCustomer = await Customer.findOne({
+          business: req.user.businessId,
+          ...(branchId ? { branch: branchId } : {}),
+          phoneNormalized: normalizedPhone
+        }).select("_id name phone").lean();
+        if (existingPhoneCustomer) {
+          return res.status(409).json({
+            message: "A customer with this phone number already exists.",
+            duplicateCustomerId: existingPhoneCustomer._id,
+            duplicateCustomerName: existingPhoneCustomer.name || ""
+          });
+        }
+      }
+
       const customer =
         await Customer.create({
           ...req.body,

@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiChevronLeft, FiChevronRight, FiEdit2, FiMail, FiMessageCircle, FiPhone, FiPlus, FiSearch, FiTrash2, FiUsers, FiX } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiEdit2, FiMail, FiMessageCircle, FiPhone, FiPlus, FiSearch, FiTrash2, FiUpload, FiUsers, FiX } from "react-icons/fi";
 import { createCustomer, deleteCustomer, getCustomers, updateCustomer } from "../api/customers.js";
 import { getStaff } from "../api/staff.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { openWhatsAppMessage } from "../utils/whatsappMessages.js";
+import { normalizeImportedPhone, parseVCardFile } from "../utils/customerContactImport.js";
 
 const createEmptyForm = () => ({
   name: "",
@@ -47,6 +48,9 @@ const Customers = () => {
   const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", address: "", notes: "", isActive: true, whatsappFollowUpConsent: false, categories: [] });
   const [savingEdit, setSavingEdit] = useState(false);
   const [form, setForm] = useState(createEmptyForm());
+  const [importedContacts, setImportedContacts] = useState([]);
+  const [contactImportStatus, setContactImportStatus] = useState("");
+  const [importingContacts, setImportingContacts] = useState(false);
   const [customCategoryName, setCustomCategoryName] = useState("");
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [customCategories, setCustomCategories] = useState(() => {
@@ -173,9 +177,109 @@ const Customers = () => {
     setFilter(`category:${name}`);
   };
 
+  const closeCustomerModal = () => {
+    setDrawerOpen(false);
+    setImportedContacts([]);
+    setContactImportStatus("");
+  };
+
   const openCreateDrawer = () => {
     setForm(createEmptyForm());
+    setImportedContacts([]);
+    setContactImportStatus("");
     setDrawerOpen(true);
+  };
+
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") closeCustomerModal();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [drawerOpen]);
+
+  const importDeviceContact = async () => {
+    if (!navigator.contacts?.select) {
+      setContactImportStatus("Device contact import is not supported by this browser. Use a VCF file instead.");
+      return;
+    }
+    try {
+      const picked = await navigator.contacts.select(["name", "tel"], { multiple: false });
+      const contact = Array.isArray(picked) ? picked[0] : null;
+      if (!contact) return;
+      const name = Array.isArray(contact.name) ? contact.name.find(Boolean) || "" : "";
+      const phone = Array.isArray(contact.tel) ? normalizeImportedPhone(contact.tel.find(Boolean) || "") : "";
+      setForm((current) => ({ ...current, name: name.trim() || current.name, phone: phone || current.phone }));
+      setContactImportStatus(name || phone ? "Device contact mapped into the customer form." : "No usable contact fields were returned.");
+    } catch (err) {
+      if (err?.name !== "AbortError") setContactImportStatus("Unable to access device contacts.");
+    }
+  };
+
+  const handleVcfUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".vcf") && file.type !== "text/vcard" && file.type !== "text/x-vcard") {
+      setContactImportStatus("Please select a valid .vcf vCard file.");
+      return;
+    }
+    try {
+      const contacts = parseVCardFile(await file.text());
+      if (!contacts.length) {
+        setImportedContacts([]);
+        setContactImportStatus("No contacts with a name or phone number were found in this file.");
+        return;
+      }
+      setImportedContacts(contacts);
+      setContactImportStatus(`${contacts.length} contact(s) ready to review and import.`);
+    } catch {
+      setContactImportStatus("Unable to read the selected VCF file.");
+    }
+  };
+
+  const importVcfContacts = async () => {
+    if (!importedContacts.length || importingContacts) return;
+    setImportingContacts(true);
+    setContactImportStatus("");
+    const existingPhones = new Set(customers.map((customer) => normalizeImportedPhone(customer.phone || customer.phoneNumber || "")).filter(Boolean));
+    let created = 0;
+    let duplicates = 0;
+    let failed = 0;
+
+    for (const contact of importedContacts) {
+      const phone = normalizeImportedPhone(contact.phone);
+      if (phone && existingPhones.has(phone)) {
+        duplicates += 1;
+        continue;
+      }
+      if (!contact.name && !phone) continue;
+      try {
+        const newCustomer = await createCustomer({
+          name: contact.name || phone || "Imported contact",
+          phone,
+          email: "",
+          address: "",
+          notes: "",
+          isActive: true,
+          whatsappFollowUpConsent: false
+        });
+        created += 1;
+        if (phone) existingPhones.add(phone);
+        setCustomers((current) => [newCustomer, ...current]);
+      } catch (err) {
+        if (err?.status === 409 || err?.body?.duplicateCustomerId) {
+          duplicates += 1;
+          if (phone) existingPhones.add(phone);
+        } else {
+          failed += 1;
+        }
+      }
+    }
+    setImportedContacts([]);
+    setContactImportStatus(`Import complete: ${created} created, ${duplicates} duplicate(s) skipped${failed ? `, ${failed} failed` : ""}.`);
+    setImportingContacts(false);
   };
 
   const openMessageComposer = (customer = null) => {
@@ -301,7 +405,7 @@ const Customers = () => {
 
       const newCustomer = await createCustomer(payload);
       setCustomers((current) => [newCustomer, ...current]);
-      setDrawerOpen(false);
+      closeCustomerModal();
       setPreviewCustomer(newCustomer);
     } catch (err) {
       console.error("Failed to create customer:", err);
@@ -799,8 +903,8 @@ const Customers = () => {
       )}
 
       {drawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur-sm">
-          <div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl dark:bg-slate-900">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) closeCustomerModal(); }}>
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl transition-all sm:p-6 dark:bg-slate-900">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-emerald-600">CRM</p>
@@ -809,11 +913,38 @@ const Customers = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setDrawerOpen(false)}
+                onClick={closeCustomerModal}
+                aria-label="Close new customer modal"
                 className="rounded-full border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300"
               >
                 <FiX />
               </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950/40">
+              <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Import contacts</p>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={importDeviceContact} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><FiPhone /> Import device contact</button>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  <FiUpload /> Upload VCF file
+                  <input type="file" accept=".vcf,text/vcard,text/x-vcard" onChange={handleVcfUpload} className="sr-only" />
+                </label>
+              </div>
+              {contactImportStatus && <p role="status" className="mt-3 text-xs text-slate-600 dark:text-slate-300">{contactImportStatus}</p>}
+              {importedContacts.length > 0 && (
+                <div className="mt-3">
+                  <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                    {importedContacts.slice(0, 50).map((contact, index) => (
+                      <div key={`${contact.phone}-${index}`} className="flex items-center justify-between gap-3 border-b border-slate-100 px-2 py-2 text-xs last:border-0 dark:border-slate-800">
+                        <span className="font-medium text-slate-700 dark:text-slate-200">{contact.name || "Unnamed contact"}</span>
+                        <span className="text-slate-500">{contact.phone || "No phone"}</span>
+                      </div>
+                    ))}
+                    {importedContacts.length > 50 && <p className="px-2 py-2 text-xs text-slate-500">and {importedContacts.length - 50} more contacts</p>}
+                  </div>
+                  <button type="button" onClick={importVcfContacts} disabled={importingContacts} className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{importingContacts ? "Importing..." : `Import ${importedContacts.length} contact(s)`}</button>
+                </div>
+              )}
             </div>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -944,7 +1075,7 @@ const Customers = () => {
               <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setDrawerOpen(false)}
+                  onClick={closeCustomerModal}
                   className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all duration-150 hover:bg-slate-50 active:scale-[0.99] dark:border-slate-700 dark:text-slate-300"
                 >
                   Cancel
