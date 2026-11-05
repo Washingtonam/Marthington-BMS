@@ -247,6 +247,11 @@ const SaleDetails = () => {
 
   const business = sale.business || {};
   const theme = business.receiptTheme || "modern";
+  const receiptBranding = business.brandSettings || {};
+  const showLogo = receiptBranding.showLogo !== false;
+  const showBusinessAddress = receiptBranding.showBusinessAddress !== false;
+  const showPhone = receiptBranding.showPhone !== false;
+  const showEmail = receiptBranding.showEmail !== false;
   const sellerTitle = sale.createdBy?.role === "owner"
     ? "Owner"
     : sale.createdBy?.role === "manager"
@@ -265,21 +270,27 @@ const SaleDetails = () => {
             style={{ color: "#000000" }}
           >
             {/* LOGO & WATERMARK */}
-            {business.logo && (
-              <>
-                <div className="receipt-watermark">
+            {(showLogo && business.logo) || receiptBranding.watermarkText ? (
+              <div className="receipt-watermark">
+                {showLogo && business.logo && (
                   <img src={business.logo} alt="" crossOrigin="anonymous" />
-                </div>
+                )}
+                {receiptBranding.watermarkText && (
+                  <span>{receiptBranding.watermarkText}</span>
+                )}
+              </div>
+            ) : null}
+            {showLogo && business.logo && (
                 <div className="receipt-logo">
                   <img src={business.logo} alt="Business Logo" crossOrigin="anonymous" />
                 </div>
-              </>
             )}
 
             <div className="receipt-business text-center font-bold">
               <h1 className="text-2xl font-black uppercase tracking-wide text-black">{business.name}</h1>
-              {business.address && <p className="text-sm font-bold text-black">{business.address}</p>}
-              {business.phone && <p className="text-sm font-bold text-black">Tel: {business.phone}</p>}
+              {showBusinessAddress && business.address && <p className="text-sm font-bold text-black">{business.address}</p>}
+              {showPhone && business.phone && <p className="text-sm font-bold text-black">Tel: {business.phone}</p>}
+              {showEmail && business.email && <p className="text-sm font-bold text-black">{business.email}</p>}
             </div>
 
             <Divider />
@@ -362,6 +373,49 @@ const SaleDetails = () => {
 
         {/* RIGHT: ACTION PANEL */}
         <div className="space-y-4">
+          {sale.items?.some((item) => item.itemType !== "service" && (item.supplierName || item.supplier?.name)) && (
+            <div className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-600">Procurement</p>
+                  <h2 className="mt-1 text-lg font-extrabold text-slate-900">Item suppliers</h2>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                  Read only
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Supplier information is captured automatically and preserved on this transaction.
+              </p>
+              <div className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-100 bg-slate-50/70">
+                {sale.items.map((item, itemIndex) => {
+                  if (item.itemType === "service") return null;
+                  const supplierName = item.supplierName || item.supplier?.name;
+                  return (
+                    <div key={`${item.name}-${itemIndex}`} className="flex items-center justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900">{item.name}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">Qty {item.quantity}</p>
+                      </div>
+                      {item.supplier?._id ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/app/suppliers/${item.supplier._id}`)}
+                          className="max-w-[140px] truncate rounded-full bg-emerald-50 px-2.5 py-1 text-right text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          {supplierName}
+                        </button>
+                      ) : (
+                        <span className="max-w-[140px] truncate text-right text-xs font-semibold text-slate-400">
+                          {supplierName || "Supplier not assigned"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {sale.items?.some((item) => item.itemType === "service") && (
             <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-xl">
               <h2 className="text-lg font-extrabold text-slate-900">Service schedule</h2>

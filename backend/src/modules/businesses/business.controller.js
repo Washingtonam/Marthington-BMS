@@ -364,7 +364,13 @@ export const updateBusiness = async (req, res) => {
       paymentAccountNumber,
       paymentWalletName,
       paymentWalletNumber,
-      paymentTransferInstructions
+      paymentTransferInstructions,
+      removeLogo,
+      showLogo,
+      showBusinessAddress,
+      showPhone,
+      showEmail,
+      watermarkText
     } = req.body;
 
     if (brandPrimaryColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(brandPrimaryColor))) {
@@ -383,13 +389,14 @@ export const updateBusiness = async (req, res) => {
     if (req.file) {
       const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
       const result = await cloudinary.uploader.upload(base64, {
-        folder: "business_logos"
+        folder: "business_logos",
+        resource_type: "image"
       });
 
       business.logo = result.secure_url;
     }
 
-    if (logo === "") {
+    if (!req.file && (logo === "" || String(removeLogo) === "true")) {
       business.logo = "";
     }
 
@@ -420,6 +427,23 @@ export const updateBusiness = async (req, res) => {
       business.brandSettings = {
         ...(business.brandSettings?.toObject?.() || business.brandSettings || {}),
         primaryColor: String(brandPrimaryColor).toLowerCase()
+      };
+    }
+    const brandSettingUpdates = [
+      ["showLogo", showLogo],
+      ["showBusinessAddress", showBusinessAddress],
+      ["showPhone", showPhone],
+      ["showEmail", showEmail]
+    ];
+    if (brandSettingUpdates.some(([, value]) => value !== undefined) || watermarkText !== undefined) {
+      const currentBrandSettings = business.brandSettings?.toObject?.() || business.brandSettings || {};
+      business.brandSettings = {
+        ...currentBrandSettings,
+        ...(showLogo !== undefined ? { showLogo: String(showLogo) === "true" } : {}),
+        ...(showBusinessAddress !== undefined ? { showBusinessAddress: String(showBusinessAddress) === "true" } : {}),
+        ...(showPhone !== undefined ? { showPhone: String(showPhone) === "true" } : {}),
+        ...(showEmail !== undefined ? { showEmail: String(showEmail) === "true" } : {}),
+        ...(watermarkText !== undefined ? { watermarkText: String(watermarkText) } : {})
       };
     }
     business.businessType = businessType ?? business.businessType;

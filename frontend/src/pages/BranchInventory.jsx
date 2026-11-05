@@ -4,6 +4,7 @@ import { getBranchInventory, importBranchInventory, getImportStatus, updateBranc
 import { getBranches } from "../api/branches.js";
 import { createService, getServices } from "../api/services.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { formatCurrency } from "../utils/formatters.js";
 
 const BranchInventory = () => {
   const { user } = useAuth();
@@ -20,6 +21,20 @@ const BranchInventory = () => {
   const [bulkSaveMessage, setBulkSaveMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
+  const [priceFilter, setPriceFilter] = useState("");
+  const [inventorySort, setInventorySort] = useState("name-asc");
+  const [categories, setCategories] = useState([]);
+  const [inventorySummary, setInventorySummary] = useState({
+    totalProducts: 0,
+    totalUnits: 0,
+    lowStock: 0,
+    outOfStock: 0,
+    missingCost: 0,
+    missingSelling: 0,
+    inventoryValue: 0
+  });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalItems: 0, hasNextPage: false, hasPrevPage: false });
   const [catalogDrawerOpen, setCatalogDrawerOpen] = useState(false);
@@ -46,7 +61,9 @@ const BranchInventory = () => {
   const [transferMessage, setTransferMessage] = useState("");
   const [transferSaving, setTransferSaving] = useState(false);
   const [reviewNote, setReviewNote] = useState({});
-  const canReviewTransfers = user?.role === "owner" || user?.role === "super_admin";
+  const canReviewTransfers = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canManageAllBranchInventory === true;
   const canManageInventory = user?.role === "owner"
     || user?.role === "super_admin"
     || user?.permissions?.canManageBranchInventory === true
@@ -56,8 +73,14 @@ const BranchInventory = () => {
 
   const loadBranches = async () => {
     const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
+    const canViewInventoryLocations = user?.role === "owner"
+      || user?.role === "super_admin"
+      || user?.permissions?.canViewBranchInventory === true
+      || user?.permissions?.canManageBranchInventory === true
+      || user?.permissions?.canViewAllBranchInventory === true
+      || user?.permissions?.canManageAllBranchInventory === true;
 
-    if (user?.role !== "owner" && user?.role !== "super_admin" && !canManageInventory) {
+    if (!canViewInventoryLocations) {
       setBranchId(assignedBranchId || "headOffice");
       setBranches([]);
       return;
@@ -82,9 +105,28 @@ const BranchInventory = () => {
     if (!branchIdValue) return;
     try {
       setLoading(true);
-      const data = await getBranchInventory({ branchId: branchIdValue, page: pageValue, limit: 20, search: searchValue });
+      const data = await getBranchInventory({
+        branchId: branchIdValue,
+        page: pageValue,
+        limit: 20,
+        search: searchValue,
+        category: categoryFilter,
+        stockFilter,
+        priceFilter,
+        sort: inventorySort
+      });
       const responseInventory = Array.isArray(data) ? data : data?.inventory || [];
       setInventory(responseInventory);
+      setInventorySummary(data?.summary || {
+        totalProducts: 0,
+        totalUnits: 0,
+        lowStock: 0,
+        outOfStock: 0,
+        missingCost: 0,
+        missingSelling: 0,
+        inventoryValue: 0
+      });
+      setCategories(Array.isArray(data?.categories) ? data.categories : []);
       setPagination(data?.pagination || { currentPage: 1, totalPages: 1, totalItems: responseInventory.length, hasNextPage: false, hasPrevPage: false });
       const edits = responseInventory.reduce((map, item) => {
         map[item._id] = {
@@ -182,6 +224,12 @@ const BranchInventory = () => {
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [search]);
+
+  useEffect(() => {
+    if (!branchId) return;
+    setPage(1);
+    loadInventory(branchId, 1, search);
+  }, [categoryFilter, stockFilter, priceFilter, inventorySort]);
 
   useEffect(() => {
     if (!branches.length || !branchId) return;
@@ -437,10 +485,11 @@ const BranchInventory = () => {
 
   return (
     <section className="page-stack">
-      <div className="page-heading">
+      <div className="page-heading inventory-page-heading">
         <div>
           <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Inventory</span>
           <h1 className="mt-2 text-4xl font-semibold text-slate-900">Inventory Stock</h1>
+          <p className="inventory-page-subtitle">Monitor stock, pricing, and margins across every location.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canManageInventory ? <>
@@ -458,10 +507,14 @@ const BranchInventory = () => {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Stock control</p><p className="mt-2 text-sm text-slate-600">Adjust quantities and branch pricing.</p></div>
-        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Product catalog</p><p className="mt-2 text-sm text-slate-600">Create products without leaving inventory.</p></div>
-        <div className="page-card"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Service catalog</p><p className="mt-2 text-sm text-slate-600">Keep sellable services connected to POS.</p></div>
+      <div className="inventory-summary-grid">
+        <div className="inventory-summary-card"><span className="inventory-summary-icon inventory-summary-icon--blue" aria-hidden="true">P</span><div><p>Products</p><strong>{inventorySummary.totalProducts}</strong></div></div>
+        <div className="inventory-summary-card"><span className="inventory-summary-icon inventory-summary-icon--green" aria-hidden="true">S</span><div><p>Stock units</p><strong>{inventorySummary.totalUnits}</strong></div></div>
+        <button type="button" onClick={() => { setStockFilter("low-stock"); setPriceFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--amber" aria-hidden="true">L</span><div><p>Low stock</p><strong>{inventorySummary.lowStock}</strong></div></button>
+        <button type="button" onClick={() => { setStockFilter("out-of-stock"); setPriceFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">0</span><div><p>Out of stock</p><strong>{inventorySummary.outOfStock}</strong></div></button>
+        <div className="inventory-summary-card inventory-summary-card--value"><span className="inventory-summary-icon inventory-summary-icon--violet" aria-hidden="true">V</span><div><p>Inventory value</p><strong>{formatCurrency(inventorySummary.inventoryValue)}</strong></div></div>
+        <button type="button" onClick={() => { setPriceFilter("missing-cost"); setStockFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">C</span><div><p>Missing cost</p><strong>{inventorySummary.missingCost}</strong></div></button>
+        <button type="button" onClick={() => { setPriceFilter("missing-selling"); setStockFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">S</span><div><p>Missing selling</p><strong>{inventorySummary.missingSelling}</strong></div></button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr,320px]">
@@ -476,7 +529,7 @@ const BranchInventory = () => {
               </button>}
           </div>
 
-          <div className="mb-4">
+          <div className="inventory-location-bar mb-4">
             <label className="block text-sm font-medium text-slate-700">Branch</label>
             <select
               className="form-select mt-2 w-full"
@@ -530,7 +583,7 @@ const BranchInventory = () => {
             </div>
           )}
 
-          <div className="mb-4">
+          <div className="inventory-search-bar mb-4">
             <label className="block text-sm font-medium text-slate-700">Search products</label>
             <input
               value={search}
@@ -540,20 +593,85 @@ const BranchInventory = () => {
             />
           </div>
 
+          <div className="inventory-filter-bar mb-4">
+            <select aria-label="Filter inventory by category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="form-select w-full">
+              <option value="">All categories</option>
+              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+            <select aria-label="Filter inventory by stock" value={stockFilter} onChange={(e) => setStockFilter(e.target.value)} className="form-select w-full">
+              <option value="">All stock status</option>
+              <option value="in-stock">In stock</option>
+              <option value="low-stock">Low stock (1-5)</option>
+              <option value="out-of-stock">Out of stock</option>
+            </select>
+            <select aria-label="Filter inventory by price completeness" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} className="form-select w-full">
+              <option value="">All pricing</option>
+              <option value="complete-pricing">Complete cost and selling price</option>
+              <option value="cost-only">Cost price only</option>
+              <option value="selling-only">Selling price only</option>
+              <option value="missing-cost">Missing cost price</option>
+              <option value="missing-selling">Missing selling price</option>
+            </select>
+            <select aria-label="Sort inventory" value={inventorySort} onChange={(e) => setInventorySort(e.target.value)} className="form-select w-full">
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="stock-desc">Highest stock</option>
+              <option value="stock-asc">Lowest stock</option>
+              <option value="cost-desc">Highest cost price</option>
+              <option value="cost-asc">Lowest cost price</option>
+              <option value="price-desc">Highest selling price</option>
+              <option value="price-asc">Lowest selling price</option>
+              <option value="margin-desc">Highest margin</option>
+            </select>
+            {(categoryFilter || stockFilter || priceFilter || inventorySort !== "name-asc" || search) && (
+              <button
+                type="button"
+                className="inventory-clear-button"
+                onClick={() => {
+                  setCategoryFilter("");
+                  setStockFilter("");
+                  setPriceFilter("");
+                  setInventorySort("name-asc");
+                  setSearch("");
+                }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
           {loading ? (
             <div className="text-sm text-slate-500">Loading inventory...</div>
           ) : inventory.length === 0 ? (
             <div className="space-y-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
               <div>
-                <p className="text-base font-semibold text-slate-800">This branch has no inventory imported yet.</p>
+                <p className="text-base font-semibold text-slate-800">
+                  {search || categoryFilter || stockFilter || priceFilter ? "No inventory matches these filters." : "This branch has no inventory imported yet."}
+                </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  {branchId === "headOffice"
+                  {search || categoryFilter || stockFilter || priceFilter
+                    ? "Try clearing a filter or changing the selected category, stock status, or pricing condition."
+                    : branchId === "headOffice"
                     ? "Head office inventory is visible here, but no product has been assigned to this branch yet."
                     : `No stock has been imported for ${branches.find((branch) => branch._id === branchId)?.name || "this branch"} yet.`}
                 </p>
               </div>
 
-              {branchId && canManageInventory ? (
+              {search || categoryFilter || stockFilter || priceFilter ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setSearch("");
+                    setCategoryFilter("");
+                    setStockFilter("");
+                    setPriceFilter("");
+                    setInventorySort("name-asc");
+                  }}
+                >
+                  Clear filters
+                </button>
+              ) : branchId && canManageInventory ? (
                 <div className="space-y-2">
                   <p className="text-sm text-slate-600">
                     Import from the head office catalog or another branch to begin tracking stock movements and sales for this location.
@@ -577,7 +695,9 @@ const BranchInventory = () => {
                 <div className="inventory-table-head">
                   <span>Product</span>
                   <span>Stock</span>
-                  <span>Price</span>
+                  <span>Cost</span>
+                  <span>Selling price</span>
+                  <span>Margin</span>
                   <span>Action</span>
                 </div>
                 {inventory.map((item) => {
@@ -587,6 +707,7 @@ const BranchInventory = () => {
                       <div>
                         <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
                         <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
+                        <div className="inventory-category-tag">{item.product?.category || "General"}</div>
                       </div>
                       {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
@@ -594,7 +715,12 @@ const BranchInventory = () => {
                         value={edit.quantity}
                         onChange={(e) => handleInventoryChange(item._id, "quantity", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
-                      /> : <span className="inventory-readonly-value">{edit.quantity}</span>}
+                      /> : (
+                        <span className={`inventory-stock-badge ${edit.quantity <= 0 ? "is-out" : edit.quantity <= 5 ? "is-low" : "is-good"}`}>
+                          {edit.quantity} {edit.quantity <= 0 ? "Out" : edit.quantity <= 5 ? "Low" : "In"}
+                        </span>
+                      )}
+                      <span className="inventory-price-value">{formatCurrency(Number(item.product?.costPrice || 0))}</span>
                       {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
                         min="0"
@@ -602,7 +728,10 @@ const BranchInventory = () => {
                         value={edit.branchPrice}
                         onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
-                      /> : <span className="inventory-readonly-value">{Number(edit.branchPrice || 0).toFixed(2)}</span>}
+                      /> : <span className="inventory-price-value is-selling">{formatCurrency(Number(edit.branchPrice || 0))}</span>}
+                      <span className={`inventory-margin-value ${(Number(edit.branchPrice || 0) - Number(item.product?.costPrice || 0)) >= 0 ? "is-positive" : "is-negative"}`}>
+                        {formatCurrency(Number(edit.branchPrice || 0) - Number(item.product?.costPrice || 0))}
+                      </span>
                       {canManageInventory && editingInventoryId === item._id ? <div className="inventory-row-actions">
                         <button onClick={() => saveInventoryItem(item)} className="btn btn-primary" disabled={savingItemId === item._id}>
                           {savingItemId === item._id ? "Saving..." : "Save"}

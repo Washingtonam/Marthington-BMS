@@ -1,11 +1,20 @@
 import ReceiptQRCode from "./ReceiptQRCode.jsx";
+import { useBranding } from "../context/BrandingContext.jsx";
 
 const EnterpriseReceipt = ({
   sale
 }) => {
+  const brandingProfile = useBranding();
 
   const business =
-    sale?.business || {};
+    {
+      ...(sale?.business || {}),
+      name: brandingProfile.businessName || sale?.business?.name,
+      phone: brandingProfile.phone || sale?.business?.phone,
+      email: brandingProfile.email || sale?.business?.email,
+      address: brandingProfile.address || sale?.business?.address,
+      logo: brandingProfile.logoUrl || sale?.business?.logo,
+    };
 
   const theme =
     business.receiptTheme ||
@@ -23,7 +32,7 @@ const EnterpriseReceipt = ({
 
       {/* LOGO */}
 
-      {branding.showLogo &&
+      {branding.showLogo !== false &&
         business.logo && (
 
         <div className="flex justify-center mb-3">
@@ -45,15 +54,21 @@ const EnterpriseReceipt = ({
           {business.name}
         </h2>
 
-        {branding.showBusinessAddress && (
+        {branding.showBusinessAddress !== false && (
           <p className="text-sm opacity-70">
             {business.address}
           </p>
         )}
 
-        {branding.showPhone && (
+        {branding.showPhone !== false && (
           <p className="text-sm opacity-70">
             {business.phone}
+          </p>
+        )}
+
+        {branding.showEmail !== false && business.email && (
+          <p className="text-sm opacity-70">
+            {business.email}
           </p>
         )}
 

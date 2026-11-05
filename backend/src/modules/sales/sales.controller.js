@@ -189,7 +189,9 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
       // 3. Process Items (Products & Services)
       for (const item of items) {
         if (item.itemType === "product" || !item.itemType) {
-          const product = await Product.findById(item.product).session(session);
+          const product = await Product.findById(item.product)
+            .populate("preferredSupplier", "name")
+            .session(session);
 
           if (!product) throw new Error(`Product ${item.name || 'not found'} missing.`);
           
@@ -244,6 +246,8 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
             note: String(item.note || "").trim(),
             quantity,
             costPrice: Number(product.costPrice) || 0,
+            supplier: product.preferredSupplier?._id || null,
+            supplierName: product.preferredSupplier?.name || "",
             sellingPrice: finalPrice,
             total: itemTotal
           });
@@ -924,7 +928,7 @@ const getDeletedSales = async (req, res) => {
       .sort({ deletedAt: -1, createdAt: -1 })
       .populate("createdBy", "name")
       .populate("items.product", "name price")
-      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+      .populate("business", "name address phone email website receiptFooter receiptTheme logo brandSettings subscription");
 
     res.json(sales);
   } catch (error) {
@@ -939,7 +943,8 @@ const getSaleById = async (req, res) => {
       .populate("createdBy", "role")
       .populate("branch", "name")
       .populate("items.product", "name price")
-      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+      .populate("items.supplier", "name")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo brandSettings subscription");
 
     if (!sale) return res.status(404).json({ message: "Sale not found" });
 
@@ -1242,7 +1247,8 @@ const getPublicSale = async (req, res) => {
     const sale = await Sale.findOne({ $or: [{ _id: id }, { receiptId: id }] })
       .populate("branch", "name")
       .populate("items.product", "name price")
-      .populate("business", "name address phone email receiptFooter receiptTheme logo subscription");
+      .populate("items.supplier", "name")
+      .populate("business", "name address phone email receiptFooter receiptTheme logo brandSettings subscription");
 
     if (!sale) return res.status(404).json({ message: "Receipt not found" });
     res.json(sale);

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 import AdminModeToggle from "../AdminModeToggle.jsx";
+import { useBranding } from "../../context/BrandingContext.jsx";
 
 const getPageTitle = (pathname) => {
   if (pathname.startsWith("/app/analytics")) return "Analytics";
@@ -20,10 +21,11 @@ export default function Topbar({ businessName: businessNameProp, onMenuClick, th
   const location = useLocation();
   const navigate = useNavigate();
   const { user, business, logout } = useAuth();
+  const { businessName: brandedBusinessName } = useBranding();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   const pageTitle = useMemo(() => getPageTitle(location.pathname), [location.pathname]);
-  const businessName = businessNameProp || business?.name || user?.businessName || "Marthington";
+  const businessName = businessNameProp || brandedBusinessName || business?.name || user?.businessName || "Marthington";
   const userName = user?.name || user?.email || "User";
   const roleLabel = (user?.role || "owner").replace(/_/g, " ");
   const roleBadge = roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1);

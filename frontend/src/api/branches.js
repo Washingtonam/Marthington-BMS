@@ -33,7 +33,11 @@ export const getBranchInventory = async (branchOrOptions = {}) => {
     branchId: options.branchId || "",
     page: String(options.page ?? 1),
     limit: String(options.limit ?? 20),
-    ...(options.search ? { search: options.search } : {})
+    ...(options.search ? { search: options.search } : {}),
+    ...(options.category ? { category: options.category } : {}),
+    ...(options.stockFilter ? { stockFilter: options.stockFilter } : {}),
+    ...(options.priceFilter ? { priceFilter: options.priceFilter } : {}),
+    ...(options.sort ? { sort: options.sort } : {})
   });
 
   return request(`/branches/inventory?${params.toString()}`);

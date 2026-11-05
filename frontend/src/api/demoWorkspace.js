@@ -181,6 +181,32 @@ export async function requestDemoWorkspace(path, options = {}) {
       lowStockProducts: state.products.filter((product) => Number(product.stock) < 10)
     };
   }
+  if (pathname.startsWith("/reports/") && method === "GET") {
+    const revenue = state.sales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
+    const grossProfit = state.sales.reduce((sum, sale) =>
+      sum + (sale.items || []).reduce((itemSum, item) => {
+        const product = state.products.find((candidate) => candidate.name === item.name);
+        const cost = Number(product?.costPrice || 0) * Number(item.quantity || 0);
+        return itemSum + Number(item.sellingPrice || 0) * Number(item.quantity || 0) - cost;
+      }, 0), 0);
+    const overview = {
+      totalRevenue: revenue,
+      totalSales: state.sales.length,
+      grossProfit,
+      averageOrderValue: state.sales.length ? Math.round(revenue / state.sales.length) : 0,
+      inventoryValue: state.products.reduce((sum, product) => sum + Number(product.costPrice || 0) * Number(product.stock || 0), 0),
+      lowStockCount: state.products.filter((product) => Number(product.stock) < 10).length
+    };
+    return {
+      overview,
+      sales: state.sales,
+      recentSales: state.sales.slice(0, 10),
+      chartData: state.sales.map((sale) => ({ date: sale.createdAt.slice(0, 10), sales: Number(sale.totalAmount || 0) })),
+      lowStockProducts: state.products.filter((product) => Number(product.stock) < 10),
+      staffPerformance: [],
+      raw: { transactions: state.sales }
+    };
+  }
   if (pathname === "/sales" && method === "GET") {
     return { sales: state.sales, pagination: { total: state.sales.length, totalPages: 1, currentPage: 1 } };
   }
@@ -191,15 +217,34 @@ export async function requestDemoWorkspace(path, options = {}) {
     const sale = {
       _id: `demo-sale-${Date.now()}`,
       receiptId: `DEMO-${Date.now().toString().slice(-6)}`,
-      customerName: body.customer?.name || "Walk-in customer",
+      customerName: body.customer?.name || body.customerName || "Walk-in customer",
+      customerPhone: body.customerPhone || "",
       totalAmount,
       paymentStatus: "paid",
       createdAt: new Date().toISOString(),
+      paymentMethod: body.paymentMethod || "cash",
+      business: state.business,
       items
     };
+    for (const item of items) {
+      if (item.itemType !== "product" && item.product === undefined) continue;
+      const product = state.products.find((candidate) =>
+        candidate._id === item.product || candidate.name === item.name
+      );
+      if (product) {
+        product.stock = Math.max(0, Number(product.stock || 0) - Number(item.quantity || 0));
+        product.available = product.stock > 0;
+      }
+    }
     state.sales.unshift(sale);
     writeState(state);
     return { sale, demo: true };
+  }
+  const demoSaleMatch = pathname.match(/^\/sales\/([^/]+)$/);
+  if (demoSaleMatch && method === "GET") {
+    const sale = state.sales.find((item) => item._id === demoSaleMatch[1]);
+    if (!sale) throw routeError("Sample sale not found.", 404);
+    return sale;
   }
   if (pathname === "/products" && method === "GET" || pathname === "/products/autocomplete" && method === "GET") {
     const products = filteredProducts(state, url.searchParams.get("search") || "");
@@ -234,6 +279,30 @@ export async function requestDemoWorkspace(path, options = {}) {
   }
   if (pathname === "/services" && method === "GET") return { services: [] };
   if (pathname === "/branches" && method === "GET") return { branches: [{ _id: "demo-branch-main", name: "Main Branch", isMain: true }] };
+  if (pathname === "/branches/inventory" && method === "GET") {
+    const search = url.searchParams.get("search") || "";
+    const inventory = state.products
+      .filter((product) => !search || `${product.name} ${product.sku}`.toLowerCase().includes(search.toLowerCase()))
+      .map((product) => ({
+        _id: `demo-stock-${product._id}`,
+        product,
+        quantity: Number(product.stock || 0),
+        branchPrice: Number(product.sellingPrice || 0)
+      }));
+    return {
+      inventory,
+      pagination: { currentPage: 1, totalPages: 1, totalItems: inventory.length, hasNextPage: false, hasPrevPage: false }
+    };
+  }
+  if (pathname === "/branches/inventory" && method === "PUT") {
+    const product = state.products.find((item) => item._id === body.productId);
+    if (!product) throw routeError("Sample product not found.", 404);
+    product.stock = Math.max(0, Number(body.quantity || 0));
+    product.available = product.stock > 0;
+    if (body.branchPrice !== undefined) product.sellingPrice = Number(body.branchPrice || 0);
+    writeState(state);
+    return { message: "Sample inventory updated locally." };
+  }
   if (pathname === "/customers" && method === "GET") return { customers: state.customers };
   if (pathname.startsWith("/expenses") && method === "GET") return { expenses: state.expenses };
   if (pathname.startsWith("/invoices") && method === "GET") return { invoices: state.invoices, receivables: {}, payables: {} };

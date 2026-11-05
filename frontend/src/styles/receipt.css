@@ -50,6 +50,17 @@
     grayscale(100%);
 }
 
+.receipt-watermark span {
+  position: absolute;
+  max-width: 80%;
+  color: rgba(15, 23, 42, 0.08);
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-25deg);
+}
+
 /* =========================================
    LOGO
 ========================================= */
@@ -588,4 +599,3 @@ body.printing-receipt .receipt-watermark img {
     margin: 0;
   }
 }
-

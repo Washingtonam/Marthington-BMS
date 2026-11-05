@@ -1721,7 +1721,7 @@ const getInvoiceById =
 const getInvoicePDF = async (req, res) => {
   try {
     const invoice = await Invoice.findById(req.params.invoiceId)
-      .populate("business", "name address phone email logo subscription")
+      .populate("business", "name address phone email website logo receiptFooter receiptTheme brandSettings subscription")
       .populate("customer", "name phone email address")
       .populate("supplier", "name phone email address")
       .populate("items.product", "name price");

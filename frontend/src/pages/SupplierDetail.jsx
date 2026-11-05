@@ -203,7 +203,8 @@ const SupplierDetail = () => {
             category: item.category.trim() || "General",
             sku: item.sku.trim(),
             costPrice,
-            sellingPrice
+            sellingPrice,
+            preferredSupplier: supplier._id
           });
           if (!createdProduct?._id) {
             throw new Error(`Could not confirm that "${item.name.trim()}" was saved to the product catalog.`);

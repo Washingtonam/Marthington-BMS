@@ -1,0 +1,64 @@
+{
+  "name": "The Day Adex Market Went Pro",
+  "businessName": "Adex Market",
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "aspectRatio": "16:9",
+    "targetResolution": "1920x1080"
+  },
+  "account": {
+    "type": "demo",
+    "isDemo": true,
+    "showDemoLabel": false,
+    "showDemoWatermark": false
+  },
+  "scenes": [
+    {
+      "title": "The Day Adex Market Went Pro",
+      "narration": "The day Adex Market went Pro. A business was ready to upgrade from Marthington Free to Marthington Pro.",
+      "durationSeconds": 8.15
+    },
+    {
+      "title": "The Billing Checkout",
+      "narration": "Its owner opened the billing page and selected a yearly plan. Before checkout changed anything, the backend attached the business ID and billing cycle. The gateway then knew exactly who was paying and which plan they selected.",
+      "durationSeconds": 14.97
+    },
+    {
+      "title": "Verify Before You Activate",
+      "narration": "Payment moved to Paystack or Flutterwave. When the gateway returned, Marthington did not trust the browser success message. The backend verified the transaction directly, and only a valid successful payment continued.",
+      "durationSeconds": 15.28
+    },
+    {
+      "title": "Adex Market\u2019s New Entitlement",
+      "narration": "Once verified, the backend opened a transaction and changed the subscription to Pro, active, yearly, starting today and expiring one year later. That subscription record became the source of truth for future feature checks.",
+      "durationSeconds": 14.49
+    },
+    {
+      "title": "Employees Keep Their Permissions",
+      "narration": "The upgrade did not automatically rewrite employee permissions. Amina, the owner, retained full access. Kofi, the manager, kept only what Amina granted. Blessing, the cashier, could use sales and POS tools but not financial reports.",
+      "durationSeconds": 18.26
+    },
+    {
+      "title": "Pro Is Different From RBAC",
+      "narration": "Blessing\u2019s fresh login token contained her role, individual permissions, business ID, and whether her business had an active Pro subscription. Billing unlocks business capability. Role based access control decides which employee can use it.",
+      "durationSeconds": 16.65
+    },
+    {
+      "title": "Opening an Invoice",
+      "narration": "When Blessing opens an invoice, authentication finds her account and business. Subscription middleware checks Adex Market\u2019s active record. Invoice middleware checks the plan. Permission middleware checks her invoice access. Only when every gate agrees is the request allowed.",
+      "durationSeconds": 19.89
+    },
+    {
+      "title": "When Pro Expires",
+      "narration": "The subscription jobs inspect expiry dates. When Adex Market\u2019s Pro period ends, the business is downgraded to Free and the subscription is marked expired. Subsequent requests stop Pro features, but existing employee permissions remain intact.",
+      "durationSeconds": 17.08
+    },
+    {
+      "title": "The Architecture\u2019s Key Rule",
+      "narration": "When payment is renewed, the business becomes Pro again, and access returns according to each employee\u2019s existing role and permissions. Billing unlocks capability for the business. Permissions decide which employee may use it.",
+      "durationSeconds": 15.26
+    }
+  ],
+  "output": "C:\\Users\\User\\Documents\\Mr Washington\\Marthington-Synergy-Solution\\Marthington-BMS-main\\videos\\the-day-adex-market-went-pro.mp4"
+}

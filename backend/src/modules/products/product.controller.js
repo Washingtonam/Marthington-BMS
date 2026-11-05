@@ -6,10 +6,18 @@ import XLSX from "xlsx";
 import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
 import { isPrivileged } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
+import Supplier from "../suppliers/supplier.model.js";
 import {
   assertBusinessProductCapacity,
   getBusinessPlanAccess
 } from "../subscriptions/planAccess.js";
+
+const resolvePreferredSupplier = async (businessId, supplierId) => {
+  if (!supplierId) return null;
+  const supplier = await Supplier.findOne({ _id: supplierId, business: businessId });
+  if (!supplier) throw Object.assign(new Error("Preferred supplier not found in this business"), { statusCode: 400 });
+  return supplier._id;
+};
 
 const findExistingProductMatch = async (businessId, name, excludeId = null) => {
   if (!name || !String(name).trim()) return null;
@@ -32,7 +40,10 @@ const createProduct = async (req, res) => {
                      (business.subscription?.status === "trial" && new Date() > business.trialEndsAt);
     if (isExpired) return res.status(403).json({ message: "Subscription expired. Please upgrade." });
 
-    const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
+    const { name, sellingPrice, costPrice, stock, category, sku, preferredSupplier } = req.body;
+    const resolvedPreferredSupplier = preferredSupplier !== undefined
+      ? await resolvePreferredSupplier(business._id, preferredSupplier)
+      : undefined;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ message: "Product name is required" });
@@ -57,7 +68,8 @@ const createProduct = async (req, res) => {
           price: Number(merged.price) || 0,
           costPrice: Number(merged.costPrice) || 0,
           stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : existingStock,
-          sku: merged.sku || `SKU-${Date.now()}`
+          sku: merged.sku || `SKU-${Date.now()}`,
+          ...(resolvedPreferredSupplier !== undefined ? { preferredSupplier: resolvedPreferredSupplier } : {})
         }
       }, { new: true });
 
@@ -73,6 +85,7 @@ const createProduct = async (req, res) => {
       costPrice: Number(costPrice) || 0,
       stock: isPrivileged(req.user) ? Number(stock) || 0 : 0,
       sku: sku || `SKU-${Date.now()}`,
+      preferredSupplier: resolvedPreferredSupplier || null,
       business: business._id
     });
 
@@ -226,6 +239,7 @@ const getProducts = async (req, res) => {
 
     const totalProducts = await Product.countDocuments(filter);
     const products = await Product.find(filter)
+      .populate("preferredSupplier", "name")
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -274,8 +288,11 @@ const getProducts = async (req, res) => {
 // 🔥 UPDATE PRODUCT
 const updateProduct = async (req, res) => {
   try {
-    const { name, sellingPrice, costPrice, stock, category, sku } = req.body;
+    const { name, sellingPrice, costPrice, stock, category, sku, preferredSupplier } = req.body;
     const updateData = {};
+    const resolvedPreferredSupplier = preferredSupplier !== undefined
+      ? await resolvePreferredSupplier(req.user.businessId, preferredSupplier)
+      : undefined;
 
     if (name !== undefined) {
       const duplicate = await findExistingProductMatch(req.user.businessId, name, req.params.id);
@@ -295,7 +312,8 @@ const updateProduct = async (req, res) => {
             price: Number(merged.price) || 0,
             costPrice: Number(merged.costPrice) || 0,
             stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(duplicate.stock || 0),
-            sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`
+            sku: merged.sku || duplicate.sku || `SKU-${Date.now()}`,
+            ...(resolvedPreferredSupplier !== undefined ? { preferredSupplier: resolvedPreferredSupplier } : {})
           }
         });
 
@@ -310,6 +328,7 @@ const updateProduct = async (req, res) => {
     if (costPrice !== undefined) updateData.costPrice = Number(costPrice);
     if (stock !== undefined && isPrivileged(req.user)) updateData.stock = Number(stock);
     if (sku !== undefined) updateData.sku = sku;
+    if (resolvedPreferredSupplier !== undefined) updateData.preferredSupplier = resolvedPreferredSupplier;
 
     const product = await Product.findOneAndUpdate(
       { _id: req.params.id, business: req.user.businessId },
@@ -371,7 +390,7 @@ const getProductById = async (req, res) => {
     const product = await Product.findOne({
       _id: req.params.id,
       business: req.user.businessId
-    }).lean();
+    }).populate("preferredSupplier", "name").lean();
     if (!product) return res.status(404).json({ message: "Product not found." });
     return res.json({
       ...product,

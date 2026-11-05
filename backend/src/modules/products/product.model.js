@@ -27,6 +27,12 @@ const productSchema = new mongoose.Schema(
       default: 0
     },
 
+    preferredSupplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null
+    },
+
     stock: {
       type: Number,
       default: 0

@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { BrandingProvider } from "./context/BrandingContext.jsx";
 
 // ====================================
 // CORE COMPONENTS
@@ -167,6 +168,7 @@ const App = () => {
   return (
     <HashRouter>
       <AuthProvider>
+        <BrandingProvider>
         {/* Suspense handles the waiting period while a page is being downloaded */}
         <ShopCartProvider>
         <Suspense fallback={<PageLoader />}>
@@ -343,6 +345,7 @@ const App = () => {
           </Routes>
         </Suspense>
         </ShopCartProvider>
+        </BrandingProvider>
       </AuthProvider>
     </HashRouter>
   );

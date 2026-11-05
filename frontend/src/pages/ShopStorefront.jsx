@@ -17,6 +17,7 @@ const ShopStorefront = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [imageFilter, setImageFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("mine");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
@@ -28,13 +29,19 @@ const ShopStorefront = () => {
     setError("");
     try {
       const query = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), search });
-      if (imageFilter !== "all") query.set("imageStatus", imageFilter);
-      const data = await shopRequest(`/storefront/products?${query}`, {
-        token: localStorage.getItem("bms_token")
-      });
-      setBusiness(data.business);
+      let data;
+      if (viewMode === "marketplace") {
+        data = await shopRequest(`/?${query}`);
+      } else {
+        if (imageFilter !== "all") query.set("imageStatus", imageFilter);
+        data = await shopRequest(`/storefront/products?${query}`, {
+          token: localStorage.getItem("bms_token")
+        });
+        setBusiness(data.business);
+      }
       setProducts(data.products || []);
       setPagination(data.pagination || { currentPage: page, totalPages: 1, totalProducts: 0 });
+      if (viewMode === "marketplace") return;
       setDescriptions((current) => Object.fromEntries((data.products || []).map((product) => [
         product._id,
         current[product._id] ?? product.shopDescription ?? ""
@@ -61,7 +68,7 @@ const ShopStorefront = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, search, imageFilter]);
+  }, [page, search, imageFilter, viewMode]);
 
   useEffect(() => {
     load();
@@ -128,9 +135,37 @@ const ShopStorefront = () => {
         <Link to="/shop" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">View public storefront</Link>
       </div>
 
+      <div className="mb-5 inline-flex rounded-xl border border-slate-200 bg-white p-1" role="tablist" aria-label="Storefront view">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === "mine"}
+          onClick={() => {
+            setViewMode("mine");
+            setPage(1);
+          }}
+          className={`rounded-lg px-4 py-2 text-sm font-bold ${viewMode === "mine" ? "bg-emerald-700 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+        >
+          My storefront
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === "marketplace"}
+          onClick={() => {
+            setViewMode("marketplace");
+            setPage(1);
+            setImageFilter("all");
+          }}
+          className={`rounded-lg px-4 py-2 text-sm font-bold ${viewMode === "marketplace" ? "bg-emerald-700 text-white" : "text-slate-600 hover:bg-slate-50"}`}
+        >
+          Marketplace preview
+        </button>
+      </div>
+
       {error && <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}<button type="button" onClick={load} className="ml-3 font-bold underline">Retry</button></div>}
       {message && <p role="status" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{message}</p>}
-      {!loading && business && business.shopVisible === false && (
+      {!loading && viewMode === "mine" && business && business.shopVisible === false && (
         <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Your storefront is currently hidden from shoppers. Contact your administrator if it should be made visible.
         </p>
@@ -147,11 +182,11 @@ const ShopStorefront = () => {
               setPage(1);
               setSearch(event.target.value);
             }}
-            placeholder="Search products by name, category, or SKU..."
+            placeholder={viewMode === "marketplace" ? "Search products across the marketplace..." : "Search products by name, category, or SKU..."}
             className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
           />
         </label>
-        <label className="grid gap-1 text-xs font-semibold text-slate-600">
+        {viewMode === "mine" && <label className="grid gap-1 text-xs font-semibold text-slate-600">
           Product photos
           <select
             aria-label="Filter products by image"
@@ -166,11 +201,46 @@ const ShopStorefront = () => {
             <option value="present">With photos</option>
             <option value="missing">Without photos</option>
           </select>
-        </label>
+        </label>}
       </div>
 
       {loading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Loading your storefront products...</div>
+      ) : viewMode === "marketplace" ? (
+        products.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
+            <h2 className="text-lg font-bold text-slate-900">{search ? "No matching marketplace products" : "No products are publicly visible yet"}</h2>
+            <p className="mt-2 text-sm text-slate-500">{search ? "Try a different product name or category." : "The super admin may need to make businesses and products visible."}</p>
+          </div>
+        ) : (
+          <>
+            <p className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              Marketplace preview is read-only. Public product visibility is controlled by the Marthington super admin and your business settings.
+            </p>
+            <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {products.map((product) => (
+                <article key={product.id || product._id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex h-44 items-center justify-center bg-slate-100">
+                    {product.image
+                      ? <img src={product.image} alt={`${product.name} marketplace`} className="h-full w-full object-cover" />
+                      : <span className="text-5xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
+                  </div>
+                  <div className="p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{product.category || "General"}</p>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">{product.name}</h2>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{product.business?.name || "Marthington business"}</p>
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-black text-slate-900">{formatCurrency(Number(product.price) || 0)}</span>
+                      {product.salePrice > 0 && <span className="text-xs text-slate-400 line-through">{formatCurrency(product.originalPrice)}</span>}
+                    </div>
+                    {product.description && <p className="mt-3 line-clamp-3 text-sm leading-5 text-slate-600">{product.description}</p>}
+                    <Link to={`/shop/product/${encodeURIComponent(product.id)}`} className="mt-4 inline-block text-xs font-bold text-emerald-700 underline">View as shopper</Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        )
       ) : !error && products.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
           <h2 className="text-lg font-bold text-slate-900">{imageFilter !== "all" ? "No products match this photo filter" : search ? "No matching products" : "No products in your BMS catalogue yet"}</h2>
@@ -189,13 +259,24 @@ const ShopStorefront = () => {
                     {preview ? <img src={preview} alt={`${product.name} storefront`} className="absolute inset-0 h-full w-full object-cover" /> : <span className="text-5xl font-black text-emerald-700">{product.name.slice(0, 1).toUpperCase()}</span>}
                   </div>
                   <div className="p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{product.category || "General"}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{product.category || "General"}</p>
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${product.shopVisible === false || business?.shopVisible === false ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-700"}`}>
+                        {product.shopVisible === false ? "Product hidden" : business?.shopVisible === false ? "Business hidden" : "Live"}
+                      </span>
+                    </div>
                     <h2 className="mt-1 truncate text-lg font-bold text-slate-900">{product.name}</h2>
                     <div className="mt-2 flex items-baseline gap-2">
                       <span className="font-black text-slate-900">{formatCurrency(Number(priceDrafts[product._id]) > 0 ? Number(priceDrafts[product._id]) : product.price)}</span>
                       {priceModeDrafts[product._id] === "discount" && Number(priceDrafts[product._id]) > 0 && Number(priceDrafts[product._id]) < product.price && <span className="text-xs text-slate-400 line-through">{formatCurrency(product.price)}</span>}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">Base BMS price: {formatCurrency(product.price)} · Stock: {product.stock}</p>
+                    {(!images[product._id]?.previewUrl && !(imageUrls[product._id] ?? product.shopImage) || !String(descriptions[product._id] ?? product.shopDescription ?? "").trim()) && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {!images[product._id]?.previewUrl && !(imageUrls[product._id] ?? product.shopImage) && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800">Missing photo</span>}
+                        {!String(descriptions[product._id] ?? product.shopDescription ?? "").trim() && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-800">Needs description</span>}
+                      </div>
+                    )}
                     <Link to={`/app/products?edit=${encodeURIComponent(product._id)}`} className="mt-2 inline-block text-xs font-bold text-emerald-700 underline">Edit product in BMS</Link>
                   </div>
                 </div>

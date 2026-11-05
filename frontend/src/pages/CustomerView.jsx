@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { formatCurrency } from "../utils/formatters.js";
 import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
+import { useBranding } from "../context/BrandingContext.jsx";
 
 const CustomerView = () => {
+  const { businessName: brandedBusinessName } = useBranding();
   const [data, setData] = useState({
     items: [],
     total: 0,
@@ -14,7 +16,10 @@ const CustomerView = () => {
   });
 
   const idleState = !data.items.length && data.status !== "complete";
-  const displayTitle = resolveCustomerDisplayTitle(data.businessName, data.customerDisplayMessage);
+  const displayTitle = resolveCustomerDisplayTitle(
+    brandedBusinessName || data.businessName,
+    data.customerDisplayMessage
+  );
 
   useEffect(() => {
     const bc = new BroadcastChannel('marthington_customer_display');

@@ -57,14 +57,20 @@ export const updateBusiness = async (payload = {}) => {
   formData.append("paymentWalletName", payload.paymentWalletName ?? "");
   formData.append("paymentWalletNumber", payload.paymentWalletNumber ?? "");
   formData.append("paymentTransferInstructions", payload.paymentTransferInstructions ?? "");
+  if (payload.removeLogo === true) {
+    formData.append("removeLogo", "true");
+  }
+  if (payload.showLogo !== undefined) formData.append("showLogo", String(payload.showLogo));
+  if (payload.showBusinessAddress !== undefined) formData.append("showBusinessAddress", String(payload.showBusinessAddress));
+  if (payload.showPhone !== undefined) formData.append("showPhone", String(payload.showPhone));
+  if (payload.showEmail !== undefined) formData.append("showEmail", String(payload.showEmail));
+  if (payload.watermarkText !== undefined) formData.append("watermarkText", payload.watermarkText);
 
-  // 🔥 FILE UPLOAD
+  // Upload or remove a logo only when the user explicitly selected an action.
   if (payload.logo instanceof File) {
     formData.append("logo", payload.logo);
   }
-
-  // 🔥 REMOVE LOGO SIGNAL
-  if (payload.logo === "") {
+  if (payload.removeLogo === true) {
     formData.append("logo", "");
   }
 

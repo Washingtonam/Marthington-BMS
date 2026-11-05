@@ -161,6 +161,41 @@ describe("Owner storefront management", () => {
     expect(screen.queryByRole("checkbox", { name: "Select Laptop" })).toBeNull();
   });
 
+  it("defaults to owner products and offers a read-only marketplace preview", async () => {
+    shopRequest.mockImplementation((path) => {
+      if (path.startsWith("/?")) {
+        return Promise.resolve({
+          products: [{
+            id: "marketplace-product-1",
+            name: "Marketplace Laptop",
+            category: "Computers",
+            price: 250000,
+            originalPrice: 250000,
+            salePrice: 0,
+            image: "",
+            description: "Visible across the marketplace",
+            business: { name: "Another Business", logo: "" }
+          }],
+          categories: ["Computers"],
+          pagination: { currentPage: 1, totalPages: 1, totalProducts: 1 }
+        });
+      }
+      return Promise.resolve(storefrontData);
+    });
+
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Laptop" });
+    expect(screen.getByRole("tab", { name: "My storefront" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "Save storefront details" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Marketplace preview" }));
+
+    expect(await screen.findByRole("heading", { name: "Marketplace Laptop" })).toBeTruthy();
+    expect(screen.getByText(/Marketplace preview is read-only/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save storefront details" })).toBeNull();
+    expect(shopRequest).toHaveBeenCalledWith("/?page=1&limit=12&search=");
+  });
+
   it("warns owners when the super admin explicitly hides their business", async () => {
     shopRequest.mockResolvedValueOnce({
       ...storefrontData,
@@ -169,5 +204,22 @@ describe("Owner storefront management", () => {
     render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
 
     expect(await screen.findByText(/currently hidden from shoppers/)).toBeTruthy();
+  });
+
+  it("shows product completeness and administrator visibility status", async () => {
+    shopRequest.mockResolvedValueOnce({
+      ...storefrontData,
+      products: [{
+        ...storefrontData.products[0],
+        shopVisible: false,
+        shopImage: "",
+        shopDescription: ""
+      }]
+    });
+    render(<MemoryRouter><ShopStorefront /></MemoryRouter>);
+
+    expect(await screen.findByText("Product hidden")).toBeTruthy();
+    expect(screen.getByText("Missing photo")).toBeTruthy();
+    expect(screen.getByText("Needs description")).toBeTruthy();
   });
 });

@@ -83,6 +83,17 @@ const saleItemSchema = new mongoose.Schema(
       default: 0
     },
 
+    supplier: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+      default: null
+    },
+
+    supplierName: {
+      type: String,
+      default: ""
+    },
+
     // 🔥 IMMUTABLE SALE PRICE
     sellingPrice: {
       type: Number,

@@ -1089,7 +1089,7 @@ export const getOwnerStorefrontProducts = async (req, res) => {
     const [totalProducts, products] = await Promise.all([
       Product.countDocuments(filter),
       Product.find(filter)
-        .select("_id name category price stock sku shopImage shopDescription shopSalePrice shopPriceMode")
+        .select("_id name category price stock sku shopImage shopDescription shopSalePrice shopPriceMode shopVisible")
         .sort({ name: 1, _id: 1 })
         .skip((page - 1) * limit)
         .limit(limit)

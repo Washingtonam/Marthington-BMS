@@ -29,6 +29,7 @@ import { useAuth } from "../../context/AuthContext.jsx";
 import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } from "../../utils/appearance.js";
 import BusinessChatWidget from "../BusinessChatWidget.jsx";
 import DemoGuideBadge from "../DemoGuideBadge.jsx";
+import { useBranding } from "../../context/BrandingContext.jsx";
 
 const defaultNavGroups = [
   {
@@ -88,6 +89,7 @@ const defaultNavGroups = [
 
 export default function AppShell({ children, navigationGroups = defaultNavGroups }) {
   const { business, user, impersonatedBusiness } = useAuth();
+  const branding = useBranding();
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") return "light";
     return getColorMode();
@@ -104,10 +106,10 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
   useEffect(() => {
     const useBusinessAccent = impersonatedBusiness || !["super_admin", "affiliate"].includes(user?.role);
     const accentColor = useBusinessAccent
-      ? business?.brandSettings?.primaryColor
+      ? branding.accentTheme
       : user?.appearance?.accentColor;
     applyAccentColor(accentColor || defaultAccentColor);
-  }, [business?.brandSettings?.primaryColor, impersonatedBusiness, user?.appearance?.accentColor, user?.role]);
+  }, [branding.accentTheme, business?.brandSettings?.primaryColor, impersonatedBusiness, user?.appearance?.accentColor, user?.role]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));

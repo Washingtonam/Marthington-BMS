@@ -32,6 +32,76 @@ const assertBranchAccess = (req, res, branchId, action) => {
   return true;
 };
 
+const applyInventoryFilters = (inventory, { stockFilter = "", priceFilter = "", sort = "name-asc" } = {}) => {
+  let filtered = inventory.filter((entry) => {
+    const quantity = Number(entry.quantity || 0);
+    const cost = Number(entry.product?.costPrice || 0);
+    const selling = Number(entry.branchPrice ?? entry.product?.price ?? 0);
+
+    if (stockFilter === "in-stock" && quantity <= 0) return false;
+    if (stockFilter === "low-stock" && !(quantity > 0 && quantity <= 5)) return false;
+    if (stockFilter === "out-of-stock" && quantity !== 0) return false;
+
+    if (priceFilter === "cost-only" && !(cost > 0 && selling <= 0)) return false;
+    if (priceFilter === "selling-only" && !(selling > 0 && cost <= 0)) return false;
+    if (priceFilter === "complete-pricing" && !(cost > 0 && selling > 0)) return false;
+    if (priceFilter === "missing-cost" && cost > 0) return false;
+    if (priceFilter === "missing-selling" && selling > 0) return false;
+    return true;
+  });
+
+  const number = (value) => Number(value || 0);
+  const compareName = (a, b) => String(a.product?.name || "").localeCompare(String(b.product?.name || ""), undefined, { sensitivity: "base" });
+  filtered.sort((a, b) => {
+    if (sort === "name-desc") return compareName(b, a);
+    if (sort === "stock-desc") return number(b.quantity) - number(a.quantity);
+    if (sort === "stock-asc") return number(a.quantity) - number(b.quantity);
+    if (sort === "cost-desc") return number(b.product?.costPrice) - number(a.product?.costPrice);
+    if (sort === "cost-asc") return number(a.product?.costPrice) - number(b.product?.costPrice);
+    if (sort === "price-desc") return number(b.branchPrice ?? b.product?.price) - number(a.branchPrice ?? a.product?.price);
+    if (sort === "price-asc") return number(a.branchPrice ?? a.product?.price) - number(b.branchPrice ?? b.product?.price);
+    if (sort === "margin-desc") {
+      const marginA = number(a.branchPrice ?? a.product?.price) - number(a.product?.costPrice);
+      const marginB = number(b.branchPrice ?? b.product?.price) - number(b.product?.costPrice);
+      return marginB - marginA;
+    }
+    return compareName(a, b);
+  });
+  return filtered;
+};
+
+const buildInventoryResponse = (inventory, totalItems, page, limit, filteredInventory, sourceProducts) => {
+  const summary = filteredInventory.reduce((result, entry) => {
+    const quantity = Number(entry.quantity || 0);
+    const cost = Number(entry.product?.costPrice || 0);
+    const selling = Number(entry.branchPrice ?? entry.product?.price ?? 0);
+    result.totalUnits += quantity;
+    result.inventoryValue += quantity * cost;
+    result.totalProducts += 1;
+    if (quantity === 0) result.outOfStock += 1;
+    else if (quantity <= 5) result.lowStock += 1;
+    if (cost <= 0) result.missingCost += 1;
+    if (selling <= 0) result.missingSelling += 1;
+    return result;
+  }, { totalProducts: 0, totalUnits: 0, lowStock: 0, outOfStock: 0, missingCost: 0, missingSelling: 0, inventoryValue: 0 });
+
+  const categories = [...new Set(sourceProducts.map((product) => product.category || "General").filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+
+  return {
+    inventory,
+    summary,
+    categories,
+    pagination: {
+      currentPage: page,
+      totalPages: Math.max(Math.ceil(totalItems / limit), 1),
+      totalItems,
+      hasNextPage: page * limit < totalItems,
+      hasPrevPage: page > 1
+    }
+  };
+};
+
 const importProductToBranch = async (req, res) => {
   let session;
   try {
@@ -283,6 +353,10 @@ const getBranchInventory = async (req, res) => {
     const limit = Math.min(Math.max(requestedLimit, 1), 100);
     const skip = (page - 1) * limit;
     const search = String(req.query.search || "").trim();
+    const category = String(req.query.category || "").trim();
+    const stockFilter = String(req.query.stockFilter || "").trim();
+    const priceFilter = String(req.query.priceFilter || "").trim();
+    const sort = String(req.query.sort || "name-asc").trim();
 
     if (branchId === "headOffice") {
       const filter = { business: businessId };
@@ -292,15 +366,10 @@ const getBranchInventory = async (req, res) => {
           { sku: { $regex: search, $options: "i" } }
         ];
       }
+      if (category) filter.category = category;
 
-      const totalItems = await Product.countDocuments(filter);
-      const products = await Product.find(filter)
-        .sort({ name: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean();
-
-      const inventory = products.map((product) => ({
+      const products = await Product.find(filter).lean();
+      let inventory = products.map((product) => ({
         _id: `head-office-${product._id}`,
         product: {
           _id: product._id,
@@ -315,17 +384,11 @@ const getBranchInventory = async (req, res) => {
         isHeadOffice: true,
         sourceLocation: "headOffice"
       }));
-
-      return res.json({
-        inventory,
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(totalItems / limit),
-          totalItems,
-          hasNextPage: page * limit < totalItems,
-          hasPrevPage: page > 1
-        }
-      });
+      inventory = applyInventoryFilters(inventory, { stockFilter, priceFilter, sort });
+      const filtered = inventory;
+      const totalItems = filtered.length;
+      const paged = filtered.slice(skip, skip + limit);
+      return res.json(buildInventoryResponse(paged, totalItems, page, limit, filtered, products));
     }
 
     const branch = await Branch.findOne({ _id: branchId, business: businessId });
@@ -335,29 +398,22 @@ const getBranchInventory = async (req, res) => {
 
     const inventoryRecords = await BranchInventory.find({ business: businessId, branch: branchId })
       .populate("product", "name sku category price costPrice")
-      .sort({ createdAt: -1 })
       .lean();
 
-    const filtered = search
-      ? inventoryRecords.filter((entry) => {
-          const name = entry.product?.name || "";
-          const sku = entry.product?.sku || "";
-          return [name, sku].some((value) => value.toLowerCase().includes(search.toLowerCase()));
-        })
-      : inventoryRecords;
-
-    const paged = filtered.slice(skip, skip + limit);
-
-    res.json({
-      inventory: paged,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(filtered.length / limit),
-        totalItems: filtered.length,
-        hasNextPage: page * limit < filtered.length,
-        hasPrevPage: page > 1
+    let filtered = inventoryRecords.filter((entry) => {
+      if (!entry.product) return false;
+      if (search) {
+        const name = entry.product?.name || "";
+        const sku = entry.product?.sku || "";
+        if (![name, sku].some((value) => value.toLowerCase().includes(search.toLowerCase()))) return false;
       }
+      if (category && String(entry.product?.category || "General") !== category) return false;
+      return true;
     });
+    filtered = applyInventoryFilters(filtered, { stockFilter, priceFilter, sort });
+    const paged = filtered.slice(skip, skip + limit);
+    const sourceProducts = inventoryRecords.map((entry) => entry.product).filter(Boolean);
+    res.json(buildInventoryResponse(paged, filtered.length, page, limit, filtered, sourceProducts));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

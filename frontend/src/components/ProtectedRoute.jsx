@@ -32,7 +32,15 @@ const ProtectedRoute = ({ children, requiredRole, requiredIndustry, requiredPerm
 
   const hasPermission = user?.role === "owner"
     || user?.role === "super_admin"
-    || user?.permissions?.[requiredPermission] === true;
+    || user?.permissions?.[requiredPermission] === true
+    || (requiredPermission === "canViewBranchInventory" && (
+      user?.permissions?.canViewAllBranchInventory === true
+      || user?.permissions?.canManageAllBranchInventory === true
+      || user?.permissions?.canManageBranchInventory === true
+    ))
+    || (requiredPermission === "canManageBranchInventory" && (
+      user?.permissions?.canManageAllBranchInventory === true
+    ));
 
   if (requiredPermission && !hasPermission) {
     const fallbackPath = user?.permissions?.canAccessPOS === true

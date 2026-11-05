@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import request from "../api/client.js";
+import { getSuppliers } from "../api/suppliers.js";
 
 const useSafeSearchParams = () => {
   try {
@@ -39,10 +40,12 @@ const initialForm = {
   costPrice: "",
   stock: "",
   category: "",
-  sku: ""
+  sku: "",
+  preferredSupplier: ""
 };
 
 const Products = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSafeSearchParams();
   const linkedProductId = searchParams.get("edit");
   const { business, isPro, user } = useAuth(); // Using the boolean from context
@@ -80,6 +83,7 @@ const Products = () => {
   const [productSort, setProductSort] = useState("added");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
 
   const productSuggestions = useMemo(
     () => [...new Set(products.map((product) => product.name).filter(Boolean))],
@@ -96,6 +100,12 @@ const Products = () => {
   useEffect(() => {
     loadProducts();
   }, [page, search, categoryFilter, productSort]);
+
+  useEffect(() => {
+    getSuppliers()
+      .then((data) => setSuppliers(Array.isArray(data) ? data : []))
+      .catch(() => setSuppliers([]));
+  }, []);
 
   useEffect(() => {
     const refreshOnFocus = () => loadProducts();
@@ -232,7 +242,8 @@ const Products = () => {
       costPrice: product.costPrice || "",
       stock: product.stock || "",
       category: product.category || "",
-      sku: product.sku || ""
+      sku: product.sku || "",
+      preferredSupplier: product.preferredSupplier?._id || product.preferredSupplier || ""
     });
     const costPrice = Number(product.costPrice || 0);
     const sellingPrice = Number(product.sellingPrice || product.price || 0);
@@ -532,6 +543,7 @@ const Products = () => {
                 </th>
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Category</th>
+                <th className="px-6 py-4">Supplier</th>
                 <th className="px-6 py-4">Price</th>
                 <th className="px-6 py-4">Stock</th>
                 <th className="px-6 py-4">Status</th>
@@ -541,11 +553,11 @@ const Products = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">Loading products...</td>
+                  <td colSpan={8} className="py-10 text-center text-slate-400">Loading products...</td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">No products found</td>
+                  <td colSpan={8} className="py-10 text-center text-slate-400">No products found</td>
                 </tr>
               ) : (
                 products.map((p) => (
@@ -563,6 +575,19 @@ const Products = () => {
                       <div className="mt-1 text-xs text-slate-500">SKU: {p.sku || "N/A"}</div>
                     </td>
                     <td className="px-6 py-4 align-top max-w-[200px] truncate text-slate-700">{p.category || "-"}</td>
+                    <td className="px-6 py-4 align-top">
+                      {p.preferredSupplier?.name ? (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/app/suppliers/${p.preferredSupplier._id || p.preferredSupplier}`)}
+                          className="inline-flex max-w-[180px] items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          {p.preferredSupplier.name}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not assigned</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 align-top text-slate-900">{formatCurrency(p.sellingPrice || p.price || 0)}</td>
                     <td className="px-6 py-4 align-top text-slate-700">{p.stock}</td>
                     <td className="px-6 py-4 align-top">
@@ -661,6 +686,24 @@ const Products = () => {
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Preferred Supplier</label>
+                  <select
+                    name="preferredSupplier"
+                    value={form.preferredSupplier}
+                    onChange={handleChange}
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900"
+                  >
+                    <option value="">No preferred supplier</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier._id} value={supplier._id}>{supplier.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">
+                    This supplier will be recorded on future sales containing this product.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

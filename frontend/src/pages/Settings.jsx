@@ -8,6 +8,7 @@ import { resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
 import AccentColorSettings from "../components/AccentColorSettings.jsx";
 import { defaultAccentColor } from "../utils/appearance.js";
+import { useBranding } from "../context/BrandingContext.jsx";
 
 const Settings = () => {
   const location = useLocation();
@@ -23,6 +24,7 @@ const Settings = () => {
     updateAppearance,
     logout
   } = useAuth();
+  const { resetProfile } = useBranding();
   const canUseCustomReceiptThemes = business?.planFeatures?.customReceiptThemes ?? isPro;
   const canUploadLogo = business?.planFeatures?.logoUpload ?? isPro;
 
@@ -45,6 +47,12 @@ const Settings = () => {
     receiptTheme: "modern",
     brandPrimaryColor: defaultAccentColor,
     logo: "",
+    removeLogo: false,
+    showLogo: true,
+    showBusinessAddress: true,
+    showPhone: true,
+    showEmail: true,
+    watermarkText: "",
     whatsappEnabled: false,
     whatsappNumber: "",
     whatsappWebhookSecret: "",
@@ -58,6 +66,7 @@ const Settings = () => {
   });
 
   const [loading, setLoading] = useState(false);
+  const [logoPreview, setLogoPreview] = useState("");
   const [savingAppearance, setSavingAppearance] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -99,6 +108,12 @@ const Settings = () => {
       receiptTheme: business.receiptTheme || "modern",
       brandPrimaryColor: business.brandSettings?.primaryColor || defaultAccentColor,
       logo: "",
+      removeLogo: false,
+      showLogo: business.brandSettings?.showLogo !== false,
+      showBusinessAddress: business.brandSettings?.showBusinessAddress !== false,
+      showPhone: business.brandSettings?.showPhone !== false,
+      showEmail: business.brandSettings?.showEmail !== false,
+      watermarkText: business.brandSettings?.watermarkText || "",
       whatsappEnabled: Boolean(business.whatsapp?.enabled),
       whatsappNumber: business.whatsapp?.number || "",
       whatsappWebhookSecret: business.whatsapp?.webhookSecret || "",
@@ -110,6 +125,7 @@ const Settings = () => {
       paymentWalletNumber: business.paymentSettings?.walletNumber || "",
       paymentTransferInstructions: business.paymentSettings?.transferInstructions || ""
     });
+    setLogoPreview(business.logo || "");
   }, [business]);
 
   useEffect(() => {
@@ -230,14 +246,15 @@ const Settings = () => {
   }, [searchParams]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, checked, type } = e.target;
+    const nextValue = type === "checkbox" ? checked : value;
 
-    if (name === "receiptTheme" && !canUseCustomReceiptThemes && value !== "modern") {
+    if (name === "receiptTheme" && !canUseCustomReceiptThemes && nextValue !== "modern") {
       setUpgradeMsg("Custom themes are not available on your current plan.");
       return;
     }
 
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const handleLogo = async (e) => {
@@ -248,6 +265,16 @@ const Settings = () => {
 
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setUpgradeMsg("Please choose a valid image file.");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUpgradeMsg("Logo images must be 5 MB or smaller.");
+      e.target.value = "";
+      return;
+    }
 
     const img = new Image();
     const reader = new FileReader();
@@ -275,8 +302,10 @@ const Settings = () => {
 
           setForm((prev) => ({
             ...prev,
-            logo: compressedFile
+            logo: compressedFile,
+            removeLogo: false
           }));
+          setLogoPreview(URL.createObjectURL(compressedFile));
         },
         "image/jpeg",
         0.7
@@ -294,6 +323,7 @@ const Settings = () => {
       await updateBusiness(form);
       setUpgradeMsg("Settings updated successfully");
       await refreshBusiness();
+      resetProfile();
     } catch (err) {
       setUpgradeMsg(err.message);
     }
@@ -763,7 +793,63 @@ const Settings = () => {
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase">Business Logo (Pro Only)</label>
-                <input className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800" type="file" onChange={handleLogo} />
+                <div className="mt-2 flex items-center gap-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                  {logoPreview ? (
+                    <img src={logoPreview} alt="Business logo preview" className="h-20 w-20 rounded-lg object-contain bg-slate-50 p-1" />
+                  ) : (
+                    <div className="h-20 w-20 rounded-lg bg-slate-100 flex items-center justify-center text-xs text-slate-400">No logo</div>
+                  )}
+                  <div className="flex flex-1 flex-col gap-2">
+                    <input
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-black file:text-white hover:file:bg-gray-800"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      onChange={handleLogo}
+                      disabled={!canUploadLogo}
+                    />
+                    {logoPreview && (
+                      <button
+                        type="button"
+                        className="w-fit text-sm font-semibold text-red-600"
+                        onClick={() => {
+                          setForm((prev) => ({ ...prev, logo: "", removeLogo: true }));
+                          setLogoPreview("");
+                        }}
+                      >
+                        Remove logo
+                      </button>
+                    )}
+                    <p className="text-xs text-slate-500">PNG, JPG, WebP or SVG. Maximum 5 MB.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Receipt Display</label>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["showLogo", "Show logo"],
+                    ["showBusinessAddress", "Show business address"],
+                    ["showPhone", "Show phone number"],
+                    ["showEmail", "Show email address"]
+                  ].map(([name, label]) => (
+                    <label key={name} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+                      <input type="checkbox" name={name} checked={form[name]} onChange={handleChange} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Receipt Watermark</label>
+                <input
+                  className="input-field mt-1"
+                  name="watermarkText"
+                  value={form.watermarkText}
+                  onChange={handleChange}
+                  placeholder="Optional watermark text"
+                />
               </div>
             </div>
           </div>

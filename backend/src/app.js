@@ -40,6 +40,7 @@ import whatsappRoutes from "./modules/whatsapp/whatsapp.routes.js";
 import reportSubscriptionRoutes from "./modules/admin/reportSubscription.routes.js";
 import supportChatRoutes from "./modules/supportChat/supportChat.routes.js";
 import userGuideRoutes from "./modules/admin/userGuide.routes.js";
+import videoExportRoutes from "./modules/videoExport/videoExport.routes.js";
 
 const app = express();
 
@@ -134,6 +135,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/report-subscriptions", reportSubscriptionRoutes);
 app.use("/api/support-chat", supportChatRoutes);
+app.use("/api/video-exports", videoExportRoutes);
 // HEALTH CHECK
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });

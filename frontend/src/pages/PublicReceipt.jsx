@@ -47,6 +47,11 @@ const PublicReceipt = () => {
   if (!sale) return <div className="p-6">Loading...</div>;
 
   const business = sale.business || {};
+  const receiptBranding = business.brandSettings || {};
+  const showLogo = receiptBranding.showLogo !== false;
+  const showAddress = receiptBranding.showBusinessAddress !== false;
+  const showPhone = receiptBranding.showPhone !== false;
+  const showEmail = receiptBranding.showEmail !== false;
 
   return (
     <div className="flex flex-col items-center py-10 bg-gray-100 min-h-screen">
@@ -54,7 +59,7 @@ const PublicReceipt = () => {
       {/* 🔥 RECEIPT */}
       <div ref={receiptRef} className="receipt modern print-area">
 
-        {business.logo && (
+        {showLogo && business.logo && (
           <div className="flex justify-center mb-3">
             <img
               src={business.logo}
@@ -73,12 +78,15 @@ const PublicReceipt = () => {
             <p className="text-xs opacity-70">Branch: {sale.branch.name}</p>
           )}
 
-          {business.address && (
+          {showAddress && business.address && (
             <p className="text-xs opacity-70">{business.address}</p>
           )}
 
-          {business.phone && (
+          {showPhone && business.phone && (
             <p className="text-xs opacity-70">{business.phone}</p>
+          )}
+          {showEmail && business.email && (
+            <p className="text-xs opacity-70">{business.email}</p>
           )}
         </div>
 

@@ -1,6 +1,7 @@
 import React from "react";
 import PropTypes from "prop-types";
 import "./InvoicePDFTemplate.css";
+import { useBranding } from "../context/BrandingContext.jsx";
 
 /**
  * Invoice PDF Template Component
@@ -8,12 +9,13 @@ import "./InvoicePDFTemplate.css";
  * This component is designed to look professional when printed or converted to PDF
  */
 const InvoicePDFTemplate = React.forwardRef(({ invoice, layoutMode = "a4", thermalPaperWidth = "80mm" }, ref) => {
+  const branding = useBranding();
   if (!invoice) {
     return <div>No invoice data available</div>;
   }
 
   const {
-    business = {},
+    business: invoiceBusiness = {},
     invoiceNumber,
     createdAt,
     customer = {},
@@ -30,6 +32,14 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice, layoutMode = "a4", therm
     notes,
     paymentStatus = "Unpaid",
   } = invoice;
+  const business = {
+    ...invoiceBusiness,
+    name: branding.businessName || invoiceBusiness.name || "Business Name",
+    phone: branding.phone || invoiceBusiness.phone || "",
+    email: branding.email || invoiceBusiness.email || "",
+    address: branding.address || invoiceBusiness.address || "",
+    logo: branding.logoUrl || invoiceBusiness.logo || "",
+  };
 
   const isOutgoing = transactionType === "outgoing";
   const isThermal = layoutMode === "thermal";
@@ -82,17 +92,20 @@ const InvoicePDFTemplate = React.forwardRef(({ invoice, layoutMode = "a4", therm
       data-layout-mode={layoutMode}
       data-thermal-width={thermalPaperWidth}
     >
+      {branding.watermarkText && (
+        <div className="invoice-watermark-text">{branding.watermarkText}</div>
+      )}
       {/* Header */}
       <div className="invoice-header">
         <div className="header-left">
-          {business.logo && (
+          {branding.showLogo && business.logo && (
             <img src={business.logo} alt="Business Logo" className="business-logo" />
           )}
           <div className="business-info">
             <h1 className="business-name">{business.name || "Business Name"}</h1>
-            {business.address && <p>{business.address}</p>}
-            {business.phone && <p>Phone: {business.phone}</p>}
-            {business.email && <p>Email: {business.email}</p>}
+            {branding.showBusinessAddress && business.address && <p>{business.address}</p>}
+            {branding.showPhone && business.phone && <p>Phone: {business.phone}</p>}
+            {branding.showEmail && business.email && <p>Email: {business.email}</p>}
           </div>
         </div>
         <div className="header-right">
