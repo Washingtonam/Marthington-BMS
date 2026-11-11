@@ -235,7 +235,7 @@ useEffect(() => {
 
     try {
       const data = await getBranchInventory(selectedBranch);
-      setBranchInventory(Array.isArray(data) ? data : []);
+      setBranchInventory(Array.isArray(data) ? data : data?.inventory || []);
     } catch (err) {
       console.error("Branch inventory load failed", err);
       setBranchInventory([]);
@@ -256,7 +256,7 @@ useEffect(() => {
         if (selectedBranch) {
           try {
             const data = await getBranchInventory(selectedBranch);
-            setBranchInventory(Array.isArray(data) ? data : []);
+            setBranchInventory(Array.isArray(data) ? data : data?.inventory || []);
           } catch (err) {
             console.error("Failed to refresh POS inventory", err);
           }

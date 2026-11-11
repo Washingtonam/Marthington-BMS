@@ -7,6 +7,7 @@ import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js
 import { isPrivileged } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Supplier from "../suppliers/supplier.model.js";
+import ProductImportPreview from "./productImportPreview.model.js";
 import {
   assertBusinessProductCapacity,
   getBusinessPlanAccess
@@ -99,93 +100,62 @@ const createProduct = async (req, res) => {
 const bulkImportProducts = async (req, res) => {
   try {
     const business = await Business.findById(req.user.businessId);
+    if (!business) return res.status(404).json({ message: "Business not found" });
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
     if (!rows.length) return res.status(400).json({ message: "File is empty" });
-
-    const planAccess = await getBusinessPlanAccess(business);
-    if (planAccess.products !== null) {
-      const existingProducts = await Product.find({ business: business._id }).select("_id name").lean();
-      let newProductCount = 0;
-      for (const row of rows) {
-        if (!row.name || findCatalogMatch(existingProducts, row.name)) continue;
-        if (String(row.name).trim()) newProductCount += 1;
-      }
-      await assertBusinessProductCapacity(business, newProductCount);
+    if (rows.length > 5000) {
+      return res.status(400).json({ message: "Imports are limited to 5,000 rows. Split the file and upload it in batches." });
     }
 
-    const productsToInsert = [];
-    const existingProducts = await Product.find({ business: business._id })
-      .select("_id name category stock price costPrice sku shopVisible shopFeatured shopImage")
-      .lean();
-    let updatedCount = 0;
-
-    for (const row of rows) {
-      if (!row.name) continue;
-
-      const existing = findCatalogMatch(existingProducts, row.name);
-      if (existing) {
-        const merged = mergeCatalogValues(existing, {
-          name: row.name,
-          stock: isPrivileged(req.user) ? Number(row.stock || 0) : Number(existing.stock || 0),
-          price: Number(row.sellingPrice || row.price || 0),
-          costPrice: Number(row.costPrice || 0),
-          sku: row.sku || existing.sku || ""
-        });
-
-        await Product.findByIdAndUpdate(existing._id, {
-          $set: {
-            name: merged.name,
-            category: row.category || existing.category || "General",
-            price: Number(merged.price) || 0,
-            costPrice: Number(merged.costPrice) || 0,
-            stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : Number(existing.stock || 0),
-            sku: merged.sku || existing.sku || `SKU-${Date.now()}`,
-            shopVisible: row.shopVisible === undefined
-              ? existing.shopVisible
-              : row.shopVisible === true || String(row.shopVisible).toLowerCase() === "true",
-            shopFeatured: row.shopFeatured === undefined
-              ? existing.shopFeatured
-              : row.shopFeatured === true || String(row.shopFeatured).toLowerCase() === "true",
-            ...(row.shopImage !== undefined ? { shopImage: String(row.shopImage) } : {})
-          }
-        });
-        updatedCount += 1;
-        continue;
+    const stagedRows = [];
+    for (const [index, row] of rows.entries()) {
+      const name = String(row.name || "").trim();
+      if (!name) continue;
+      if (name.length > 200) {
+        return res.status(400).json({ message: `Product name on row ${index + 2} exceeds 200 characters.` });
       }
 
-      productsToInsert.push({
-        name: String(row.name),
-        category: row.category || "General",
-        price: Number(row.sellingPrice || row.price || 0),
-        costPrice: Number(row.costPrice || 0),
-        stock: isPrivileged(req.user) ? Number(row.stock || 0) : 0,
-        sku: row.sku || `SKU-${Math.random().toString(36).substr(2, 9)}`,
-        shopVisible: row.shopVisible === undefined
-          ? true
-          : row.shopVisible === true || String(row.shopVisible).toLowerCase() === "true",
-        shopFeatured: row.shopFeatured === true || String(row.shopFeatured).toLowerCase() === "true",
-        shopImage: row.shopImage ? String(row.shopImage) : "",
-        business: business._id
+      const parseAmount = (key, aliases = []) => {
+        const sourceKey = [key, ...aliases].find((candidate) =>
+          row[candidate] !== undefined && row[candidate] !== null && row[candidate] !== ""
+        );
+        if (!sourceKey) return null;
+        const amount = Number(row[sourceKey]);
+        if (!Number.isFinite(amount) || amount < 0) {
+          throw Object.assign(new Error(`Invalid ${key} on row ${index + 2}. Use a non-negative number.`), { statusCode: 400 });
+        }
+        return amount;
+      };
+
+      stagedRows.push({
+        rowNumber: index + 2,
+        name,
+        category: String(row.category || "").trim().slice(0, 100),
+        sku: String(row.sku || "").trim().slice(0, 100),
+        stock: parseAmount("stock"),
+        sellingPrice: parseAmount("sellingPrice", ["price"]),
+        costPrice: parseAmount("costPrice")
       });
     }
+    if (!stagedRows.length) return res.status(400).json({ message: "No valid product names found in the file." });
 
-    if (productsToInsert.length) {
-      await Product.insertMany(productsToInsert);
-    }
-    if (!productsToInsert.length && !updatedCount) {
-      return res.status(400).json({ message: "No valid products found" });
-    }
+    const preview = await ProductImportPreview.create({
+      business: business._id,
+      createdBy: req.user.id,
+      rows: stagedRows
+    });
 
-    res.json({
-      message: `${productsToInsert.length} product(s) imported, ${updatedCount} existing product(s) updated.`,
-      imported: productsToInsert.length,
-      updated: updatedCount
+    return res.status(201).json({
+      importId: preview._id,
+      rowCount: stagedRows.length,
+      expiresAt: preview.expiresAt,
+      message: "Upload staged. Review stock and price differences in Inventory before applying changes."
     });
   } catch (err) {
-    res.status(err.statusCode || 500).json({ message: err.message });
+    res.status(err.statusCode || 500).json({ message: err.message || "Could not stage product import." });
   }
 };
 

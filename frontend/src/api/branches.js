@@ -43,6 +43,32 @@ export const getBranchInventory = async (branchOrOptions = {}) => {
   return request(`/branches/inventory?${params.toString()}`);
 };
 
+export const getProductNameAudit = async (branchId) => {
+  const params = new URLSearchParams({ branchId: branchId || "headOffice" });
+  return request(`/branches/inventory/name-audit?${params.toString()}`);
+};
+
+export const getInventoryHistory = async ({ branchId, page = 1, limit = 50 } = {}) => {
+  const params = new URLSearchParams({
+    branchId: branchId || "headOffice",
+    page: String(page),
+    limit: String(limit)
+  });
+  return request(`/branches/inventory/history?${params.toString()}`);
+};
+
+export const getProductImportReview = async (importId, branchId) => {
+  const params = new URLSearchParams({ branchId: branchId || "headOffice" });
+  return request(`/branches/inventory/import-review/${encodeURIComponent(importId)}?${params.toString()}`);
+};
+
+export const applyProductImportReview = async (importId, payload) => {
+  return request(`/branches/inventory/import-review/${encodeURIComponent(importId)}/apply`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+};
+
 export const importBranchInventory = async ({ branchId, sourceType = "headOffice", sourceBranchId } = {}) => {
   return request("/branches/inventory/import", {
     method: "POST",

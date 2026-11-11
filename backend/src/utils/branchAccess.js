@@ -39,6 +39,11 @@ export const canAccessBranch = (user = {}, branchId, action = "view") => {
   return action === "manage" ? hasManageAccess(user, branchId) : hasViewAccess(user, branchId);
 };
 
+export const canViewInventoryCosts = (user = {}) => isPrivileged(user)
+  || user.permissions?.canManageProducts === true
+  || user.permissions?.canManageBranchInventory === true
+  || user.permissions?.canManageAllBranchInventory === true;
+
 export const resolveBranchId = ({ user = {}, requestedBranchId } = {}) => {
   const requested = requestedBranchId?._id || requestedBranchId || null;
 

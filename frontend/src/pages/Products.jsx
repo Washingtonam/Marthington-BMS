@@ -23,6 +23,16 @@ const useSafeSearchParams = () => {
     return [params, setSafeSearchParams];
   }
 };
+
+const useSafeNavigate = () => {
+  try {
+    return useNavigate();
+  } catch {
+    return (path) => {
+      window.history.pushState({}, "", path);
+    };
+  }
+};
 import { useAuth } from "../context/AuthContext.jsx";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { formatCurrency } from "../utils/formatters.js";
@@ -45,12 +55,18 @@ const initialForm = {
 };
 
 const Products = () => {
-  const navigate = useNavigate();
+  const navigate = useSafeNavigate();
   const [searchParams, setSearchParams] = useSafeSearchParams();
   const linkedProductId = searchParams.get("edit");
   const { business, isPro, user } = useAuth(); // Using the boolean from context
   const currentMode = isPro ? "Pro mode" : "Free mode";
   const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
+  const canReviewInventory = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canViewBranchInventory === true
+    || user?.permissions?.canManageBranchInventory === true
+    || user?.permissions?.canViewAllBranchInventory === true
+    || user?.permissions?.canManageAllBranchInventory === true;
 
   // ====================================
   // STATE
@@ -350,6 +366,10 @@ const Products = () => {
     if (!file) return;
 
     try {
+      if (!canReviewInventory) {
+        setError("Your account needs inventory-view access to review imported stock and prices before applying them.");
+        return;
+      }
       setUploading(true);
       setError("");
       setUpgradePrompt("");
@@ -362,8 +382,7 @@ const Products = () => {
         isFormData: true
       });
 
-      setSuccess(result.message || "Products imported successfully");
-      loadProducts();
+      navigate(`/app/inventory?importId=${encodeURIComponent(result.importId)}`);
     } catch (err) {
       if (isPlanAccessMessage(err.message)) setUpgradePrompt(err.message);
       else setError(err.message || "Upload failed");
@@ -454,7 +473,7 @@ const Products = () => {
               {exporting ? "Exporting..." : "Export Products"}
             </button>
             <label className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
-              {uploading ? "Uploading..." : "Upload Excel"}
+              {uploading ? "Preparing review..." : "Upload & Review"}
               <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleFileUpload} />
             </label>
             <a href="/templates/products-template.xlsx" download className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
@@ -469,6 +488,9 @@ const Products = () => {
             </button>
           </div>
         </div>
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Uploads open an inventory review first. Existing stock and prices are not changed until you select and apply the differences.
+        </p>
 
         {upgradePrompt && !modalOpen && <PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} />}
 

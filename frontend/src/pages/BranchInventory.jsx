@@ -1,18 +1,25 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import request from "../api/client.js";
-import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
+import { getBranchInventory, getProductNameAudit, getProductImportReview, applyProductImportReview, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
 import { createService, getServices } from "../api/services.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 
 const BranchInventory = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedBranchId = searchParams.get("branchId");
+  const productImportId = searchParams.get("importId");
   const { user } = useAuth();
   const inventoryRequestId = useRef(0);
+  const importReviewRequestId = useRef(0);
+  const importFileInputRef = useRef(null);
   const [branches, setBranches] = useState([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchesError, setBranchesError] = useState("");
-  const [branchId, setBranchId] = useState("");
+  const [branchId, setBranchId] = useState(requestedBranchId || "");
   const [sourceType, setSourceType] = useState("headOffice");
   const [sourceBranchId, setSourceBranchId] = useState("");
   const [inventory, setInventory] = useState([]);
@@ -48,6 +55,20 @@ const BranchInventory = () => {
   const [catalogSearching, setCatalogSearching] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
+  const [nameAuditOpen, setNameAuditOpen] = useState(false);
+  const [nameAudit, setNameAudit] = useState(null);
+  const [nameAuditLoading, setNameAuditLoading] = useState(false);
+  const [nameAuditError, setNameAuditError] = useState("");
+  const [importReview, setImportReview] = useState(null);
+  const [importReviewLoading, setImportReviewLoading] = useState(false);
+  const [importReviewError, setImportReviewError] = useState("");
+  const [importDecisions, setImportDecisions] = useState({});
+  const [importReviewPage, setImportReviewPage] = useState(1);
+  const [applyingImport, setApplyingImport] = useState(false);
+  const [importReviewApplied, setImportReviewApplied] = useState(false);
+  const [importApplyMessage, setImportApplyMessage] = useState("");
+  const [inventoryImportMessage, setInventoryImportMessage] = useState("");
+  const [stagingInventoryImport, setStagingInventoryImport] = useState(false);
 
   const broadcastInventoryChange = (productId) => {
     if (!window.BroadcastChannel) return;
@@ -72,12 +93,33 @@ const BranchInventory = () => {
     || user?.role === "super_admin"
     || user?.permissions?.canManageBranchInventory === true
     || user?.permissions?.canManageAllBranchInventory === true;
+  const canManageCatalog = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canManageProducts === true;
+  const canViewInventoryCosts = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canManageProducts === true
+    || user?.permissions?.canManageBranchInventory === true
+    || user?.permissions?.canManageAllBranchInventory === true;
+  const canViewProducts = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canViewProducts === true;
   const canChooseInventoryBranch = user?.role === "owner"
     || user?.role === "super_admin"
     || user?.permissions?.canViewAllBranchInventory === true
     || user?.permissions?.canManageAllBranchInventory === true;
   const canRequestTransfers = canManageInventory && user?.role !== "owner";
   const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
+
+  useEffect(() => {
+    if (canViewInventoryCosts) return;
+    if (["cost-only", "selling-only", "complete-pricing", "missing-cost"].includes(priceFilter)) {
+      setPriceFilter("");
+    }
+    if (["cost-desc", "cost-asc", "margin-desc"].includes(inventorySort)) {
+      setInventorySort("name-asc");
+    }
+  }, [canViewInventoryCosts, inventorySort, priceFilter]);
 
   const loadBranches = async () => {
     const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
@@ -102,9 +144,14 @@ const BranchInventory = () => {
       const availableBranches = Array.isArray(data) ? data : [];
       setBranches(availableBranches);
       const assignedBranch = availableBranches.find((branch) => branch._id === assignedBranchId);
-      const defaultBranchId = user?.role === "owner"
-        ? "headOffice"
-        : assignedBranch?._id || availableBranches[0]?._id || (user?.role === "super_admin" ? "headOffice" : "");
+      const requestedBranchIsAvailable = requestedBranchId === "headOffice"
+        ? user?.role === "owner" || user?.role === "super_admin" || !assignedBranchId
+        : availableBranches.some((branch) => branch._id === requestedBranchId);
+      const defaultBranchId = requestedBranchIsAvailable
+        ? requestedBranchId
+        : user?.role === "owner"
+          ? "headOffice"
+          : assignedBranch?._id || availableBranches[0]?._id || (user?.role === "super_admin" ? "headOffice" : "");
       setBranchId(defaultBranchId);
       const firstSourceBranch = availableBranches.find((branch) => branch._id !== defaultBranchId)?._id || "";
       setSourceBranchId(firstSourceBranch);
@@ -172,12 +219,158 @@ const BranchInventory = () => {
     }
   };
 
+  const runProductNameAudit = async () => {
+    if (!branchId) return;
+    try {
+      setNameAuditLoading(true);
+      setNameAuditError("");
+      const result = await getProductNameAudit(branchId);
+      setNameAudit(result);
+    } catch (err) {
+      setNameAuditError(err.message || "Could not review product names.");
+    } finally {
+      setNameAuditLoading(false);
+    }
+  };
+
+  const loadProductImportReview = async () => {
+    if (!productImportId || !branchId) return;
+    const requestId = importReviewRequestId.current + 1;
+    importReviewRequestId.current = requestId;
+    try {
+      setImportReviewLoading(true);
+      setImportReviewError("");
+      setImportApplyMessage("");
+      setImportReviewApplied(false);
+      const result = await getProductImportReview(productImportId, branchId);
+      if (requestId !== importReviewRequestId.current) return;
+      setImportReview(result);
+      setImportReviewPage(1);
+      setImportDecisions(Object.fromEntries(result.rows.map((row) => {
+        const decisions = {
+          ...(row.isNew ? { addProduct: false } : {}),
+          updateStock: false,
+          updateSellingPrice: false,
+          updateCostPrice: false
+        };
+        return [row.rowNumber, decisions];
+      })));
+    } catch (err) {
+      if (requestId !== importReviewRequestId.current) return;
+      setImportReview(null);
+      setImportReviewError(err.message || "Could not load the product import review.");
+    } finally {
+      if (requestId === importReviewRequestId.current) setImportReviewLoading(false);
+    }
+  };
+
+  const handleImportDecisionChange = (rowNumber, field, checked) => {
+    if (field === "addProduct") {
+      const row = importReview?.rows.find((item) => item.rowNumber === rowNumber);
+      setImportDecisions((current) => ({
+        ...current,
+        [rowNumber]: {
+          ...current[rowNumber],
+          addProduct: checked,
+          updateStock: checked && row?.imported.stock !== null
+            && (branchId !== "headOffice" || importReview.canUpdateStockAtHeadOffice),
+          updateSellingPrice: checked && row?.imported.sellingPrice !== null,
+          updateCostPrice: checked && importReview.canViewCosts && row?.imported.costPrice !== null
+        }
+      }));
+      return;
+    }
+    setImportDecisions((current) => ({
+      ...current,
+      [rowNumber]: { ...current[rowNumber], [field]: checked }
+    }));
+  };
+
+  const handleInventoryImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!canManageCatalog) {
+      setInventoryImportMessage("Product-management permission is required to upload a stock list.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      setStagingInventoryImport(true);
+      setInventoryImportMessage("");
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await request("/products/bulk-import", {
+        method: "POST",
+        body: formData,
+        isFormData: true
+      });
+      navigate(`/app/inventory?branchId=${encodeURIComponent(branchId || "headOffice")}&importId=${encodeURIComponent(result.importId)}`);
+    } catch (err) {
+      setInventoryImportMessage(err.message || "Could not upload the stock list.");
+    } finally {
+      setStagingInventoryImport(false);
+      event.target.value = "";
+    }
+  };
+
+  const applyImportReview = async () => {
+    if (!productImportId || !importReview || !canManageInventory || !canManageCatalog) return;
+    const decisions = importReview.rows
+      .filter((row) => !row.duplicateUpload && !row.ambiguousMatch)
+      .map((row) => ({ rowNumber: row.rowNumber, productId: row.productId, ...(importDecisions[row.rowNumber] || {}) }))
+      .filter((decision) => decision.addProduct
+        || decision.updateStock
+        || decision.updateSellingPrice
+        || decision.updateCostPrice);
+    if (!decisions.length) {
+      setImportApplyMessage("Select at least one product or field to apply.");
+      return;
+    }
+
+    try {
+      setApplyingImport(true);
+      setImportApplyMessage("");
+      const result = await applyProductImportReview(productImportId, { branchId, decisions });
+      setImportApplyMessage(
+        `${result.message} Added ${result.createdProducts} product(s), updated ${result.updatedProducts}, and recorded ${result.stockChanges} stock change(s).`
+      );
+      setImportReviewApplied(true);
+      setImportDecisions({});
+      await loadInventory(branchId, 1, search);
+      window.setTimeout(() => {
+        navigate(`/app/inventory?branchId=${encodeURIComponent(branchId)}`, { replace: true });
+      }, 1200);
+    } catch (err) {
+      setImportApplyMessage(err.message || "Could not apply the reviewed import.");
+    } finally {
+      setApplyingImport(false);
+    }
+  };
+
   useEffect(() => {
     const assignedId = user?.branch?._id || user?.branchId || user?.branch || "";
-    if (user?.role === "owner" || user?.role === "super_admin" || !assignedId) setBranchId("headOffice");
+    if (requestedBranchId) setBranchId(requestedBranchId);
+    else if (user?.role === "owner" || user?.role === "super_admin" || !assignedId) setBranchId("headOffice");
     else if (assignedId) setBranchId(assignedId);
     loadBranches();
-  }, [user]);
+  }, [user, requestedBranchId]);
+
+  useEffect(() => {
+    if (!productImportId || !branchId) {
+      importReviewRequestId.current += 1;
+      setImportReview(null);
+      setImportReviewError("");
+      setImportReviewLoading(false);
+      return;
+    }
+    loadProductImportReview();
+  }, [productImportId, branchId]);
+
+  useEffect(() => {
+    setNameAudit(null);
+    setNameAuditError("");
+  }, [branchId]);
 
   useEffect(() => {
     if (!canReviewTransfers && !canRequestTransfers) return;
@@ -231,7 +424,7 @@ const BranchInventory = () => {
       channel.removeEventListener("message", handleInventoryUpdate);
       channel.close();
     };
-  }, [branchId, page, search]);
+  }, [branchId, page, search, categoryFilter, stockFilter, priceFilter, inventorySort]);
 
   useEffect(() => {
     if (!branchId) return;
@@ -419,7 +612,7 @@ const BranchInventory = () => {
   }, [catalogDrawerOpen, catalogForm.name, catalogType]);
 
   const openCatalogDrawer = (type) => {
-    if (!canManageInventory) return;
+    if (!canManageCatalog) return;
     setCatalogType(type);
     setCatalogForm({ name: "", category: "", sku: "", costPrice: "", sellingPrice: "", stock: "", duration: "", code: "", description: "" });
     setCatalogMatches([]);
@@ -494,39 +687,350 @@ const BranchInventory = () => {
     }
   };
 
+  const importReviewRows = importReview?.rows || [];
+  const importReviewPageCount = Math.max(Math.ceil(importReviewRows.length / 50), 1);
+  const visibleImportReviewRows = importReviewRows.slice((importReviewPage - 1) * 50, importReviewPage * 50);
+  const selectedImportDecisionCount = importReviewRows.reduce((count, row) => {
+    const decision = importDecisions[row.rowNumber] || {};
+    return count + Number(Boolean(decision.addProduct
+      || decision.updateStock
+      || decision.updateSellingPrice
+      || decision.updateCostPrice));
+  }, 0);
+
   return (
     <section className="page-stack">
       <div className="page-heading inventory-page-heading">
         <div>
           <span className="text-sm uppercase tracking-[0.3em] text-slate-500">Inventory</span>
           <h1 className="mt-2 text-4xl font-semibold text-slate-900">Inventory Stock</h1>
-          <p className="inventory-page-subtitle">Monitor stock, pricing, and margins across every location.</p>
+          <p className="inventory-page-subtitle">
+            Monitor stock and selling prices{canViewInventoryCosts ? ", costs, and margins" : ""} across every location.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canManageInventory ? <>
+          {canManageCatalog && (
+            <>
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                hidden
+                onChange={handleInventoryImportFile}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={stagingInventoryImport}
+                onClick={() => importFileInputRef.current?.click()}
+              >
+                {stagingInventoryImport ? "Preparing review..." : "Upload stock list"}
+              </button>
+            </>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={() => navigate(`/app/inventory-history?branchId=${encodeURIComponent(branchId || "headOffice")}`)}>
+            Stock movement history
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              const nextOpen = !nameAuditOpen;
+              setNameAuditOpen(nextOpen);
+              if (nextOpen && !nameAudit) runProductNameAudit();
+            }}
+          >
+            {nameAudit?.totalGroups ? `Review product names (${nameAudit.totalGroups})` : "Review product names"}
+          </button>
+          {canManageCatalog && <>
             <button onClick={() => openCatalogDrawer("product")} className="btn btn-primary">+ Add product</button>
-            <button onClick={() => openCatalogDrawer("service")} className="btn btn-secondary">+ Add service</button>
-          </> : <span className="inventory-access-badge">View only <span aria-hidden="true">&#128274;</span></span>}
+            <button onClick={() => openCatalogDrawer("service")} className="btn btn-secondary">+ Add non-stock service</button>
+          </>}
+          {!canManageInventory && <span className="inventory-access-badge">Stock view only <span aria-hidden="true">&#128274;</span></span>}
         </div>
       </div>
+
+      {inventoryImportMessage && (
+        <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+          {inventoryImportMessage}
+        </div>
+      )}
 
       <div className={`inventory-access-banner ${canManageInventory ? "is-manage" : "is-readonly"}`}>
         <span className="inventory-access-icon" aria-hidden="true">{canManageInventory ? "✓" : "◉"}</span>
         <div>
           <strong>{canManageInventory ? "Inventory management enabled" : "Read-only inventory access"}</strong>
-          <p>{canManageInventory ? "You can adjust stock, pricing, imports, and catalog items within your permitted branch scope." : "You can review stock, prices, and branch inventory. Editing, imports, and catalog changes are disabled for this account."}</p>
+          <p>
+            {canManageInventory
+              ? `You can adjust stock, branch pricing, and imports within your permitted location scope.${canManageCatalog ? " Product and service catalog actions are also enabled." : " Product and service catalog changes are restricted by your permissions."}`
+              : "You can review stock and prices for locations you are allowed to access. Stock changes are disabled for this account."}
+          </p>
         </div>
       </div>
+
+      {productImportId && (
+        <section className="page-card inventory-import-review" aria-label="Product import review">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <span className="inventory-audit-eyebrow">Import review · changes are not applied yet</span>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900">Compare uploaded stock and prices</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Stock quantities replace the current count; prices change only when their checkbox is selected.
+              </p>
+            </div>
+            <button type="button" className="btn btn-secondary" onClick={() => navigate(`/app/inventory?branchId=${encodeURIComponent(branchId || "headOffice")}`)}>
+              Cancel review
+            </button>
+          </div>
+          <label className="mt-4 block max-w-md text-sm font-semibold text-slate-700">
+            Review for location
+            <select
+              className="form-select mt-2 w-full"
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+              disabled={!canChooseInventoryBranch || branchesLoading}
+            >
+              {(user?.role === "owner" || user?.role === "super_admin" || (!assignedBranchId && !branches.length)) && (
+                <option value="headOffice">Head Office</option>
+              )}
+              {assignedBranchId && !branches.some((branch) => branch._id === assignedBranchId) && (
+                <option value={assignedBranchId}>Assigned branch</option>
+              )}
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id}>{branch.name}</option>
+              ))}
+            </select>
+          </label>
+
+          {importReviewLoading && <p className="mt-4 text-sm text-slate-500">Comparing the uploaded list with this location...</p>}
+          {importReviewError && (
+            <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              <span>{importReviewError}</span>
+              <button type="button" className="font-semibold underline" onClick={loadProductImportReview}>Try again</button>
+            </div>
+          )}
+          {importReview && (
+            <>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                <span className="rounded-full bg-slate-100 px-3 py-1">{importReview.totalRows} uploaded rows</span>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">{importReview.exactMatches} exact matches</span>
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-800">{importReview.newProducts} new products</span>
+                {importReview.ambiguousMatches > 0 && <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-800">{importReview.ambiguousMatches} ambiguous catalog matches</span>}
+                {importReview.duplicateUploadRows > 0 && <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-800">{importReview.duplicateUploadRows} repeated upload rows</span>}
+              </div>
+              {(importReview.ambiguousMatches > 0 || importReview.duplicateUploadRows > 0) && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Ambiguous catalog matches and repeated names are blocked to prevent updating or creating the wrong product. Review the catalog names or remove repeated rows, then upload again.
+                </p>
+              )}
+              {importReview.newProducts > 0 && (
+                <p className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                  “New product” means no exact normalized name was found. Check for spelling variations before selecting Add; similar names are never merged automatically.
+                </p>
+              )}
+              {branchId === "headOffice" && !importReview.canUpdateStockAtHeadOffice && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  Your permissions allow product and price management, but only an owner or super admin can apply head-office stock counts.
+                </p>
+              )}
+
+              <div className={`inventory-import-review-list mt-4 ${canViewInventoryCosts ? "" : "is-cost-hidden"}`}>
+                {visibleImportReviewRows.map((row) => {
+                  const decision = importDecisions[row.rowNumber] || {};
+                  const blocked = row.duplicateUpload || row.ambiguousMatch;
+                  const newProductNotSelected = row.isNew && !decision.addProduct;
+                  return (
+                    <article className={`inventory-import-review-row ${blocked ? "is-blocked" : ""}`} key={row.rowNumber}>
+                      <div className="inventory-import-review-product">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong>{row.name}</strong>
+                          {row.isNew && <span className="inventory-import-badge is-new">New product</span>}
+                          {row.productId && <span className="inventory-import-badge">Exact match</span>}
+                          {row.ambiguousMatch && <span className="inventory-import-badge is-warning">Multiple exact matches</span>}
+                          {row.duplicateUpload && <span className="inventory-import-badge is-warning">Repeated in file</span>}
+                        </div>
+                        <span>Row {row.rowNumber}{row.sku ? ` · SKU ${row.sku}` : ""}{row.category ? ` · ${row.category}` : ""}</span>
+                        {row.isNew && !blocked && (
+                          <>
+                            <span className="text-xs text-amber-700">No exact name match. Confirm this is not a renamed duplicate.</span>
+                            <label className="inventory-import-create-toggle">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(decision.addProduct)}
+                                onChange={(event) => handleImportDecisionChange(row.rowNumber, "addProduct", event.target.checked)}
+                              />
+                              Add this product to the catalog
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      <div className={`inventory-import-review-field ${row.differences.stock ? "has-difference" : ""}`}>
+                        <span className="inventory-import-field-title">Stock count</span>
+                        <span>Current: {row.current ? row.current.stock : "—"}</span>
+                        <span>Uploaded: {row.imported.stock ?? "Not provided"}</span>
+                        {row.imported.stock !== null && (
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(decision.updateStock)}
+                              disabled={blocked || newProductNotSelected || !canManageInventory || (branchId === "headOffice" && !importReview.canUpdateStockAtHeadOffice)}
+                              onChange={(event) => handleImportDecisionChange(row.rowNumber, "updateStock", event.target.checked)}
+                            />
+                            {row.differences.stock ? "Apply uploaded stock" : "Set stock to this count"}
+                          </label>
+                        )}
+                      </div>
+
+                      <div className={`inventory-import-review-field ${row.differences.sellingPrice ? "has-difference" : ""}`}>
+                        <span className="inventory-import-field-title">Selling price</span>
+                        <span>Current: {row.current ? formatCurrency(row.current.sellingPrice) : "—"}</span>
+                        <span>Uploaded: {row.imported.sellingPrice === null ? "Not provided" : formatCurrency(row.imported.sellingPrice)}</span>
+                        {row.imported.sellingPrice !== null && (
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(decision.updateSellingPrice)}
+                              disabled={blocked || newProductNotSelected || !canManageInventory || !canManageCatalog}
+                              onChange={(event) => handleImportDecisionChange(row.rowNumber, "updateSellingPrice", event.target.checked)}
+                            />
+                            {row.differences.sellingPrice ? "Apply uploaded price" : "Set to this price"}
+                          </label>
+                        )}
+                      </div>
+
+                      {canViewInventoryCosts && (
+                        <div className={`inventory-import-review-field ${row.differences.costPrice ? "has-difference" : ""}`}>
+                          <span className="inventory-import-field-title">Cost price</span>
+                          <span>Current: {row.current ? formatCurrency(row.current.costPrice || 0) : "—"}</span>
+                          <span>Uploaded: {row.imported.costPrice === null ? "Not provided" : formatCurrency(row.imported.costPrice)}</span>
+                          {row.imported.costPrice !== null && (
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(decision.updateCostPrice)}
+                                disabled={blocked || newProductNotSelected || !canManageInventory || !canManageCatalog}
+                                onChange={(event) => handleImportDecisionChange(row.rowNumber, "updateCostPrice", event.target.checked)}
+                              />
+                              {row.differences.costPrice ? "Apply uploaded cost" : "Set to this cost"}
+                            </label>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-slate-500">Showing {(importReviewPage - 1) * 50 + 1}–{Math.min(importReviewPage * 50, importReviewRows.length)} of {importReviewRows.length}</span>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="btn" disabled={importReviewPage <= 1} onClick={() => setImportReviewPage((current) => current - 1)}>Previous</button>
+                  <span className="text-sm text-slate-600">Page {importReviewPage} of {importReviewPageCount}</span>
+                  <button type="button" className="btn" disabled={importReviewPage >= importReviewPageCount} onClick={() => setImportReviewPage((current) => current + 1)}>Next</button>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <span className="text-sm text-slate-600">{selectedImportDecisionCount} row(s) selected for import</span>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={applyImportReview}
+                  disabled={applyingImport || importReviewApplied || !canManageInventory || !canManageCatalog || selectedImportDecisionCount === 0}
+                >
+                  {applyingImport ? "Applying selected changes..." : importReviewApplied ? "Changes applied" : "Apply selected changes"}
+                </button>
+              </div>
+              {!canManageInventory && <p className="mt-2 text-sm text-amber-700">You can review this import, but inventory-management permission is required to apply it.</p>}
+              {importApplyMessage && <p role="status" className="mt-3 text-sm text-slate-700">{importApplyMessage}</p>}
+            </>
+          )}
+        </section>
+      )}
+
+      {nameAuditOpen && (
+        <section className="page-card inventory-name-audit" aria-label="Product name review">
+          <div className="inventory-audit-heading">
+            <div>
+              <span className="inventory-audit-eyebrow">Catalog quality check</span>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900">Review duplicate and similar product names</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Compare products in {branchId === "headOffice" ? "the head office catalog" : branches.find((branch) => branch._id === branchId)?.name || "this branch"}.
+                These are suggestions only; nothing is merged or deleted.
+              </p>
+            </div>
+            <button type="button" className="btn btn-secondary" onClick={runProductNameAudit} disabled={nameAuditLoading || !branchId}>
+              {nameAuditLoading ? "Scanning..." : "Refresh scan"}
+            </button>
+          </div>
+
+          {nameAuditError && (
+            <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+              <span>{nameAuditError}</span>
+              <button type="button" className="font-semibold underline" onClick={runProductNameAudit}>Try again</button>
+            </div>
+          )}
+          {nameAuditLoading && !nameAudit && <p className="mt-4 text-sm text-slate-500">Checking product names...</p>}
+          {nameAudit && !nameAuditLoading && nameAudit.groups.length === 0 && (
+            <div className="inventory-audit-empty mt-4">
+              <span aria-hidden="true">✓</span>
+              <div><strong>No duplicate or close product names found.</strong><p>Scanned {nameAudit.scannedProducts} products at this location.</p></div>
+            </div>
+          )}
+          {nameAudit?.groups?.length > 0 && (
+            <>
+              <div className="inventory-audit-result-summary">
+                Found <strong>{nameAudit.totalGroups}</strong> group{nameAudit.totalGroups === 1 ? "" : "s"} to review across {nameAudit.scannedProducts} products.
+                {nameAudit.truncated && " Showing the first 200 groups."}
+              </div>
+              <div className="inventory-audit-groups">
+                {nameAudit.groups.map((group, index) => (
+                  <article className="inventory-audit-group" key={`${group.type}-${group.products.map((product) => product._id).join("-")}-${index}`}>
+                    <div className="inventory-audit-group-title">
+                      <span className={`inventory-audit-type ${group.type === "duplicate" ? "is-duplicate" : "is-similar"}`}>
+                        {group.type === "duplicate" ? "Same normalized name" : "Possible similar name"}
+                      </span>
+                      <span>{group.products.length} products</span>
+                    </div>
+                    <div className="inventory-audit-products">
+                      {group.products.map((product) => (
+                        <div className="inventory-audit-product" key={product._id}>
+                          <strong>{product.name}</strong>
+                          <span>SKU: {product.sku || "Not set"}</span>
+                          <span>{product.category || "General"} · Stock {Number(product.stock || 0)}</span>
+                          <span>Supplier: {product.preferredSupplier?.name || "Not linked"}</span>
+                          <span>
+                            {canViewInventoryCosts && <>Cost {formatCurrency(Number(product.costPrice || 0))} · </>}
+                            Selling {formatCurrency(Number(product.price || 0))}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       <div className="inventory-summary-grid">
         <div className="inventory-summary-card"><span className="inventory-summary-icon inventory-summary-icon--blue" aria-hidden="true">P</span><div><p>Products</p><strong>{inventorySummary.totalProducts}</strong></div></div>
         <div className="inventory-summary-card"><span className="inventory-summary-icon inventory-summary-icon--green" aria-hidden="true">S</span><div><p>Stock units</p><strong>{inventorySummary.totalUnits}</strong></div></div>
         <button type="button" onClick={() => { setStockFilter("low-stock"); setPriceFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--amber" aria-hidden="true">L</span><div><p>Low stock</p><strong>{inventorySummary.lowStock}</strong></div></button>
         <button type="button" onClick={() => { setStockFilter("out-of-stock"); setPriceFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">0</span><div><p>Out of stock</p><strong>{inventorySummary.outOfStock}</strong></div></button>
-        <div className="inventory-summary-card inventory-summary-card--value"><span className="inventory-summary-icon inventory-summary-icon--violet" aria-hidden="true">V</span><div><p>Inventory value</p><strong>{formatCurrency(inventorySummary.inventoryValue)}</strong></div></div>
-        <button type="button" onClick={() => { setPriceFilter("missing-cost"); setStockFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">C</span><div><p>Missing cost</p><strong>{inventorySummary.missingCost}</strong></div></button>
+        {canViewInventoryCosts && <>
+          <div className="inventory-summary-card inventory-summary-card--value"><span className="inventory-summary-icon inventory-summary-icon--violet" aria-hidden="true">V</span><div><p>Inventory value</p><strong>{formatCurrency(inventorySummary.inventoryValue)}</strong></div></div>
+          <button type="button" onClick={() => { setPriceFilter("missing-cost"); setStockFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">C</span><div><p>Missing cost</p><strong>{inventorySummary.missingCost}</strong></div></button>
+        </>}
         <button type="button" onClick={() => { setPriceFilter("missing-selling"); setStockFilter(""); }} className="inventory-summary-card is-action"><span className="inventory-summary-icon inventory-summary-icon--red" aria-hidden="true">S</span><div><p>Missing selling</p><strong>{inventorySummary.missingSelling}</strong></div></button>
       </div>
+      {canViewProducts && (
+        <div className="inventory-catalog-note">
+          <span>Services are non-stock items and are managed separately from physical inventory.</span>
+          <button type="button" onClick={() => navigate("/app/services")}>Open Services</button>
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr,320px]">
         <div className="page-card inventory-workspace-card">
@@ -627,10 +1131,12 @@ const BranchInventory = () => {
             </select>
             <select aria-label="Filter inventory by price completeness" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} className="form-select w-full">
               <option value="">All pricing</option>
-              <option value="complete-pricing">Complete cost and selling price</option>
-              <option value="cost-only">Cost price only</option>
-              <option value="selling-only">Selling price only</option>
-              <option value="missing-cost">Missing cost price</option>
+              {canViewInventoryCosts && <>
+                <option value="complete-pricing">Complete cost and selling price</option>
+                <option value="cost-only">Cost price only</option>
+                <option value="selling-only">Selling price only</option>
+                <option value="missing-cost">Missing cost price</option>
+              </>}
               <option value="missing-selling">Missing selling price</option>
             </select>
             <select aria-label="Sort inventory" value={inventorySort} onChange={(e) => setInventorySort(e.target.value)} className="form-select w-full">
@@ -638,11 +1144,13 @@ const BranchInventory = () => {
               <option value="name-desc">Name (Z-A)</option>
               <option value="stock-desc">Highest stock</option>
               <option value="stock-asc">Lowest stock</option>
-              <option value="cost-desc">Highest cost price</option>
-              <option value="cost-asc">Lowest cost price</option>
+              {canViewInventoryCosts && <>
+                <option value="cost-desc">Highest cost price</option>
+                <option value="cost-asc">Lowest cost price</option>
+              </>}
               <option value="price-desc">Highest selling price</option>
               <option value="price-asc">Lowest selling price</option>
-              <option value="margin-desc">Highest margin</option>
+              {canViewInventoryCosts && <option value="margin-desc">Highest margin</option>}
             </select>
             {(categoryFilter || stockFilter || priceFilter || inventorySort !== "name-asc" || search) && (
               <button
@@ -717,23 +1225,28 @@ const BranchInventory = () => {
                   {saveMessage}
                 </div>
               )}
-              <div className="inventory-table-wrap">
+              <div className={`inventory-table-wrap ${canViewInventoryCosts ? "" : "is-cost-hidden"}`}>
                 <div className="inventory-table-head">
                   <span>Product</span>
                   <span>Stock</span>
-                  <span>Cost</span>
+                  {canViewInventoryCosts && <span>Cost</span>}
                   <span>Selling price</span>
-                  <span>Margin</span>
+                  {canViewInventoryCosts && <span>Margin</span>}
                   <span>Action</span>
                 </div>
                 {inventory.map((item) => {
                   const edit = inventoryEdits[item._id] || { quantity: item.quantity ?? 0, branchPrice: item.branchPrice ?? item.product?.price ?? 0 };
+                  const costPrice = canViewInventoryCosts
+                    ? (Number(item.unitCost) > 0 ? Number(item.unitCost) : Number(item.product?.costPrice || 0))
+                    : 0;
+                  const margin = Number(edit.branchPrice || 0) - costPrice;
                   return (
                     <div key={item._id} className={`inventory-table-row ${editingInventoryId === item._id ? "is-editing" : ""}`}>
                       <div>
                         <div className="font-semibold text-slate-900">{item.product?.name || "Unnamed product"}</div>
                         <div className="text-sm text-slate-500">SKU: {item.product?.sku || "N/A"}</div>
                         <div className="inventory-category-tag">{item.product?.category || "General"}</div>
+                        <div className="mt-1 text-xs text-slate-500">Supplier: {item.product?.preferredSupplier?.name || "Not linked"}</div>
                       </div>
                       {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
@@ -746,7 +1259,7 @@ const BranchInventory = () => {
                           {edit.quantity} {edit.quantity <= 0 ? "Out" : edit.quantity <= 5 ? "Low" : "In"}
                         </span>
                       )}
-                      <span className="inventory-price-value">{formatCurrency(Number(item.product?.costPrice || 0))}</span>
+                      {canViewInventoryCosts && <span className="inventory-price-value">{formatCurrency(costPrice)}</span>}
                       {canManageInventory && editingInventoryId === item._id ? <input
                         type="number"
                         min="0"
@@ -755,9 +1268,11 @@ const BranchInventory = () => {
                         onChange={(e) => handleInventoryChange(item._id, "branchPrice", e.target.value)}
                         className="w-full rounded-xl border border-slate-200 bg-white p-2 text-sm text-slate-700"
                       /> : <span className="inventory-price-value is-selling">{formatCurrency(Number(edit.branchPrice || 0))}</span>}
-                      <span className={`inventory-margin-value ${(Number(edit.branchPrice || 0) - Number(item.product?.costPrice || 0)) >= 0 ? "is-positive" : "is-negative"}`}>
-                        {formatCurrency(Number(edit.branchPrice || 0) - Number(item.product?.costPrice || 0))}
-                      </span>
+                      {canViewInventoryCosts && (
+                        <span className={`inventory-margin-value ${margin >= 0 ? "is-positive" : "is-negative"}`}>
+                          {formatCurrency(margin)}
+                        </span>
+                      )}
                       {canManageInventory && editingInventoryId === item._id ? <div className="inventory-row-actions">
                         <button onClick={() => saveInventoryItem(item)} className="btn btn-primary" disabled={savingItemId === item._id}>
                           {savingItemId === item._id ? "Saving..." : "Save"}
@@ -899,6 +1414,11 @@ const BranchInventory = () => {
             <p className="mt-2 text-sm text-slate-600">
               Import source: {sourceType === "headOffice" ? "Head Office Catalog" : "Branch inventory"}
             </p>
+            {sourceType === "branch" && (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                This copies the source branch&apos;s current quantities as starting stock; it does not deduct stock from that branch. Use a stock transfer to physically move goods.
+              </p>
+            )}
 
             {importResult && (
               <div className={`mt-3 p-3 rounded ${importResult.success ? 'bg-green-50 text-green-800' : 'bg-rose-50 text-rose-800'}`}>
@@ -916,7 +1436,7 @@ const BranchInventory = () => {
         </div>
       )}
 
-      {catalogDrawerOpen && canManageInventory && (
+      {catalogDrawerOpen && canManageCatalog && (
         <div className="fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={closeCatalogDrawer} />
           <aside className="relative ml-auto flex h-full w-full max-w-[460px] flex-col overflow-y-auto bg-white shadow-2xl">

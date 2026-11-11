@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { canAccessBranch, resolveOperationalBranchId } from "../src/utils/branchAccess.js";
+import {
+  canAccessBranch,
+  canViewInventoryCosts,
+  resolveOperationalBranchId
+} from "../src/utils/branchAccess.js";
 
 const requestFor = (overrides = {}) => ({
   user: {
@@ -79,4 +83,13 @@ test("manage-all permission also manages the assigned branch", () => {
 
   assert.equal(canAccessBranch(req.user, "branch-a", "manage"), true);
   assert.equal(resolveOperationalBranchId({ user: req.user, requestedBranchId: "branch-a" }), "branch-a");
+});
+
+test("cost details require a privileged role or an inventory/catalog management permission", () => {
+  assert.equal(canViewInventoryCosts({ role: "owner" }), true);
+  assert.equal(canViewInventoryCosts({ role: "super_admin" }), true);
+  assert.equal(canViewInventoryCosts({ role: "manager", permissions: { canManageBranchInventory: true } }), true);
+  assert.equal(canViewInventoryCosts({ role: "staff", permissions: { canManageProducts: true } }), true);
+  assert.equal(canViewInventoryCosts({ role: "cashier", permissions: { canViewBranchInventory: true } }), false);
+  assert.equal(canViewInventoryCosts({ role: "staff", permissions: { canViewAllBranchInventory: true } }), false);
 });

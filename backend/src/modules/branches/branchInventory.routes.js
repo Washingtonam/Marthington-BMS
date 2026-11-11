@@ -6,6 +6,32 @@ import branchInventoryController from "./branchInventory.controller.js";
 const router = express.Router();
 
 router.get(
+  "/history",
+  protect,
+  checkPermission("canViewBranchInventory"),
+  branchInventoryController.getInventoryHistory
+);
+
+router.get(
+  "/name-audit",
+  protect,
+  checkPermission("canViewBranchInventory"),
+  branchInventoryController.getProductNameAudit
+);
+
+router.get(
+  "/import-review/:id",
+  protect,
+  branchInventoryController.getProductImportReview
+);
+
+router.post(
+  "/import-review/:id/apply",
+  protect,
+  branchInventoryController.applyProductImportReview
+);
+
+router.get(
   "/",
   protect,
   checkPermission("canViewBranchInventory"),

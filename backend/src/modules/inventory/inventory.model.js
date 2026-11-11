@@ -63,6 +63,9 @@ const inventorySchema =
     timestamps: true
   });
 
+inventorySchema.index({ business: 1, branch: 1, createdAt: -1 });
+inventorySchema.index({ business: 1, branch: 1, product: 1, createdAt: -1 });
+
 export default mongoose.model(
   "InventoryMovement",
   inventorySchema

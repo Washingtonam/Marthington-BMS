@@ -55,7 +55,9 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
   for (const item of expense.inventoryItems) {
     if (item.inventoryUpdated) continue;
 
-    let product = item.product ? await Product.findById(item.product) : null;
+    let product = item.product
+      ? await Product.findOne({ _id: item.product, business: businessId })
+      : null;
     const targetName = item.productName || "";
     const quantity = Number(item.quantity || 0);
     const unitCost = Number(item.unitCost || 0);
@@ -82,22 +84,51 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
     }
 
     if (product && quantity > 0) {
-      const previousStock = Number(product.stock || 0);
-      product.stock = previousStock + quantity;
+      const previousProductStock = Number(product.stock || 0);
+      let branchEntry = null;
+      let previousInventoryStock = previousProductStock;
+      if (branchId) {
+        branchEntry = await BranchInventory.findOne({
+          business: businessId,
+          branch: branchId,
+          product: product._id
+        });
+        previousInventoryStock = Number(branchEntry?.quantity || 0);
+      } else {
+        product.stock = previousProductStock + quantity;
+      }
+
+      if (sellingPrice > 0 && (!product.price || Number(product.price) === 0)) {
+        product.price = sellingPrice;
+      } else if (unitCost > 0 && (!product.price || Number(product.price) === 0)) {
+        product.price = Math.round(unitCost * 1.3 * 100) / 100;
+      }
       if (unitCost > 0) {
-        if (!product.price || Number(product.price) === 0) {
-          product.price = unitCost;
-        }
-        if (!product.costPrice || Number(product.costPrice) === 0) {
-          product.costPrice = unitCost;
+        if (branchId) {
+          if (!product.costPrice || Number(product.costPrice) === 0) product.costPrice = unitCost;
+        } else {
+          const previousCost = Number(product.costPrice || 0);
+          const updatedQuantity = previousProductStock + quantity;
+          product.costPrice = updatedQuantity > 0
+            ? Number((((previousProductStock * previousCost) + (quantity * unitCost)) / updatedQuantity).toFixed(2))
+            : unitCost;
         }
       }
       await product.save();
 
+      let newInventoryStock = product.stock;
+      let movementUnitCost = unitCost;
       if (branchId) {
-        const branchEntry = await BranchInventory.findOne({ business: businessId, branch: branchId, product: product._id });
+        const previousUnitCost = Number(branchEntry?.unitCost || product.costPrice || unitCost);
+        movementUnitCost = unitCost || previousUnitCost;
+        const updatedBranchStock = previousInventoryStock + quantity;
+        const weightedUnitCost = updatedBranchStock > 0
+          ? ((previousInventoryStock * previousUnitCost) + (quantity * unitCost)) / updatedBranchStock
+          : unitCost;
         if (branchEntry) {
-          branchEntry.quantity = Number(branchEntry.quantity || 0) + quantity;
+          branchEntry.quantity = updatedBranchStock;
+          if (unitCost > 0) branchEntry.unitCost = Number(weightedUnitCost.toFixed(2));
+          if (sellingPrice > 0) branchEntry.branchPrice = sellingPrice;
           await branchEntry.save();
         } else {
           await BranchInventory.create({
@@ -105,10 +136,12 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
             branch: branchId,
             product: product._id,
             quantity,
-            branchPrice: unitCost || 0,
+            unitCost: unitCost || Number(product.costPrice || 0),
+            branchPrice: sellingPrice > 0 ? sellingPrice : null,
             createdBy: userId
           });
         }
+        newInventoryStock = updatedBranchStock;
       }
 
       await InventoryMovement.create({
@@ -117,8 +150,9 @@ const processInventoryUpdates = async (expense, businessId, userId, branchId = n
         product: product._id,
         type: "purchase",
         quantity,
-        previousStock,
-        newStock: product.stock,
+        unitCost: movementUnitCost || Number(product.costPrice || 0),
+        previousStock: previousInventoryStock,
+        newStock: newInventoryStock,
         note: `Inventory from expense: ${targetName}`,
         createdBy: userId
       });
