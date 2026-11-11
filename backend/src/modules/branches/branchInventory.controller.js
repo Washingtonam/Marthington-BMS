@@ -32,74 +32,79 @@ const assertBranchAccess = (req, res, branchId, action) => {
   return true;
 };
 
-const applyInventoryFilters = (inventory, { stockFilter = "", priceFilter = "", sort = "name-asc" } = {}) => {
-  let filtered = inventory.filter((entry) => {
-    const quantity = Number(entry.quantity || 0);
-    const cost = Number(entry.product?.costPrice || 0);
-    const selling = Number(entry.branchPrice ?? entry.product?.price ?? 0);
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    if (stockFilter === "in-stock" && quantity <= 0) return false;
-    if (stockFilter === "low-stock" && !(quantity > 0 && quantity <= 5)) return false;
-    if (stockFilter === "out-of-stock" && quantity !== 0) return false;
-
-    if (priceFilter === "cost-only" && !(cost > 0 && selling <= 0)) return false;
-    if (priceFilter === "selling-only" && !(selling > 0 && cost <= 0)) return false;
-    if (priceFilter === "complete-pricing" && !(cost > 0 && selling > 0)) return false;
-    if (priceFilter === "missing-cost" && cost > 0) return false;
-    if (priceFilter === "missing-selling" && selling > 0) return false;
-    return true;
-  });
-
-  const number = (value) => Number(value || 0);
-  const compareName = (a, b) => String(a.product?.name || "").localeCompare(String(b.product?.name || ""), undefined, { sensitivity: "base" });
-  filtered.sort((a, b) => {
-    if (sort === "name-desc") return compareName(b, a);
-    if (sort === "stock-desc") return number(b.quantity) - number(a.quantity);
-    if (sort === "stock-asc") return number(a.quantity) - number(b.quantity);
-    if (sort === "cost-desc") return number(b.product?.costPrice) - number(a.product?.costPrice);
-    if (sort === "cost-asc") return number(a.product?.costPrice) - number(b.product?.costPrice);
-    if (sort === "price-desc") return number(b.branchPrice ?? b.product?.price) - number(a.branchPrice ?? a.product?.price);
-    if (sort === "price-asc") return number(a.branchPrice ?? a.product?.price) - number(b.branchPrice ?? b.product?.price);
-    if (sort === "margin-desc") {
-      const marginA = number(a.branchPrice ?? a.product?.price) - number(a.product?.costPrice);
-      const marginB = number(b.branchPrice ?? b.product?.price) - number(b.product?.costPrice);
-      return marginB - marginA;
-    }
-    return compareName(a, b);
-  });
-  return filtered;
+const getInventorySort = (sort, productPrefix = "") => {
+  const sortFields = {
+    "name-asc": { [`${productPrefix}name`]: 1, _id: 1 },
+    "name-desc": { [`${productPrefix}name`]: -1, _id: -1 },
+    "stock-desc": { quantity: -1, _id: 1 },
+    "stock-asc": { quantity: 1, _id: 1 },
+    "cost-desc": { [`${productPrefix}costPrice`]: -1, _id: 1 },
+    "cost-asc": { [`${productPrefix}costPrice`]: 1, _id: 1 },
+    "price-desc": { effectiveSellingPrice: -1, _id: 1 },
+    "price-asc": { effectiveSellingPrice: 1, _id: 1 },
+    "margin-desc": { margin: -1, _id: 1 }
+  };
+  return sortFields[sort] || sortFields["name-asc"];
 };
 
-const buildInventoryResponse = (inventory, totalItems, page, limit, filteredInventory, sourceProducts) => {
-  const summary = filteredInventory.reduce((result, entry) => {
-    const quantity = Number(entry.quantity || 0);
-    const cost = Number(entry.product?.costPrice || 0);
-    const selling = Number(entry.branchPrice ?? entry.product?.price ?? 0);
-    result.totalUnits += quantity;
-    result.inventoryValue += quantity * cost;
-    result.totalProducts += 1;
-    if (quantity === 0) result.outOfStock += 1;
-    else if (quantity <= 5) result.lowStock += 1;
-    if (cost <= 0) result.missingCost += 1;
-    if (selling <= 0) result.missingSelling += 1;
-    return result;
-  }, { totalProducts: 0, totalUnits: 0, lowStock: 0, outOfStock: 0, missingCost: 0, missingSelling: 0, inventoryValue: 0 });
+const getSummaryGroup = () => ({
+  _id: null,
+  totalProducts: { $sum: 1 },
+  totalUnits: { $sum: "$quantity" },
+  lowStock: { $sum: { $cond: [{ $and: [{ $gt: ["$quantity", 0] }, { $lte: ["$quantity", 5] }] }, 1, 0] } },
+  outOfStock: { $sum: { $cond: [{ $lte: ["$quantity", 0] }, 1, 0] } },
+  missingCost: { $sum: { $cond: [{ $lte: ["$costPrice", 0] }, 1, 0] } },
+  missingSelling: { $sum: { $cond: [{ $lte: ["$effectiveSellingPrice", 0] }, 1, 0] } },
+  inventoryValue: { $sum: { $multiply: ["$quantity", "$costPrice"] } }
+});
 
-  const categories = [...new Set(sourceProducts.map((product) => product.category || "General").filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
+const normalizeSummary = (summary = {}) => ({
+  totalProducts: Number(summary.totalProducts || 0),
+  totalUnits: Number(summary.totalUnits || 0),
+  lowStock: Number(summary.lowStock || 0),
+  outOfStock: Number(summary.outOfStock || 0),
+  missingCost: Number(summary.missingCost || 0),
+  missingSelling: Number(summary.missingSelling || 0),
+  inventoryValue: Number(summary.inventoryValue || 0)
+});
 
-  return {
-    inventory,
-    summary,
-    categories,
-    pagination: {
-      currentPage: page,
-      totalPages: Math.max(Math.ceil(totalItems / limit), 1),
-      totalItems,
-      hasNextPage: page * limit < totalItems,
-      hasPrevPage: page > 1
+const getFilterStages = ({ search, category, stockFilter, priceFilter }) => {
+  const stages = [];
+  const productMatch = {};
+  if (search) {
+    const searchRegex = new RegExp(escapeRegex(search), "i");
+    productMatch.$or = [{ "product.name": searchRegex }, { "product.sku": searchRegex }];
+  }
+  if (category) productMatch["product.category"] = category;
+  if (Object.keys(productMatch).length) stages.push({ $match: productMatch });
+
+  stages.push({
+    $addFields: {
+      effectiveSellingPrice: { $ifNull: ["$branchPrice", "$product.price"] },
+      costPrice: { $ifNull: ["$product.costPrice", 0] },
+      quantity: { $ifNull: ["$quantity", 0] }
     }
+  });
+
+  const inventoryMatch = {};
+  if (stockFilter === "in-stock") inventoryMatch.quantity = { $gt: 0 };
+  if (stockFilter === "low-stock") inventoryMatch.quantity = { $gt: 0, $lte: 5 };
+  if (stockFilter === "out-of-stock") inventoryMatch.quantity = { $lte: 0 };
+  if (Object.keys(inventoryMatch).length) stages.push({ $match: inventoryMatch });
+
+  const priceConditions = {
+    "cost-only": { $and: [{ $gt: ["$costPrice", 0] }, { $lte: ["$effectiveSellingPrice", 0] }] },
+    "selling-only": { $and: [{ $gt: ["$effectiveSellingPrice", 0] }, { $lte: ["$costPrice", 0] }] },
+    "complete-pricing": { $and: [{ $gt: ["$costPrice", 0] }, { $gt: ["$effectiveSellingPrice", 0] }] },
+    "missing-cost": { $lte: ["$costPrice", 0] },
+    "missing-selling": { $lte: ["$effectiveSellingPrice", 0] }
   };
+  if (priceConditions[priceFilter]) stages.push({ $match: { $expr: priceConditions[priceFilter] } });
+
+  stages.push({ $addFields: { margin: { $subtract: ["$effectiveSellingPrice", "$costPrice"] } } });
+  return stages;
 };
 
 const importProductToBranch = async (req, res) => {
@@ -359,17 +364,64 @@ const getBranchInventory = async (req, res) => {
     const sort = String(req.query.sort || "name-asc").trim();
 
     if (branchId === "headOffice") {
-      const filter = { business: businessId };
+      const filter = { business: new mongoose.Types.ObjectId(businessId) };
       if (search) {
+        const searchRegex = new RegExp(escapeRegex(search), "i");
         filter.$or = [
-          { name: { $regex: search, $options: "i" } },
-          { sku: { $regex: search, $options: "i" } }
+          { name: searchRegex },
+          { sku: searchRegex }
         ];
       }
       if (category) filter.category = category;
 
-      const products = await Product.find(filter).lean();
-      let inventory = products.map((product) => ({
+      const inventoryMatch = { ...filter };
+      if (stockFilter === "in-stock") inventoryMatch.stock = { $gt: 0 };
+      if (stockFilter === "low-stock") inventoryMatch.stock = { $gt: 0, $lte: 5 };
+      if (stockFilter === "out-of-stock") inventoryMatch.stock = { $lte: 0 };
+      if (priceFilter === "cost-only") {
+        inventoryMatch.costPrice = { $gt: 0 };
+        inventoryMatch.price = { $lte: 0 };
+      } else if (priceFilter === "selling-only") {
+        inventoryMatch.price = { $gt: 0 };
+        inventoryMatch.costPrice = { $lte: 0 };
+      } else if (priceFilter === "complete-pricing") {
+        inventoryMatch.costPrice = { $gt: 0 };
+        inventoryMatch.price = { $gt: 0 };
+      } else if (priceFilter === "missing-cost") inventoryMatch.costPrice = { $lte: 0 };
+      else if (priceFilter === "missing-selling") inventoryMatch.price = { $lte: 0 };
+
+      const headOfficeSort = {
+        "name-asc": { name: 1, _id: 1 },
+        "name-desc": { name: -1, _id: -1 },
+        "stock-desc": { stock: -1, _id: 1 },
+        "stock-asc": { stock: 1, _id: 1 },
+        "cost-desc": { costPrice: -1, _id: 1 },
+        "cost-asc": { costPrice: 1, _id: 1 },
+        "price-desc": { price: -1, _id: 1 },
+        "price-asc": { price: 1, _id: 1 },
+        "margin-desc": { margin: -1, _id: 1 }
+      }[sort] || { name: 1, _id: 1 };
+      const [products, totalItems, summaries, categories] = await Promise.all([
+        Product.aggregate([
+          { $match: inventoryMatch },
+          { $addFields: { margin: { $subtract: [{ $ifNull: ["$price", 0] }, { $ifNull: ["$costPrice", 0] }] } } },
+          { $sort: headOfficeSort },
+          { $skip: skip },
+          { $limit: limit }
+        ]),
+        Product.countDocuments(inventoryMatch),
+        Product.aggregate([
+          { $match: inventoryMatch },
+          { $addFields: {
+            quantity: { $ifNull: ["$stock", 0] },
+            costPrice: { $ifNull: ["$costPrice", 0] },
+            effectiveSellingPrice: { $ifNull: ["$price", 0] }
+          } },
+          { $group: getSummaryGroup() }
+        ]),
+        Product.distinct("category", { business: new mongoose.Types.ObjectId(businessId) })
+      ]);
+      const inventory = products.map((product) => ({
         _id: `head-office-${product._id}`,
         product: {
           _id: product._id,
@@ -384,11 +436,18 @@ const getBranchInventory = async (req, res) => {
         isHeadOffice: true,
         sourceLocation: "headOffice"
       }));
-      inventory = applyInventoryFilters(inventory, { stockFilter, priceFilter, sort });
-      const filtered = inventory;
-      const totalItems = filtered.length;
-      const paged = filtered.slice(skip, skip + limit);
-      return res.json(buildInventoryResponse(paged, totalItems, page, limit, filtered, products));
+      return res.json({
+        inventory,
+        summary: normalizeSummary(summaries[0]),
+        categories: categories.filter(Boolean).sort((a, b) => a.localeCompare(b)),
+        pagination: {
+          currentPage: page,
+          totalPages: Math.max(Math.ceil(totalItems / limit), 1),
+          totalItems,
+          hasNextPage: page * limit < totalItems,
+          hasPrevPage: page > 1
+        }
+      });
     }
 
     const branch = await Branch.findOne({ _id: branchId, business: businessId });
@@ -396,24 +455,79 @@ const getBranchInventory = async (req, res) => {
       return res.status(404).json({ message: "Branch not found" });
     }
 
-    const inventoryRecords = await BranchInventory.find({ business: businessId, branch: branchId })
-      .populate("product", "name sku category price costPrice")
-      .lean();
-
-    let filtered = inventoryRecords.filter((entry) => {
-      if (!entry.product) return false;
-      if (search) {
-        const name = entry.product?.name || "";
-        const sku = entry.product?.sku || "";
-        if (![name, sku].some((value) => value.toLowerCase().includes(search.toLowerCase()))) return false;
+    const businessObjectId = new mongoose.Types.ObjectId(businessId);
+    const branchObjectId = new mongoose.Types.ObjectId(branchId);
+    const inventoryPipeline = [
+      { $match: { business: businessObjectId, branch: branchObjectId } },
+      {
+        $lookup: {
+          from: Product.collection.name,
+          localField: "product",
+          foreignField: "_id",
+          as: "product"
+        }
+      },
+      { $unwind: "$product" },
+      { $match: { "product.business": businessObjectId } }
+    ];
+    const filterStages = getFilterStages({ search, category, stockFilter, priceFilter });
+    const sortStage = getInventorySort(sort, "product.");
+    const [result = {}] = await BranchInventory.aggregate([
+      ...inventoryPipeline,
+      {
+        $facet: {
+          categories: [
+            { $group: { _id: { $ifNull: ["$product.category", "General"] } } },
+            { $sort: { _id: 1 } }
+          ],
+          results: [
+            ...filterStages,
+            {
+              $facet: {
+                inventory: [
+                  { $sort: sortStage },
+                  { $skip: skip },
+                  { $limit: limit },
+                  {
+                    $project: {
+                      _id: 1,
+                      business: 1,
+                      branch: 1,
+                      product: {
+                        _id: "$product._id",
+                        name: "$product.name",
+                        sku: "$product.sku",
+                        category: "$product.category",
+                        price: "$product.price",
+                        costPrice: "$product.costPrice"
+                      },
+                      quantity: 1,
+                      branchPrice: 1
+                    }
+                  }
+                ],
+                summary: [{ $group: getSummaryGroup() }],
+                count: [{ $count: "totalItems" }]
+              }
+            }
+          ]
+        }
       }
-      if (category && String(entry.product?.category || "General") !== category) return false;
-      return true;
+    ]);
+    const results = result.results?.[0] || {};
+    const totalItems = Number(results.count?.[0]?.totalItems || 0);
+    res.json({
+      inventory: results.inventory || [],
+      summary: normalizeSummary(results.summary?.[0]),
+      categories: (result.categories || []).map((item) => item._id).filter(Boolean),
+      pagination: {
+        currentPage: page,
+        totalPages: Math.max(Math.ceil(totalItems / limit), 1),
+        totalItems,
+        hasNextPage: page * limit < totalItems,
+        hasPrevPage: page > 1
+      }
     });
-    filtered = applyInventoryFilters(filtered, { stockFilter, priceFilter, sort });
-    const paged = filtered.slice(skip, skip + limit);
-    const sourceProducts = inventoryRecords.map((entry) => entry.product).filter(Boolean);
-    res.json(buildInventoryResponse(paged, filtered.length, page, limit, filtered, sourceProducts));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

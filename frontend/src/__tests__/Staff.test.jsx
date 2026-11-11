@@ -5,16 +5,19 @@ import { MemoryRouter } from 'react-router-dom'
 import Staff from '../pages/Staff.jsx'
 import Sidebar from '../components/layout/Sidebar.jsx'
 
+const mockStaff = vi.hoisted(() => ({ items: [] }))
+
 vi.mock('../api/client.js', () => {
   return {
     default: async (path) => {
-      if (path === '/staff') return []
+      if (path === '/staff') return mockStaff.items
       return {}
     }
   }
 })
 
 beforeEach(() => {
+  mockStaff.items = []
   vi.useRealTimers()
 })
 
@@ -65,6 +68,32 @@ describe('Staff page', () => {
     expect(btn).toBeTruthy()
     fireEvent.click(btn)
     expect(await screen.findByText('New Team Member')).toBeTruthy()
+  })
+
+  it('opens staff actions from the card or the three-dot button', async () => {
+    mockStaff.items = [{
+      _id: 'staff-1',
+      name: 'Jordan Lee',
+      email: 'jordan@example.com',
+      role: 'staff',
+      branch: 'Head office',
+      isActive: true,
+      permissions: {}
+    }]
+
+    render(<Staff />)
+    const staffCard = await screen.findByRole('group', { name: 'Actions for Jordan Lee' })
+
+    fireEvent.click(staffCard)
+    expect(await screen.findByRole('menu')).toBeTruthy()
+    expect(screen.getByText('Edit access')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Jordan Lee' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Jordan Lee' }))
+    expect(await screen.findByRole('menu')).toBeTruthy()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit access' }))
+    expect(await screen.findByText('Modify Staff')).toBeTruthy()
   })
 
   it('toggles permission switch', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import request from "../api/client.js";
 import { getBranchInventory, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
@@ -8,7 +8,10 @@ import { formatCurrency } from "../utils/formatters.js";
 
 const BranchInventory = () => {
   const { user } = useAuth();
+  const inventoryRequestId = useRef(0);
   const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesError, setBranchesError] = useState("");
   const [branchId, setBranchId] = useState("");
   const [sourceType, setSourceType] = useState("headOffice");
   const [sourceBranchId, setSourceBranchId] = useState("");
@@ -20,6 +23,7 @@ const BranchInventory = () => {
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkSaveMessage, setBulkSaveMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
@@ -68,6 +72,10 @@ const BranchInventory = () => {
     || user?.role === "super_admin"
     || user?.permissions?.canManageBranchInventory === true
     || user?.permissions?.canManageAllBranchInventory === true;
+  const canChooseInventoryBranch = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canViewAllBranchInventory === true
+    || user?.permissions?.canManageAllBranchInventory === true;
   const canRequestTransfers = canManageInventory && user?.role !== "owner";
   const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
 
@@ -83,38 +91,53 @@ const BranchInventory = () => {
     if (!canViewInventoryLocations) {
       setBranchId(assignedBranchId || "headOffice");
       setBranches([]);
+      setBranchesError("");
       return;
     }
 
     try {
+      setBranchesLoading(true);
+      setBranchesError("");
       const data = await getBranches();
       const availableBranches = Array.isArray(data) ? data : [];
       setBranches(availableBranches);
+      const assignedBranch = availableBranches.find((branch) => branch._id === assignedBranchId);
       const defaultBranchId = user?.role === "owner"
         ? "headOffice"
-        : availableBranches.find((branch) => branch._id === assignedBranchId)?._id || "";
+        : assignedBranch?._id || availableBranches[0]?._id || (user?.role === "super_admin" ? "headOffice" : "");
       setBranchId(defaultBranchId);
       const firstSourceBranch = availableBranches.find((branch) => branch._id !== defaultBranchId)?._id || "";
       setSourceBranchId(firstSourceBranch);
     } catch (err) {
-      console.error(err);
+      setBranchesError(err.message || "Could not load branches.");
+    } finally {
+      setBranchesLoading(false);
     }
   };
 
-  const loadInventory = async (branchIdValue, pageValue = 1, searchValue = search) => {
+  const loadInventory = async (
+    branchIdValue,
+    pageValue = 1,
+    searchValue = search,
+    filters = { categoryFilter, stockFilter, priceFilter, inventorySort }
+  ) => {
     if (!branchIdValue) return;
+    const requestId = inventoryRequestId.current + 1;
+    inventoryRequestId.current = requestId;
     try {
       setLoading(true);
+      setInventoryError("");
       const data = await getBranchInventory({
         branchId: branchIdValue,
         page: pageValue,
         limit: 20,
         search: searchValue,
-        category: categoryFilter,
-        stockFilter,
-        priceFilter,
-        sort: inventorySort
+        category: filters.categoryFilter,
+        stockFilter: filters.stockFilter,
+        priceFilter: filters.priceFilter,
+        sort: filters.inventorySort
       });
+      if (requestId !== inventoryRequestId.current) return;
       const responseInventory = Array.isArray(data) ? data : data?.inventory || [];
       setInventory(responseInventory);
       setInventorySummary(data?.summary || {
@@ -140,18 +163,19 @@ const BranchInventory = () => {
       setSaveMessage("");
       setBulkSaveMessage("");
     } catch (err) {
-      console.error(err);
-      setInventory([]);
+      if (requestId === inventoryRequestId.current) {
+        setInventory([]);
+        setInventoryError(err.message || "Could not load inventory.");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === inventoryRequestId.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    const assignedBranchId = user?.branch?._id || user?.branchId || user?.branch || "";
-    if (user?.role !== "owner" && user?.role !== "super_admin" && assignedBranchId) {
-      setBranchId(assignedBranchId);
-    }
+    const assignedId = user?.branch?._id || user?.branchId || user?.branch || "";
+    if (user?.role === "owner" || user?.role === "super_admin" || !assignedId) setBranchId("headOffice");
+    else if (assignedId) setBranchId(assignedId);
     loadBranches();
   }, [user]);
 
@@ -210,26 +234,13 @@ const BranchInventory = () => {
   }, [branchId, page, search]);
 
   useEffect(() => {
-    if (branchId) {
-      setPage(1);
-      loadInventory(branchId, 1, search);
-    }
-  }, [branchId]);
-
-  useEffect(() => {
-    if (!branchId) return;
-    const timeout = window.setTimeout(() => {
-      setPage(1);
-      loadInventory(branchId, 1, search);
-    }, 250);
-    return () => window.clearTimeout(timeout);
-  }, [search]);
-
-  useEffect(() => {
     if (!branchId) return;
     setPage(1);
-    loadInventory(branchId, 1, search);
-  }, [categoryFilter, stockFilter, priceFilter, inventorySort]);
+    inventoryRequestId.current += 1;
+    setLoading(true);
+    const timeout = window.setTimeout(() => loadInventory(branchId, 1, search), search ? 250 : 0);
+    return () => window.clearTimeout(timeout);
+  }, [branchId, search, categoryFilter, stockFilter, priceFilter, inventorySort]);
 
   useEffect(() => {
     if (!branches.length || !branchId) return;
@@ -535,9 +546,9 @@ const BranchInventory = () => {
               className="form-select mt-2 w-full"
               value={branchId}
               onChange={(e) => setBranchId(e.target.value)}
-              disabled={!canManageInventory}
+              disabled={!canChooseInventoryBranch || branchesLoading}
             >
-              {(user?.role === "owner" || (!assignedBranchId && user?.role !== "super_admin")) && (
+              {(user?.role === "owner" || user?.role === "super_admin" || (!assignedBranchId && !branches.length)) && (
                 <option value="headOffice">Head Office</option>
               )}
               {!canManageInventory && assignedBranchId && !branches.some((branch) => branch._id === assignedBranchId) && (
@@ -549,6 +560,16 @@ const BranchInventory = () => {
                 </option>
               ))}
             </select>
+            {branchesLoading && <p className="mt-2 text-xs text-slate-500">Loading available branches...</p>}
+            {branchesError && (
+              <div role="alert" className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-rose-700">
+                <span>{branchesError}</span>
+                <button type="button" className="font-semibold underline" onClick={loadBranches}>Retry</button>
+              </div>
+            )}
+            {!branchesLoading && !branchesError && canChooseInventoryBranch && branches.length === 0 && user?.role !== "owner" && (
+              <p className="mt-2 text-xs text-slate-500">No branches are available for this business. You can still view head office stock.</p>
+            )}
           </div>
 
           {canManageInventory && <div className="mb-4">
@@ -642,6 +663,11 @@ const BranchInventory = () => {
 
           {loading ? (
             <div className="text-sm text-slate-500">Loading inventory...</div>
+          ) : inventoryError ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+              <span>{inventoryError}</span>
+              <button type="button" className="font-semibold underline" onClick={() => loadInventory(branchId, page, search)}>Try again</button>
+            </div>
           ) : inventory.length === 0 ? (
             <div className="space-y-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
               <div>
