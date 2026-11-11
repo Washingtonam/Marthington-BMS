@@ -9,6 +9,7 @@ import Supplier from "../suppliers/supplier.model.js";
 import OperationLog from "../../models/operationLog.model.js";
 import importQueue from "../../queues/importQueue.js";
 import ProductImportPreview from "../products/productImportPreview.model.js";
+import CatalogPairDecision from "../catalog/catalogPairDecision.model.js";
 import {
   canAccessBranch as canAccessBranchForUser,
   canViewInventoryCosts,
@@ -652,12 +653,28 @@ const getProductNameAudit = async (req, res) => {
     }
 
     const audit = findSimilarCatalogGroups(products);
+    const pairDecisions = await CatalogPairDecision.find({ business: businessId })
+      .select("firstProduct secondProduct")
+      .lean();
+    const separatePairs = new Set(pairDecisions.map((item) =>
+      [String(item.firstProduct), String(item.secondProduct)].sort().join(":")
+    ));
+    const groupsWithDecisions = audit.groups.map((group) => {
+      const keptSeparatePairs = [];
+      for (let firstIndex = 0; firstIndex < group.products.length; firstIndex += 1) {
+        for (let secondIndex = firstIndex + 1; secondIndex < group.products.length; secondIndex += 1) {
+          const pair = [String(group.products[firstIndex]._id), String(group.products[secondIndex]._id)].sort();
+          if (separatePairs.has(pair.join(":"))) keptSeparatePairs.push(pair);
+        }
+      }
+      return { ...group, keptSeparatePairs };
+    });
     return res.json({
       branchId,
       scannedProducts: products.length,
       totalGroups: audit.totalGroups,
       truncated: audit.truncated,
-      groups: audit.groups
+      groups: groupsWithDecisions
     });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Could not audit product names." });

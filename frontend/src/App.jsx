@@ -54,6 +54,7 @@ const SupplierDetail = lazy(() => import("./pages/SupplierDetail.jsx"));
 const PurchaseOrders = lazy(() => import("./pages/PurchaseOrders.jsx"));
 const Branches = lazy(() => import("./pages/Branches.jsx"));
 const BranchInventory = lazy(() => import("./pages/BranchInventory.jsx"));
+const ProductNameReview = lazy(() => import("./pages/ProductNameReview.jsx"));
 const InventoryHistory = lazy(() => import("./pages/InventoryHistory.jsx"));
 const StaffReports = lazy(() => import("./pages/StaffReports.jsx"));
 const InventoryReports = lazy(() => import("./pages/InventoryReports.jsx"));
@@ -257,6 +258,7 @@ const App = () => {
               <Route path="reports" element={<ProtectedRoute requiredPermission="canViewReports"><Reports /></ProtectedRoute>} />
               <Route path="reports/detail" element={<ProtectedRoute requiredPermission="canViewReports"><ReportsDetailPage /></ProtectedRoute>} />
               <Route path="inventory" element={<ProtectedRoute requiredPermission="canViewBranchInventory"><BranchInventory /></ProtectedRoute>} />
+              <Route path="product-name-review" element={<ProtectedRoute requiredPermission="canViewBranchInventory"><ProductNameReview /></ProtectedRoute>} />
               <Route path="inventory-history" element={<ProtectedRoute requiredPermission="canViewBranchInventory"><InventoryHistory /></ProtectedRoute>} />
               <Route path="deleted-sales" element={<DeletedSales />} />
               <Route path="staff-reports" element={<ProtectedRoute requiredPermission="canViewStaffReports"><StaffReports /></ProtectedRoute>} />

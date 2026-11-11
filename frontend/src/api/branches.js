@@ -48,6 +48,21 @@ export const getProductNameAudit = async (branchId) => {
   return request(`/branches/inventory/name-audit?${params.toString()}`);
 };
 
+export const getProductMergePreview = async (primaryId, secondaryId) => {
+  const params = new URLSearchParams({ primaryId, secondaryId });
+  return request(`/branches/inventory/merge-preview?${params.toString()}`);
+};
+
+export const mergeCatalogProducts = async (payload) => request("/branches/inventory/merge-products", {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
+
+export const keepCatalogProductsSeparate = async (payload) => request("/branches/inventory/keep-products-separate", {
+  method: "POST",
+  body: JSON.stringify(payload)
+});
+
 export const getInventoryHistory = async ({ branchId, page = 1, limit = 50 } = {}) => {
   const params = new URLSearchParams({
     branchId: branchId || "headOffice",

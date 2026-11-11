@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import request from "../api/client.js";
-import { getBranchInventory, getProductNameAudit, getProductImportReview, applyProductImportReview, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
+import { getBranchInventory, getProductImportReview, applyProductImportReview, importBranchInventory, getImportStatus, updateBranchInventory, createTransferRequest, getTransferRequests, reviewTransferRequest } from "../api/branches.js";
 import { getBranches } from "../api/branches.js";
 import { createService, getServices } from "../api/services.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -55,10 +55,6 @@ const BranchInventory = () => {
   const [catalogSearching, setCatalogSearching] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogMessage, setCatalogMessage] = useState("");
-  const [nameAuditOpen, setNameAuditOpen] = useState(false);
-  const [nameAudit, setNameAudit] = useState(null);
-  const [nameAuditLoading, setNameAuditLoading] = useState(false);
-  const [nameAuditError, setNameAuditError] = useState("");
   const [importReview, setImportReview] = useState(null);
   const [importReviewLoading, setImportReviewLoading] = useState(false);
   const [importReviewError, setImportReviewError] = useState("");
@@ -219,20 +215,6 @@ const BranchInventory = () => {
     }
   };
 
-  const runProductNameAudit = async () => {
-    if (!branchId) return;
-    try {
-      setNameAuditLoading(true);
-      setNameAuditError("");
-      const result = await getProductNameAudit(branchId);
-      setNameAudit(result);
-    } catch (err) {
-      setNameAuditError(err.message || "Could not review product names.");
-    } finally {
-      setNameAuditLoading(false);
-    }
-  };
-
   const loadProductImportReview = async () => {
     if (!productImportId || !branchId) return;
     const requestId = importReviewRequestId.current + 1;
@@ -314,6 +296,23 @@ const BranchInventory = () => {
     }
   };
 
+  const downloadProductImportTemplate = () => {
+    const csv = [
+      "name,category,sku,stock,sellingPrice,costPrice",
+      "Example Product,Accessories,SKU-001,12,2500,1800",
+      "New Product,,SKU-002,,,"
+    ].join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "product-stock-import-template.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+
   const applyImportReview = async () => {
     if (!productImportId || !importReview || !canManageInventory || !canManageCatalog) return;
     const decisions = importReview.rows
@@ -366,11 +365,6 @@ const BranchInventory = () => {
     }
     loadProductImportReview();
   }, [productImportId, branchId]);
-
-  useEffect(() => {
-    setNameAudit(null);
-    setNameAuditError("");
-  }, [branchId]);
 
   useEffect(() => {
     if (!canReviewTransfers && !canRequestTransfers) return;
@@ -726,6 +720,9 @@ const BranchInventory = () => {
               >
                 {stagingInventoryImport ? "Preparing review..." : "Upload stock list"}
               </button>
+              <button type="button" className="btn btn-secondary" onClick={downloadProductImportTemplate}>
+                Download import template
+              </button>
             </>
           )}
           <button type="button" className="btn btn-secondary" onClick={() => navigate(`/app/inventory-history?branchId=${encodeURIComponent(branchId || "headOffice")}`)}>
@@ -734,13 +731,9 @@ const BranchInventory = () => {
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => {
-              const nextOpen = !nameAuditOpen;
-              setNameAuditOpen(nextOpen);
-              if (nextOpen && !nameAudit) runProductNameAudit();
-            }}
+            onClick={() => navigate(`/app/product-name-review?branchId=${encodeURIComponent(branchId || "headOffice")}`)}
           >
-            {nameAudit?.totalGroups ? `Review product names (${nameAudit.totalGroups})` : "Review product names"}
+            Review product names
           </button>
           {canManageCatalog && <>
             <button onClick={() => openCatalogDrawer("product")} className="btn btn-primary">+ Add product</button>
@@ -754,6 +747,27 @@ const BranchInventory = () => {
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
           {inventoryImportMessage}
         </div>
+      )}
+
+      {canManageCatalog && (
+        <details className="page-card inventory-import-help">
+          <summary className="cursor-pointer font-semibold text-slate-800">What file format should I upload?</summary>
+          <div className="mt-3 space-y-2 text-sm text-slate-600">
+            <p>Upload an Excel workbook (.xlsx or .xls) or CSV (.csv). Put the column headers in the first row and product records beneath them. The first worksheet is read.</p>
+            <p><strong>Required:</strong> name (or Product Name). <strong>Optional:</strong> category, sku, stock (or quantity), sellingPrice (or price), and costPrice (or unitCost).</p>
+            <p>Column names are case-insensitive; spaces and underscores are accepted, so “Selling Price” and “sellingPrice” both work. Prices and stock must be zero or a positive number. Leave a cell blank when you do not want to import that value.</p>
+            <p>For a new product, select “Add this product to the catalog” in the review. You can leave stock or either price blank; missing values start at zero (selling price is inherited at branches) and can be added later from Products or Inventory. Nothing is changed until you select “Apply selected changes”.</p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-xs">
+                <thead><tr className="border-b border-slate-200 text-slate-500"><th className="py-2 pr-4">name</th><th className="py-2 pr-4">category</th><th className="py-2 pr-4">sku</th><th className="py-2 pr-4">stock</th><th className="py-2 pr-4">sellingPrice</th><th className="py-2 pr-4">costPrice</th></tr></thead>
+                <tbody>
+                  <tr><td className="py-2 pr-4">Example Product</td><td className="py-2 pr-4">Accessories</td><td className="py-2 pr-4">SKU-001</td><td className="py-2 pr-4">12</td><td className="py-2 pr-4">2500</td><td className="py-2 pr-4">1800</td></tr>
+                  <tr><td className="py-2 pr-4">New Product</td><td className="py-2 pr-4">blank</td><td className="py-2 pr-4">SKU-002</td><td className="py-2 pr-4">blank</td><td className="py-2 pr-4">blank</td><td className="py-2 pr-4">blank</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
       )}
 
       <div className={`inventory-access-banner ${canManageInventory ? "is-manage" : "is-readonly"}`}>
@@ -943,72 +957,6 @@ const BranchInventory = () => {
               </div>
               {!canManageInventory && <p className="mt-2 text-sm text-amber-700">You can review this import, but inventory-management permission is required to apply it.</p>}
               {importApplyMessage && <p role="status" className="mt-3 text-sm text-slate-700">{importApplyMessage}</p>}
-            </>
-          )}
-        </section>
-      )}
-
-      {nameAuditOpen && (
-        <section className="page-card inventory-name-audit" aria-label="Product name review">
-          <div className="inventory-audit-heading">
-            <div>
-              <span className="inventory-audit-eyebrow">Catalog quality check</span>
-              <h2 className="mt-1 text-xl font-semibold text-slate-900">Review duplicate and similar product names</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Compare products in {branchId === "headOffice" ? "the head office catalog" : branches.find((branch) => branch._id === branchId)?.name || "this branch"}.
-                These are suggestions only; nothing is merged or deleted.
-              </p>
-            </div>
-            <button type="button" className="btn btn-secondary" onClick={runProductNameAudit} disabled={nameAuditLoading || !branchId}>
-              {nameAuditLoading ? "Scanning..." : "Refresh scan"}
-            </button>
-          </div>
-
-          {nameAuditError && (
-            <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-              <span>{nameAuditError}</span>
-              <button type="button" className="font-semibold underline" onClick={runProductNameAudit}>Try again</button>
-            </div>
-          )}
-          {nameAuditLoading && !nameAudit && <p className="mt-4 text-sm text-slate-500">Checking product names...</p>}
-          {nameAudit && !nameAuditLoading && nameAudit.groups.length === 0 && (
-            <div className="inventory-audit-empty mt-4">
-              <span aria-hidden="true">✓</span>
-              <div><strong>No duplicate or close product names found.</strong><p>Scanned {nameAudit.scannedProducts} products at this location.</p></div>
-            </div>
-          )}
-          {nameAudit?.groups?.length > 0 && (
-            <>
-              <div className="inventory-audit-result-summary">
-                Found <strong>{nameAudit.totalGroups}</strong> group{nameAudit.totalGroups === 1 ? "" : "s"} to review across {nameAudit.scannedProducts} products.
-                {nameAudit.truncated && " Showing the first 200 groups."}
-              </div>
-              <div className="inventory-audit-groups">
-                {nameAudit.groups.map((group, index) => (
-                  <article className="inventory-audit-group" key={`${group.type}-${group.products.map((product) => product._id).join("-")}-${index}`}>
-                    <div className="inventory-audit-group-title">
-                      <span className={`inventory-audit-type ${group.type === "duplicate" ? "is-duplicate" : "is-similar"}`}>
-                        {group.type === "duplicate" ? "Same normalized name" : "Possible similar name"}
-                      </span>
-                      <span>{group.products.length} products</span>
-                    </div>
-                    <div className="inventory-audit-products">
-                      {group.products.map((product) => (
-                        <div className="inventory-audit-product" key={product._id}>
-                          <strong>{product.name}</strong>
-                          <span>SKU: {product.sku || "Not set"}</span>
-                          <span>{product.category || "General"} · Stock {Number(product.stock || 0)}</span>
-                          <span>Supplier: {product.preferredSupplier?.name || "Not linked"}</span>
-                          <span>
-                            {canViewInventoryCosts && <>Cost {formatCurrency(Number(product.costPrice || 0))} · </>}
-                            Selling {formatCurrency(Number(product.price || 0))}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-              </div>
             </>
           )}
         </section>

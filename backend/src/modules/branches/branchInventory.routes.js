@@ -2,6 +2,7 @@ import express from "express";
 import protect from "../../middlewares/auth.middleware.js";
 import checkPermission from "../../middlewares/permission.middleware.js";
 import branchInventoryController from "./branchInventory.controller.js";
+import productCatalogReviewController from "../catalog/productCatalogReview.controller.js";
 
 const router = express.Router();
 
@@ -17,6 +18,24 @@ router.get(
   protect,
   checkPermission("canViewBranchInventory"),
   branchInventoryController.getProductNameAudit
+);
+
+router.get(
+  "/merge-preview",
+  protect,
+  productCatalogReviewController.getMergePreview
+);
+
+router.post(
+  "/merge-products",
+  protect,
+  productCatalogReviewController.mergeProducts
+);
+
+router.post(
+  "/keep-products-separate",
+  protect,
+  productCatalogReviewController.keepProductsSeparate
 );
 
 router.get(

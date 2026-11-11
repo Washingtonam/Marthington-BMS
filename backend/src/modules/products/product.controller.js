@@ -8,6 +8,7 @@ import { isPrivileged } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import ProductImportPreview from "./productImportPreview.model.js";
+import { parseProductImportRows } from "./productImportParser.js";
 import {
   assertBusinessProductCapacity,
   getBusinessPlanAccess
@@ -110,37 +111,12 @@ const bulkImportProducts = async (req, res) => {
       return res.status(400).json({ message: "Imports are limited to 5,000 rows. Split the file and upload it in batches." });
     }
 
-    const stagedRows = [];
-    for (const [index, row] of rows.entries()) {
-      const name = String(row.name || "").trim();
-      if (!name) continue;
-      if (name.length > 200) {
-        return res.status(400).json({ message: `Product name on row ${index + 2} exceeds 200 characters.` });
-      }
-
-      const parseAmount = (key, aliases = []) => {
-        const sourceKey = [key, ...aliases].find((candidate) =>
-          row[candidate] !== undefined && row[candidate] !== null && row[candidate] !== ""
-        );
-        if (!sourceKey) return null;
-        const amount = Number(row[sourceKey]);
-        if (!Number.isFinite(amount) || amount < 0) {
-          throw Object.assign(new Error(`Invalid ${key} on row ${index + 2}. Use a non-negative number.`), { statusCode: 400 });
-        }
-        return amount;
-      };
-
-      stagedRows.push({
-        rowNumber: index + 2,
-        name,
-        category: String(row.category || "").trim().slice(0, 100),
-        sku: String(row.sku || "").trim().slice(0, 100),
-        stock: parseAmount("stock"),
-        sellingPrice: parseAmount("sellingPrice", ["price"]),
-        costPrice: parseAmount("costPrice")
+    const stagedRows = parseProductImportRows(rows);
+    if (!stagedRows.length) {
+      return res.status(400).json({
+        message: "No product names found. Add a required “name” or “Product Name” column and include a name on each product row."
       });
     }
-    if (!stagedRows.length) return res.status(400).json({ message: "No valid product names found in the file." });
 
     const preview = await ProductImportPreview.create({
       business: business._id,
