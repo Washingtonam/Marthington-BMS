@@ -183,10 +183,6 @@ const ProductNameReview = () => {
   const confirmMerge = async () => {
     if (!preview || selectedProducts.length < 2 || !canMergeProducts) return;
     const [primary, ...secondaries] = selectedProductsForMerge;
-    const confirmed = window.confirm(
-      `Merge ${secondaries.length} product(s) into "${primary?.name}" across head office and all branches? This cannot be undone.`
-    );
-    if (!confirmed) return;
     try {
       setMerging(true);
       setPageError("");
@@ -207,9 +203,27 @@ const ProductNameReview = () => {
   };
 
   const makeSurvivor = (productId) => {
-    setSelectedProducts((current) => [productId, ...current.filter((id) => id !== productId)]);
-    setPreview(null);
+    const reorderedIds = [productId, ...selectedProducts.filter((id) => id !== productId)];
+    setSelectedProducts(reorderedIds);
+    setPreview((current) => current && ({
+      ...current,
+      products: reorderedIds.map((id) => current.products.find((product) => product._id === id))
+    }));
   };
+
+  useEffect(() => {
+    if (!preview) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape" && !merging) setPreview(null);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [preview, merging]);
 
   return (
     <main className="page-shell space-y-5">
@@ -333,11 +347,29 @@ const ProductNameReview = () => {
       </section>
 
       {preview && selectedProductsForMerge.length >= 2 && (
-        <section className="page-card space-y-4" aria-label="Product merge preview">
-          <div>
-            <h2 className="text-lg font-semibold">Merge impact and rules</h2>
-            <p className="text-sm text-slate-600">{preview.warning}</p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !merging) setPreview(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="product-merge-title"
+            className="max-h-[94vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
+          >
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h2 id="product-merge-title" className="text-lg font-semibold">Merge impact and rules</h2>
+              <p className="mt-1 text-sm text-slate-600">{preview.warning}</p>
+            </div>
+            <button type="button" className="btn btn-secondary shrink-0" onClick={() => setPreview(null)} disabled={merging}>
+              Close
+            </button>
           </div>
+          {pageError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{pageError}</div>}
+          <section className="space-y-4" aria-label="Product merge preview">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {preview.products.map((product, index) => (
               <div key={product._id} className="rounded-lg border border-slate-200 p-3">
@@ -436,7 +468,9 @@ const ProductNameReview = () => {
               {merging ? "Merging products..." : "Confirm merge"}
             </button>
           </div>
-        </section>
+          </section>
+          </div>
+        </div>
       )}
     </main>
   );

@@ -55,7 +55,6 @@ describe("product name review", () => {
   });
 
   it("previews a group merge and confirms the selected policies", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(
       <MemoryRouter initialEntries={["/app/product-name-review?branchId=headOffice"]}>
         <ProductNameReview />
@@ -68,6 +67,7 @@ describe("product name review", () => {
     fireEvent.click(screen.getByRole("button", { name: /MOUSE-3/ }));
     fireEvent.click(screen.getByRole("button", { name: "Compare merge impact" }));
 
+    expect(await screen.findByRole("dialog", { name: "Merge impact and rules" })).toBeTruthy();
     const projectedResult = await screen.findByText("Projected head-office result:");
     expect(projectedResult.parentElement.textContent).toContain("12 units");
     expect(getProductMergePreview).toHaveBeenCalledWith(["product-1", "product-2", "product-3"]);
@@ -87,6 +87,26 @@ describe("product name review", () => {
         costPricePolicy: "product-3"
       });
     });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("closes the merge review without changing the product selection", async () => {
+    render(
+      <MemoryRouter initialEntries={["/app/product-name-review?branchId=headOffice"]}>
+        <ProductNameReview />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("USB Mouse", { exact: true });
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-2/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Compare merge impact" }));
+    await screen.findByRole("dialog", { name: "Merge impact and rules" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Compare merge impact" })).toBeTruthy();
   });
 
   it("can mark all selected products to stay separate", async () => {
