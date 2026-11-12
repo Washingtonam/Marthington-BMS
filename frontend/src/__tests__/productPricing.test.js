@@ -9,6 +9,10 @@ describe("product pricing", () => {
     expect(suggestSellingPrice("100", "12.34567")).toBe("112.34567");
   });
 
+  it("leaves the selling price blank when cost is blank", () => {
+    expect(suggestSellingPrice("", "30")).toBe("");
+  });
+
   it("reverse-calculates the markup for a manually entered selling price", () => {
     expect(calculateMarkup("1500", "1899.99")).toBe(String(((1899.99 / 1500) - 1) * 100));
   });

@@ -12,22 +12,25 @@ import { formatCurrency } from "../utils/formatters.js";
 
 const pairKey = (first, second) => [first, second].sort().join(":");
 const groupKey = (group, index) => `${group.type}-${group.products.map((product) => product._id).join("-")}-${index}`;
-const stockAfterMerge = (primary, secondary, policy) => {
-  if (policy === "secondary") return secondary;
-  if (policy === "sum") return primary + secondary;
-  return primary;
+const sourceLabel = (product) => `${product.name} · SKU ${product.sku || "not set"} · ${product.category || "General"} · #${String(product._id).slice(-6)}`;
+const stockAfterMerge = (products, policy) => {
+  if (policy === "sum") return products.reduce((sum, product) => sum + Number(product.stock || 0), 0);
+  const source = policy === "primary" ? products[0] : products.find((product) => product._id === policy);
+  return Number(source?.stock || 0);
 };
-const valueAfterMerge = (primary, secondary, policy, primaryWeight = 0, secondaryWeight = 0) => {
-  if (policy === "secondary") return secondary;
-  if (policy === "highest") return Math.max(primary, secondary);
-  if (policy === "lowest") return Math.min(primary, secondary);
+const valueAfterMerge = (products, policy, field, weights = []) => {
+  if (policy === "highest") return Math.max(...products.map((product) => Number(product[field] || 0)));
+  if (policy === "lowest") return Math.min(...products.map((product) => Number(product[field] || 0)));
   if (policy === "weighted-average") {
-    const totalWeight = primaryWeight + secondaryWeight;
+    const totalWeight = weights.reduce((sum, weight) => sum + Number(weight || 0), 0);
     return totalWeight > 0
-      ? Number((((primary * primaryWeight) + (secondary * secondaryWeight)) / totalWeight).toFixed(2))
-      : Number(((primary + secondary) / 2).toFixed(2));
+      ? Number((products.reduce((sum, product, index) =>
+        sum + Number(product[field] || 0) * Number(weights[index] || 0), 0
+      ) / totalWeight).toFixed(2))
+      : Number((products.reduce((sum, product) => sum + Number(product[field] || 0), 0) / products.length).toFixed(2));
   }
-  return primary;
+  const source = policy === "primary" ? products[0] : products.find((product) => product._id === policy);
+  return Number(source?.[field] || 0);
 };
 
 const ProductNameReview = () => {
@@ -111,25 +114,36 @@ const ProductNameReview = () => {
 
   const selectProduct = (groupId, productId) => {
     setNotice("");
+    setPageError("");
     setPreview(null);
     if (selectedGroup !== groupId) {
       setSelectedGroup(groupId);
       setSelectedProducts([productId]);
       return;
     }
-    setSelectedProducts((current) => {
-      if (current.includes(productId)) return current.filter((id) => id !== productId);
-      if (current.length === 2) return [productId];
-      return [...current, productId];
-    });
+    if (selectedProducts.includes(productId)) {
+      setSelectedProducts((current) => current.filter((id) => id !== productId));
+      return;
+    }
+    if (selectedProducts.length >= 50) {
+      setPageError("Select no more than 50 products in a single merge.");
+      return;
+    }
+    setSelectedProducts((current) => [...current, productId]);
   };
 
   const openMergePreview = async () => {
-    if (selectedProducts.length !== 2 || !canMergeProducts) return;
+    if (selectedProducts.length < 2 || !canMergeProducts) return;
     try {
       setPreviewLoading(true);
       setPageError("");
-      const result = await getProductMergePreview(selectedProducts[0], selectedProducts[1]);
+      if (stockPolicy !== "sum" && !selectedProducts.includes(stockPolicy)) setStockPolicy("primary");
+      if (!["highest", "lowest"].includes(sellingPricePolicy)
+        && !["primary", "secondary"].includes(sellingPricePolicy)
+        && !selectedProducts.includes(sellingPricePolicy)) setSellingPricePolicy("primary");
+      if (!["weighted-average", "highest", "lowest", "primary", "secondary"].includes(costPricePolicy)
+        && !selectedProducts.includes(costPricePolicy)) setCostPricePolicy("weighted-average");
+      const result = await getProductMergePreview(selectedProducts);
       setPreview(result);
     } catch (error) {
       setPageError(error.message || "Could not prepare the merge preview.");
@@ -139,16 +153,22 @@ const ProductNameReview = () => {
   };
 
   const keepSeparate = async () => {
-    if (selectedProducts.length !== 2 || !canManageCatalog) return;
+    if (selectedProducts.length < 2 || !canManageCatalog) return;
     const group = groups.find((candidate, index) => groupKey(candidate, index) === selectedGroup);
-    const alreadySeparate = Boolean(group?.keptSeparatePairs?.some((pair) => pairKey(...pair) === pairKey(...selectedProducts)));
+    const selectedPairKeys = [];
+    for (let firstIndex = 0; firstIndex < selectedProducts.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < selectedProducts.length; secondIndex += 1) {
+        selectedPairKeys.push(pairKey(selectedProducts[firstIndex], selectedProducts[secondIndex]));
+      }
+    }
+    const savedPairKeys = new Set((group?.keptSeparatePairs || []).map((pair) => pairKey(...pair)));
+    const alreadySeparate = selectedPairKeys.length > 0 && selectedPairKeys.every((key) => savedPairKeys.has(key));
     try {
       setSavingDecision(true);
       setPageError("");
       const result = await keepCatalogProductsSeparate({
         branchId,
-        firstProductId: selectedProducts[0],
-        secondProductId: selectedProducts[1],
+        productIds: selectedProducts,
         keepSeparate: !alreadySeparate
       });
       setNotice(result.message || (alreadySeparate ? "Keep-separate decision removed." : "Saved: these products will remain separate."));
@@ -161,10 +181,10 @@ const ProductNameReview = () => {
   };
 
   const confirmMerge = async () => {
-    if (!preview || selectedProducts.length !== 2 || !canMergeProducts) return;
-    const [primary, secondary] = selectedProductsForMerge;
+    if (!preview || selectedProducts.length < 2 || !canMergeProducts) return;
+    const [primary, ...secondaries] = selectedProductsForMerge;
     const confirmed = window.confirm(
-      `Merge "${secondary?.name}" into "${primary?.name}" across head office and all branches? This cannot be undone.`
+      `Merge ${secondaries.length} product(s) into "${primary?.name}" across head office and all branches? This cannot be undone.`
     );
     if (!confirmed) return;
     try {
@@ -172,7 +192,7 @@ const ProductNameReview = () => {
       setPageError("");
       const result = await mergeCatalogProducts({
         primaryId: primary._id,
-        secondaryId: secondary._id,
+        secondaryIds: secondaries.map((product) => product._id),
         stockPolicy,
         sellingPricePolicy,
         costPricePolicy
@@ -186,8 +206,8 @@ const ProductNameReview = () => {
     }
   };
 
-  const swapSurvivor = () => {
-    setSelectedProducts(([first, second]) => [second, first]);
+  const makeSurvivor = (productId) => {
+    setSelectedProducts((current) => [productId, ...current.filter((id) => id !== productId)]);
     setPreview(null);
   };
 
@@ -248,6 +268,14 @@ const ProductNameReview = () => {
           {groups.map((group, index) => {
             const groupId = groupKey(group, index);
             const hasSelection = selectedGroup === groupId && selectedProducts.length > 0;
+            const selectedPairKeys = [];
+            for (let firstIndex = 0; firstIndex < selectedProducts.length; firstIndex += 1) {
+              for (let secondIndex = firstIndex + 1; secondIndex < selectedProducts.length; secondIndex += 1) {
+                selectedPairKeys.push(pairKey(selectedProducts[firstIndex], selectedProducts[secondIndex]));
+              }
+            }
+            const savedPairKeys = new Set((group.keptSeparatePairs || []).map((pair) => pairKey(...pair)));
+            const selectedPairsSeparate = selectedPairKeys.length > 0 && selectedPairKeys.every((key) => savedPairKeys.has(key));
             return (
               <article key={groupId} className="rounded-xl border border-slate-200 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -258,7 +286,7 @@ const ProductNameReview = () => {
                     <span className="ml-2 text-sm text-slate-500">{group.products.length} products</span>
                     {group.keptSeparatePairs?.length > 0 && <span className="ml-2 text-xs text-slate-500">{group.keptSeparatePairs.length} pair{group.keptSeparatePairs.length === 1 ? "" : "s"} marked separate</span>}
                   </div>
-                  <p className="text-xs text-slate-500">Select two products to compare, keep separate, or merge.</p>
+                  <p className="text-xs text-slate-500">Select two or more products to compare, keep separate, or merge.</p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {group.products.map((product) => {
@@ -280,15 +308,15 @@ const ProductNameReview = () => {
                     );
                   })}
                 </div>
-                {hasSelection && selectedProducts.length === 2 && (
+                {hasSelection && selectedProducts.length >= 2 && (
                   <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
                     <span className="mr-auto text-sm text-slate-600">
-                      Selected pair: {selectedProductsForMerge.map((product) => product?.name).join(" and ")}
-                      {group.keptSeparatePairs?.some((pair) => pairKey(...pair) === pairKey(...selectedProducts)) && " · marked to stay separate"}
+                      Selected {selectedProducts.length}: {selectedProductsForMerge.map((product) => product?.name).join(", ")}
+                      {selectedPairsSeparate && " · saved to stay separate"}
                     </span>
                     {canManageCatalog && (
                       <button type="button" className="btn btn-secondary" onClick={keepSeparate} disabled={savingDecision}>
-                        {savingDecision ? "Saving..." : group.keptSeparatePairs?.some((pair) => pairKey(...pair) === pairKey(...selectedProducts)) ? "Undo keep separate" : "Keep separate"}
+                        {savingDecision ? "Saving..." : selectedPairsSeparate ? "Undo keep separate" : "Keep selected separate"}
                       </button>
                     )}
                     {canMergeProducts && (
@@ -304,18 +332,18 @@ const ProductNameReview = () => {
         </div>
       </section>
 
-      {preview && selectedProductsForMerge.length === 2 && (
+      {preview && selectedProductsForMerge.length >= 2 && (
         <section className="page-card space-y-4" aria-label="Product merge preview">
           <div>
             <h2 className="text-lg font-semibold">Merge impact and rules</h2>
             <p className="text-sm text-slate-600">{preview.warning}</p>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {[preview.primary, preview.secondary].map((product, index) => (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {preview.products.map((product, index) => (
               <div key={product._id} className="rounded-lg border border-slate-200 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <strong>{index === 0 ? "Surviving product" : "Product to merge in"}</strong>
-                  {index === 0 && <button type="button" className="text-sm font-medium text-blue-700 underline" onClick={swapSurvivor}>Swap survivor</button>}
+                  {index !== 0 && <button type="button" className="text-sm font-medium text-blue-700 underline" onClick={() => makeSurvivor(product._id)}>Use as survivor</button>}
                 </div>
                 <p className="mt-1 text-slate-900">{product.name} {product.sku ? `· ${product.sku}` : ""}</p>
                 <p className="text-sm text-slate-600">Head office: stock {product.stock} · selling {formatCurrency(product.sellingPrice)} · cost {formatCurrency(product.costPrice)}</p>
@@ -332,73 +360,72 @@ const ProductNameReview = () => {
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-sm font-medium text-slate-700">Stock at each location
               <select className="form-select mt-1 w-full" value={stockPolicy} onChange={(event) => setStockPolicy(event.target.value)}>
-                <option value="sum">Add both quantities</option>
-                <option value="primary">Keep survivor quantity</option>
-                <option value="secondary">Use merged product quantity</option>
+                <option value="sum">Add all quantities together</option>
+                {preview.products.map((product, index) => <option key={product._id} value={index === 0 ? "primary" : product._id}>Use stock from {sourceLabel(product)}{index === 0 ? " (survivor)" : ""}</option>)}
               </select>
             </label>
             <label className="text-sm font-medium text-slate-700">Selling price
               <select className="form-select mt-1 w-full" value={sellingPricePolicy} onChange={(event) => setSellingPricePolicy(event.target.value)}>
-                <option value="primary">Keep survivor price</option>
-                <option value="secondary">Use merged product price</option>
-                <option value="highest">Use higher price</option>
-                <option value="lowest">Use lower price</option>
+                {preview.products.map((product, index) => <option key={product._id} value={index === 0 ? "primary" : product._id}>Use price from {sourceLabel(product)}{index === 0 ? " (survivor)" : ""}</option>)}
+                <option value="highest">Use highest price</option>
+                <option value="lowest">Use lowest price</option>
               </select>
             </label>
             <label className="text-sm font-medium text-slate-700">Cost price
               <select className="form-select mt-1 w-full" value={costPricePolicy} onChange={(event) => setCostPricePolicy(event.target.value)}>
-                <option value="primary">Keep survivor cost</option>
-                <option value="secondary">Use merged product cost</option>
+                {preview.products.map((product, index) => <option key={product._id} value={index === 0 ? "primary" : product._id}>Use cost from {sourceLabel(product)}{index === 0 ? " (survivor)" : ""}</option>)}
                 <option value="weighted-average">Use stock-weighted average</option>
-                <option value="highest">Use higher cost</option>
-                <option value="lowest">Use lower cost</option>
+                <option value="highest">Use highest cost</option>
+                <option value="lowest">Use lowest cost</option>
               </select>
             </label>
           </div>
 
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
             <strong>Projected head-office result:</strong>{" "}
-            {stockAfterMerge(preview.primary.stock, preview.secondary.stock, stockPolicy)} units ·{" "}
-            {formatCurrency(valueAfterMerge(preview.primary.sellingPrice, preview.secondary.sellingPrice, sellingPricePolicy))} selling price ·{" "}
+            {stockAfterMerge(preview.products, stockPolicy)} units ·{" "}
+            {formatCurrency(valueAfterMerge(preview.products.map((product) => ({ ...product, price: product.sellingPrice })), sellingPricePolicy, "price"))} selling price ·{" "}
             {formatCurrency(valueAfterMerge(
-              preview.primary.costPrice,
-              preview.secondary.costPrice,
+              preview.products,
               costPricePolicy,
-              preview.primary.stock,
-              preview.secondary.stock
+              "costPrice",
+              preview.products.map((product) => product.stock)
             ))} cost price.
             {" "}The survivor keeps its name, SKU, category, supplier, and online-store settings.
           </div>
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
-              <thead><tr className="border-b text-xs uppercase text-slate-500"><th className="p-2">Branch</th><th className="p-2">Survivor</th><th className="p-2">Merged product</th><th className="p-2">Projected result</th></tr></thead>
+              <thead><tr className="border-b text-xs uppercase text-slate-500"><th className="p-2">Branch</th><th className="p-2">Selected stocks</th><th className="p-2">Current prices</th><th className="p-2">Projected result</th></tr></thead>
               <tbody>
                 {preview.locations.map((location) => {
-                  const primaryStock = Number(location.primary?.quantity || 0);
-                  const secondaryStock = Number(location.secondary?.quantity || 0);
-                  const primarySelling = Number(location.primary?.sellingPrice ?? preview.primary.sellingPrice);
-                  const secondarySelling = Number(location.secondary?.sellingPrice ?? preview.secondary.sellingPrice);
-                  const primaryCost = Number(location.primary?.costPrice ?? preview.primary.costPrice);
-                  const secondaryCost = Number(location.secondary?.costPrice ?? preview.secondary.costPrice);
-                  const bothInheritPrice = location.primary?.sellingPriceIsInherited !== false
-                    && location.secondary?.sellingPriceIsInherited !== false;
+                  const branchProducts = preview.products.map((product) => {
+                    const branchProduct = location.products[product._id];
+                    return {
+                      ...product,
+                      stock: Number(branchProduct?.quantity || 0),
+                      price: Number(branchProduct?.sellingPrice ?? product.sellingPrice),
+                      costPrice: Number(branchProduct?.costPrice ?? product.costPrice)
+                    };
+                  });
+                  const stockResult = stockAfterMerge(branchProducts, stockPolicy);
+                  const priceResult = valueAfterMerge(branchProducts, sellingPricePolicy, "price");
+                  const costResult = valueAfterMerge(
+                    branchProducts,
+                    costPricePolicy,
+                    "costPrice",
+                    branchProducts.map((product) => product.stock)
+                  );
                   return (
                     <tr key={location.branchId} className="border-b border-slate-100">
                       <td className="p-2 font-medium">{location.branchName}</td>
-                      <td className="p-2">{primaryStock} units · {formatCurrency(primarySelling)} sell · {formatCurrency(primaryCost)} cost</td>
-                      <td className="p-2">{secondaryStock} units · {formatCurrency(secondarySelling)} sell · {formatCurrency(secondaryCost)} cost</td>
-                      <td className="p-2 font-medium">
-                        {stockAfterMerge(primaryStock, secondaryStock, stockPolicy)} units ·{" "}
-                        {formatCurrency(bothInheritPrice
-                          ? valueAfterMerge(preview.primary.sellingPrice, preview.secondary.sellingPrice, sellingPricePolicy)
-                          : valueAfterMerge(primarySelling, secondarySelling, sellingPricePolicy))} sell ·{" "}
-                        {formatCurrency(valueAfterMerge(primaryCost, secondaryCost, costPricePolicy, primaryStock, secondaryStock))} cost
-                      </td>
+                      <td className="p-2">{branchProducts.map((product) => `${product.name}: ${product.stock} units`).join(" · ")}</td>
+                      <td className="p-2">{branchProducts.map((product) => `${product.name}: ${formatCurrency(product.price)} sell / ${formatCurrency(product.costPrice)} cost`).join(" · ")}</td>
+                      <td className="p-2 font-medium">{stockResult} units · {formatCurrency(priceResult)} sell · {formatCurrency(costResult)} cost</td>
                     </tr>
                   );
                 })}
-                {preview.locations.length === 0 && <tr><td className="p-2 text-slate-500" colSpan="3">No branches are configured.</td></tr>}
+                {preview.locations.length === 0 && <tr><td className="p-2 text-slate-500" colSpan="4">No branches are configured.</td></tr>}
               </tbody>
             </table>
           </div>

@@ -12,24 +12,34 @@ import ShopOrder from "../shop/shopOrder.model.js";
 import Supplier from "../suppliers/supplier.model.js";
 import CatalogPairDecision from "./catalogPairDecision.model.js";
 import { canAccessBranch, isPrivileged } from "../../utils/branchAccess.js";
-import { canManageGlobalCatalog, chooseMergeStock, chooseMergeValue } from "./catalogMergeUtils.js";
+import {
+  canManageGlobalCatalog,
+  chooseMergeFieldFromProducts,
+  chooseMergeStockFromProducts
+} from "./catalogMergeUtils.js";
 
 const isValidObjectId = (value) => mongoose.isValidObjectId(value);
 
-const resolveProductPair = async (businessId, primaryId, secondaryId, session) => {
-  if (!isValidObjectId(primaryId) || !isValidObjectId(secondaryId) || String(primaryId) === String(secondaryId)) {
-    throw Object.assign(new Error("Choose two different valid products."), { statusCode: 400 });
+const getRequestedProductIds = (source = {}) => {
+  const secondaries = Array.isArray(source.secondaryIds)
+    ? source.secondaryIds
+    : String(source.secondaryIds || source.secondaryId || "").split(",").filter(Boolean);
+  return [source.primaryId, ...secondaries].filter(Boolean).map(String);
+};
+
+const resolveProducts = async (businessId, productIds, session) => {
+  const ids = productIds.map(String);
+  if (ids.length < 2 || ids.length > 50 || new Set(ids).size !== ids.length || ids.some((id) => !isValidObjectId(id))) {
+    throw Object.assign(new Error("Choose between 2 and 50 different valid products."), { statusCode: 400 });
   }
   const products = await Product.find({
     business: businessId,
-    _id: { $in: [primaryId, secondaryId] }
+    _id: { $in: ids }
   }).session(session || null).lean();
-  if (products.length !== 2) {
-    throw Object.assign(new Error("One or both products no longer exist in this business."), { statusCode: 404 });
+  if (products.length !== ids.length) {
+    throw Object.assign(new Error("One or more products no longer exist in this business."), { statusCode: 404 });
   }
-  const primary = products.find((product) => String(product._id) === String(primaryId));
-  const secondary = products.find((product) => String(product._id) === String(secondaryId));
-  return { primary, secondary };
+  return ids.map((id) => products.find((product) => String(product._id) === id));
 };
 
 const countReferences = async (businessId, productId) => {
@@ -54,11 +64,11 @@ const getMergePreview = async (req, res) => {
       return res.status(403).json({ message: "Merging products requires product management and all-branch inventory management access." });
     }
     const businessId = req.user.businessId;
-    const { primaryId, secondaryId } = req.query;
-    const { primary, secondary } = await resolveProductPair(businessId, primaryId, secondaryId);
+    const productIds = getRequestedProductIds(req.query);
+    const products = await resolveProducts(businessId, productIds);
     const branchEntries = await BranchInventory.find({
       business: businessId,
-      product: { $in: [primary._id, secondary._id] }
+      product: { $in: products.map((product) => product._id) }
     })
       .populate("branch", "name")
       .lean();
@@ -68,28 +78,25 @@ const getMergePreview = async (req, res) => {
       const current = byBranch.get(branchId) || {
         branchId,
         branchName: entry.branch?.name || "Branch",
-        primary: null,
-        secondary: null
+        products: {}
       };
-      current[String(entry.product) === String(primary._id) ? "primary" : "secondary"] = {
+      const product = products.find((candidate) => String(candidate._id) === String(entry.product));
+      current.products[String(entry.product)] = {
         quantity: Number(entry.quantity || 0),
         sellingPriceIsInherited: entry.branchPrice === null || entry.branchPrice === undefined,
         sellingPrice: Number(entry.branchPrice ?? (
-          String(entry.product) === String(primary._id) ? primary.price : secondary.price
+          product?.price
         ) ?? 0),
-        costPrice: Number(entry.unitCost || (
-          String(entry.product) === String(primary._id) ? primary.costPrice : secondary.costPrice
-        ) || 0)
+        costPrice: Number(entry.unitCost || product?.costPrice || 0)
       };
       byBranch.set(branchId, current);
     }
-    const [primaryReferences, secondaryReferences, branches, suppliers] = await Promise.all([
-      countReferences(businessId, primary._id),
-      countReferences(businessId, secondary._id),
+    const [references, branches, suppliers] = await Promise.all([
+      Promise.all(products.map((product) => countReferences(businessId, product._id))),
       Branch.find({ business: businessId }).select("_id name").lean(),
       Supplier.find({
         business: businessId,
-        _id: { $in: [primary.preferredSupplier, secondary.preferredSupplier].filter(Boolean) }
+        _id: { $in: products.map((product) => product.preferredSupplier).filter(Boolean) }
       }).select("_id name").lean()
     ]);
     const supplierName = (product) => suppliers.find((supplier) =>
@@ -98,37 +105,24 @@ const getMergePreview = async (req, res) => {
     const locations = branches.map((branch) => byBranch.get(String(branch._id)) || {
       branchId: String(branch._id),
       branchName: branch.name,
-      primary: null,
-      secondary: null
+      products: {}
     });
 
     return res.json({
-      primary: {
-        _id: primary._id,
-        name: primary.name,
-        sku: primary.sku,
-        category: primary.category,
-        preferredSupplier: supplierName(primary),
-        shopVisible: primary.shopVisible !== false,
-        stock: Number(primary.stock || 0),
-        sellingPrice: Number(primary.price || 0),
-        costPrice: Number(primary.costPrice || 0),
-        references: primaryReferences
-      },
-      secondary: {
-        _id: secondary._id,
-        name: secondary.name,
-        sku: secondary.sku,
-        category: secondary.category,
-        preferredSupplier: supplierName(secondary),
-        shopVisible: secondary.shopVisible !== false,
-        stock: Number(secondary.stock || 0),
-        sellingPrice: Number(secondary.price || 0),
-        costPrice: Number(secondary.costPrice || 0),
-        references: secondaryReferences
-      },
+      products: products.map((product, index) => ({
+        _id: product._id,
+        name: product.name,
+        sku: product.sku,
+        category: product.category,
+        preferredSupplier: supplierName(product),
+        shopVisible: product.shopVisible !== false,
+        stock: Number(product.stock || 0),
+        sellingPrice: Number(product.price || 0),
+        costPrice: Number(product.costPrice || 0),
+        references: references[index]
+      })),
       locations,
-      warning: "This operation merges the products across head office and every branch, and updates linked sales, invoices, purchases, expenses, transfers, online orders, and stock history."
+      warning: `This operation merges ${products.length} products across head office and every branch, and updates linked sales, invoices, purchases, expenses, transfers, online orders, and stock history.`
     });
   } catch (err) {
     if (!err.statusCode || err.statusCode >= 500) console.error("PRODUCT MERGE PREVIEW ERROR", err);
@@ -162,85 +156,114 @@ const mergeProducts = async (req, res) => {
     const {
       primaryId,
       secondaryId,
+      secondaryIds,
       stockPolicy,
       sellingPricePolicy,
       costPricePolicy
     } = req.body;
-    const validStockPolicies = ["sum", "primary", "secondary"];
-    const validSellingPolicies = ["primary", "secondary", "highest", "lowest"];
-    const validCostPolicies = ["primary", "secondary", "highest", "lowest", "weighted-average"];
-    if (!validStockPolicies.includes(stockPolicy)
-      || !validSellingPolicies.includes(sellingPricePolicy)
-      || !validCostPolicies.includes(costPricePolicy)) {
-      return res.status(400).json({ message: "Choose valid stock, selling-price, and cost-price merge rules." });
+    const productIds = getRequestedProductIds({ primaryId, secondaryId, secondaryIds });
+    const products = await resolveProducts(businessId, productIds);
+    const survivor = products[0];
+    const removedProducts = products.slice(1);
+    const validSourcePolicy = (policy) => productIds.includes(String(policy))
+      || policy === "primary"
+      || policy === "secondary";
+    if (!(stockPolicy === "sum" || validSourcePolicy(stockPolicy))
+      || !(validSourcePolicy(sellingPricePolicy) || ["highest", "lowest"].includes(sellingPricePolicy))
+      || !(validSourcePolicy(costPricePolicy) || ["weighted-average", "highest", "lowest"].includes(costPricePolicy))) {
+      return res.status(400).json({ message: "Choose a stock policy and valid selling-price and cost-price sources." });
     }
-
+    const resolvePolicyId = (policy) => policy === "primary"
+      ? String(survivor._id)
+      : policy === "secondary"
+        ? String(products[1]._id)
+        : String(policy);
+    const normalizedStockPolicy = stockPolicy === "sum" ? "sum" : resolvePolicyId(stockPolicy);
+    const normalizedSellingPolicy = ["highest", "lowest"].includes(sellingPricePolicy)
+      ? sellingPricePolicy
+      : resolvePolicyId(sellingPricePolicy);
+    const normalizedCostPolicy = ["weighted-average", "highest", "lowest"].includes(costPricePolicy)
+      ? costPricePolicy
+      : resolvePolicyId(costPricePolicy);
     session = await mongoose.startSession();
     let result;
     await session.withTransaction(async () => {
-      const { primary, secondary } = await resolveProductPair(businessId, primaryId, secondaryId, session);
-      const previousPrimaryStock = Number(primary.stock || 0);
-      const previousSecondaryStock = Number(secondary.stock || 0);
-      const nextPrimaryStock = chooseMergeStock(previousPrimaryStock, previousSecondaryStock, stockPolicy);
-      const nextSellingPrice = chooseMergeValue(Number(primary.price || 0), Number(secondary.price || 0), sellingPricePolicy);
-      const nextCostPrice = chooseMergeValue(
-        Number(primary.costPrice || 0),
-        Number(secondary.costPrice || 0),
-        costPricePolicy,
-        previousPrimaryStock,
-        previousSecondaryStock
+      const currentProducts = await resolveProducts(businessId, productIds, session);
+      const currentSurvivor = currentProducts[0];
+      const currentRemoved = currentProducts.slice(1);
+      const previousSurvivorStock = Number(currentSurvivor.stock || 0);
+      const stockValues = currentProducts.map((product) => ({
+        _id: product._id,
+        stock: Number(product.stock || 0)
+      }));
+      const nextSurvivorStock = chooseMergeStockFromProducts(stockValues, normalizedStockPolicy, currentSurvivor._id);
+      const nextSellingPrice = chooseMergeFieldFromProducts(
+        currentProducts,
+        normalizedSellingPolicy,
+        "price"
+      );
+      const nextCostPrice = chooseMergeFieldFromProducts(
+        currentProducts,
+        normalizedCostPolicy,
+        "costPrice",
+        currentProducts.map((product) => Number(product.stock || 0))
       );
       const branchEntries = await BranchInventory.find({
         business: businessId,
-        product: { $in: [primary._id, secondary._id] }
+        product: { $in: currentProducts.map((product) => product._id) }
       }).session(session);
       const entriesByBranch = new Map();
       for (const entry of branchEntries) {
         const key = String(entry.branch);
-        const pair = entriesByBranch.get(key) || { primary: null, secondary: null };
-        pair[String(entry.product) === String(primary._id) ? "primary" : "secondary"] = entry;
-        entriesByBranch.set(key, pair);
+        const branchItems = entriesByBranch.get(key) || new Map();
+        branchItems.set(String(entry.product), entry);
+        entriesByBranch.set(key, branchItems);
       }
 
-      const updatedPrimary = await Product.findOne({ _id: primary._id, business: businessId }).session(session);
-      updatedPrimary.stock = nextPrimaryStock;
-      updatedPrimary.price = nextSellingPrice;
-      updatedPrimary.costPrice = nextCostPrice;
-      await updatedPrimary.save({ session });
+      const updatedSurvivor = await Product.findOne({ _id: currentSurvivor._id, business: businessId }).session(session);
+      updatedSurvivor.stock = nextSurvivorStock;
+      updatedSurvivor.price = nextSellingPrice;
+      updatedSurvivor.costPrice = nextCostPrice;
+      await updatedSurvivor.save({ session });
 
-      for (const [branchId, pair] of entriesByBranch) {
-        const primaryEntry = pair.primary;
-        const secondaryEntry = pair.secondary;
-        const primaryQuantity = Number(primaryEntry?.quantity || 0);
-        const secondaryQuantity = Number(secondaryEntry?.quantity || 0);
-        const nextQuantity = chooseMergeStock(primaryQuantity, secondaryQuantity, stockPolicy);
-        const primaryBranchPrice = primaryEntry?.branchPrice ?? Number(primary.price || 0);
-        const secondaryBranchPrice = secondaryEntry?.branchPrice ?? Number(secondary.price || 0);
-        const chosenBranchPrice = chooseMergeValue(primaryBranchPrice, secondaryBranchPrice, sellingPricePolicy);
-        const primaryPriceInherited = primaryEntry?.branchPrice === null || primaryEntry?.branchPrice === undefined;
-        const secondaryPriceInherited = secondaryEntry?.branchPrice === null || secondaryEntry?.branchPrice === undefined;
-        const nextBranchPrice = primaryPriceInherited && secondaryPriceInherited
-          ? null
-          : chosenBranchPrice;
-        const primaryUnitCost = Number(primaryEntry?.unitCost || primary.costPrice || 0);
-        const secondaryUnitCost = Number(secondaryEntry?.unitCost || secondary.costPrice || 0);
-        const nextUnitCost = chooseMergeValue(
-          primaryUnitCost,
-          secondaryUnitCost,
-          costPricePolicy,
-          primaryQuantity,
-          secondaryQuantity
+      for (const [branchId, branchItems] of entriesByBranch) {
+        const branchValues = currentProducts.map((product) => {
+          const entry = branchItems.get(String(product._id));
+          return {
+            _id: product._id,
+            entry,
+            stock: Number(entry?.quantity || 0),
+            price: Number(entry?.branchPrice ?? product.price ?? 0),
+            costPrice: Number(entry?.unitCost || product.costPrice || 0),
+            hasPriceOverride: entry?.branchPrice !== null && entry?.branchPrice !== undefined
+          };
+        });
+        const survivorValue = branchValues[0];
+        const nextQuantity = chooseMergeStockFromProducts(branchValues, normalizedStockPolicy, currentSurvivor._id);
+        const nextBranchPrice = productIds.includes(normalizedSellingPolicy)
+          ? branchValues.find((item) => String(item._id) === normalizedSellingPolicy)?.hasPriceOverride
+            ? branchValues.find((item) => String(item._id) === normalizedSellingPolicy).price
+            : null
+          : branchValues.every((item) => !item.hasPriceOverride)
+            ? null
+            : chooseMergeFieldFromProducts(branchValues, normalizedSellingPolicy, "price");
+        const nextUnitCost = chooseMergeFieldFromProducts(
+          branchValues,
+          normalizedCostPolicy,
+          "costPrice",
+          branchValues.map((item) => item.stock)
         );
-        if (primaryEntry) {
-          primaryEntry.quantity = nextQuantity;
-          primaryEntry.branchPrice = nextBranchPrice;
-          primaryEntry.unitCost = nextUnitCost;
-          await primaryEntry.save({ session });
+        const survivorEntry = branchItems.get(String(currentSurvivor._id));
+        if (survivorEntry) {
+          survivorEntry.quantity = nextQuantity;
+          survivorEntry.branchPrice = nextBranchPrice;
+          survivorEntry.unitCost = nextUnitCost;
+          await survivorEntry.save({ session });
         } else if (nextQuantity !== 0 || nextBranchPrice !== null) {
           await BranchInventory.create([{
             business: businessId,
             branch: branchId,
-            product: primary._id,
+            product: currentSurvivor._id,
             quantity: nextQuantity,
             branchPrice: nextBranchPrice,
             unitCost: nextUnitCost,
@@ -251,14 +274,20 @@ const mergeProducts = async (req, res) => {
           session,
           businessId,
           branchId,
-          productId: primary._id,
-          previousStock: primaryQuantity,
+          productId: currentSurvivor._id,
+          previousStock: survivorValue.stock,
           newStock: nextQuantity,
           unitCost: nextUnitCost,
-          note: `Product merge stock reconciliation (${stockPolicy}; merged ${secondary.name})`,
+          note: `Product merge stock reconciliation (${normalizedStockPolicy === "sum" ? "sum all" : `use ${normalizedStockPolicy}`}; merged ${currentRemoved.map((product) => product.name).join(", ")})`,
           userId: req.user.id
         });
-        if (secondaryEntry) await BranchInventory.deleteOne({ _id: secondaryEntry._id }).session(session);
+        const entriesToRemove = currentRemoved
+          .map((product) => branchItems.get(String(product._id)))
+          .filter(Boolean)
+          .map((entry) => entry._id);
+        if (entriesToRemove.length) {
+          await BranchInventory.deleteMany({ _id: { $in: entriesToRemove } }).session(session);
+        }
       }
 
       const arrayReferenceModels = [
@@ -267,60 +296,65 @@ const mergeProducts = async (req, res) => {
         { model: PurchaseOrder, path: "items.product" },
         { model: Expense, path: "inventoryItems.product" }
       ];
-      for (const { model, path } of arrayReferenceModels) {
-        await model.updateMany(
-          { business: businessId, [path]: secondary._id },
-          { $set: { [`${path.split(".")[0]}.$[item].product`]: primary._id } },
-          { arrayFilters: [{ "item.product": secondary._id }], session }
+      for (const removed of currentRemoved) {
+        for (const { model, path } of arrayReferenceModels) {
+          await model.updateMany(
+            { business: businessId, [path]: removed._id },
+            { $set: { [`${path.split(".")[0]}.$[item].product`]: currentSurvivor._id } },
+            { arrayFilters: [{ "item.product": removed._id }], session }
+          );
+        }
+        await ShopOrder.updateMany(
+          { items: { $elemMatch: { business: businessId, product: removed._id } } },
+          { $set: { "items.$[item].product": currentSurvivor._id } },
+          { arrayFilters: [{ "item.business": businessId, "item.product": removed._id }], session }
+        );
+        await BranchTransferRequest.updateMany(
+          { business: businessId, product: removed._id },
+          { $set: { product: currentSurvivor._id } },
+          { session }
+        );
+        await InventoryMovement.updateMany(
+          { business: businessId, product: removed._id },
+          [{
+            $set: {
+              product: currentSurvivor._id,
+              note: {
+                $concat: [`[Merged from ${removed.name}] `, { $ifNull: ["$note", ""] }]
+              }
+            }
+          }],
+          { session }
         );
       }
-      await ShopOrder.updateMany(
-        { items: { $elemMatch: { business: businessId, product: secondary._id } } },
-        { $set: { "items.$[item].product": primary._id } },
-        { arrayFilters: [{ "item.business": businessId, "item.product": secondary._id }], session }
-      );
-      await BranchTransferRequest.updateMany(
-        { business: businessId, product: secondary._id },
-        { $set: { product: primary._id } },
-        { session }
-      );
-      await InventoryMovement.updateMany(
-        { business: businessId, product: secondary._id },
-        [{
-          $set: {
-            product: primary._id,
-            note: {
-              $concat: [`[Merged from ${secondary.name}] `, { $ifNull: ["$note", ""] }]
-            }
-          }
-        }],
-        { session }
-      );
       await recordMergeMovement({
         session,
         businessId,
-        productId: primary._id,
-        previousStock: previousPrimaryStock,
-        newStock: nextPrimaryStock,
+        productId: currentSurvivor._id,
+        previousStock: previousSurvivorStock,
+        newStock: nextSurvivorStock,
         unitCost: nextCostPrice,
-        note: `Product merge stock reconciliation (${stockPolicy}; merged ${secondary.name})`,
+        note: `Product merge stock reconciliation (${normalizedStockPolicy === "sum" ? "sum all" : `use ${normalizedStockPolicy}`}; merged ${currentRemoved.map((product) => product.name).join(", ")})`,
         userId: req.user.id
       });
       await CatalogPairDecision.deleteMany({
         business: businessId,
         $or: [
-          { firstProduct: { $in: [primary._id, secondary._id] } },
-          { secondProduct: { $in: [primary._id, secondary._id] } }
+          { firstProduct: { $in: currentProducts.map((product) => product._id) } },
+          { secondProduct: { $in: currentProducts.map((product) => product._id) } }
         ]
       }).session(session);
-      await Product.deleteOne({ _id: secondary._id, business: businessId }).session(session);
+      await Product.deleteMany({
+        _id: { $in: currentRemoved.map((product) => product._id) },
+        business: businessId
+      }).session(session);
       result = {
-        primaryProductId: primary._id,
-        removedProductId: secondary._id,
-        stockPolicy,
-        sellingPricePolicy,
-        costPricePolicy,
-        headOfficeStock: nextPrimaryStock
+        primaryProductId: currentSurvivor._id,
+        removedProductIds: currentRemoved.map((product) => product._id),
+        stockPolicy: normalizedStockPolicy,
+        sellingPricePolicy: normalizedSellingPolicy,
+        costPricePolicy: normalizedCostPolicy,
+        headOfficeStock: nextSurvivorStock
       };
     });
 
@@ -338,7 +372,13 @@ const mergeProducts = async (req, res) => {
 
 const keepProductsSeparate = async (req, res) => {
   try {
-    const { branchId, firstProductId, secondProductId, keepSeparate = true } = req.body;
+    const {
+      branchId,
+      productIds,
+      firstProductId,
+      secondProductId,
+      keepSeparate = true
+    } = req.body;
     if (typeof keepSeparate !== "boolean") {
       return res.status(400).json({ message: "Choose whether to keep this product pair separate." });
     }
@@ -351,25 +391,36 @@ const keepProductsSeparate = async (req, res) => {
     if (!req.user.permissions?.canManageProducts && !isPrivileged(req.user)) {
       return res.status(403).json({ message: "Product-management permission is required to record catalog decisions." });
     }
-    const { first, second } = await resolveProductPair(req.user.businessId, firstProductId, secondProductId);
-    const [firstId, secondId] = [String(first._id), String(second._id)].sort();
+    const selectedIds = Array.isArray(productIds) ? productIds.map(String) : [firstProductId, secondProductId].filter(Boolean).map(String);
+    const products = await resolveProducts(req.user.businessId, selectedIds);
+    const pairs = [];
+    for (let firstIndex = 0; firstIndex < products.length; firstIndex += 1) {
+      for (let secondIndex = firstIndex + 1; secondIndex < products.length; secondIndex += 1) {
+        const [firstId, secondId] = [String(products[firstIndex]._id), String(products[secondIndex]._id)].sort();
+        pairs.push({ firstId, secondId });
+      }
+    }
     if (!keepSeparate) {
-      await CatalogPairDecision.deleteOne({
+      await CatalogPairDecision.deleteMany({
         business: req.user.businessId,
-        firstProduct: firstId,
-        secondProduct: secondId
+        $or: pairs.map(({ firstId, secondId }) => ({
+          firstProduct: firstId,
+          secondProduct: secondId
+        }))
       });
       return res.json({ message: "The keep-separate decision was removed." });
     }
-    await CatalogPairDecision.findOneAndUpdate(
-      { business: req.user.businessId, firstProduct: firstId, secondProduct: secondId },
-      {
-        $set: { decision: "keep-separate", decidedBy: req.user.id },
-        $setOnInsert: { business: req.user.businessId, firstProduct: firstId, secondProduct: secondId }
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
-    return res.json({ message: "These products will remain separate and will no longer be suggested as a pair." });
+    await CatalogPairDecision.bulkWrite(pairs.map(({ firstId, secondId }) => ({
+      updateOne: {
+        filter: { business: req.user.businessId, firstProduct: firstId, secondProduct: secondId },
+        update: {
+          $set: { decision: "keep-separate", decidedBy: req.user.id },
+          $setOnInsert: { business: req.user.businessId, firstProduct: firstId, secondProduct: secondId }
+        },
+        upsert: true
+      }
+    })));
+    return res.json({ message: `Saved: all ${products.length} selected products will remain separate from one another.` });
   } catch (err) {
     if (!err.statusCode || err.statusCode >= 500) console.error("PRODUCT SEPARATION DECISION ERROR", err);
     return res.status(err.statusCode || 500).json({ message: err.message || "Could not save the catalog decision." });

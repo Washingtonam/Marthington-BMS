@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   canManageGlobalCatalog,
   chooseMergeStock,
+  chooseMergeStockFromProducts,
+  chooseMergeFieldFromProducts,
   chooseMergeValue
 } from "../src/modules/catalog/catalogMergeUtils.js";
 
@@ -23,6 +25,27 @@ test("price merge policies select the requested value", () => {
 test("weighted average cost uses available stock weights and handles empty stock", () => {
   assert.equal(chooseMergeValue(10, 20, "weighted-average", 3, 1), 12.5);
   assert.equal(chooseMergeValue(10, 20, "weighted-average", 0, 0), 15);
+});
+
+test("multi-product stock policies sum all quantities or select any product", () => {
+  const products = [
+    { _id: "one", stock: 5 },
+    { _id: "two", stock: 3 },
+    { _id: "three", stock: 4 }
+  ];
+  assert.equal(chooseMergeStockFromProducts(products, "sum", "one"), 12);
+  assert.equal(chooseMergeStockFromProducts(products, "three", "one"), 4);
+});
+
+test("multi-product price policies choose any selected product and weight cost by stock", () => {
+  const products = [
+    { _id: "one", price: 20, costPrice: 10 },
+    { _id: "two", price: 22, costPrice: 12 },
+    { _id: "three", price: 18, costPrice: 8 }
+  ];
+  assert.equal(chooseMergeFieldFromProducts(products, "three", "price"), 18);
+  assert.equal(chooseMergeFieldFromProducts(products, "highest", "price"), 22);
+  assert.equal(chooseMergeFieldFromProducts(products, "weighted-average", "costPrice", [5, 3, 4]), 9.83);
 });
 
 test("missing prices retain the value that exists", () => {

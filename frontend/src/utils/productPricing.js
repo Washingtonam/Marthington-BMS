@@ -1,6 +1,7 @@
 export const DEFAULT_PRODUCT_MARKUP = 30;
 
 export const suggestSellingPrice = (costPrice, markup = DEFAULT_PRODUCT_MARKUP) => {
+  if (costPrice === "" || costPrice === null || costPrice === undefined) return "";
   const cost = Number(costPrice);
   const percentage = Number(markup);
   if (!Number.isFinite(cost) || !Number.isFinite(percentage)) return "";

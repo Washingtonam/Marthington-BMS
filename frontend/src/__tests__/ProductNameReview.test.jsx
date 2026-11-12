@@ -17,32 +17,34 @@ vi.mock("../api/branches.js", () => ({
       type: "duplicate",
       products: [
         { _id: "product-1", name: "USB Mouse", sku: "MOUSE-1", stock: 5, price: 20, costPrice: 10 },
-        { _id: "product-2", name: "usb-mouse", sku: "MOUSE-2", stock: 3, price: 22, costPrice: 12 }
+        { _id: "product-2", name: "usb-mouse", sku: "MOUSE-2", stock: 3, price: 22, costPrice: 12 },
+        { _id: "product-3", name: "USB Mouse Compact", sku: "MOUSE-3", stock: 4, price: 18, costPrice: 8 }
       ],
       keptSeparatePairs: []
     }],
     totalGroups: 1,
-    scannedProducts: 2,
+    scannedProducts: 3,
     truncated: false
   })),
   getProductMergePreview: vi.fn(async () => ({
-    primary: {
-      _id: "product-1", name: "USB Mouse", sku: "MOUSE-1",
-      stock: 5, sellingPrice: 20, costPrice: 10, references: {}
-    },
-    secondary: {
-      _id: "product-2", name: "usb-mouse", sku: "MOUSE-2",
-      stock: 3, sellingPrice: 22, costPrice: 12, references: {}
-    },
+    products: [
+      { _id: "product-1", name: "USB Mouse", sku: "MOUSE-1", stock: 5, sellingPrice: 20, costPrice: 10, references: {} },
+      { _id: "product-2", name: "usb-mouse", sku: "MOUSE-2", stock: 3, sellingPrice: 22, costPrice: 12, references: {} },
+      { _id: "product-3", name: "USB Mouse Compact", sku: "MOUSE-3", stock: 4, sellingPrice: 18, costPrice: 8, references: {} }
+    ],
     locations: [],
     warning: "This operation merges the products across head office and every branch."
   })),
-  keepCatalogProductsSeparate: vi.fn(),
+  keepCatalogProductsSeparate: vi.fn(async () => ({ message: "Saved: all selected products will remain separate from one another." })),
   mergeCatalogProducts: vi.fn(async () => ({ message: "Products merged successfully." }))
 }));
 
 import { MemoryRouter } from "react-router-dom";
-import { getProductMergePreview, mergeCatalogProducts } from "../api/branches.js";
+import {
+  getProductMergePreview,
+  keepCatalogProductsSeparate,
+  mergeCatalogProducts
+} from "../api/branches.js";
 import ProductNameReview from "../pages/ProductNameReview.jsx";
 
 describe("product name review", () => {
@@ -52,7 +54,7 @@ describe("product name review", () => {
     vi.unstubAllGlobals();
   });
 
-  it("previews the selected stock policy and confirms a business-wide merge", async () => {
+  it("previews a group merge and confirms the selected policies", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     render(
       <MemoryRouter initialEntries={["/app/product-name-review?branchId=headOffice"]}>
@@ -61,23 +63,49 @@ describe("product name review", () => {
     );
 
     await screen.findByText("USB Mouse", { exact: true });
-    fireEvent.click(screen.getByRole("button", { name: /USB Mouse/ }));
-    fireEvent.click(screen.getByRole("button", { name: /usb-mouse/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-2/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-3/ }));
     fireEvent.click(screen.getByRole("button", { name: "Compare merge impact" }));
 
     const projectedResult = await screen.findByText("Projected head-office result:");
-    expect(projectedResult.parentElement.textContent).toContain("8 units");
-    expect(getProductMergePreview).toHaveBeenCalledWith("product-1", "product-2");
+    expect(projectedResult.parentElement.textContent).toContain("12 units");
+    expect(getProductMergePreview).toHaveBeenCalledWith(["product-1", "product-2", "product-3"]);
+
+    fireEvent.change(screen.getByLabelText("Stock at each location"), { target: { value: "product-3" } });
+    fireEvent.change(screen.getByLabelText("Selling price"), { target: { value: "product-3" } });
+    fireEvent.change(screen.getByLabelText("Cost price"), { target: { value: "product-3" } });
+    expect(projectedResult.parentElement.textContent).toContain("4 units");
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm merge" }));
     await waitFor(() => {
       expect(mergeCatalogProducts).toHaveBeenCalledWith({
         primaryId: "product-1",
-        secondaryId: "product-2",
-        stockPolicy: "sum",
-        sellingPricePolicy: "primary",
-        costPricePolicy: "weighted-average"
+        secondaryIds: ["product-2", "product-3"],
+        stockPolicy: "product-3",
+        sellingPricePolicy: "product-3",
+        costPricePolicy: "product-3"
       });
     });
+  });
+
+  it("can mark all selected products to stay separate", async () => {
+    render(
+      <MemoryRouter initialEntries={["/app/product-name-review?branchId=headOffice"]}>
+        <ProductNameReview />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("USB Mouse", { exact: true });
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-2/ }));
+    fireEvent.click(screen.getByRole("button", { name: /MOUSE-3/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep selected separate" }));
+
+    await waitFor(() => expect(keepCatalogProductsSeparate).toHaveBeenCalledWith({
+      branchId: "headOffice",
+      productIds: ["product-1", "product-2", "product-3"],
+      keepSeparate: true
+    }));
   });
 });

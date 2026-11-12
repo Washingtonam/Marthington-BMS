@@ -223,19 +223,33 @@ const Products = () => {
       const method = editingId ? "PUT" : "POST";
       const url = editingId ? `/products/${editingId}` : "/products";
 
-      const payload = {
-        ...form,
-        sellingPrice: Number(form.sellingPrice),
-        costPrice: Number(form.costPrice),
-        stock: Number(form.stock)
-      };
+      const payload = editingId
+        ? {
+          ...form,
+          sellingPrice: Number(form.sellingPrice),
+          costPrice: Number(form.costPrice),
+          stock: Number(form.stock)
+        }
+        : {
+          name: form.name,
+          ...(form.sellingPrice !== "" ? { sellingPrice: Number(form.sellingPrice) } : {}),
+          ...(form.costPrice !== "" ? { costPrice: Number(form.costPrice) } : {}),
+          ...(form.stock !== "" ? { stock: Number(form.stock) } : {}),
+          ...(form.category ? { category: form.category } : {}),
+          ...(form.sku ? { sku: form.sku } : {}),
+          ...(form.preferredSupplier ? { preferredSupplier: form.preferredSupplier } : {})
+        };
 
-      await request(url, {
+      const result = await request(url, {
         method,
         body: JSON.stringify(payload)
       });
 
-      setSuccess(`Product ${editingId ? "updated" : "added"} successfully`);
+      setSuccess(editingId
+        ? "Product updated successfully"
+        : result.matchedExisting
+          ? `An existing product with this name was found; only supplied values were updated.${result.stockUnchanged ? " Stock was not changed because your permissions do not allow stock updates." : ""}`
+          : "Product added successfully");
       setForm(initialForm);
       setMarkup(String(DEFAULT_PRODUCT_MARKUP));
       setCustomSellingPrice(false);

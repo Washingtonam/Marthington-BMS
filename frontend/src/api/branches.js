@@ -48,8 +48,9 @@ export const getProductNameAudit = async (branchId) => {
   return request(`/branches/inventory/name-audit?${params.toString()}`);
 };
 
-export const getProductMergePreview = async (primaryId, secondaryId) => {
-  const params = new URLSearchParams({ primaryId, secondaryId });
+export const getProductMergePreview = async (productIds) => {
+  const [primaryId, ...secondaryIds] = productIds;
+  const params = new URLSearchParams({ primaryId, secondaryIds: secondaryIds.join(",") });
   return request(`/branches/inventory/merge-preview?${params.toString()}`);
 };
 

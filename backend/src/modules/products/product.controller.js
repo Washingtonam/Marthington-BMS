@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import Business from "../businesses/business.model.js";
 import applyBusinessFilter from "../../utils/applyBusinessFilter.js";
 import XLSX from "xlsx";
-import { findCatalogMatch, mergeCatalogValues } from "../catalog/catalogUtils.js";
+import { mergeCatalogValues, normalizeCatalogName } from "../catalog/catalogUtils.js";
 import { isPrivileged } from "../../utils/branchAccess.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import Supplier from "../suppliers/supplier.model.js";
@@ -28,7 +28,12 @@ const findExistingProductMatch = async (businessId, name, excludeId = null) => {
   if (excludeId) query._id = { $ne: excludeId };
 
   const items = await Product.find(query).select("_id name stock price costPrice sku").lean();
-  return findCatalogMatch(items, name);
+  const normalizedName = normalizeCatalogName(name);
+  const matches = items.filter((item) => normalizeCatalogName(item.name) === normalizedName);
+  if (matches.length > 1) {
+    throw Object.assign(new Error("More than one product has this name. Review the duplicate products before adding or editing this product."), { statusCode: 409 });
+  }
+  return matches[0] || null;
 };
 
 // 🔥 CREATE PRODUCT
@@ -51,31 +56,37 @@ const createProduct = async (req, res) => {
       return res.status(400).json({ message: "Product name is required" });
     }
 
+    const stockValue = stock === undefined || stock === null || stock === "" ? undefined : Number(stock);
+    const sellingPriceValue = sellingPrice === undefined || sellingPrice === null || sellingPrice === "" ? undefined : Number(sellingPrice);
+    const costPriceValue = costPrice === undefined || costPrice === null || costPrice === "" ? undefined : Number(costPrice);
+    for (const [label, value] of [["Stock", stockValue], ["Selling price", sellingPriceValue], ["Cost price", costPriceValue]]) {
+      if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+        return res.status(400).json({ message: `${label} must be a non-negative number.` });
+      }
+    }
+
     const existing = await findExistingProductMatch(business._id, name);
     if (existing) {
       const existingStock = Number(existing.stock || 0);
-      const requestedStock = stock === undefined ? existingStock : Number(stock) || 0;
-      const merged = mergeCatalogValues(existing, {
-        name,
-        stock: isPrivileged(req.user) ? requestedStock : existingStock,
-        price: Number(sellingPrice) || Number(existing.price) || 0,
-        costPrice: Number(costPrice) || Number(existing.costPrice) || 0,
-        sku: sku || existing.sku || ""
+      const updates = {
+        ...(category !== undefined ? { category: category || "General" } : {}),
+        ...(sellingPriceValue !== undefined ? { price: sellingPriceValue } : {}),
+        ...(costPriceValue !== undefined ? { costPrice: costPriceValue } : {}),
+        ...(isPrivileged(req.user) && stockValue !== undefined ? { stock: stockValue } : {}),
+        ...(sku !== undefined ? { sku: sku || "" } : {}),
+        ...(resolvedPreferredSupplier !== undefined ? { preferredSupplier: resolvedPreferredSupplier } : {})
+      };
+      const product = await Product.findOneAndUpdate(
+        { _id: existing._id, business: business._id },
+        { $set: updates },
+        { new: true }
+      );
+      return res.status(200).json({
+        ...product.toObject(),
+        matchedExisting: true,
+        stockUnchanged: stockValue !== undefined && !isPrivileged(req.user),
+        previousStock: existingStock
       });
-
-      const product = await Product.findByIdAndUpdate(existing._id, {
-        $set: {
-          name: merged.name,
-          category: category || existing.category || "General",
-          price: Number(merged.price) || 0,
-          costPrice: Number(merged.costPrice) || 0,
-          stock: isPrivileged(req.user) ? Number(merged.stock) || 0 : existingStock,
-          sku: merged.sku || `SKU-${Date.now()}`,
-          ...(resolvedPreferredSupplier !== undefined ? { preferredSupplier: resolvedPreferredSupplier } : {})
-        }
-      }, { new: true });
-
-      return res.status(200).json({ ...product.toObject(), merged: true, duplicateOf: existing._id });
     }
 
     await assertBusinessProductCapacity(business, 1);
@@ -83,9 +94,9 @@ const createProduct = async (req, res) => {
     const product = await Product.create({
       name: String(name).trim(),
       category: category || "General",
-      price: Number(sellingPrice) || 0,
-      costPrice: Number(costPrice) || 0,
-      stock: isPrivileged(req.user) ? Number(stock) || 0 : 0,
+      price: sellingPriceValue ?? 0,
+      costPrice: costPriceValue ?? 0,
+      stock: isPrivileged(req.user) ? stockValue ?? 0 : 0,
       sku: sku || `SKU-${Date.now()}`,
       preferredSupplier: resolvedPreferredSupplier || null,
       business: business._id
