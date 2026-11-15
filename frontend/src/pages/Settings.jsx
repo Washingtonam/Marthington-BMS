@@ -22,6 +22,7 @@ const Settings = () => {
     loadingBusiness,
     user,
     updateAppearance,
+    updateProfileName,
     logout
   } = useAuth();
   const { resetProfile } = useBranding();
@@ -75,6 +76,9 @@ const Settings = () => {
   });
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState("");
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [savingProfileName, setSavingProfileName] = useState(false);
+  const [profileNameMessage, setProfileNameMessage] = useState("");
   const [personalAccentColor, setPersonalAccentColor] = useState(user?.appearance?.accentColor || defaultAccentColor);
   const [upgradeMsg, setUpgradeMsg] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
@@ -131,6 +135,10 @@ const Settings = () => {
   useEffect(() => {
     setPersonalAccentColor(user?.appearance?.accentColor || defaultAccentColor);
   }, [user?.appearance?.accentColor]);
+
+  useEffect(() => {
+    setProfileName(user?.name || "");
+  }, [user?.name]);
 
   // 🔥 FETCH DYNAMIC PRICING (NEW)
   useEffect(() => {
@@ -374,6 +382,27 @@ const Settings = () => {
       setPasswordMessage(error.message || "Could not update password.");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const saveProfileName = async (event) => {
+    event.preventDefault();
+    const name = profileName.trim();
+    if (!name) {
+      setProfileNameMessage("Name is required.");
+      return;
+    }
+
+    try {
+      setSavingProfileName(true);
+      setProfileNameMessage("");
+      const updatedUser = await updateProfileName(name);
+      setProfileName(updatedUser.name);
+      setProfileNameMessage("Name updated successfully.");
+    } catch (error) {
+      setProfileNameMessage(error.message || "Could not update your name.");
+    } finally {
+      setSavingProfileName(false);
     }
   };
 
@@ -644,11 +673,27 @@ const Settings = () => {
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Your Profile</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Account details for the signed-in BMS user.</p>
             </div>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-                <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</dt>
-                <dd className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{user?.name || "Not provided"}</dd>
+            <form onSubmit={saveProfileName} className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+              <label className="grid gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Name
+                <input
+                  type="text"
+                  autoComplete="name"
+                  maxLength={100}
+                  required
+                  value={profileName}
+                  onChange={(event) => setProfileName(event.target.value)}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal dark:border-slate-600 dark:bg-slate-800"
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="submit" disabled={savingProfileName} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
+                  {savingProfileName ? "Saving..." : "Save name"}
+                </button>
+                {profileNameMessage && <p role="status" className="text-sm font-semibold text-slate-600 dark:text-slate-300">{profileNameMessage}</p>}
               </div>
+            </form>
+            <dl className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Email</dt>
                 <dd className="mt-1 break-all font-semibold text-slate-900 dark:text-slate-100">{user?.email || "Not provided"}</dd>

@@ -12,6 +12,20 @@ import { formatCurrency } from "../utils/formatters.js";
 
 const pairKey = (first, second) => [first, second].sort().join(":");
 const groupKey = (group, index) => `${group.type}-${group.products.map((product) => product._id).join("-")}-${index}`;
+const getProductPairKeys = (products) => {
+  const keys = [];
+  for (let firstIndex = 0; firstIndex < products.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < products.length; secondIndex += 1) {
+      keys.push(pairKey(products[firstIndex]._id, products[secondIndex]._id));
+    }
+  }
+  return keys;
+};
+const isGroupAcknowledgedSeparate = (group) => {
+  const pairKeys = getProductPairKeys(group.products);
+  const savedPairKeys = new Set((group.keptSeparatePairs || []).map((pair) => pairKey(...pair)));
+  return pairKeys.length > 0 && pairKeys.every((key) => savedPairKeys.has(key));
+};
 const sourceLabel = (product) => `${product.name} · SKU ${product.sku || "not set"} · ${product.category || "General"} · #${String(product._id).slice(-6)}`;
 const stockAfterMerge = (products, policy) => {
   if (policy === "sum") return products.reduce((sum, product) => sum + Number(product.stock || 0), 0);
@@ -111,6 +125,18 @@ const ProductNameReview = () => {
     if (!group || !selectedProducts.every((id) => group.products.some((product) => product._id === id))) return [];
     return selectedProducts.map((id) => group.products.find((product) => product._id === id));
   }, [groups, selectedGroup, selectedProducts]);
+
+  const groupSections = useMemo(() => {
+    const indexedGroups = groups.map((group, index) => ({
+      group,
+      groupId: groupKey(group, index)
+    }));
+    return {
+      exactNames: indexedGroups.filter(({ group }) => group.type === "duplicate" && !isGroupAcknowledgedSeparate(group)),
+      similarNames: indexedGroups.filter(({ group }) => group.type === "similar" && !isGroupAcknowledgedSeparate(group)),
+      acknowledged: indexedGroups.filter(({ group }) => isGroupAcknowledgedSeparate(group))
+    };
+  }, [groups]);
 
   const selectProduct = (groupId, productId) => {
     setNotice("");
@@ -225,6 +251,65 @@ const ProductNameReview = () => {
     };
   }, [preview, merging]);
 
+  const renderGroup = (group, groupId) => {
+    const hasSelection = selectedGroup === groupId && selectedProducts.length > 0;
+    const selectedPairKeys = getProductPairKeys(selectedProducts);
+    const savedPairKeys = new Set((group.keptSeparatePairs || []).map((pair) => pairKey(...pair)));
+    const selectedPairsSeparate = selectedPairKeys.length > 0 && selectedPairKeys.every((key) => savedPairKeys.has(key));
+    return (
+      <article key={groupId} className="rounded-xl border border-slate-200 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${group.type === "duplicate" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
+              {group.type === "duplicate" ? "Same normalized name" : "Possible similar name"}
+            </span>
+            <span className="ml-2 text-sm text-slate-500">{group.products.length} products</span>
+            {group.keptSeparatePairs?.length > 0 && <span className="ml-2 text-xs text-slate-500">{group.keptSeparatePairs.length} pair{group.keptSeparatePairs.length === 1 ? "" : "s"} marked separate</span>}
+          </div>
+          <p className="text-xs text-slate-500">Select two or more products to compare, keep separate, or merge.</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {group.products.map((product) => {
+            const selected = selectedGroup === groupId && selectedProducts.includes(product._id);
+            return (
+              <button
+                key={product._id}
+                type="button"
+                onClick={() => selectProduct(groupId, product._id)}
+                aria-pressed={selected}
+                className={`rounded-lg border p-3 text-left transition ${selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-slate-400"}`}
+              >
+                <strong className="block text-slate-900">{product.name}</strong>
+                <span className="mt-1 block text-xs text-slate-500">SKU: {product.sku || "Not set"} · {product.category || "General"}</span>
+                <span className="mt-2 block text-sm text-slate-700">Stock {Number(product.stock || 0)} · Selling {formatCurrency(Number(product.price || 0))}</span>
+                {product.costPrice !== undefined && <span className="block text-sm text-slate-700">Cost {formatCurrency(Number(product.costPrice || 0))}</span>}
+                {product.preferredSupplier?.name && <span className="mt-1 block text-xs text-slate-500">Supplier: {product.preferredSupplier.name}</span>}
+              </button>
+            );
+          })}
+        </div>
+        {hasSelection && selectedProducts.length >= 2 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+            <span className="mr-auto text-sm text-slate-600">
+              Selected {selectedProducts.length}: {selectedProductsForMerge.map((product) => product?.name).join(", ")}
+              {selectedPairsSeparate && " · saved to stay separate"}
+            </span>
+            {canManageCatalog && (
+              <button type="button" className="btn btn-secondary" onClick={keepSeparate} disabled={savingDecision}>
+                {savingDecision ? "Saving..." : selectedPairsSeparate ? "Undo keep separate" : "Keep selected separate"}
+              </button>
+            )}
+            {canMergeProducts && (
+              <button type="button" className="btn btn-primary" onClick={openMergePreview} disabled={previewLoading}>
+                {previewLoading ? "Preparing..." : "Compare merge impact"}
+              </button>
+            )}
+          </div>
+        )}
+      </article>
+    );
+  };
+
   return (
     <main className="page-shell space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -272,78 +357,41 @@ const ProductNameReview = () => {
           </button>
         </div>
 
-        {!loading && groups.length === 0 && (
+        {!loading && groupSections.exactNames.length + groupSections.similarNames.length === 0 && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-800">
-            No unresolved duplicate or similar-name suggestions were found at this location.
+            No unresolved exact-name duplicates or possible similar-name suggestions were found at this location.
           </div>
         )}
 
-        <div className="space-y-4">
-          {groups.map((group, index) => {
-            const groupId = groupKey(group, index);
-            const hasSelection = selectedGroup === groupId && selectedProducts.length > 0;
-            const selectedPairKeys = [];
-            for (let firstIndex = 0; firstIndex < selectedProducts.length; firstIndex += 1) {
-              for (let secondIndex = firstIndex + 1; secondIndex < selectedProducts.length; secondIndex += 1) {
-                selectedPairKeys.push(pairKey(selectedProducts[firstIndex], selectedProducts[secondIndex]));
-              }
-            }
-            const savedPairKeys = new Set((group.keptSeparatePairs || []).map((pair) => pairKey(...pair)));
-            const selectedPairsSeparate = selectedPairKeys.length > 0 && selectedPairKeys.every((key) => savedPairKeys.has(key));
-            return (
-              <article key={groupId} className="rounded-xl border border-slate-200 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${group.type === "duplicate" ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
-                      {group.type === "duplicate" ? "Same normalized name" : "Possible similar name"}
-                    </span>
-                    <span className="ml-2 text-sm text-slate-500">{group.products.length} products</span>
-                    {group.keptSeparatePairs?.length > 0 && <span className="ml-2 text-xs text-slate-500">{group.keptSeparatePairs.length} pair{group.keptSeparatePairs.length === 1 ? "" : "s"} marked separate</span>}
-                  </div>
-                  <p className="text-xs text-slate-500">Select two or more products to compare, keep separate, or merge.</p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                  {group.products.map((product) => {
-                    const selected = selectedGroup === groupId && selectedProducts.includes(product._id);
-                    return (
-                      <button
-                        key={product._id}
-                        type="button"
-                        onClick={() => selectProduct(groupId, product._id)}
-                        aria-pressed={selected}
-                        className={`rounded-lg border p-3 text-left transition ${selected ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100" : "border-slate-200 hover:border-slate-400"}`}
-                      >
-                        <strong className="block text-slate-900">{product.name}</strong>
-                        <span className="mt-1 block text-xs text-slate-500">SKU: {product.sku || "Not set"} · {product.category || "General"}</span>
-                        <span className="mt-2 block text-sm text-slate-700">Stock {Number(product.stock || 0)} · Selling {formatCurrency(Number(product.price || 0))}</span>
-                        {product.costPrice !== undefined && <span className="block text-sm text-slate-700">Cost {formatCurrency(Number(product.costPrice || 0))}</span>}
-                        {product.preferredSupplier?.name && <span className="mt-1 block text-xs text-slate-500">Supplier: {product.preferredSupplier.name}</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-                {hasSelection && selectedProducts.length >= 2 && (
-                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-                    <span className="mr-auto text-sm text-slate-600">
-                      Selected {selectedProducts.length}: {selectedProductsForMerge.map((product) => product?.name).join(", ")}
-                      {selectedPairsSeparate && " · saved to stay separate"}
-                    </span>
-                    {canManageCatalog && (
-                      <button type="button" className="btn btn-secondary" onClick={keepSeparate} disabled={savingDecision}>
-                        {savingDecision ? "Saving..." : selectedPairsSeparate ? "Undo keep separate" : "Keep selected separate"}
-                      </button>
-                    )}
-                    {canMergeProducts && (
-                      <button type="button" className="btn btn-primary" onClick={openMergePreview} disabled={previewLoading}>
-                        {previewLoading ? "Preparing..." : "Compare merge impact"}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
+        {groupSections.exactNames.length > 0 && (
+          <section aria-labelledby="exact-name-groups-title" className="space-y-3">
+            <header className="border-b border-slate-200 pb-2">
+              <h3 id="exact-name-groups-title" className="font-semibold text-slate-900">Exact duplicate names <span className="text-sm font-normal text-slate-500">({groupSections.exactNames.length})</span></h3>
+              <p className="text-sm text-slate-500">These products have the same normalized name and may be catalog duplicates.</p>
+            </header>
+            <div className="space-y-4">{groupSections.exactNames.map(({ group, groupId }) => renderGroup(group, groupId))}</div>
+          </section>
+        )}
+
+        {groupSections.similarNames.length > 0 && (
+          <section aria-labelledby="similar-name-groups-title" className="space-y-3">
+            <header className="border-b border-slate-200 pb-2">
+              <h3 id="similar-name-groups-title" className="font-semibold text-slate-900">Possible similar names <span className="text-sm font-normal text-slate-500">({groupSections.similarNames.length})</span></h3>
+              <p className="text-sm text-slate-500">These names look alike, but may be different products. Review them individually; similarity does not mean they should be merged.</p>
+            </header>
+            <div className="space-y-4">{groupSections.similarNames.map(({ group, groupId }) => renderGroup(group, groupId))}</div>
+          </section>
+        )}
+
+        {groupSections.acknowledged.length > 0 && (
+          <section aria-labelledby="acknowledged-groups-title" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+            <header className="border-b border-emerald-200 pb-2">
+              <h3 id="acknowledged-groups-title" className="font-semibold text-slate-900">Acknowledged as separate <span className="text-sm font-normal text-slate-500">({groupSections.acknowledged.length})</span></h3>
+              <p className="text-sm text-slate-600">These groups are kept out of the unresolved review sections. You can reopen one to change its decision.</p>
+            </header>
+            <div className="space-y-4">{groupSections.acknowledged.map(({ group, groupId }) => renderGroup(group, groupId))}</div>
+          </section>
+        )}
       </section>
 
       {preview && selectedProductsForMerge.length >= 2 && (

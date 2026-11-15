@@ -145,6 +145,29 @@ const updateAppearance = async (req, res) => {
   }
 };
 
+const updateProfileName = async (req, res) => {
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  if (!name) {
+    return res.status(400).json({ message: "Name is required." });
+  }
+  if (name.length > 100) {
+    return res.status(400).json({ message: "Name must be 100 characters or fewer." });
+  }
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    user.name = name;
+    await user.save();
+
+    return res.json({ name: user.name, message: "Name updated successfully." });
+  } catch (error) {
+    console.error("UPDATE USER PROFILE NAME ERROR:", error);
+    return res.status(500).json({ message: "Could not update your name." });
+  }
+};
+
 const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
@@ -543,5 +566,6 @@ export default {
   refresh,
   getCurrentUser,
   updateAppearance,
+  updateProfileName,
   changePassword
 };

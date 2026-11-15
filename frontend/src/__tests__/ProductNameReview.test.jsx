@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../context/AuthContext.jsx", () => ({
@@ -42,6 +42,7 @@ vi.mock("../api/branches.js", () => ({
 import { MemoryRouter } from "react-router-dom";
 import {
   getProductMergePreview,
+  getProductNameAudit,
   keepCatalogProductsSeparate,
   mergeCatalogProducts
 } from "../api/branches.js";
@@ -127,5 +128,44 @@ describe("product name review", () => {
       productIds: ["product-1", "product-2", "product-3"],
       keepSeparate: true
     }));
+  });
+
+  it("moves an acknowledged similar-name pair into its own section", async () => {
+    const similarGroup = {
+      type: "similar",
+      products: [
+        { _id: "similar-1", name: "Measuring Tape 10m", sku: "TAPE-10", stock: 4, price: 10 },
+        { _id: "similar-2", name: "Measuring Tape 1.5m", sku: "TAPE-15", stock: 7, price: 6 }
+      ],
+      keptSeparatePairs: []
+    };
+    getProductNameAudit
+      .mockImplementationOnce(async () => ({
+        groups: [similarGroup],
+        totalGroups: 1,
+        scannedProducts: 2,
+        truncated: false
+      }))
+      .mockImplementationOnce(async () => ({
+        groups: [{ ...similarGroup, keptSeparatePairs: [["similar-1", "similar-2"]] }],
+        totalGroups: 1,
+        scannedProducts: 2,
+        truncated: false
+      }));
+
+    render(
+      <MemoryRouter initialEntries={["/app/product-name-review?branchId=headOffice"]}>
+        <ProductNameReview />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /TAPE-10/ }));
+    fireEvent.click(screen.getByRole("button", { name: /TAPE-15/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep selected separate" }));
+
+    const acknowledgedSection = await screen.findByRole("region", { name: /Acknowledged as separate/ });
+    expect(within(acknowledgedSection).getByText("Measuring Tape 10m")).toBeTruthy();
+    expect(within(acknowledgedSection).getByText("Measuring Tape 1.5m")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: /Possible similar names/ })).toBeNull();
   });
 });

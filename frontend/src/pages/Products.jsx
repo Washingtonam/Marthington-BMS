@@ -508,43 +508,41 @@ const Products = () => {
 
         {upgradePrompt && !modalOpen && <PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} />}
 
-        <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-[520px]">
-            <label className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:shadow-none">
-              <span className="text-slate-400 dark:text-slate-400">🔎</span>
-              <AutocompleteSearch
-                id="product-search"
-                value={search}
-                onChange={(value) => { setPage(1); setSearch(value); }}
-                suggestions={productSearchSuggestions}
-                placeholder="Search by name or SKU..."
-                className="min-w-0 flex-1"
-                inputClassName="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400"
-              />
-            </label>
-            <div className="flex flex-wrap gap-3">
-              <select
-                aria-label="Filter products by category"
-                value={categoryFilter}
-                onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }}
-                className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value="">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-              <select
-                aria-label="Sort products"
-                value={productSort}
-                onChange={(e) => { setPage(1); setProductSort(e.target.value); }}
-                className="min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value="added">Added order</option>
-                <option value="name-asc">Name (A to Z)</option>
-                <option value="name-desc">Name (Z to A)</option>
-              </select>
-            </div>
+        <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-inner shadow-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:shadow-none lg:min-w-[240px]">
+            <span className="text-slate-400 dark:text-slate-400">🔎</span>
+            <AutocompleteSearch
+              id="product-search"
+              value={search}
+              onChange={(value) => { setPage(1); setSearch(value); }}
+              suggestions={productSearchSuggestions}
+              placeholder="Search by name or SKU..."
+              className="min-w-0 flex-1"
+              inputClassName="w-full border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-400"
+            />
+          </label>
+          <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:flex-none">
+            <select
+              aria-label="Filter products by category"
+              value={categoryFilter}
+              onChange={(e) => { setPage(1); setCategoryFilter(e.target.value); }}
+              className="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 sm:min-w-[220px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <select
+              aria-label="Sort products"
+              value={productSort}
+              onChange={(e) => { setPage(1); setProductSort(e.target.value); }}
+              className="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-900 sm:min-w-[180px] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            >
+              <option value="added">Added order</option>
+              <option value="name-asc">Name (A to Z)</option>
+              <option value="name-desc">Name (Z to A)</option>
+            </select>
           </div>
         </div>
 

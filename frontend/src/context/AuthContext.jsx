@@ -368,6 +368,17 @@ export const AuthProvider = ({ children }) => {
     return response.appearance;
   };
 
+  const updateProfileName = async (name) => {
+    const response = await request("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ name })
+    });
+    const updatedUser = normalizeUser({ ...user, name: response.name });
+    localStorage.setItem("bms_user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return updatedUser;
+  };
+
   // 🔥 DERIVED STATE
   const permissions = usePermissions(user, business);
   const isPro = permissions.isPro;
@@ -421,6 +432,7 @@ export const AuthProvider = ({ children }) => {
       ensureSuperAdminWorkspace,
       ensureBmsWorkspace,
       activateAgentMode,
+      updateAppearance,
       updateAppearance,
 
       impersonatedBusiness,
