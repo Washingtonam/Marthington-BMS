@@ -433,7 +433,7 @@ export const AuthProvider = ({ children }) => {
       ensureBmsWorkspace,
       activateAgentMode,
       updateAppearance,
-      updateAppearance,
+      updateProfileName,
 
       impersonatedBusiness,
 
