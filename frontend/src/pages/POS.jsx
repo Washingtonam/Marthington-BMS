@@ -42,6 +42,27 @@ const getServiceEndPreview = (item) => {
   return new Date(start.getTime() + duration * millisecondsPerUnit).toLocaleString();
 };
 
+const SPLIT_PAYMENT_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "card", label: "POS" }
+];
+
+const normalizeAmountInput = (value) => {
+  const raw = String(value).replace(/[,\s]/g, "");
+  if (!/^\d*\.?\d{0,2}$/.test(raw)) return null;
+  return raw.replace(/^0+(?=\d)/, "");
+};
+
+const formatKoboInput = (kobo) => {
+  const amount = Math.max(0, Math.round(kobo)) / 100;
+  return amount.toFixed(2).replace(/\.?0+$/, "");
+};
+
+const getNextPaymentMethod = (usedMethods) => (
+  SPLIT_PAYMENT_METHODS.find(({ value }) => !usedMethods.includes(value))?.value || ""
+);
+
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
@@ -85,6 +106,7 @@ const POS = () => {
   const [autoSend, setAutoSend] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [singleReferenceOpen, setSingleReferenceOpen] = useState(false);
   const [paymentBreakdown, setPaymentBreakdown] = useState([]);
 
   const handleCustomerNameChange = (value) => {
@@ -125,36 +147,111 @@ const POS = () => {
     const amount = Number(payment.amount);
     return sum + (Number.isFinite(amount) ? Math.round(amount * 100) : 0);
   }, 0);
-  const remainingKobo = totalKobo - paidKobo;
+  const remainingKobo = paymentBreakdown.length
+    ? totalKobo - paidKobo
+    : paymentMethod === "credit" ? totalKobo : 0;
+  const hasPositivePaymentAmounts = paymentBreakdown.every((payment) => {
+    const amount = Number(payment.amount);
+    return Number.isFinite(amount)
+      && amount > 0
+      && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001;
+  });
   const isSplitPaymentValid = paymentBreakdown.length >= 2
-    && paymentBreakdown.every((payment) => {
-      const amount = Number(payment.amount);
-      return ["cash", "card", "bank_transfer", "other"].includes(payment.method)
-        && Number.isFinite(amount)
-        && amount > 0
-        && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001;
-    })
+    && paymentBreakdown.every((payment) => SPLIT_PAYMENT_METHODS.some(({ value }) => value === payment.method))
+    && new Set(paymentBreakdown.map((payment) => payment.method)).size === paymentBreakdown.length
+    && hasPositivePaymentAmounts
     && remainingKobo === 0;
+  const canAddSplitPayment = paymentMethod !== "credit"
+    && totalKobo > 0
+    && paymentBreakdown.length < SPLIT_PAYMENT_METHODS.length
+    && (!paymentBreakdown.length || remainingKobo > 0)
+    && getNextPaymentMethod(paymentBreakdown.map((payment) => payment.method)) !== "";
 
   const startSplitPayment = () => {
+    if (!canAddSplitPayment || paymentBreakdown.length) return;
+    const firstMethod = SPLIT_PAYMENT_METHODS.some(({ value }) => value === paymentMethod)
+      ? paymentMethod
+      : "cash";
+    const secondMethod = getNextPaymentMethod([firstMethod]);
     setPaymentBreakdown([
-      { method: paymentMethod === "credit" ? "cash" : paymentMethod, amount: "0", reference: "" },
-      { method: paymentMethod === "bank_transfer" ? "card" : "bank_transfer", amount: "0", reference: "" }
+      {
+        method: firstMethod,
+        amount: formatKoboInput(totalKobo),
+        reference: paymentMethod === firstMethod ? paymentReference : "",
+        autoAmount: false,
+        showReference: paymentMethod === firstMethod && Boolean(paymentReference || singleReferenceOpen)
+      },
+      { method: secondMethod, amount: "0", reference: "", autoAmount: true, showReference: false }
     ]);
   };
 
   const updatePaymentPart = (index, key, value) => {
+    if (key === "amount") {
+      const normalizedAmount = normalizeAmountInput(value);
+      if (normalizedAmount === null) return;
+
+      setPaymentBreakdown((current) => {
+        const next = current.map((payment, paymentIndex) => paymentIndex === index
+          ? { ...payment, amount: normalizedAmount, autoAmount: false }
+          : { ...payment });
+        const lastIndex = next.length - 1;
+        if (lastIndex > 0 && next[lastIndex].autoAmount && index !== lastIndex) {
+          const allocatedBeforeLast = next.slice(0, lastIndex).reduce((sum, payment) => {
+            const amount = Number(payment.amount);
+            return sum + (Number.isFinite(amount) ? Math.round(amount * 100) : 0);
+          }, 0);
+          next[lastIndex].amount = formatKoboInput(totalKobo - allocatedBeforeLast);
+        }
+        return next;
+      });
+      return;
+    }
+
     setPaymentBreakdown((current) => current.map((payment, paymentIndex) =>
       paymentIndex === index ? { ...payment, [key]: value } : payment
     ));
   };
 
   const addPaymentPart = () => {
+    if (!canAddSplitPayment || !paymentBreakdown.length) return;
+    const method = getNextPaymentMethod(paymentBreakdown.map((payment) => payment.method));
+    if (!method) return;
     setPaymentBreakdown((current) => [...current, {
-      method: "cash",
-      amount: "0",
-      reference: ""
+      method,
+      amount: formatKoboInput(remainingKobo),
+      reference: "",
+      autoAmount: true,
+      showReference: false
     }]);
+  };
+
+  const removePaymentPart = (index) => {
+    const next = paymentBreakdown.filter((_, paymentIndex) => paymentIndex !== index);
+    if (next.length < 2) {
+      if (next[0]) {
+        setPaymentMethod(next[0].method);
+        setPaymentReference(next[0].reference || "");
+      }
+      setPaymentBreakdown([]);
+      return;
+    }
+    const lastIndex = next.length - 1;
+    if (next[lastIndex].autoAmount) {
+      const allocatedBeforeLast = next.slice(0, lastIndex).reduce((sum, payment) => {
+        const amount = Number(payment.amount);
+        return sum + (Number.isFinite(amount) ? Math.round(amount * 100) : 0);
+      }, 0);
+      next[lastIndex].amount = formatKoboInput(totalKobo - allocatedBeforeLast);
+    }
+    setPaymentBreakdown(next);
+  };
+
+  const resetSplitPayment = () => {
+    if (paymentBreakdown[0]) {
+      setPaymentMethod(paymentBreakdown[0].method);
+      setPaymentReference(paymentBreakdown[0].reference || "");
+    }
+    setPaymentBreakdown([]);
   };
 
   const branchInventoryMap = useMemo(
@@ -471,9 +568,10 @@ useEffect(() => {
         paymentMethod: paymentBreakdown.length ? "split" : paymentMethod,
         paymentReference: paymentBreakdown.length ? "" : paymentReference,
         ...(paymentBreakdown.length && {
-          paymentBreakdown: paymentBreakdown.map((payment) => ({
-            ...payment,
-            amount: Number(payment.amount)
+          paymentBreakdown: paymentBreakdown.map(({ method, amount, reference }) => ({
+            method,
+            amount: Number(amount),
+            reference
           }))
         }),
         branch: selectedBranch || undefined,
@@ -848,68 +946,162 @@ useEffect(() => {
                 <span className="text-3xl font-black tracking-tight text-slate-900">{formatCurrency(total)}</span>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Payment method</label>
+            <section aria-labelledby="payment-method-heading" className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <h2 id="payment-method-heading" className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
+                  Payment method
+                </h2>
+                <button
+                  type="button"
+                  aria-label="Add split payment"
+                  disabled={!canAddSplitPayment}
+                  onClick={paymentBreakdown.length ? addPaymentPart : startSplitPayment}
+                  className="rounded-full border border-slate-200 px-2.5 py-1 text-[10px] font-bold text-slate-600 transition hover:border-emerald-300 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+                >
+                  + Split
+                </button>
+              </div>
+
               {paymentBreakdown.length === 0 ? (
-                <>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card / POS terminal</option>
-                    <option value="bank_transfer">Bank transfer</option>
-                    <option value="credit">Credit / debt</option>
-                    <option value="other">Other</option>
-                  </select>
-                  {paymentMethod !== "cash" && paymentMethod !== "credit" && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <select
+                      aria-label="Payment method"
+                      value={paymentMethod}
+                      onChange={(event) => setPaymentMethod(event.target.value)}
+                      className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bank_transfer">Bank transfer</option>
+                      <option value="card">POS</option>
+                      <option value="credit">Credit / debt</option>
+                      <option value="other">Other</option>
+                    </select>
+                    {paymentMethod !== "cash" && paymentMethod !== "credit" ? (
+                      <button
+                        type="button"
+                        aria-label={singleReferenceOpen ? "Hide payment reference" : "Add payment reference"}
+                        aria-expanded={singleReferenceOpen}
+                        onClick={() => setSingleReferenceOpen((open) => !open)}
+                        className="rounded-lg px-2 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        {singleReferenceOpen ? "− Ref" : "+ Ref"}
+                      </button>
+                    ) : <span aria-hidden="true" className="w-10" />}
+                  </div>
+                  {singleReferenceOpen && paymentMethod !== "cash" && paymentMethod !== "credit" && (
                     <input
                       value={paymentReference}
-                      onChange={(e) => setPaymentReference(e.target.value)}
+                      onChange={(event) => setPaymentReference(event.target.value)}
                       placeholder="Reference (optional)"
                       aria-label="Payment reference"
-                      className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                     />
                   )}
-                  {paymentMethod !== "credit" && (
-                    <button type="button" onClick={startSplitPayment} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                      Add split payment
-                    </button>
-                  )}
-                </>
+                </div>
               ) : (
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                <div className="space-y-1.5">
                   {paymentBreakdown.map((payment, index) => (
-                    <div key={index} className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
-                      <div className="flex items-center justify-between">
-                        <label htmlFor={`payment-method-${index}`} className="text-xs font-bold text-slate-700 dark:text-slate-200">Payment {index + 1}</label>
-                        {paymentBreakdown.length > 2 && (
-                          <button type="button" onClick={() => setPaymentBreakdown((current) => current.filter((_, partIndex) => partIndex !== index))} aria-label={`Remove payment ${index + 1}`} className="text-xs font-bold text-rose-600">Remove</button>
-                        )}
+                    <div key={`${payment.method}-${index}`} className="space-y-1">
+                      <div className="grid grid-cols-[minmax(0,42fr)_minmax(0,45fr)_minmax(42px,13fr)] items-center gap-1">
+                        <select
+                          value={payment.method}
+                          onChange={(event) => updatePaymentPart(index, "method", event.target.value)}
+                          aria-label={`Payment ${index + 1} method`}
+                          className="min-w-0 rounded-lg border border-slate-200 bg-white px-1.5 py-2 text-[11px] font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        >
+                          {SPLIT_PAYMENT_METHODS.map(({ value, label }) => (
+                            <option
+                              key={value}
+                              value={value}
+                              disabled={paymentBreakdown.some((other, otherIndex) => otherIndex !== index && other.method === value)}
+                            >
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex min-w-0 items-center rounded-lg border border-slate-200 bg-white px-2 dark:border-slate-700 dark:bg-slate-800">
+                          <span className="text-[11px] font-semibold text-slate-400">₦</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={payment.amount}
+                            onChange={(event) => updatePaymentPart(index, "amount", event.target.value)}
+                            aria-label={`Payment ${index + 1} amount`}
+                            placeholder="0.00"
+                            className="min-w-0 w-full bg-transparent py-2 text-right text-xs font-semibold text-slate-700 outline-none dark:text-slate-100"
+                          />
+                        </div>
+                        <div className="flex min-w-0 items-center justify-end gap-0.5">
+                          {payment.method !== "cash" && (
+                            <button
+                              type="button"
+                              aria-label={payment.showReference ? `Hide reference for payment ${index + 1}` : `Add reference for payment ${index + 1}`}
+                              aria-expanded={Boolean(payment.showReference)}
+                              onClick={() => updatePaymentPart(index, "showReference", !payment.showReference)}
+                              className="rounded px-0.5 py-1 text-[9px] font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                              {payment.showReference ? "−Ref" : "+Ref"}
+                            </button>
+                          )}
+                          {paymentBreakdown.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removePaymentPart(index)}
+                              aria-label={`Remove payment ${index + 1}`}
+                              className="rounded px-1 py-1 text-sm leading-none text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <select id={`payment-method-${index}`} value={payment.method} onChange={(event) => updatePaymentPart(index, "method", event.target.value)} aria-label={`Payment ${index + 1} method`} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                        <option value="cash">Cash</option>
-                        <option value="card">Card / POS terminal</option>
-                        <option value="bank_transfer">Bank transfer</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <input type="number" min="0.01" step="0.01" value={payment.amount} onChange={(event) => updatePaymentPart(index, "amount", event.target.value)} aria-label={`Payment ${index + 1} amount`} placeholder="Amount" className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-                      {payment.method !== "cash" && (
-                        <input value={payment.reference} onChange={(event) => updatePaymentPart(index, "reference", event.target.value)} aria-label={`Payment ${index + 1} reference`} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                      {payment.showReference && payment.method !== "cash" && (
+                        <input
+                          value={payment.reference}
+                          onChange={(event) => updatePaymentPart(index, "reference", event.target.value)}
+                          aria-label={`Payment ${index + 1} reference`}
+                          placeholder="Reference (optional)"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        />
                       )}
                     </div>
                   ))}
-                  <button type="button" onClick={addPaymentPart} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">Add another method</button>
-                  <div className="space-y-1 border-t border-slate-200 pt-3 text-xs dark:border-slate-700">
-                    <div className="flex justify-between"><span>Paid so far</span><strong>{formatCurrency(paidKobo / 100)}</strong></div>
-                    <div className="flex justify-between"><span>{remainingKobo >= 0 ? "Remaining balance" : "Overpayment"}</span><strong className={remainingKobo === 0 ? "text-emerald-700" : "text-rose-600"}>{formatCurrency(Math.abs(remainingKobo) / 100)}</strong></div>
-                  </div>
-                  {!isSplitPaymentValid && <p role="alert" className="text-xs font-semibold text-rose-600">{remainingKobo === 0 ? "Enter a positive amount for each payment method." : remainingKobo > 0 ? "The payments must cover the full sale total." : "The payments exceed the sale total."}</p>}
-                  <button type="button" onClick={() => setPaymentBreakdown([])} className="w-full text-xs font-semibold text-slate-500 underline">Use one payment method</button>
                 </div>
               )}
-            </div>
+
+              <div
+                role="status"
+                className={`flex min-h-8 items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold ${
+                  isSplitPaymentValid || (!paymentBreakdown.length && paymentMethod !== "credit")
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : remainingKobo < 0
+                      ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                }`}
+              >
+                <span>
+                  {!paymentBreakdown.length && paymentMethod === "credit"
+                    ? `Credit sale · balance due ${formatCurrency(total)}`
+                    : paymentBreakdown.length && remainingKobo === 0 && !hasPositivePaymentAmounts
+                      ? "Enter a positive amount for each method"
+                      : remainingKobo < 0
+                        ? `Overpaid by: ${formatCurrency(Math.abs(remainingKobo) / 100)}`
+                        : remainingKobo > 0
+                          ? `Remaining: ${formatCurrency(remainingKobo / 100)}`
+                          : `✓ Fully Allocated (${formatCurrency(total)})`}
+                </span>
+                {paymentBreakdown.length > 0 && isSplitPaymentValid && (
+                  <button
+                    type="button"
+                    onClick={resetSplitPayment}
+                    className="shrink-0 text-[10px] font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2 dark:text-emerald-300"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </section>
 
             <div className="flex items-center justify-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
                 <button

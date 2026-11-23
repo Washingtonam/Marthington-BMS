@@ -137,17 +137,15 @@ describe("POS checkout", () => {
 
     const confirmButton = screen.getByRole("button", { name: /confirm & print/i });
     expect(confirmButton.disabled).toBe(true);
+    expect(screen.getByLabelText("Payment 1 amount").value).toBe("2500");
+    expect(screen.getByLabelText("Payment 2 amount").value).toBe("0");
 
-    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "1500" } });
-    fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "1000" } });
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "01500" } });
+    expect(screen.getByLabelText("Payment 1 amount").value).toBe("1500");
+    expect(screen.getByLabelText("Payment 2 amount").value).toBe("1000");
     expect(confirmButton.disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toContain("Fully Allocated");
 
-    fireEvent.click(screen.getByRole("button", { name: "Add another method" }));
-    fireEvent.change(screen.getByLabelText("Payment 3 amount"), { target: { value: "1" } });
-    expect(confirmButton.disabled).toBe(true);
-
-    fireEvent.click(screen.getByRole("button", { name: "Remove payment 3" }));
-    expect(confirmButton.disabled).toBe(false);
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
@@ -155,11 +153,102 @@ describe("POS checkout", () => {
       expect(JSON.parse(salesCall[1].body)).toMatchObject({
         paymentMethod: "split",
         paymentBreakdown: [
-          { method: "cash", amount: 1500 },
-          { method: "bank_transfer", amount: 1000 }
+          { method: "cash", amount: 1500, reference: "" },
+          { method: "bank_transfer", amount: 1000, reference: "" }
         ]
       });
     });
+  });
+
+  it("adds a remainder row, removes it, and returns to a single payment method", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Add split payment" }));
+
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "1500" } });
+    fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "500" } });
+    const addSplitButton = screen.getByRole("button", { name: "Add split payment" });
+    expect(addSplitButton.disabled).toBe(false);
+
+    fireEvent.click(addSplitButton);
+    expect(screen.getByLabelText("Payment 3 amount").value).toBe("500");
+    expect(screen.getByRole("button", { name: "Add split payment" }).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove payment 3" }));
+    expect(screen.queryByLabelText("Payment 3 amount")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("Remaining: ₦500");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove payment 2" }));
+    expect(screen.getByRole("combobox", { name: "Payment method" }).value).toBe("cash");
+    expect(screen.queryByLabelText("Payment 1 amount")).toBeNull();
+    expect(screen.getByRole("button", { name: /confirm & print/i }).disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body)).toMatchObject({ paymentMethod: "cash" });
+      expect(JSON.parse(salesCall[1].body)).not.toHaveProperty("paymentBreakdown");
+    });
+  });
+
+  it("toggles a slim reference field only for the selected non-cash tender", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Open cart" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), {
+      target: { value: "bank_transfer" }
+    });
+
+    expect(screen.queryByLabelText("Payment reference")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add payment reference" }));
+    expect(screen.getByLabelText("Payment reference")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Payment reference"), { target: { value: "TRX-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide payment reference" }));
+    expect(screen.queryByLabelText("Payment reference")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body)).toMatchObject({
+        paymentMethod: "bank_transfer",
+        paymentReference: "TRX-123"
+      });
+    });
+  });
+
+  it("keeps a transfer reference with its tender when switching to split payment", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Open cart" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Payment method" }), {
+      target: { value: "bank_transfer" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add payment reference" }));
+    fireEvent.change(screen.getByLabelText("Payment reference"), { target: { value: "TRX-456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add split payment" }));
+
+    expect(screen.getByLabelText("Payment 1 reference").value).toBe("TRX-456");
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "1000" } });
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body).paymentBreakdown).toMatchObject([
+        { method: "bank_transfer", amount: 1000, reference: "TRX-456" },
+        { method: "cash", amount: 1500, reference: "" }
+      ]);
+    });
+  });
+
+  it("blocks an underpaid split and shows the remaining balance", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Add split payment" }));
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "2000" } });
+    fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "400" } });
+
+    expect(screen.getByRole("button", { name: /confirm & print/i }).disabled).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("Remaining: ₦100");
   });
 
   it("blocks an overpaid split until tender amounts match the sale total", async () => {
@@ -170,7 +259,7 @@ describe("POS checkout", () => {
     fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "1000" } });
 
     expect(screen.getByRole("button", { name: /confirm & print/i }).disabled).toBe(true);
-    expect(screen.getByText("The payments exceed the sale total.")).toBeTruthy();
+    expect(screen.getByRole("status").textContent).toContain("Overpaid by: ₦100");
   });
 
   it("opens the cart modal and includes optional item serials and notes in checkout", async () => {
