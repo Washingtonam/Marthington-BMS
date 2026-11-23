@@ -1,78 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import {
+  FiBarChart2,
+  FiCalendar,
+  FiDollarSign,
+  FiFileText,
+  FiMapPin,
+  FiMessageCircle,
+  FiPackage,
+  FiShoppingCart,
+  FiTruck,
+  FiUser,
+  FiUsers,
+  FiTrendingUp
+} from "react-icons/fi";
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
 
-const features = [
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 0a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-    title: "Smart POS Engine",
-    desc: "Execute high-volume retail transactions flawlessly with zero checkout friction."
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-      </svg>
-    ),
-    title: "Instant Digital Receipts",
-    desc: "Automate continuous post-sale customer engagement directly through WhatsApp streams."
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
-    title: "Precision Inventory Analytics",
-    desc: "Monitor raw material metrics, automated stock velocities, and low-inventory triggers."
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
-    ),
-    title: "Granular Team Access Control",
-    desc: "Delegate staff permissions safely with institutional role-based authorization parameters."
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-    title: "Executive Intelligence Suite",
-    desc: "Compile centralized balance data, sales turnover curves, and cross-channel reports."
-  },
-  {
-    icon: (
-      <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5 5 0 00-4.591-2.941A1.391 1.391 0 0011 5.516 4 4 0 003 11v3z" />
-      </svg>
-    ),
-    title: "Unified Cloud Infrastructure",
-    desc: "Maintain absolute operating continuity across hardware arrays and mobile channels globally."
-  }
-];
-
 const services = [
-  { title: "POS & sales", description: "Record counter sales, calculate totals, and issue customer receipts." },
-  { title: "Daily reports", description: "Review daily sales, revenue, profit, and staff activity at a glance." },
-  { title: "Financial & inventory reports", description: "Track financial performance, stock levels, inventory movement, and cost trends." },
-  { title: "Inventory & stock", description: "Track products, stock movement, low-stock items, and branch inventory." },
-  { title: "Staff & permissions", description: "Manage team accounts and control access with role-based permissions." },
-  { title: "Branch management", description: "Manage branch records, assigned teams, stock, and branch-scoped operations." },
-  { title: "Customer management", description: "Keep customer records and connect them to sales and follow-ups." },
-  { title: "Suppliers & purchasing", description: "Organize supplier records, purchase orders, and incoming stock." },
-  { title: "Invoices", description: "Create and track customer invoices and outstanding balances." },
-  { title: "Services & scheduling", description: "Record service sales and manage scheduled service start times." },
-  { title: "Expenses & budgets", description: "Record expenses, manage budgets, and review cost trends." },
-  { title: "WhatsApp receipts", description: "Share receipt links and send automatic receipts with an active Pro subscription." }
+  { group: "Core Operations", title: "POS & Sales", description: "Ring up counter sales, split payments, and keep every transaction recorded.", icon: FiShoppingCart },
+  { group: "Core Operations", title: "Daily Reports", description: "See daily sales, revenue, profit, and staff activity at a glance.", icon: FiBarChart2 },
+  { group: "Core Operations", title: "Staff & Permissions", description: "Give every team member role-based access to the tools they need.", icon: FiUsers },
+  { group: "Core Operations", title: "Branch Management", description: "Manage outlets, assigned teams, and branch operations from one place.", icon: FiMapPin },
+  { group: "Inventory & Supply Chain", title: "Inventory & Stock", description: "Track stock movement, low-stock items, and what is available at each branch.", icon: FiPackage },
+  { group: "Inventory & Supply Chain", title: "Suppliers & Purchasing", description: "Organize supplier records, purchase orders, and incoming stock.", icon: FiTruck },
+  { group: "Inventory & Supply Chain", title: "Services & Scheduling", description: "Record service sales and keep scheduled work and appointments on track.", icon: FiCalendar },
+  { group: "Financial Control & Growth", title: "Financial & Inventory Reports", description: "Understand profit, costs, stock levels, and inventory movement.", icon: FiTrendingUp },
+  { group: "Financial Control & Growth", title: "Customer Management", description: "Keep customer records connected to sales, invoices, and follow-ups.", icon: FiUser },
+  { group: "Financial Control & Growth", title: "Invoices", description: "Create customer invoices and track outstanding balances.", icon: FiFileText },
+  { group: "Financial Control & Growth", title: "Expenses & Budgets", description: "Record spending, set budgets, and spot cost trends before they grow.", icon: FiDollarSign },
+  { group: "Financial Control & Growth", title: "WhatsApp Receipts", description: "Send branded digital receipts automatically with an active Pro subscription.", icon: FiMessageCircle }
 ];
 
 const categoryTabs = [
@@ -87,154 +44,68 @@ const useRegistrationPath = () => {
   return referralCode ? `/register?ref=${encodeURIComponent(referralCode)}` : "/register";
 };
 
-const PreviewCard = ({ eyebrow, title, description, children, className = "" }) => (
-  <article className={`overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm ${className}`}>
-    <div className="border-b border-slate-100 px-5 py-5 sm:px-6">
-      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-700">{eyebrow}</p>
-      <h3 className="mt-2 text-lg font-bold tracking-tight text-slate-900">{title}</h3>
-      <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p>
-    </div>
-    <div className="p-4 sm:p-5">{children}</div>
-  </article>
-);
-
 const ProductPreviews = () => (
   <section id="platform" className="scroll-mt-24 border-y border-slate-200 bg-slate-50/80 py-20 sm:py-24">
     <div className="mx-auto max-w-7xl px-5 sm:px-6">
       <div className="mx-auto mb-12 max-w-2xl text-center sm:mb-14">
-        <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">One connected workspace</p>
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Three connected platforms</p>
         <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-          See your business clearly, wherever you are.
+          One ecosystem for running and growing your business.
         </h2>
         <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">
-          A closer look at checkout, cross-sector operations and partner performance. These illustrative previews adapt to desktop and phone screens.
+          Run daily operations, reach customers online, and grow through a partner network—all connected to Marthington.
         </p>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <PreviewCard
-          eyebrow="Sales · Checkout"
-          title="Smart POS & digital receipts"
-          description="Move from basket to a shareable receipt with a clear, reliable checkout flow."
-        >
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold text-slate-800">New sale</p>
-                <p className="mt-1 text-[10px] text-slate-400">Counter 01 · Today, 10:42</p>
-              </div>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700">Ready</span>
+        {[
+          {
+            eyebrow: "Core cloud operating system",
+            title: "Marthington BMS",
+            description: "Run the daily work of your retail or service business from one connected dashboard.",
+            highlights: ["Counter POS with split payments", "Stock, staff permissions, and expenses", "Invoices and real-time profit reports"],
+            action: "Explore BMS",
+            to: "/register",
+            icon: FiShoppingCart
+          },
+          {
+            eyebrow: "Online sales channel",
+            title: "Marthington Storefronts",
+            description: "Showcase your products online and receive customer orders connected to your inventory.",
+            highlights: ["A storefront for your products", "Orders connected to your catalog", "Inventory managed from BMS"],
+            action: "View Storefronts",
+            to: "/shop",
+            icon: FiPackage
+          },
+          {
+            eyebrow: "Partner and consultant ecosystem",
+            title: "Marthington Partners Portal",
+            description: "Help businesses get started and earn recurring commissions as a consultant, IT vendor, or field agent.",
+            highlights: ["Onboard businesses with referral links", "Track conversions and commissions", "Follow earnings and payouts"],
+            action: "Become a Partner",
+            to: "/affiliate-register",
+            icon: FiUsers
+          }
+        ].map(({ eyebrow, title, description, highlights, action, to, icon: Icon }) => (
+          <article key={title} className="group flex flex-col rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg sm:p-7">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <Icon aria-hidden="true" className="h-6 w-6" />
             </div>
-            <div className="mt-4 space-y-2">
-              {[["Everyday backpack", "1 × ₦18,500"], ["A5 exercise book", "3 × ₦1,200"]].map(([item, price]) => (
-                <div key={item} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2.5">
-                  <span className="text-xs font-semibold text-slate-700">{item}</span>
-                  <span className="shrink-0 text-[10px] font-medium text-slate-500">{price}</span>
-                </div>
+            <p className="mt-6 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">{eyebrow}</p>
+            <h3 className="mt-2 text-xl font-bold tracking-tight text-slate-900">{title}</h3>
+            <p className="mt-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">{description}</p>
+            <ul className="mt-5 space-y-3 border-t border-slate-100 pt-5">
+              {highlights.map((highlight) => (
+                <li key={highlight} className="flex gap-2.5 text-sm leading-5 text-slate-600">
+                  <span aria-hidden="true" className="mt-0.5 text-emerald-600">✓</span>{highlight}
+                </li>
               ))}
-            </div>
-            <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
-              <span className="text-xs font-semibold text-slate-500">Total</span>
-              <span className="text-base font-extrabold text-slate-900">₦22,100</span>
-            </div>
-            <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">Digital receipt</p>
-                  <p className="mt-1 text-[10px] text-emerald-700">Sale recorded · Customer copy ready</p>
-                </div>
-                <span aria-hidden="true" className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">✓</span>
-              </div>
-            </div>
-          </div>
-          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative workspace preview</p>
-        </PreviewCard>
-
-        <PreviewCard
-          eyebrow="Management · Reporting"
-          title="Executive, multi-sector view"
-          description="Switch between retail, school and hospital workflows with relevant operational signals."
-        >
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-            <div className="flex flex-wrap gap-1.5">
-              {["Retail", "Schools", "Hospitals"].map((sector, index) => (
-                <span key={sector} className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold ${index === 0 ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-500"}`}>
-                  {sector}
-                </span>
-              ))}
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {[["Sales today", "₦482k", "↑ 12%"], ["Stock alerts", "08", "2 urgent"]].map(([label, value, note]) => (
-                <div key={label} className="rounded-xl border border-slate-100 bg-white p-3">
-                  <p className="text-[10px] font-medium text-slate-400">{label}</p>
-                  <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-1">
-                    <span className="text-lg font-extrabold text-slate-900">{value}</span>
-                    <span className="text-[9px] font-bold text-emerald-600">{note}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 rounded-xl border border-slate-100 bg-white p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold text-slate-700">Operations overview</p>
-                <p className="text-[9px] text-slate-400">This week</p>
-              </div>
-              <div className="mt-3 flex h-14 items-end gap-1.5" aria-label="Illustrative weekly activity chart">
-                {[38, 58, 45, 76, 54, 88, 68, 100, 73, 84, 60, 92].map((height, index) => (
-                  <span key={index} className={`flex-1 rounded-t-sm ${index === 7 ? "bg-emerald-600" : "bg-emerald-200"}`} style={{ height: `${height}%` }} />
-                ))}
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
-                {[["RETAIL", "Stock & sales"], ["SCHOOLS", "Fees & classes"], ["HOSPITALS", "Care & supplies"]].map(([sector, detail]) => (
-                  <div key={sector}>
-                    <p className="text-[8px] font-bold tracking-wide text-slate-500">{sector}</p>
-                    <p className="mt-1 text-[8px] leading-tight text-slate-400">{detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative workspace preview</p>
-        </PreviewCard>
-
-        <PreviewCard
-          eyebrow="Partnerships · Performance"
-          title="Partner wallet & conversions"
-          description="Follow referral activity, qualifying commissions and payout progress in one place."
-        >
-          <div className="rounded-2xl bg-slate-950 p-4 text-white">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-[10px] font-semibold text-slate-400">Available balance</p>
-                <p className="mt-1 text-2xl font-extrabold tracking-tight">₦184,500</p>
-              </div>
-              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[9px] font-bold text-emerald-300">Wallet</span>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[9px] text-slate-400">Conversions</p>
-                <p className="mt-1 text-lg font-bold">24</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <p className="text-[9px] text-slate-400">Pending payout</p>
-                <p className="mt-1 text-lg font-bold">₦32,000</p>
-              </div>
-            </div>
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <p className="text-[10px] font-bold text-slate-200">Recent activity</p>
-                <p className="text-[9px] text-slate-400">Status</p>
-              </div>
-              {[["Northstar Stores", "Confirmed"], ["Bright Future School", "Processing"], ["Greenview Clinic", "Confirmed"]].map(([name, status]) => (
-                <div key={name} className="flex items-center justify-between gap-2 border-b border-white/5 py-2 last:border-0 last:pb-0">
-                  <span className="truncate text-[9px] text-slate-300">{name}</span>
-                  <span className={`shrink-0 text-[9px] font-semibold ${status === "Confirmed" ? "text-emerald-300" : "text-amber-300"}`}>{status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="mt-3 text-center text-[10px] font-medium text-slate-400">Illustrative partner preview</p>
-        </PreviewCard>
+            </ul>
+            <Link to={to} className="mt-7 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-emerald-700 transition-colors hover:text-emerald-900">
+              {action}<span aria-hidden="true">→</span>
+            </Link>
+          </article>
+        ))}
       </div>
     </div>
   </section>
@@ -322,15 +193,96 @@ const TeamManagement = () => {
   </section>;
 };
 
+const PricingSection = ({ yearlyPrice, registerPath }) => {
+  const proFeatures = [
+    "Unlimited products and unlimited staff accounts with role-based permissions",
+    "Automated branded WhatsApp receipts after every sale",
+    "Multi-branch control with real-time stock sync",
+    "Profit reports, expense and budget tracking, supplier purchase orders, and customer invoices",
+    "Priority onboarding and support"
+  ];
+
+  return (
+    <section id="pricing" className="scroll-mt-24 border-y border-slate-200 bg-white py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-5 sm:px-6">
+        <div className="mx-auto mb-12 max-w-2xl text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Start with the plan that fits</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Test for free. Grow with Pro.</h2>
+          <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">
+            Try the essentials at no cost, then unlock the tools and capacity to run a growing business.
+          </p>
+        </div>
+
+        <div className="grid items-stretch gap-6 md:grid-cols-2 md:gap-8">
+          <article className="flex flex-col rounded-3xl border border-slate-200 bg-white p-7 shadow-sm sm:p-8">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Free Mode</p>
+              <p className="mt-5 text-4xl font-black tracking-tight text-slate-900">₦0</p>
+              <p className="mt-1 text-sm font-medium text-slate-500">Forever · Best for testing</p>
+              <p className="mt-4 text-sm leading-6 text-slate-600">Explore the interface and try a starter setup before you commit.</p>
+            </div>
+            <ul className="mt-6 flex-1 space-y-3 border-t border-slate-100 pt-6 text-sm leading-6 text-slate-600">
+              {[
+                "Up to 20 products",
+                "1 owner + 1 staff account",
+                "Basic counter POS and manual receipt links",
+                "Single-branch starter setup"
+              ].map((feature) => (
+                <li key={feature} className="flex gap-2.5">
+                  <span aria-hidden="true" className="text-slate-400">✓</span>{feature}
+                </li>
+              ))}
+            </ul>
+            <Link to={registerPath} className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50">
+              Start Free
+            </Link>
+          </article>
+
+          <article className="relative flex flex-col rounded-3xl border-2 border-emerald-500 bg-white p-7 shadow-[0_20px_60px_-24px_rgba(16,185,129,0.35)] sm:p-8">
+            <span className="absolute -top-3.5 right-6 rounded-full bg-emerald-600 px-4 py-1.5 text-[10px] font-black tracking-[0.16em] text-white shadow-sm">MOST POPULAR · RECOMMENDED</span>
+            <div>
+              <p className="text-sm font-bold text-slate-900">Pro Mode</p>
+              <p className="mt-5 text-4xl font-black tracking-tight text-slate-900">{formatCurrency(yearlyPrice)}</p>
+              <p className="mt-1 text-sm font-semibold text-emerald-700">Per year · Built for serious business growth</p>
+              <p className="mt-3 inline-flex rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                {yearlyPrice <= 151475
+                  ? "Less than ₦415/day to run your entire business"
+                  : `About ₦${Math.ceil(yearlyPrice / 365).toLocaleString("en-NG")}/day to run your entire business`}
+              </p>
+            </div>
+            <ul className="mt-6 flex-1 space-y-3 border-t border-emerald-100 pt-6 text-sm leading-6 text-slate-700">
+              {proFeatures.map((feature) => (
+                <li key={feature} className="flex gap-2.5">
+                  <span aria-hidden="true" className="text-emerald-600">✓</span>{feature}
+                </li>
+              ))}
+            </ul>
+            <Link to={registerPath} className="mt-8 inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-emerald-700">
+              Start Free, Then Upgrade to Pro
+            </Link>
+          </article>
+        </div>
+
+        <div className="mt-8 text-center">
+          <a href="/pricing" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 hover:text-emerald-900">
+            View Full Pricing &amp; Compare Plans <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const Landing = () => {
   const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
   const [commissionRate, setCommissionRate] = useState(null);
-  const [planAccess, setPlanAccess] = useState({
-    free: { products: 20, staff: 1, posProducts: 500, features: {} },
-    pro: { products: null, staff: null, posProducts: null, features: {} }
-  });
   const [selectedTab, setSelectedTab] = useState("retail");
   const registerPath = useRegistrationPath();
+
+  const scrollToSection = (event) => {
+    event.preventDefault();
+    document.getElementById(event.currentTarget.hash.slice(1))?.scrollIntoView?.({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     const loadPricing = async () => {
@@ -342,7 +294,6 @@ const Landing = () => {
           setPricing({ monthly: pricingData.monthly.ngn, yearly: pricingData.yearly.ngn });
         }
         if (typeof data?.commissionRate === "number") setCommissionRate(data.commissionRate);
-        if (data?.planAccess?.free && data?.planAccess?.pro) setPlanAccess(data.planAccess);
       } catch (err) {
         console.warn("Failed to load billing pricing", err);
       }
@@ -365,18 +316,21 @@ const Landing = () => {
           </div>
 
           <nav aria-label="Main navigation" className="flex items-center gap-0 sm:gap-5">
-            <a href="#platform" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
-              Platform
-            </a>
-            <a href="#services" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
+            <a href="#services" onClick={scrollToSection} className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
               Services
             </a>
-            <a href="#team" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
+            <a href="#platform" onClick={scrollToSection} className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
+              Platform
+            </a>
+            <a href="#team" onClick={scrollToSection} className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
               Team
             </a>
-            <Link to="/login?next=%2Fpartners%2Fdashboard" className="inline px-1 text-[10px] font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:px-0 sm:text-sm">
+            <a href="#pricing" onClick={scrollToSection} className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
+              Pricing
+            </a>
+            <a href="#partners" onClick={scrollToSection} className="inline px-1 text-[10px] font-semibold text-slate-600 transition-colors hover:text-slate-900 sm:px-0 sm:text-sm">
               Partners
-            </Link>
+            </a>
             <Link to="/shop" className="px-1 text-[10px] font-semibold text-emerald-700 transition-colors hover:text-emerald-900 sm:px-0 sm:text-sm">
               Storefronts
             </Link>
@@ -569,67 +523,30 @@ const Landing = () => {
               See the tools available to help you run sales, people, stock, branches, and business finances in one place.
             </p>
           </div>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((service) => (
-              <li key={service.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-emerald-200 hover:bg-white hover:shadow-sm">
-                <h3 className="text-base font-bold text-slate-900">{service.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{service.description}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
-
-      <ProductPreviews />
-      <TeamManagement />
-
-      {/* THREE CARDS OF TRUST */}
-      <section className="mx-auto max-w-7xl px-6 py-24">
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <h3 className="font-bold text-xl text-slate-900 tracking-tight">Rapid Processing</h3>
-            <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Handle in-person checkout with searchable sales records and digital receipt sharing.
-            </p>
-          </div>
-          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <h3 className="font-bold text-xl text-slate-900 tracking-tight">Workspace access</h3>
-            <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Give team members the access they need for their role while keeping workspace ownership and settings in your hands.
-            </p>
-          </div>
-          <div className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <h3 className="font-bold text-xl text-slate-900 tracking-tight">Scalable Monetization</h3>
-            <p className="mt-3 text-sm leading-relaxed text-slate-500">
-              Choose retail, school or hospital workflows designed around the day-to-day needs of your sector.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* CORE CAPABILITIES GRID */}
-      <section className="border-y border-slate-200 bg-white/80 py-28 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-20">
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">Enterprise management architecture.</h2>
-            <p className="text-slate-400 text-sm mt-3 font-medium leading-relaxed">
-              One meticulously designed environment to govern accounts receivable, verify personnel pipelines, track inventory batches, and download structural analytics.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature) => (
-              <div key={feature.title} className="group p-8 bg-[#fafbfc] border border-slate-200/70 rounded-3xl hover:bg-white hover:shadow-xl hover:border-transparent transition-all duration-300">
-                <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center mb-6 shadow-sm group-hover:scale-105 transition-transform duration-200">
-                  {feature.icon}
-                </div>
-                <h3 className="font-bold text-lg text-slate-900 tracking-tight">{feature.title}</h3>
-                <p className="text-slate-500 text-sm mt-3 leading-relaxed font-medium">{feature.desc}</p>
+          <div className="space-y-12">
+            {["Core Operations", "Inventory & Supply Chain", "Financial Control & Growth"].map((group) => (
+              <div key={group}>
+                <h3 className="mb-5 text-lg font-bold tracking-tight text-slate-800">{group}</h3>
+                <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {services.filter((service) => service.group === group).map(({ title, description, icon: Icon }) => (
+                    <li key={title} className="group min-h-40 rounded-2xl border border-slate-200 bg-slate-50/70 p-6 transition duration-200 hover:-translate-y-1 hover:border-emerald-200 hover:bg-white hover:shadow-lg">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100/80 text-emerald-700 transition-colors group-hover:bg-emerald-100">
+                        <Icon aria-hidden="true" className="h-5 w-5" />
+                      </div>
+                      <h4 className="mt-4 text-base font-bold text-slate-900">{title}</h4>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      <ProductPreviews />
+      <TeamManagement />
+      <PricingSection yearlyPrice={pricing.yearly} registerPath={registerPath} />
 
       {/* REVENUE SHARING PARTNERSHIP ECOSYSTEM */}
       <section className="border-b border-slate-200 bg-slate-50/70 py-20 sm:py-28">
@@ -686,62 +603,6 @@ const Landing = () => {
               <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">3</span> <span>Deploy promotional pipelines to active retail heads, institutional schools, and clinics.</span></li>
               <li className="flex items-start gap-3"><span className="flex h-5 w-5 rounded-full bg-slate-900 text-white font-bold items-center justify-center text-[10px] shrink-0 mt-0.5">4</span> <span>Track referred workspaces, commission earnings and payout status.</span></li>
             </ol>
-          </div>
-        </div>
-      </section>
-
-      {/* SUBSCRIPTION CENTER (SOURCE OF TRUTH LINKED) */}
-      <section className="bg-white py-28">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-20">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Choose Free or Pro.</h2>
-            <p className="text-slate-400 text-sm font-medium mt-2">
-              Start free, then upgrade when your business needs more capacity.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8 items-start">
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900">Free Mode</h3>
-              <p className="text-4xl font-bold text-slate-900 tracking-tight mt-5">₦0</p>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">No subscription fee</span>
-              <ul className="space-y-3.5 mt-8 text-xs font-medium text-slate-500 border-t border-slate-100 pt-6">
-                <li>✔ Up to {planAccess.free.products} products</li>
-                <li>✔ Up to {planAccess.free.staff} additional staff account(s); the owner is separate</li>
-                <li>✔ POS product listing limit: {planAccess.free.posProducts}</li>
-                <li>✔ Sales and reports subject to staff permissions</li>
-                <li>✔ Branch access follows roles and assignments; no plan branch cap is configured</li>
-                <li>✔ No plan-based transaction limit is configured</li>
-              </ul>
-              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
-                Start Free
-              </Link>
-            </div>
-
-            <div className="bg-white border-2 border-emerald-600 rounded-[32px] p-8 shadow-xl relative">
-              <div className="absolute -top-3.5 right-6 bg-emerald-600 text-white px-3 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase">
-                Recommended
-              </div>
-              <h3 className="font-bold text-lg text-slate-900">Pro Mode</h3>
-              <div className="mt-5">
-                <p className="text-4xl font-bold text-slate-900 tracking-tight">{formatCurrency(pricing.yearly)}</p>
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">Per workspace / year</span>
-              </div>
-              <ul className="space-y-3.5 mt-6 text-xs font-medium text-slate-500 border-t border-slate-100 pt-5">
-                <li>✔ {planAccess.pro.products === null ? "Unlimited" : planAccess.pro.products} products and staff accounts</li>
-                <li>✔ {planAccess.pro.posProducts === null ? "Unlimited" : planAccess.pro.posProducts} POS product listing capacity</li>
-                {planAccess.pro.features.invoices && <li>✔ Invoices enabled by Pro plan configuration</li>}
-                {planAccess.pro.features.logoUpload && <li>✔ Business logo upload</li>}
-                {planAccess.pro.features.customReceiptThemes && <li>✔ Custom receipt themes</li>}
-                {planAccess.pro.features.businessChat && <li>✔ Business chat</li>}
-                <li>✔ WhatsApp auto-receipts with active Pro subscription</li>
-                <li>✔ Reports follow staff permissions; branch access follows roles and assignments</li>
-                <li>✔ No plan-based branch or transaction limit is configured</li>
-              </ul>
-              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl mt-8 shadow-sm transition-all">
-                Start Free, Then Upgrade to Pro
-              </Link>
-            </div>
           </div>
         </div>
       </section>

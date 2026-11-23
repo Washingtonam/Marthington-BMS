@@ -17,6 +17,7 @@ import { ShopCartProvider } from "./context/ShopCartContext.jsx";
 // LAZY LOADED PAGES (Fixes Initialization Race)
 // ====================================
 const Landing = lazy(() => import("./pages/Landing.jsx"));
+const Pricing = lazy(() => import("./pages/Pricing.jsx"));
 const Shop = lazy(() => import("./pages/Shop.jsx"));
 const ShopAccount = lazy(() => import("./pages/ShopAccount.jsx"));
 const ShopProfile = lazy(() => import("./pages/ShopProfile.jsx"));
@@ -167,6 +168,14 @@ const PageLoader = () => (
 );
 
 const App = () => {
+  if (typeof window !== "undefined" && window.location.pathname.replace(/\/+$/, "") === "/pricing") {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Pricing />
+      </Suspense>
+    );
+  }
+
   return (
     <HashRouter>
       <AuthProvider>
@@ -177,6 +186,7 @@ const App = () => {
           <Routes>
             {/* LANDING */}
             <Route path="/" element={<Landing />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/shop" element={<ShopLayout />}>
               <Route index element={<Shop />} />
               <Route path="account" element={<ShopAccount />} />
