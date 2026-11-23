@@ -5,6 +5,7 @@ import { getServices } from "../api/services.js";
 import { getBranches, getBranchInventory } from "../api/branches.js";
 import { getCustomers } from "../api/customers.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { buildTransactionWhatsAppMessage, buildWhatsAppUrl } from "../utils/whatsappMessages.js";
 import { buildCustomerDisplayUrl, resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import PlanUpgradeNotice from "../components/PlanUpgradeNotice.jsx";
@@ -84,6 +85,7 @@ const POS = () => {
   const [autoSend, setAutoSend] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [paymentBreakdown, setPaymentBreakdown] = useState([]);
 
   const handleCustomerNameChange = (value) => {
     const typed = value.trim();
@@ -118,6 +120,42 @@ const POS = () => {
   const total = useMemo(() => 
     cart.reduce((sum, item) => sum + (item.quantity * item.sellingPrice), 0)
   , [cart]);
+  const totalKobo = Math.round(total * 100);
+  const paidKobo = paymentBreakdown.reduce((sum, payment) => {
+    const amount = Number(payment.amount);
+    return sum + (Number.isFinite(amount) ? Math.round(amount * 100) : 0);
+  }, 0);
+  const remainingKobo = totalKobo - paidKobo;
+  const isSplitPaymentValid = paymentBreakdown.length >= 2
+    && paymentBreakdown.every((payment) => {
+      const amount = Number(payment.amount);
+      return ["cash", "card", "bank_transfer", "other"].includes(payment.method)
+        && Number.isFinite(amount)
+        && amount > 0
+        && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001;
+    })
+    && remainingKobo === 0;
+
+  const startSplitPayment = () => {
+    setPaymentBreakdown([
+      { method: paymentMethod === "credit" ? "cash" : paymentMethod, amount: "0", reference: "" },
+      { method: paymentMethod === "bank_transfer" ? "card" : "bank_transfer", amount: "0", reference: "" }
+    ]);
+  };
+
+  const updatePaymentPart = (index, key, value) => {
+    setPaymentBreakdown((current) => current.map((payment, paymentIndex) =>
+      paymentIndex === index ? { ...payment, [key]: value } : payment
+    ));
+  };
+
+  const addPaymentPart = () => {
+    setPaymentBreakdown((current) => [...current, {
+      method: "cash",
+      amount: "0",
+      reference: ""
+    }]);
+  };
 
   const branchInventoryMap = useMemo(
     () => new Map((branchInventory || []).map((item) => [item.product?._id, item])),
@@ -423,15 +461,21 @@ useEffect(() => {
   };
 
   const checkout = async () => {
-    if (!cart.length || processing) return;
+    if (!cart.length || processing || (paymentBreakdown.length && !isSplitPaymentValid)) return;
     try {
       setProcessing(true);
       const payload = {
         customerName: customer.name,
         customerPhone: customer.phone,
         notes: customer.notes,
-        paymentMethod,
-        paymentReference,
+        paymentMethod: paymentBreakdown.length ? "split" : paymentMethod,
+        paymentReference: paymentBreakdown.length ? "" : paymentReference,
+        ...(paymentBreakdown.length && {
+          paymentBreakdown: paymentBreakdown.map((payment) => ({
+            ...payment,
+            amount: Number(payment.amount)
+          }))
+        }),
         branch: selectedBranch || undefined,
         items: cart.map(i => ({
           itemType: i.itemType,
@@ -463,6 +507,7 @@ useEffect(() => {
         setCustomer({ name: "", phone: "", notes: "" });
         setPaymentMethod("cash");
         setPaymentReference("");
+        setPaymentBreakdown([]);
         setUpgradeMsg("Sale saved on this device and will sync automatically when you are online.");
         return;
       }
@@ -476,14 +521,21 @@ useEffect(() => {
         if (autoSend && customer.phone && isPro) {
           const cleanPhone = customer.phone.replace(/\D/g, "").replace(/^0/, "234");
           const receiptLink = `${window.location.origin}/r/${receiptId || saleId}`;
-          const msg = `🧾 *${business?.name}*\n\nHello ${customer.name || "Customer"},\n\nTotal: ${formatCurrency(total)}\nView Receipt: ${receiptLink}`;
-          window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+          const message = buildTransactionWhatsAppMessage({
+            record: salePayload,
+            businessName: business?.name,
+            customerName: customer.name,
+            receiptUrl: receiptLink
+          });
+          const whatsappUrl = buildWhatsAppUrl(cleanPhone, message);
+          if (whatsappUrl) window.open(whatsappUrl, "_blank", "noopener,noreferrer");
         }
 
         setCart([]);
         setCustomer({ name: "", phone: "", notes: "" });
         setPaymentMethod("cash");
         setPaymentReference("");
+        setPaymentBreakdown([]);
 
         navigate(`/app/sales/${saleId}`, {
           state: {
@@ -798,24 +850,64 @@ useEffect(() => {
 
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Payment method</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-              >
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="bank_transfer">Bank transfer</option>
-                <option value="credit">Credit / debt</option>
-                <option value="other">Other</option>
-              </select>
-              {paymentMethod !== "cash" && paymentMethod !== "credit" && (
-                <input
-                  value={paymentReference}
-                  onChange={(e) => setPaymentReference(e.target.value)}
-                  placeholder="Reference (optional)"
-                  className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
-                />
+              {paymentBreakdown.length === 0 ? (
+                <>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card / POS terminal</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                    <option value="credit">Credit / debt</option>
+                    <option value="other">Other</option>
+                  </select>
+                  {paymentMethod !== "cash" && paymentMethod !== "credit" && (
+                    <input
+                      value={paymentReference}
+                      onChange={(e) => setPaymentReference(e.target.value)}
+                      placeholder="Reference (optional)"
+                      aria-label="Payment reference"
+                      className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-semibold text-slate-700 focus:border-slate-300 focus:ring-0 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
+                    />
+                  )}
+                  {paymentMethod !== "credit" && (
+                    <button type="button" onClick={startSplitPayment} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                      Add split payment
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                  {paymentBreakdown.map((payment, index) => (
+                    <div key={index} className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+                      <div className="flex items-center justify-between">
+                        <label htmlFor={`payment-method-${index}`} className="text-xs font-bold text-slate-700 dark:text-slate-200">Payment {index + 1}</label>
+                        {paymentBreakdown.length > 2 && (
+                          <button type="button" onClick={() => setPaymentBreakdown((current) => current.filter((_, partIndex) => partIndex !== index))} aria-label={`Remove payment ${index + 1}`} className="text-xs font-bold text-rose-600">Remove</button>
+                        )}
+                      </div>
+                      <select id={`payment-method-${index}`} value={payment.method} onChange={(event) => updatePaymentPart(index, "method", event.target.value)} aria-label={`Payment ${index + 1} method`} className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                        <option value="cash">Cash</option>
+                        <option value="card">Card / POS terminal</option>
+                        <option value="bank_transfer">Bank transfer</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <input type="number" min="0.01" step="0.01" value={payment.amount} onChange={(event) => updatePaymentPart(index, "amount", event.target.value)} aria-label={`Payment ${index + 1} amount`} placeholder="Amount" className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                      {payment.method !== "cash" && (
+                        <input value={payment.reference} onChange={(event) => updatePaymentPart(index, "reference", event.target.value)} aria-label={`Payment ${index + 1} reference`} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                      )}
+                    </div>
+                  ))}
+                  <button type="button" onClick={addPaymentPart} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">Add another method</button>
+                  <div className="space-y-1 border-t border-slate-200 pt-3 text-xs dark:border-slate-700">
+                    <div className="flex justify-between"><span>Paid so far</span><strong>{formatCurrency(paidKobo / 100)}</strong></div>
+                    <div className="flex justify-between"><span>{remainingKobo >= 0 ? "Remaining balance" : "Overpayment"}</span><strong className={remainingKobo === 0 ? "text-emerald-700" : "text-rose-600"}>{formatCurrency(Math.abs(remainingKobo) / 100)}</strong></div>
+                  </div>
+                  {!isSplitPaymentValid && <p role="alert" className="text-xs font-semibold text-rose-600">{remainingKobo === 0 ? "Enter a positive amount for each payment method." : remainingKobo > 0 ? "The payments must cover the full sale total." : "The payments exceed the sale total."}</p>}
+                  <button type="button" onClick={() => setPaymentBreakdown([])} className="w-full text-xs font-semibold text-slate-500 underline">Use one payment method</button>
+                </div>
               )}
             </div>
 
@@ -843,7 +935,7 @@ useEffect(() => {
 
             <button
               onClick={checkout}
-              disabled={!cart.length || processing}
+              disabled={!cart.length || processing || (paymentBreakdown.length > 0 && !isSplitPaymentValid)}
               className={`w-full rounded-2xl py-4 text-sm font-black uppercase tracking-[0.2em] text-white transition-all active:translate-y-[1px] ${
                 processing ? "bg-slate-300" : "bg-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.16)] hover:bg-slate-800"
               }`}

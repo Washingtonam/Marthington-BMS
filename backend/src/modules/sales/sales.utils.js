@@ -5,13 +5,59 @@ export const canDeleteSale = (user = {}) => {
 
 export const canRestoreSale = (user = {}) => canDeleteSale(user);
 
-export const PAYMENT_METHODS = Object.freeze(["cash", "card", "bank_transfer", "credit", "other"]);
+export const PAYMENT_METHODS = Object.freeze(["cash", "card", "bank_transfer", "credit", "other", "split"]);
 
 export const normalizePaymentMethod = (value = "cash") => {
   const normalized = String(value).trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "transfer" || normalized === "banktransfer") return "bank_transfer";
   if (normalized === "debt" || normalized === "credit_sale") return "credit";
   return PAYMENT_METHODS.includes(normalized) ? normalized : "other";
+};
+
+export const normalizePaymentBreakdown = (value, totalAmount) => {
+  if (!Array.isArray(value) || value.length < 2) {
+    return { error: "Split payments require at least two payment methods." };
+  }
+
+  const numericTotal = Number(totalAmount);
+  const totalKobo = Math.round(numericTotal * 100);
+  if (!Number.isFinite(numericTotal) || numericTotal <= 0 || Math.abs(numericTotal * 100 - totalKobo) > 0.000001) {
+    return { error: "Sale total must be a positive amount." };
+  }
+
+  const payments = [];
+  let paidKobo = 0;
+
+  for (const payment of value) {
+    const rawMethod = String(payment?.method || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (!["cash", "card", "bank_transfer", "banktransfer", "transfer", "other"].includes(rawMethod)) {
+      return { error: "Split payments can only use cash, card, bank transfer, or other." };
+    }
+    const method = normalizePaymentMethod(rawMethod);
+    const amount = Number(payment?.amount);
+    const amountKobo = Math.round(amount * 100);
+
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - amountKobo) > 0.000001) {
+      return { error: "Each split payment must be a positive amount with no more than two decimal places." };
+    }
+
+    paidKobo += amountKobo;
+    payments.push({
+      method,
+      amount: amountKobo / 100,
+      reference: String(payment?.reference || "").trim()
+    });
+  }
+
+  if (paidKobo !== totalKobo) {
+    return {
+      error: paidKobo < totalKobo
+        ? "Split payments do not cover the sale total."
+        : "Split payments exceed the sale total."
+    };
+  }
+
+  return { payments };
 };
 
 export const isCreditPayment = (value) => normalizePaymentMethod(value) === "credit";
@@ -65,6 +111,8 @@ export const buildSaleLedgerEntry = ({ sale, businessId, createdBy = null, statu
   return {
     businessId,
     transactionType: 'income',
+    paymentMethod: sale?.paymentMethod || 'cash',
+    paymentBreakdown: Array.isArray(sale?.paymentBreakdown) ? sale.paymentBreakdown : [],
     category: 'sales',
     description: `${notePrefix} ${receiptId}`,
     amount: totalAmount,

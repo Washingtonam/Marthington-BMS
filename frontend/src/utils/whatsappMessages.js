@@ -1,4 +1,5 @@
 import { formatCurrency } from "./formatters.js";
+import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "./salePayments.js";
 
 export const normalizeWhatsAppNumber = (value) => {
   const digits = String(value || "").replace(/\D/g, "");
@@ -56,6 +57,11 @@ export const buildTransactionWhatsAppMessage = ({
     ? record.invoiceNumber || record._id
     : record.receiptId || record._id;
   const heading = recordType === "invoice" ? "Invoice" : "Receipt";
+  const paymentLines = recordType === "sale"
+    ? getSalePaymentBreakdown(record).map((payment) =>
+      `• ${PAYMENT_METHOD_LABELS[payment.method] || payment.method}: ${formatCurrency(payment.amount)}${payment.reference ? ` (Ref: ${payment.reference})` : ""}`
+    )
+    : [];
 
   return [
     `Hello ${customerName || "there"},`,
@@ -66,6 +72,7 @@ export const buildTransactionWhatsAppMessage = ({
     ...items,
     "",
     `Total: ${formatCurrency(record.totalAmount || 0)}`,
+    ...(paymentLines.length ? ["Payments:", ...paymentLines] : []),
     `Payment status: ${getPaymentStatus(record, recordType)}`,
     receiptUrl ? `View receipt: ${receiptUrl}` : "",
     "",

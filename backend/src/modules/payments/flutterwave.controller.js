@@ -12,7 +12,6 @@ const initializeFlutterwave = async (req, res) => {
     const { planType, currency = "NGN" } = req.body;
     const billingCycle = String(planType || "").toLowerCase();
     const normalizedCurrency = String(currency || "NGN").toUpperCase();
-    const allowedCurrencies = ["NGN", "USD"];
 
     if (!billingCycle || !["monthly", "yearly"].includes(billingCycle)) {
       return res.status(400).json({
@@ -20,9 +19,9 @@ const initializeFlutterwave = async (req, res) => {
       });
     }
 
-    if (!allowedCurrencies.includes(normalizedCurrency)) {
+    if (normalizedCurrency !== "NGN") {
       return res.status(400).json({
-        message: "Currency must be NGN or USD."
+        message: "Subscription checkout is currently available in NGN only."
       });
     }
 

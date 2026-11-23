@@ -18,7 +18,7 @@ const AdminPartnersLedger = () => {
   const [total, setTotal] = useState(0);
   const [limit] = useState(20);
   const [stats, setStats] = useState({ totalPartners: 0, pendingPayouts: 0, totalPaidCommissions: 0 });
-  const [commissionRate, setCommissionRate] = useState(20);
+  const [commissionRate, setCommissionRate] = useState(10);
   const [rateUpdating, setRateUpdating] = useState(false);
   const [settleModalOpen, setSettleModalOpen] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState(null);
@@ -58,7 +58,7 @@ const AdminPartnersLedger = () => {
         pendingPayouts: Number(nextStats.pendingPayouts || 0),
         totalPaidCommissions: Number(nextStats.totalPaidCommissions || 0)
       });
-      setCommissionRate(Number(overviewData?.globalRate || overviewData?.settings?.globalAffiliateRate || 20));
+      setCommissionRate(Number(overviewData?.globalRate || overviewData?.settings?.globalAffiliateRate || 10));
       setLedger(ledgerData?.ledger || []);
       setTotal(ledgerData?.total || 0);
       setPage(pageNum);

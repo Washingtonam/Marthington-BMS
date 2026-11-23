@@ -18,6 +18,7 @@ import {
   buildSaleLedgerEntry,
   getCustomerSaleImpact,
   normalizePaymentMethod,
+  normalizePaymentBreakdown,
   isCreditPayment,
   shouldCreateInvoiceForSale,
   buildSalesDateFilter,
@@ -139,7 +140,7 @@ const createSale = async (req, res) => {
     try {
       session.startTransaction();
       transactionStarted = true;
-      const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, branch } = req.body;
+      const { items, autoSend, customerName, customerPhone, notes, paymentMethod, paymentReference, paymentBreakdown, branch } = req.body;
       const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
       const branchId = resolveOperationalBranchId({ user: req.user, requestedBranchId: branch });
       if (branchId === undefined) {
@@ -287,11 +288,21 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
         }
       }
 
+      const normalizedPaymentBreakdown = normalizedPaymentMethod === "split"
+        ? normalizePaymentBreakdown(paymentBreakdown, totalAmount)
+        : { payments: [] };
+      if (normalizedPaymentBreakdown.error) {
+        await session.abortTransaction();
+        transactionStarted = false;
+        return res.status(400).json({ message: normalizedPaymentBreakdown.error });
+      }
+
       // 4. Create Sale Record
       const sale = await Sale.create([{
         items: saleItems,
         totalAmount,
         paymentMethod: normalizedPaymentMethod,
+        paymentBreakdown: normalizedPaymentBreakdown.payments,
         paymentReference: paymentReference || "",
         business: businessId,
         branch: branchId || null,
@@ -411,6 +422,18 @@ const isOwner = req.user.role === "owner" || req.user.role === "super_admin";
       }
 
       if (isDuplicateKeyError(error)) {
+        if (clientOperationId) {
+          let existingSale;
+          try {
+            existingSale = await Sale.findOne({ business: businessId, clientOperationId });
+          } catch (lookupError) {
+            console.error("Failed to verify duplicate sale operation:", lookupError);
+            return res.status(500).json({ message: "Unable to verify the sale operation. Please retry." });
+          }
+          if (existingSale) {
+            return res.json({ message: "Sale already completed", sale: existingSale, duplicate: true });
+          }
+        }
         return res.status(409).json({ message: normalizeSaleErrorMessage(error) });
       }
 
@@ -619,6 +642,7 @@ const verifyPaymentProof = async (req, res) => {
 };
 
 const updatePaymentMethod = async (req, res) => {
+  const nextPaymentMethod = normalizePaymentMethod(req.body.paymentMethod);
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -638,9 +662,18 @@ const updatePaymentMethod = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const nextPaymentMethod = normalizePaymentMethod(req.body.paymentMethod);
     const previousCredit = isCreditPayment(sale.paymentMethod);
     const nextCredit = isCreditPayment(nextPaymentMethod);
+    if (nextPaymentMethod === "split") {
+      const validation = normalizePaymentBreakdown(req.body.paymentBreakdown, sale.totalAmount);
+      if (validation.error) {
+        await session.abortTransaction();
+        return res.status(400).json({ message: validation.error });
+      }
+      sale.paymentBreakdown = validation.payments;
+    } else {
+      sale.paymentBreakdown = [];
+    }
 
     if (sale.customer && previousCredit !== nextCredit) {
       const customer = await Customer.findById(sale.customer).session(session);
@@ -656,6 +689,17 @@ const updatePaymentMethod = async (req, res) => {
     sale.paymentUpdatedAt = new Date();
     sale.paymentUpdatedBy = req.user.id;
     await sale.save({ session });
+
+    const ledgerEntry = await Transaction.findOne({
+      businessId: sale.business,
+      sourceModel: "Sale",
+      sourceId: sale._id
+    }).session(session);
+    if (ledgerEntry) {
+      ledgerEntry.paymentMethod = sale.paymentMethod;
+      ledgerEntry.paymentBreakdown = sale.paymentBreakdown;
+      await ledgerEntry.save({ session });
+    }
 
     if (sale.invoice) {
       const invoice = await Invoice.findById(sale.invoice).session(session);
@@ -775,6 +819,13 @@ const getSales = async (req, res) => {
       ];
     }
 
+    const reconciliationQuery = { ...query };
+    for (const field of ["business", "branch"]) {
+      if (typeof reconciliationQuery[field] === "string" && mongoose.isValidObjectId(reconciliationQuery[field])) {
+        reconciliationQuery[field] = new mongoose.Types.ObjectId(reconciliationQuery[field]);
+      }
+    }
+
     const [sales, total, reconciliationRows] = await Promise.all([
       Sale.find(query)
       .sort({ createdAt: -1 })
@@ -785,7 +836,7 @@ const getSales = async (req, res) => {
       .populate("items.product", "name price"),
       Sale.countDocuments(query),
       Sale.aggregate([
-        { $match: query },
+        { $match: reconciliationQuery },
         {
           $group: {
             _id: null,

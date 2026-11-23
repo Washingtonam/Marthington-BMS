@@ -22,6 +22,7 @@ import StatusToast from "../components/StatusToast.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated, subscribeToSalesUpdates } from "../utils/salesEvents.js";
 import { buildReportDetailRoute } from "../utils/reportDateRouting.js";
+import { aggregateSalePayments, getSalePaymentBreakdown } from "../utils/salePayments.js";
 import { FiCalendar, FiDownload, FiPrinter, FiSettings } from "react-icons/fi";
 
 const PRESET_DATES = [
@@ -513,7 +514,10 @@ const Reports = () => {
     }
 
     if (selectedPaymentMethod !== "all") {
-      filtered = filtered.filter(t => t.type === "expense" || (t.paymentMethod || "cash").toLowerCase() === selectedPaymentMethod);
+      filtered = filtered.filter((transaction) => {
+        if (transaction.type === "expense") return true;
+        return getSalePaymentBreakdown(transaction).some((payment) => payment.method === selectedPaymentMethod);
+      });
     }
 
     return filtered;
@@ -591,24 +595,7 @@ const Reports = () => {
 
   // Payment methods breakdown
   const paymentMethodsBreakdown = useMemo(() => {
-    const sales = multiDimensionalFiltered.filter((entry) => entry.type !== "expense");
-    const breakdown = {
-      cash: 0,
-      card: 0,
-      bank_transfer: 0,
-      credit: 0,
-      other: 0,
-    };
-
-    sales.forEach((sale) => {
-      const method = String(sale.paymentMethod || "cash").toLowerCase().replace(/[- ]/g, "_");
-      const normalizedMethod = method === "transfer" ? "bank_transfer" : method === "debt" ? "credit" : method;
-      if (Object.prototype.hasOwnProperty.call(breakdown, normalizedMethod)) {
-        breakdown[normalizedMethod] += Number(sale.totalAmount || 0);
-      }
-    });
-
-    return breakdown;
+    return aggregateSalePayments(multiDimensionalFiltered.filter((entry) => entry.type !== "expense"));
   }, [multiDimensionalFiltered]);
 
   // Previous period metrics for comparison
@@ -1391,11 +1378,15 @@ const Reports = () => {
                 </div>
                 <div className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">🔄 Transfer</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(paymentMethodsBreakdown.transfer)}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(paymentMethodsBreakdown.bank_transfer)}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">📝 Debt/Credit</span>
-                  <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(paymentMethodsBreakdown.debt)}</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(paymentMethodsBreakdown.credit)}</span>
+                </div>
+                <div className="flex items-center justify-between py-2 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Other</span>
+                  <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(paymentMethodsBreakdown.other)}</span>
                 </div>
               </div>
             </div>

@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {
   buildSalesDateFilter,
   buildProductCompensationEntries,
-  buildSaleLedgerEntry
+  buildSaleLedgerEntry,
+  normalizePaymentBreakdown
 } from '../src/modules/sales/sales.utils.js';
 
 test('sales date filter includes the complete selected UTC day', () => {
@@ -81,4 +82,60 @@ test('sale ledger reversal entry keeps the original sale amount and source metad
   assert.equal(entry.amount, 2500);
   assert.equal(entry.sourceModel, 'Sale');
   assert.equal(entry.sourceId, 'sale-2');
+});
+
+test('split payment breakdown validates exact totals and preserves tender references', () => {
+  const result = normalizePaymentBreakdown([
+    { method: 'cash', amount: 1250, reference: '' },
+    { method: 'bank_transfer', amount: 750.5, reference: 'TRX-123' }
+  ], 2000.5);
+
+  assert.deepEqual(result, {
+    payments: [
+      { method: 'cash', amount: 1250, reference: '' },
+      { method: 'bank_transfer', amount: 750.5, reference: 'TRX-123' }
+    ]
+  });
+});
+
+test('split payment breakdown rejects underpayment, overpayment, credit, and invalid amounts', () => {
+  const twoPayments = [
+    { method: 'cash', amount: 50 },
+    { method: 'card', amount: 40 }
+  ];
+
+  assert.match(normalizePaymentBreakdown(twoPayments, 100).error, /do not cover/);
+  assert.match(normalizePaymentBreakdown([{ ...twoPayments[0], amount: 61 }, twoPayments[1]], 100).error, /exceed/);
+  assert.match(normalizePaymentBreakdown([
+    { method: 'cash', amount: 50 },
+    { method: 'credit', amount: 50 }
+  ], 100).error, /only use/);
+  assert.match(normalizePaymentBreakdown([
+    { method: 'cash', amount: 50 },
+    { method: 'card', amount: 50.001 }
+  ], 100).error, /two decimal places/);
+});
+
+test('sale ledger carries split tender details without duplicating sale revenue', () => {
+  const entry = buildSaleLedgerEntry({
+    sale: {
+      _id: 'sale-split',
+      totalAmount: 100,
+      paymentMethod: 'split',
+      paymentBreakdown: [
+        { method: 'cash', amount: 40 },
+        { method: 'bank_transfer', amount: 60 }
+      ],
+      items: [{ quantity: 1, costPrice: 40, sellingPrice: 100 }]
+    },
+    businessId: 'biz-1'
+  });
+
+  assert.equal(entry.amount, 100);
+  assert.equal(entry.profit, 60);
+  assert.equal(entry.paymentMethod, 'split');
+  assert.deepEqual(entry.paymentBreakdown, [
+    { method: 'cash', amount: 40 },
+    { method: 'bank_transfer', amount: 60 }
+  ]);
 });

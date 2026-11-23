@@ -4,7 +4,7 @@ const systemSettingsSchema = new mongoose.Schema(
   {
     globalAffiliateRate: {
       type: Number,
-      default: 20,
+      default: 10,
       min: 0,
       max: 100
     },

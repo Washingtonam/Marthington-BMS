@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useParams } from "react-router-dom";
 import request from "../api/client.js";
 import { formatCurrency } from "../utils/formatters.js";
+import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
 
 const PublicReceipt = () => {
   const { id } = useParams();
@@ -25,7 +26,10 @@ const PublicReceipt = () => {
   }, [id]);
 
   const shareWhatsApp = () => {
-    const message = `🧾 Receipt\n\nView your receipt here:\n${shareLink}`;
+    const payments = getSalePaymentBreakdown(sale)
+      .map((payment) => `${PAYMENT_METHOD_LABELS[payment.method] || payment.method}: ${formatCurrency(payment.amount)}`)
+      .join("\n");
+    const message = `🧾 Receipt\nTotal: ${formatCurrency(sale.totalAmount)}${payments ? `\n\nPayments:\n${payments}` : ""}\n\nView your receipt here:\n${shareLink}`;
     const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(url, "_blank");
   };
@@ -122,6 +126,16 @@ const PublicReceipt = () => {
         <div className="flex justify-between font-bold text-lg">
           <span>TOTAL</span>
           <span>{formatCurrency(sale.totalAmount)}</span>
+        </div>
+
+        <div className="mt-2 space-y-1 text-sm">
+          <p className="font-bold">Payment breakdown</p>
+          {getSalePaymentBreakdown(sale).map((payment, i) => (
+            <div key={`${payment.method}-${i}`} className="flex justify-between gap-3">
+              <span>{PAYMENT_METHOD_LABELS[payment.method] || payment.method}</span>
+              <span>{formatCurrency(payment.amount)}{payment.reference ? ` · Ref: ${payment.reference}` : ""}</span>
+            </div>
+          ))}
         </div>
 
         <div className="border-t border-dashed my-3" />

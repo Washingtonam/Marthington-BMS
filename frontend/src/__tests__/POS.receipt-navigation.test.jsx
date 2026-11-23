@@ -114,6 +114,65 @@ describe("POS checkout", () => {
     });
   });
 
+  it("keeps credit checkout on the existing single-method workflow", async () => {
+    render(<POS />);
+
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Open cart" }));
+    const paymentMethod = screen.getByDisplayValue("Cash");
+    fireEvent.change(paymentMethod, { target: { value: "credit" } });
+    fireEvent.click(screen.getByRole("button", { name: /confirm & print/i }));
+
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body)).toMatchObject({ paymentMethod: "credit" });
+      expect(JSON.parse(salesCall[1].body)).not.toHaveProperty("paymentBreakdown");
+    });
+  });
+
+  it("requires an exact split balance and sends the tender breakdown", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Add split payment" }));
+
+    const confirmButton = screen.getByRole("button", { name: /confirm & print/i });
+    expect(confirmButton.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "1500" } });
+    fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "1000" } });
+    expect(confirmButton.disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add another method" }));
+    fireEvent.change(screen.getByLabelText("Payment 3 amount"), { target: { value: "1" } });
+    expect(confirmButton.disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove payment 3" }));
+    expect(confirmButton.disabled).toBe(false);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      const salesCall = request.mock.calls.find(([path]) => path === "/sales");
+      expect(JSON.parse(salesCall[1].body)).toMatchObject({
+        paymentMethod: "split",
+        paymentBreakdown: [
+          { method: "cash", amount: 1500 },
+          { method: "bank_transfer", amount: 1000 }
+        ]
+      });
+    });
+  });
+
+  it("blocks an overpaid split until tender amounts match the sale total", async () => {
+    render(<POS />);
+    fireEvent.click(await screen.findByText("Laptop"));
+    fireEvent.click(screen.getByRole("button", { name: "Add split payment" }));
+    fireEvent.change(screen.getByLabelText("Payment 1 amount"), { target: { value: "1600" } });
+    fireEvent.change(screen.getByLabelText("Payment 2 amount"), { target: { value: "1000" } });
+
+    expect(screen.getByRole("button", { name: /confirm & print/i }).disabled).toBe(true);
+    expect(screen.getByText("The payments exceed the sale total.")).toBeTruthy();
+  });
+
   it("opens the cart modal and includes optional item serials and notes in checkout", async () => {
     render(<POS />);
 

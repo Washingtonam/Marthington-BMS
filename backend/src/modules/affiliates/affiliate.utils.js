@@ -8,6 +8,9 @@ import {
   getEligibleCommissionMilestones
 } from "./commissionSchedule.js";
 
+export const calculateAffiliateCommission = (paymentAmount, affiliateRate) =>
+  Number((Number(paymentAmount) * Number(affiliateRate)) / 100);
+
 const createAutomatedClaim = async (claim, session) => {
   try {
     await CommissionClaim.updateOne(
@@ -87,7 +90,7 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null,
 
   // ✅ STEP 3: FETCH GLOBAL AFFILIATE RATE
   const settings = await SystemSettings.findOne().session(session).lean();
-  const affiliateRate = Number(settings?.globalAffiliateRate ?? 20);
+  const affiliateRate = Number(settings?.globalAffiliateRate ?? 10);
   const schedule = settings?.commissionSchedule || {};
 
   console.log("[creditAffiliate] ✅ Global affiliate rate fetched", { affiliateRate: `${affiliateRate}%` });
@@ -112,7 +115,7 @@ export const creditAffiliate = async (businessId, paymentAmount, session = null,
   }
 
   // ✅ STEP 4: CALCULATE COMMISSION
-  const commissionAmount = Number((amount * affiliateRate) / 100);
+  const commissionAmount = calculateAffiliateCommission(amount, affiliateRate);
 
   if (!commissionAmount || commissionAmount <= 0) {
     console.warn("[creditAffiliate] ⚠️  Calculated commission is zero or invalid", {

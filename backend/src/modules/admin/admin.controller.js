@@ -558,7 +558,7 @@ const getOverview = async (req, res) => {
       pendingPayouts: Number(pendingAffiliatePayouts[0]?.amount || 0),
       pendingPayoutRequests: Number(pendingAffiliatePayouts[0]?.count || 0),
       paidPayouts: Number(approvedWithdrawals[0]?.amount || 0),
-      currentRate: Number(affiliateSettings?.globalAffiliateRate ?? 20)
+      currentRate: Number(affiliateSettings?.globalAffiliateRate ?? 10)
     };
 
     const industryCounts = {
@@ -901,7 +901,7 @@ const getAffiliateSettings = async (req, res) => {
     let settings = await SystemSettings.findOne();
 
     if (!settings) {
-      settings = await SystemSettings.create({ globalAffiliateRate: 20 });
+      settings = await SystemSettings.create({ globalAffiliateRate: 10 });
     }
 
     res.json({
@@ -1907,7 +1907,7 @@ const listAffiliates = async (req, res) => {
       };
     });
 
-    const globalRate = Number(settings?.globalAffiliateRate ?? 20);
+    const globalRate = Number(settings?.globalAffiliateRate ?? 10);
 
     const totalPaid = await WithdrawalHistory.aggregate([
       { $match: { status: "Approved" } },
@@ -2437,7 +2437,7 @@ const settleBalance = async (req, res) => {
 
     const settings = await SystemSettings.findOne({}).session(session);
     if (settings) {
-      settings.globalAffiliateRate = Number(settings.globalAffiliateRate ?? 20);
+      settings.globalAffiliateRate = Number(settings.globalAffiliateRate ?? 10);
       await settings.save({ session });
     }
 

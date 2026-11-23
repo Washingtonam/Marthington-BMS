@@ -69,9 +69,9 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    if (!['NGN', 'USD'].includes(currency)) {
+    if (currency !== "NGN") {
       return res.status(400).json({
-        message: "Please provide a valid currency (NGN or USD)."
+        message: "Subscription checkout is currently available in NGN only."
       });
     }
 
@@ -113,8 +113,17 @@ const initializeSubscription = async (req, res) => {
       });
     }
 
-    const amountInNaira = billingCycle === "yearly" ? 150000 : 15000;
-    const expectedAmount = currency === "USD" ? (billingCycle === "yearly" ? 100 : 10) * 100 : amountInNaira * 100;
+    const configuredAmount = Number(
+      billingCycle === "yearly" ? pricing?.prices?.yearly?.ngn : pricing?.prices?.monthly?.ngn
+    );
+    if (!Number.isFinite(configuredAmount) || configuredAmount <= 0) {
+      return res.status(500).json({
+        message: "NGN pricing is not configured for the selected billing cycle."
+      });
+    }
+
+    const amountInNaira = configuredAmount;
+    const expectedAmount = amountInNaira * 100;
 
     if (requestedAmountRaw != null && requestedAmount !== expectedAmount) {
       console.warn("[payments.initialize] amount mismatch, using expected amount", {

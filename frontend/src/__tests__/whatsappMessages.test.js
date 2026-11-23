@@ -54,6 +54,25 @@ describe("WhatsApp customer messages", () => {
     expect(message).toContain("Payment status: Partially Paid");
   });
 
+  it("includes each split tender and reference in a sale message", () => {
+    const message = buildTransactionWhatsAppMessage({
+      record: {
+        receiptId: "RCP-200",
+        totalAmount: 1000,
+        paymentMethod: "split",
+        paymentBreakdown: [
+          { method: "cash", amount: 400 },
+          { method: "bank_transfer", amount: 600, reference: "TRX-9" }
+        ],
+        items: []
+      }
+    });
+
+    expect(message).toContain("Cash:");
+    expect(message).toContain("Bank transfer:");
+    expect(message).toContain("Ref: TRX-9");
+  });
+
   it("creates a concise follow-up asking about repeat purchase or availability", () => {
     const message = buildCustomerFollowUpMessage({
       businessName: "Marthington",

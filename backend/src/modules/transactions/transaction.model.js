@@ -13,6 +13,30 @@ const transactionSchema = new mongoose.Schema(
       enum: ["income", "expense", "transfer", "adjustment"],
       default: "income"
     },
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "card", "bank_transfer", "credit", "other", "split"],
+      default: null
+    },
+    paymentBreakdown: {
+      type: [{
+        method: {
+          type: String,
+          enum: ["cash", "card", "bank_transfer", "other"],
+          required: true
+        },
+        amount: {
+          type: Number,
+          min: 0.01,
+          required: true
+        },
+        reference: {
+          type: String,
+          default: ""
+        }
+      }],
+      default: []
+    },
     category: {
       type: String,
       default: "general"

@@ -32,20 +32,20 @@ test("creditAffiliate credits the referring affiliate and creates a payout recor
     referredBy: "PARTNER01"
   });
 
-  await SystemSettings.create({ globalAffiliateRate: 20 });
+  await SystemSettings.create({ globalAffiliateRate: 10 });
 
-  const result = await creditAffiliate(business._id, 15000, null, "paystack-ref-1");
+  const result = await creditAffiliate(business._id, 150000, null, "paystack-ref-1");
 
   assert.equal(result.affiliateCode, "PARTNER01");
-  assert.equal(result.commissionAmount, 3000);
-  assert.equal(result.affiliateRate, 20);
+  assert.equal(result.commissionAmount, 15000);
+  assert.equal(result.affiliateRate, 10);
 
-  const duplicateResult = await creditAffiliate(business._id, 15000, null, "paystack-ref-1");
+  const duplicateResult = await creditAffiliate(business._id, 150000, null, "paystack-ref-1");
   assert.equal(duplicateResult.alreadyCredited, true);
 
   const updatedAffiliate = await User.findById(affiliate._id).lean();
-  assert.equal(updatedAffiliate.walletBalance, 3000);
-  assert.equal(updatedAffiliate.totalEarned, 3000);
+  assert.equal(updatedAffiliate.walletBalance, 15000);
+  assert.equal(updatedAffiliate.totalEarned, 15000);
 
   assert.equal(
     await AffiliatePayout.countDocuments({ paymentReference: "paystack-ref-1" }),

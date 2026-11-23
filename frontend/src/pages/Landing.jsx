@@ -60,6 +60,21 @@ const features = [
   }
 ];
 
+const services = [
+  { title: "POS & sales", description: "Record counter sales, calculate totals, and issue customer receipts." },
+  { title: "Daily reports", description: "Review daily sales, revenue, profit, and staff activity at a glance." },
+  { title: "Financial & inventory reports", description: "Track financial performance, stock levels, inventory movement, and cost trends." },
+  { title: "Inventory & stock", description: "Track products, stock movement, low-stock items, and branch inventory." },
+  { title: "Staff & permissions", description: "Manage team accounts and control access with role-based permissions." },
+  { title: "Branch management", description: "Manage branch records, assigned teams, stock, and branch-scoped operations." },
+  { title: "Customer management", description: "Keep customer records and connect them to sales and follow-ups." },
+  { title: "Suppliers & purchasing", description: "Organize supplier records, purchase orders, and incoming stock." },
+  { title: "Invoices", description: "Create and track customer invoices and outstanding balances." },
+  { title: "Services & scheduling", description: "Record service sales and manage scheduled service start times." },
+  { title: "Expenses & budgets", description: "Record expenses, manage budgets, and review cost trends." },
+  { title: "WhatsApp receipts", description: "Share receipt links and send automatic receipts with an active Pro subscription." }
+];
+
 const categoryTabs = [
   { value: "retail", label: "Retail" },
   { value: "school", label: "Schools" },
@@ -309,6 +324,11 @@ const TeamManagement = () => {
 
 const Landing = () => {
   const [pricing, setPricing] = useState({ monthly: 15000, yearly: 150000 });
+  const [commissionRate, setCommissionRate] = useState(null);
+  const [planAccess, setPlanAccess] = useState({
+    free: { products: 20, staff: 1, posProducts: 500, features: {} },
+    pro: { products: null, staff: null, posProducts: null, features: {} }
+  });
   const [selectedTab, setSelectedTab] = useState("retail");
   const registerPath = useRegistrationPath();
 
@@ -321,6 +341,8 @@ const Landing = () => {
         if (pricingData?.monthly?.ngn && pricingData?.yearly?.ngn) {
           setPricing({ monthly: pricingData.monthly.ngn, yearly: pricingData.yearly.ngn });
         }
+        if (typeof data?.commissionRate === "number") setCommissionRate(data.commissionRate);
+        if (data?.planAccess?.free && data?.planAccess?.pro) setPlanAccess(data.planAccess);
       } catch (err) {
         console.warn("Failed to load billing pricing", err);
       }
@@ -328,8 +350,6 @@ const Landing = () => {
 
     loadPricing();
   }, []);
-
-  const yearlySavings = Math.max(0, pricing.monthly * 12 - pricing.yearly);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#f8fbff_45%,#ffffff_100%)] text-slate-900 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
@@ -339,7 +359,7 @@ const Landing = () => {
           <div className="flex items-center gap-2 sm:gap-3.5">
             <img src="/logo-icon.png" alt="Marthington" className="h-9 w-9 rounded-xl shadow-sm sm:h-10 sm:w-10" />
             <div>
-              <h2 className="font-bold text-lg tracking-tight text-slate-900">Marthington</h2>
+              <p className="font-bold text-lg tracking-tight text-slate-900">Marthington</p>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Business OS</p>
             </div>
           </div>
@@ -347,6 +367,9 @@ const Landing = () => {
           <nav aria-label="Main navigation" className="flex items-center gap-0 sm:gap-5">
             <a href="#platform" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
               Platform
+            </a>
+            <a href="#services" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 md:inline">
+              Services
             </a>
             <a href="#team" className="hidden text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900 lg:inline">
               Team
@@ -361,7 +384,7 @@ const Landing = () => {
               Login
             </Link>
             <Link to={registerPath} className="inline-flex min-h-9 items-center justify-center rounded-xl bg-slate-900 px-2 py-2 text-[10px] font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800 sm:min-h-10 sm:px-4 sm:text-sm">
-              Deploy
+              Start Free
             </Link>
           </nav>
         </div>
@@ -376,18 +399,18 @@ const Landing = () => {
         <div className="mx-auto grid max-w-7xl items-center gap-16 lg:grid-cols-12">
           <div className="flex flex-col items-start lg:col-span-7">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-100 bg-white/90 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600 shadow-sm backdrop-blur">
-              <span>⚡ Consolidated Multi-Sector Suite</span>
+              <span>⚡ Business management for Nigeria</span>
             </div>
 
             <h1 className="mb-6 text-4xl font-extrabold leading-[1.08] tracking-tight text-slate-900 md:text-6xl">
-              The premium enterprise operating system for
+              Business Management System for
               <span className="mt-1 block bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                African Business Hubs.
+                Nigerian Businesses.
               </span>
             </h1>
 
             <p className="mb-10 max-w-xl text-base leading-relaxed text-slate-500 md:text-lg">
-              One unified workspace engineered for cross-channel sales management, continuous inventory controls, automated analytics, and absolute administrative security.
+              Run sales, inventory, automated calculations, daily reports, staff controls, and multiple branches from one online system—built for Nigerian pharmacies, supermarkets, electronics shops, restaurants, and service businesses.
             </p>
 
             <div role="tablist" aria-label="Business sectors" className="mb-10 flex w-full max-w-md rounded-full border border-slate-200/70 bg-slate-100/80 p-1 shadow-inner">
@@ -411,7 +434,7 @@ const Landing = () => {
 
             <div className="flex w-full flex-wrap items-center gap-4">
               <Link to={registerPath} className="inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-4 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-slate-800">
-                Deploy Workspace
+                Start Free
               </Link>
               <Link to="/affiliate-register" className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/80 px-7 py-4 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:bg-slate-50">
                 Become a Partner
@@ -537,6 +560,26 @@ const Landing = () => {
         </div>
       </section>
 
+      <section id="services" aria-labelledby="services-heading" className="border-b border-slate-200 bg-white py-20 sm:py-24">
+        <div className="mx-auto max-w-7xl px-5 sm:px-6">
+          <div className="mx-auto mb-10 max-w-3xl text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">One system for everyday operations</p>
+            <h2 id="services-heading" className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Services and Capabilities</h2>
+            <p className="mt-4 text-sm leading-6 text-slate-500 sm:text-base">
+              See the tools available to help you run sales, people, stock, branches, and business finances in one place.
+            </p>
+          </div>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {services.map((service) => (
+              <li key={service.title} className="rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-emerald-200 hover:bg-white hover:shadow-sm">
+                <h3 className="text-base font-bold text-slate-900">{service.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{service.description}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       <ProductPreviews />
       <TeamManagement />
 
@@ -595,7 +638,7 @@ const Landing = () => {
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-700">Grow with Marthington</p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">The Referral Partnership Program</h2>
             <p className="mt-3 text-sm font-medium leading-relaxed text-slate-500">
-              Introduce businesses to a workspace they can grow with—and follow your referrals, commissions and payouts with transparent tracking.
+              Introduce Nigerian businesses to Marthington BMS and follow referrals, qualifying commissions, and payouts in your partner dashboard.
             </p>
           </div>
 
@@ -604,7 +647,9 @@ const Landing = () => {
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">For commission agents</p>
               <h3 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Build recurring income through referrals.</h3>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Earn commissions on qualifying payments from businesses you refer, according to your current partner rate and program terms. See referral conversions, each recorded earning, and payout status in your partner wallet.
+                {commissionRate === 10
+                  ? "Earn 10% on qualifying subscription payments. That is ₦15,000 on a ₦150,000 annual Pro subscription. Track conversions, recorded earnings, and payout status in your partner wallet."
+                  : "Earn commissions on qualifying subscription payments at the configured partner rate. Track conversions, recorded earnings, and payout status in your partner wallet."}
               </p>
             </div>
             <Link to="/affiliate-register" className="inline-flex min-h-12 items-center justify-center rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-emerald-400">
@@ -616,7 +661,7 @@ const Landing = () => {
             <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm text-center">
               <h3 className="font-bold text-lg text-slate-900 tracking-tight">Recurring commissions</h3>
               <p className="mt-3 text-sm text-slate-500 font-medium leading-relaxed">
-                Qualifying payments from referred workspaces can continue to earn commission under the applicable program terms.
+                {commissionRate === 10 ? "10% on qualifying subscription payments, subject to the partner programme terms." : "Commission on qualifying subscription payments at the configured partner rate."}
               </p>
             </div>
             <div className="bg-white border border-slate-200/80 rounded-3xl p-8 shadow-sm text-center">
@@ -649,68 +694,52 @@ const Landing = () => {
       <section className="bg-white py-28">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-20">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Transparent subscription plans.</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">Choose Free or Pro.</h2>
             <p className="text-slate-400 text-sm font-medium mt-2">
-              Deploy your workspace completely free. Unlock infinite parameters as your organization scales.
+              Start free, then upgrade when your business needs more capacity.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 items-start">
+          <div className="grid md:grid-cols-2 gap-8 items-start">
             <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900">Starter Core</h3>
+              <h3 className="font-bold text-lg text-slate-900">Free Mode</h3>
               <p className="text-4xl font-bold text-slate-900 tracking-tight mt-5">₦0</p>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">Free Tier Base</span>
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">No subscription fee</span>
               <ul className="space-y-3.5 mt-8 text-xs font-medium text-slate-500 border-t border-slate-100 pt-6">
-                <li className="flex items-center gap-2">✔ 20 Product Entries</li>
-                <li className="flex items-center gap-2">✔ Standard POS Module</li>
-                <li className="flex items-center gap-2">✔ Digital Receipt Sharing</li>
+                <li>✔ Up to {planAccess.free.products} products</li>
+                <li>✔ Up to {planAccess.free.staff} additional staff account(s); the owner is separate</li>
+                <li>✔ POS product listing limit: {planAccess.free.posProducts}</li>
+                <li>✔ Sales and reports subject to staff permissions</li>
+                <li>✔ Branch access follows roles and assignments; no plan branch cap is configured</li>
+                <li>✔ No plan-based transaction limit is configured</li>
               </ul>
               <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
-                Deploy Free Hub
+                Start Free
               </Link>
             </div>
 
             <div className="bg-white border-2 border-emerald-600 rounded-[32px] p-8 shadow-xl relative">
               <div className="absolute -top-3.5 right-6 bg-emerald-600 text-white px-3 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase">
-                Enterprise Core
+                Recommended
               </div>
-              <h3 className="font-bold text-lg text-slate-900">Premium Pro</h3>
+              <h3 className="font-bold text-lg text-slate-900">Pro Mode</h3>
               <div className="mt-5">
-                <p className="text-4xl font-bold text-slate-900 tracking-tight">{formatCurrency(pricing.monthly)}</p>
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">Per Workspace / Month</span>
-              </div>
-              <div className="mt-4 bg-emerald-50/60 border border-emerald-100 rounded-xl p-3">
-                <p className="text-[11px] text-emerald-700 font-bold">
-                  Save {yearlySavings > 0 ? formatCurrency(yearlySavings) : "more"} with upfront billing:
-                </p>
-                <p className="text-lg font-bold text-slate-900 mt-0.5">
-                  {formatCurrency(pricing.yearly)} <span className="text-xs font-medium text-slate-400">/ year</span>
-                </p>
+                <p className="text-4xl font-bold text-slate-900 tracking-tight">{formatCurrency(pricing.yearly)}</p>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">Per workspace / year</span>
               </div>
               <ul className="space-y-3.5 mt-6 text-xs font-medium text-slate-500 border-t border-slate-100 pt-5">
-                <li className="flex items-center gap-2">✔ Infinite Document SKUs</li>
-                <li className="flex items-center gap-2">✔ Automated WhatsApp Streams</li>
-                <li className="flex items-center gap-2">✔ Accounts Receivable Tracking</li>
-                <li className="flex items-center gap-2">✔ Granular Personnel Control</li>
-                <li className="flex items-center gap-2">✔ Dynamic Multi-Sector UI</li>
+                <li>✔ {planAccess.pro.products === null ? "Unlimited" : planAccess.pro.products} products and staff accounts</li>
+                <li>✔ {planAccess.pro.posProducts === null ? "Unlimited" : planAccess.pro.posProducts} POS product listing capacity</li>
+                {planAccess.pro.features.invoices && <li>✔ Invoices enabled by Pro plan configuration</li>}
+                {planAccess.pro.features.logoUpload && <li>✔ Business logo upload</li>}
+                {planAccess.pro.features.customReceiptThemes && <li>✔ Custom receipt themes</li>}
+                {planAccess.pro.features.businessChat && <li>✔ Business chat</li>}
+                <li>✔ WhatsApp auto-receipts with active Pro subscription</li>
+                <li>✔ Reports follow staff permissions; branch access follows roles and assignments</li>
+                <li>✔ No plan-based branch or transaction limit is configured</li>
               </ul>
               <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl mt-8 shadow-sm transition-all">
-                Upgrade Workspace
-              </Link>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900">Custom Business</h3>
-              <p className="text-4xl font-bold text-slate-900 tracking-tight mt-5">Custom</p>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mt-1">Tailored Deployments</span>
-              <ul className="space-y-3.5 mt-8 text-xs font-medium text-slate-500 border-t border-slate-100 pt-6">
-                <li className="flex items-center gap-2">✔ Multi-Instance Clustering</li>
-                <li className="flex items-center gap-2">✔ Bespoke School Portal</li>
-                <li className="flex items-center gap-2">✔ Dedicated Database Backing</li>
-                <li className="flex items-center gap-2">✔ 24/7 Priority SLA Routing</li>
-              </ul>
-              <Link to={registerPath} className="inline-flex items-center justify-center w-full px-4 py-3 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl mt-8 transition-colors">
-                Contact Strategy Team
+                Start Free, Then Upgrade to Pro
               </Link>
             </div>
           </div>
@@ -727,11 +756,11 @@ const Landing = () => {
             </span>
           </h2>
           <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed mb-10">
-            Provision your dynamic business, school, or hospital ecosystem parameters in minutes. Join a high-velocity network today.
+            Bring your sales, stock, staff, branches, and reports together in one online workspace.
           </p>
           <div className="flex flex-col justify-center gap-3 sm:flex-row">
             <Link to={registerPath} className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-emerald-600 px-8 py-4 font-bold text-white shadow-lg transition-all duration-200 hover:bg-emerald-700">
-              Deploy Workspace
+              Start Free
             </Link>
             <Link to="/affiliate-register" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/20 px-8 py-4 font-bold text-white transition-colors hover:bg-white/10">
               Become a Partner
@@ -747,7 +776,7 @@ const Landing = () => {
             <img src="/logo-icon.png" alt="Marthington" className="w-8 h-8" />
             <div>
               <strong className="text-sm font-bold text-slate-900 block tracking-tight">Marthington</strong>
-              <p className="text-xs text-slate-400 font-medium">Next-generation institutional software automation.</p>
+              <p className="text-xs text-slate-400 font-medium">Business management software for Nigerian retailers and service businesses.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-5 text-xs font-semibold text-slate-500">

@@ -8,17 +8,15 @@ const AdminBillingSettings = () => {
     payoutMilestones: []
   };
   const [pricing, setPricing] = useState({
-    monthly: { ngn: 15000, usd: 15 },
-    yearly: { ngn: 150000, usd: 150 }
+    monthly: { ngn: 15000 },
+    yearly: { ngn: 150000 }
   });
 
   const [form, setForm] = useState({
     monthlyNgn: 15000,
-    monthlyUsd: 15,
-    yearlyNgn: 150000,
-    yearlyUsd: 150
+    yearlyNgn: 150000
   });
-  const [commissionRate, setCommissionRate] = useState(20);
+  const [commissionRate, setCommissionRate] = useState(10);
   const [commissionScheduleJson, setCommissionScheduleJson] = useState(
     JSON.stringify(emptyCommissionSchedule, null, 2)
   );
@@ -42,9 +40,7 @@ const AdminBillingSettings = () => {
           setPricing(pricingData);
           setForm({
             monthlyNgn: pricingData.monthly.ngn || 15000,
-            monthlyUsd: pricingData.monthly.usd || 15,
-            yearlyNgn: pricingData.yearly.ngn || 150000,
-            yearlyUsd: pricingData.yearly.usd || 150
+              yearlyNgn: pricingData.yearly.ngn || 150000
           });
         }
       } catch (err) {
@@ -103,9 +99,7 @@ const AdminBillingSettings = () => {
         method: "PUT",
         body: JSON.stringify({
           "prices.monthly.ngn": form.monthlyNgn,
-          "prices.monthly.usd": form.monthlyUsd,
-          "prices.yearly.ngn": form.yearlyNgn,
-          "prices.yearly.usd": form.yearlyUsd
+          "prices.yearly.ngn": form.yearlyNgn
         })
       });
 
@@ -213,23 +207,6 @@ const AdminBillingSettings = () => {
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Monthly Price (USD) $
-              </label>
-              <input
-                type="number"
-                name="monthlyUsd"
-                value={form.monthlyUsd}
-                onChange={handleInputChange}
-                disabled={loading || saving}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
-                placeholder="15"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Current: ${pricing.monthly.usd?.toLocaleString() || "—"}
-              </p>
-            </div>
           </div>
         </div>
 
@@ -261,23 +238,6 @@ const AdminBillingSettings = () => {
               </p>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Yearly Price (USD) $
-              </label>
-              <input
-                type="number"
-                name="yearlyUsd"
-                value={form.yearlyUsd}
-                onChange={handleInputChange}
-                disabled={loading || saving}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
-                placeholder="150"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Current: ${pricing.yearly.usd?.toLocaleString() || "—"}
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -285,7 +245,7 @@ const AdminBillingSettings = () => {
       {/* PRICING SUMMARY */}
       <div className="mt-8 rounded-3xl bg-slate-50 p-8 border border-slate-200">
         <h3 className="text-lg font-bold text-slate-900 mb-4">Pricing Summary</h3>
-        <div className="grid md:grid-cols-4 gap-4 text-sm">
+        <div className="grid md:grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-slate-500 font-semibold">Monthly (NGN)</p>
             <p className="text-2xl font-black text-slate-900 mt-1">
@@ -293,21 +253,9 @@ const AdminBillingSettings = () => {
             </p>
           </div>
           <div>
-            <p className="text-slate-500 font-semibold">Monthly (USD)</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              ${form.monthlyUsd?.toLocaleString()}
-            </p>
-          </div>
-          <div>
             <p className="text-slate-500 font-semibold">Yearly (NGN)</p>
             <p className="text-2xl font-black text-slate-900 mt-1">
               ₦{form.yearlyNgn?.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-slate-500 font-semibold">Yearly (USD)</p>
-            <p className="text-2xl font-black text-slate-900 mt-1">
-              ${form.yearlyUsd?.toLocaleString()}
             </p>
           </div>
         </div>
@@ -416,9 +364,7 @@ Use null for an unconfigured directReferralBonus. Use empty arrays when no CPA f
           onClick={() => {
             setForm({
               monthlyNgn: pricing.monthly.ngn || 15000,
-              monthlyUsd: pricing.monthly.usd || 15,
-              yearlyNgn: pricing.yearly.ngn || 150000,
-              yearlyUsd: pricing.yearly.usd || 150
+              yearlyNgn: pricing.yearly.ngn || 150000
             });
             setNotification("");
           }}

@@ -1,5 +1,6 @@
 import ReceiptQRCode from "./ReceiptQRCode.jsx";
 import { useBranding } from "../context/BrandingContext.jsx";
+import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
 
 const EnterpriseReceipt = ({
   sale
@@ -155,6 +156,16 @@ const EnterpriseReceipt = ({
           ₦{sale.totalAmount}
         </strong>
 
+      </div>
+
+      <div className="mt-3 space-y-1 text-sm">
+        <strong>Payment breakdown</strong>
+        {getSalePaymentBreakdown(sale).map((payment, index) => (
+          <div key={`${payment.method}-${index}`} className="flex justify-between gap-3">
+            <span>{PAYMENT_METHOD_LABELS[payment.method] || payment.method}</span>
+            <span>{`₦${payment.amount}`}{payment.reference ? ` · Ref: ${payment.reference}` : ""}</span>
+          </div>
+        ))}
       </div>
 
       {/* NOTES */}

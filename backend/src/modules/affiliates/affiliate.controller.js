@@ -204,7 +204,7 @@ const getAffiliateDashboard = async (req, res) => {
         available: availableBalance,
         pending: pendingAmount,
         paid: paidAmount,
-        currentRate: Number(settings?.globalAffiliateRate ?? 20),
+        currentRate: Number(settings?.globalAffiliateRate ?? 10),
         commissionSchedule: settings?.commissionSchedule || defaultCommissionSchedule,
         totalConversions,
         totalReferrals,

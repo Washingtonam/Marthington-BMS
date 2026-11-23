@@ -10,9 +10,9 @@ const currency = (value) =>
   }).format(Number(value || 0));
 
 const AdminAffiliateNetwork = () => {
-  const [data, setData] = useState({ affiliates: [], globalRate: 20, stats: {} });
+  const [data, setData] = useState({ affiliates: [], globalRate: 10, stats: {} });
   const [claims, setClaims] = useState([]);
-  const [rate, setRate] = useState(20);
+  const [rate, setRate] = useState(10);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
   const [claimError, setClaimError] = useState("");
@@ -24,7 +24,7 @@ const AdminAffiliateNetwork = () => {
         getCommissionClaims()
       ]);
       setData(response);
-      setRate(response.globalRate || 20);
+      setRate(response.globalRate ?? 10);
       setClaims(claimsResponse.claims || []);
     } catch (err) {
       alert(err.message || "Failed to load affiliate network");

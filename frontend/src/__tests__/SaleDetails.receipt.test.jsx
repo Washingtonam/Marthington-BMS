@@ -95,5 +95,33 @@ describe("sale receipt seller title", () => {
       });
       expect(screen.getByText(/Calculated end:.*12\/15\/2025/)).toBeTruthy();
     });
+
+  });
+
+  it("prints each split tender and reference on the receipt", async () => {
+    request.mockResolvedValue({
+      receiptId: "RCP-SPLIT",
+      createdAt: "2026-01-01T12:00:00.000Z",
+      business: { name: "Northwind" },
+      items: [],
+      totalAmount: 1000,
+      paymentMethod: "split",
+      paymentBreakdown: [
+        { method: "cash", amount: 400 },
+        { method: "bank_transfer", amount: 600, reference: "TRX-9" }
+      ]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/app/sales/sale-split"]}>
+        <Routes>
+          <Route path="/app/sales/:id" element={<SaleDetails />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Bank transfer")).toBeTruthy();
+    expect(screen.getByText(/TRX-9/)).toBeTruthy();
+    expect(screen.getByText("Cash")).toBeTruthy();
   });
 });

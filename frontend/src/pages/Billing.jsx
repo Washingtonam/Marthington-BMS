@@ -1,4 +1,4 @@
-import {
+import React, {
   useCallback,
   useEffect,
   useState
@@ -15,8 +15,11 @@ const Billing = () => {
     useState(null);
 
   const [pricing, setPricing] = useState({
-    monthly: { ngn: 15000, usd: 10 },
-    yearly: { ngn: 150000, usd: 100 }
+    yearly: { ngn: 150000 }
+  });
+  const [planAccess, setPlanAccess] = useState({
+    free: { products: 20, staff: 1, posProducts: 500, features: {} },
+    pro: { products: null, staff: null, posProducts: null, features: {} }
   });
 
   const [loading, setLoading] = useState(true);
@@ -42,17 +45,11 @@ const Billing = () => {
         setBilling(billingData);
 
         const pricingPayload = pricingData?.data;
-        if (pricingPayload?.monthly && pricingPayload?.yearly) {
-          setPricing((current) => ({
-            monthly: {
-              ngn: pricingPayload.monthly.ngn ?? current.monthly.ngn,
-              usd: pricingPayload.monthly.usd ?? current.monthly.usd
-            },
-            yearly: {
-              ngn: pricingPayload.yearly.ngn ?? current.yearly.ngn,
-              usd: pricingPayload.yearly.usd ?? current.yearly.usd
-            }
-          }));
+        if (pricingPayload?.yearly?.ngn) {
+          setPricing({ yearly: { ngn: pricingPayload.yearly.ngn } });
+        }
+        if (pricingData?.planAccess?.free && pricingData?.planAccess?.pro) {
+          setPlanAccess(pricingData.planAccess);
         }
       } catch (err) {
         setError(err?.message || "Failed to load billing details.");
@@ -99,19 +96,17 @@ const Billing = () => {
   // UPGRADE
   // =====================================
 
-  const handlePayment = async (planType, currency = "NGN") => {
+  const handlePayment = async () => {
     try {
-      setProcessing(planType);
+      setProcessing("yearly");
       setError("");
       setPaymentMessage("");
 
-      const amount = currency === "USD"
-        ? (planType === "yearly" ? pricing.yearly.usd : pricing.monthly.usd) * 100
-        : (planType === "yearly" ? pricing.yearly.ngn : pricing.monthly.ngn) * 100;
+      const amount = pricing.yearly.ngn * 100;
 
       const data = await request("/payments/initialize", {
         method: "POST",
-        body: JSON.stringify({ billingCycle: planType, currency, amount })
+        body: JSON.stringify({ billingCycle: "yearly", currency: "NGN", amount })
       });
 
       const url = data?.authorizationUrl || data?.url || data?.link;
@@ -149,6 +144,8 @@ const Billing = () => {
     }
   };
 
+  const limitLabel = (limit) => limit === null ? "Unlimited" : Number(limit).toLocaleString("en-NG");
+
   if (loading) {
 
     return (
@@ -177,8 +174,7 @@ const Billing = () => {
           </h1>
 
           <p className="mt-2 text-gray-500">
-            Manage your subscription, unlock premium tools
-            and scale your business faster.
+            Compare Free and Pro clearly, with straightforward annual billing in Nigerian Naira.
           </p>
 
         </div>
@@ -266,83 +262,48 @@ const Billing = () => {
 
       {/* PRICING */}
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <article className="rounded-[32px] border border-gray-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Free Mode</h2>
+          <h3 className="mt-3 text-3xl font-extrabold">Start managing your business</h3>
+          <p className="mt-3 text-sm leading-6 text-slate-500">Core POS and business tools with clear product and staff limits.</p>
+          <p className="mt-6 text-5xl font-black">{formatCurrency(0)}<span className="ml-2 text-base font-semibold text-slate-500">/ always free</span></p>
+          <ul className="mt-7 space-y-3 border-t border-slate-100 pt-6 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-300">
+            <li>✓ Up to {limitLabel(planAccess.free.products)} products</li>
+            <li>✓ Up to {limitLabel(planAccess.free.staff)} additional staff account(s); the owner is separate</li>
+            <li>✓ POS product listing up to {limitLabel(planAccess.free.posProducts)} items</li>
+            <li>✓ Sales and reports, subject to staff permissions</li>
+            <li>✓ Branch access is controlled by role and assignment; no plan branch cap is configured</li>
+            <li>✓ No plan-based transaction limit is configured</li>
+          </ul>
+        </article>
 
-        <div className="rounded-[32px] border border-gray-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold">Pro Monthly</h2>
-            <div className="mt-6 flex items-end gap-2">
-              <span className="text-6xl font-black">{formatCurrency(pricing.monthly.ngn)}</span>
-              <span className="text-gray-500 mb-2">/ month</span>
-            </div>
-            <p className="text-gray-500 mt-4 leading-7">
-              Perfect for growing businesses that want modern receipts, reports, staff controls and unlimited products.
-            </p>
-            <p className="text-sm text-slate-500 mt-3">Also available in USD: {formatCurrency(pricing.monthly.usd, "USD")}</p>
-          </div>
-
-          <div className="space-y-4 text-sm text-slate-600">
-            <div className="flex items-center gap-3"><span>✅</span><span>Unlimited products</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Unlimited staff accounts</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>WhatsApp receipts</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Premium receipt templates</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>PDF exports</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Analytics dashboard</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Business reports</span></div>
-          </div>
-
-          <div className="mt-8 rounded-3xl border border-dashed border-gray-200 p-5 bg-gray-50">
-            <p className="text-sm font-semibold text-gray-700">Payment methods supported</p>
-            <div className="mt-4 grid gap-3 text-sm text-gray-600">
-              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">C</span><span>Card</span></div>
-              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">U</span><span>USSD</span></div>
-              <div className="flex items-center gap-3"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">B</span><span>Bank Transfer</span></div>
-            </div>
-          </div>
-
+        <article className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-emerald-700 to-emerald-600 p-8 text-white shadow-xl">
+          <h2 className="absolute right-6 top-6 rounded-full bg-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]">Pro Mode</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-100">For growing Nigerian businesses</p>
+          <h3 className="mt-3 text-3xl font-extrabold">More room to grow</h3>
+          <p className="mt-3 text-sm leading-6 text-emerald-100">Expand your catalogue and team with Pro tools.</p>
+          <p className="mt-6 text-5xl font-black">{formatCurrency(pricing.yearly.ngn)}<span className="ml-2 text-base font-semibold text-emerald-100">/ year</span></p>
+          <ul className="mt-7 space-y-3 border-t border-white/20 pt-6 text-sm text-emerald-50">
+            <li>✓ {limitLabel(planAccess.pro.products)} products, staff accounts, and POS product listing capacity</li>
+            {planAccess.pro.features.invoices && <li>✓ Invoices enabled by the Pro plan configuration</li>}
+            {planAccess.pro.features.logoUpload && <li>✓ Business logo upload</li>}
+            {planAccess.pro.features.customReceiptThemes && <li>✓ Custom receipt themes</li>}
+            {planAccess.pro.features.businessChat && <li>✓ Business chat</li>}
+            <li>✓ WhatsApp auto-receipts are available with an active Pro subscription</li>
+            <li>✓ Reports remain subject to staff permissions; branch access remains subject to role and assignment</li>
+            <li>✓ No plan-based transaction or branch limit is configured</li>
+          </ul>
           <button
             type="button"
-            onClick={() => handlePayment("monthly", "NGN")}
-            disabled={processing === "monthly"}
-            className="mt-10 w-full bg-slate-900 text-white py-4 rounded-2xl font-bold transition hover:bg-slate-800 disabled:opacity-50"
+            onClick={handlePayment}
+            disabled={Boolean(processing)}
+            className="mt-8 w-full rounded-2xl bg-white py-4 font-bold text-emerald-800 transition hover:bg-emerald-50 disabled:opacity-50"
           >
-            {processing === "monthly" ? "Processing..." : "Upgrade Monthly"}
+            {processing ? "Processing..." : billing?.isPro ? "Renew Pro for one year" : "Upgrade to Pro"}
           </button>
-        </div>
-
-        <div className="bg-gradient-to-br from-emerald-700 to-emerald-600 text-white rounded-[32px] shadow-xl p-8 relative overflow-hidden">
-          <div className="absolute -top-3 right-5 rounded-full bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white">
-            SAVE {formatCurrency(Math.max(0, pricing.monthly.ngn * 12 - pricing.yearly.ngn))}
-          </div>
-          <div className="mb-8">
-            <h2 className="text-3xl font-extrabold">Pro Yearly</h2>
-            <div className="mt-6 flex items-end gap-2">
-              <span className="text-6xl font-black">{formatCurrency(pricing.yearly.ngn)}</span>
-              <span className="text-emerald-100 mb-2">/ year</span>
-            </div>
-            <p className="text-emerald-100 mt-4 leading-7">
-              Best for serious businesses that want long-term growth with maximum savings and future upgrades.
-            </p>
-            <p className="text-sm text-emerald-100 mt-3">Also available in USD: {formatCurrency(pricing.yearly.usd, "USD")}</p>
-          </div>
-
-          <div className="space-y-4 text-sm text-emerald-100">
-            <div className="flex items-center gap-3"><span>✅</span><span>Everything in Monthly</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Priority support</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Early access to AI tools</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Multi-location ready</span></div>
-            <div className="flex items-center gap-3"><span>✅</span><span>Future enterprise features</span></div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => handlePayment("yearly", "NGN")}
-            disabled={processing === "yearly"}
-            className="mt-10 w-full bg-white text-emerald-700 py-4 rounded-2xl font-bold transition hover:bg-emerald-100 disabled:opacity-50"
-          >
-            {processing === "yearly" ? "Processing..." : "Upgrade Yearly"}
-          </button>
-        </div>
+          <p className="mt-3 text-center text-xs text-emerald-100">Checkout is in Nigerian Naira (₦).</p>
+        </article>
       </div>
 
       {/* TRUST */}

@@ -29,11 +29,14 @@ export const DEFAULT_PLAN_ACCESS = {
 const LIMIT_KEYS = ["products", "staff", "posProducts"];
 const FEATURE_KEYS = ["invoices", "logoUpload", "customReceiptThemes", "businessChat"];
 
-export const normalizePlanAccess = (planAccess = {}) => {
+export const normalizePlanAccess = (planAccess) => {
+  const source = planAccess && typeof planAccess === "object" && !Array.isArray(planAccess)
+    ? planAccess
+    : {};
   const normalized = {};
 
   for (const plan of ["free", "pro"]) {
-    const provided = planAccess[plan] || {};
+    const provided = source[plan] || {};
     normalized[plan] = {
       ...DEFAULT_PLAN_ACCESS[plan],
       ...provided,

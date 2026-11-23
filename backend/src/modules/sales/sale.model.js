@@ -110,6 +110,26 @@ const saleItemSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const salePaymentSchema = new mongoose.Schema(
+  {
+    method: {
+      type: String,
+      enum: ["cash", "card", "bank_transfer", "other"],
+      required: true
+    },
+    amount: {
+      type: Number,
+      required: true,
+      min: 0.01
+    },
+    reference: {
+      type: String,
+      default: ""
+    }
+  },
+  { _id: false }
+);
+
 const saleSchema = new mongoose.Schema(
   {
     items: {
@@ -131,8 +151,13 @@ const saleSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["cash", "card", "bank_transfer", "credit", "other"],
+      enum: ["cash", "card", "bank_transfer", "credit", "other", "split"],
       default: "cash"
+    },
+
+    paymentBreakdown: {
+      type: [salePaymentSchema],
+      default: []
     },
 
     paymentReference: {
@@ -305,12 +330,40 @@ saleSchema.set("toObject", {
 
 saleSchema.index(
   { business: 1, clientOperationId: 1 },
-  { unique: true, sparse: true }
+  {
+    unique: true,
+    partialFilterExpression: { clientOperationId: { $type: "string" } }
+  }
 );
 saleSchema.index({ business: 1, customer: 1, createdAt: 1, followUpStatus: 1 });
+saleSchema.set("autoIndex", false);
 
-
-export default mongoose.model(
+const Sale = mongoose.model(
   "Sale",
   saleSchema
 );
+
+export const ensureSaleIndexes = async () => {
+  let indexes = [];
+  try {
+    indexes = await Sale.collection.indexes();
+  } catch (error) {
+    if (error.code !== 26 && error.codeName !== "NamespaceNotFound") {
+      throw error;
+    }
+  }
+
+  const operationIdIndex = indexes.find(({ key }) => (
+    key.business === 1 && key.clientOperationId === 1
+  ));
+  const hasExpectedOperationIdIndex = operationIdIndex?.unique === true
+    && operationIdIndex.partialFilterExpression?.clientOperationId?.$type === "string";
+
+  if (operationIdIndex && !hasExpectedOperationIdIndex) {
+    await Sale.collection.dropIndex(operationIdIndex.name);
+  }
+
+  await Sale.createIndexes();
+};
+
+export default Sale;

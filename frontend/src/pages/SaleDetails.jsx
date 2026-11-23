@@ -5,6 +5,7 @@ import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
+import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
 import "../styles/receipt.css";
 
 const Divider = () => <div className="receipt-divider" style={{ borderTop: "2px dashed #000", margin: "8px 0" }} />;
@@ -349,6 +350,16 @@ const SaleDetails = () => {
             <div className="receipt-total py-2 my-3 text-black">
               <span className="total-label text-base font-semibold uppercase tracking-[0.18em]">TOTAL</span>
               <strong className="total-value text-2xl font-black text-black">{formatCurrency(sale.totalAmount)}</strong>
+            </div>
+
+            <div className="space-y-1 py-2 text-sm text-black">
+              <p className="font-bold">Payment breakdown</p>
+              {getSalePaymentBreakdown(sale).map((payment, index) => (
+                <div key={`${payment.method}-${index}`} className="flex justify-between gap-3">
+                  <span>{PAYMENT_METHOD_LABELS[payment.method] || payment.method}</span>
+                  <span className="text-right">{formatCurrency(payment.amount)}{payment.reference ? ` · Ref: ${payment.reference}` : ""}</span>
+                </div>
+              ))}
             </div>
 
             {sale.notes && (

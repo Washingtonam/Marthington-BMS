@@ -6,6 +6,7 @@ import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
 import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
+import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -1111,8 +1112,17 @@ const Sales = () => {
 
                       <div className="px-4 py-3 md:py-4">
                         <span className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                          {(sale.paymentMethod || "cash").replace("_", " ")}
+                          {sale.paymentMethod === "split" ? "Split payment" : (sale.paymentMethod || "cash").replace("_", " ")}
                         </span>
+                        {sale.paymentMethod === "split" && (
+                          <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                            {getSalePaymentBreakdown(sale).map((payment, index) => (
+                              <li key={`${payment.method}-${index}`}>
+                                {PAYMENT_METHOD_LABELS[payment.method] || payment.method}: {formatCurrency(payment.amount)}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
 
                       <div className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 md:py-4">

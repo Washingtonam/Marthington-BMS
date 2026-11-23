@@ -23,6 +23,10 @@ test("plan access normalization fills missing settings from the defaults", () =>
   assert.equal(normalized.free.features.invoices, false);
 });
 
+test("plan access normalization treats stored null settings as defaults", () => {
+  assert.deepEqual(normalizePlanAccess(null), DEFAULT_PLAN_ACCESS);
+});
+
 test("plan access validation accepts positive limits and unlimited values", () => {
   assert.equal(validatePlanAccess(DEFAULT_PLAN_ACCESS), null);
   assert.equal(validatePlanAccess({

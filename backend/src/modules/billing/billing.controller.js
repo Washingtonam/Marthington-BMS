@@ -1,4 +1,6 @@
 import Pricing from "../subscriptions/Pricing.js";
+import SystemSettings from "../admin/systemSettings.model.js";
+import { getPlanAccess } from "../subscriptions/planAccess.js";
 
 const defaultPricing = {
   tier: "pro",
@@ -16,11 +18,17 @@ const defaultPricing = {
 
 export const getPricing = async (req, res) => {
   try {
-    const pricing = await Pricing.findOne({ tier: "pro" }).lean();
+    const [pricing, settings, planAccess] = await Promise.all([
+      Pricing.findOne({ tier: "pro" }).lean(),
+      SystemSettings.findOne().select("globalAffiliateRate").lean(),
+      getPlanAccess()
+    ]);
 
     return res.status(200).json({
       success: true,
-      data: pricing?.prices ?? defaultPricing.prices
+      data: pricing?.prices ?? defaultPricing.prices,
+      planAccess,
+      commissionRate: Number(settings?.globalAffiliateRate ?? 10)
     });
   } catch (err) {
     console.error("GET PRICING ERROR:", err);
@@ -35,9 +43,7 @@ export const updatePricing = async (req, res) => {
   try {
     const allowedKeys = [
       "prices.monthly.ngn",
-      "prices.monthly.usd",
-      "prices.yearly.ngn",
-      "prices.yearly.usd"
+      "prices.yearly.ngn"
     ];
 
     const update = {};
