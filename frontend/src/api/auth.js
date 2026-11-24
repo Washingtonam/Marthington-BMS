@@ -34,3 +34,13 @@ export const resetPassword = async (payload) => {
 export const getCurrentUser = async () => {
   return request("/auth/me");
 };
+
+export const saveOnboardingProgress = async (onboardingTours) => {
+  return request("/auth/onboarding", {
+    method: "PATCH",
+    body: JSON.stringify({
+      onboardingTourVersion: "v1",
+      onboardingTours
+    })
+  });
+};

@@ -43,6 +43,7 @@ import {
   suggestSellingPrice
 } from "../utils/productPricing.js";
 import PlanUpgradeNotice, { isPlanAccessMessage } from "../components/PlanUpgradeNotice.jsx";
+import { useOnboarding } from "../context/OnboardingContext.jsx";
 
 const initialForm = {
   name: "",
@@ -59,6 +60,7 @@ const Products = () => {
   const [searchParams, setSearchParams] = useSafeSearchParams();
   const linkedProductId = searchParams.get("edit");
   const { business, isPro, user } = useAuth(); // Using the boolean from context
+  const { recordProductCreated } = useOnboarding();
   const currentMode = isPro ? "Pro mode" : "Free mode";
   const isBranchUser = Boolean(user?.branch) && user?.role !== "owner" && user?.role !== "super_admin";
   const canReviewInventory = user?.role === "owner"
@@ -245,6 +247,7 @@ const Products = () => {
         body: JSON.stringify(payload)
       });
 
+      if (!editingId) recordProductCreated();
       setSuccess(editingId
         ? "Product updated successfully"
         : result.matchedExisting
@@ -496,6 +499,7 @@ const Products = () => {
             <button
               type="button"
               onClick={openNewProductModal}
+              data-tour="products-add-action"
               className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-emerald-100 transition hover:bg-emerald-700"
             >
               + Add Product
@@ -680,7 +684,7 @@ const Products = () => {
               {upgradePrompt && <div className="mb-4"><PlanUpgradeNotice mode={currentMode} message={upgradePrompt} onDismiss={() => setUpgradePrompt("")} /></div>}
               {error && <div className="mb-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-              <form onSubmit={handleSubmit} className="grid gap-4">
+              <form onSubmit={handleSubmit} data-tour="products-form" className="grid gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700">Product Name</label>
                   <input

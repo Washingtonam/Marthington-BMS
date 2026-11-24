@@ -209,6 +209,30 @@ const permissionSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const onboardingToursSchema = new mongoose.Schema(
+  {
+    completedTours: {
+      type: [String],
+      default: []
+    },
+    flowStatus: {
+      type: String,
+      enum: ["not_started", "in_progress", "completed", "skipped"],
+      default: "not_started"
+    },
+    flowStep: {
+      type: String,
+      enum: ["dashboard", "products", "pos", "sales", "completed"],
+      default: "dashboard"
+    },
+    checklistDismissed: {
+      type: Boolean,
+      default: false
+    }
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -275,6 +299,16 @@ const userSchema = new mongoose.Schema(
         default: "#10b981",
         match: /^#[0-9a-fA-F]{6}$/
       }
+    },
+
+    onboardingTourVersion: {
+      type: String,
+      default: ""
+    },
+
+    onboardingTours: {
+      type: onboardingToursSchema,
+      default: () => ({})
     },
 
     refreshToken: {

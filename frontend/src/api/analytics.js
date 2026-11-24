@@ -21,9 +21,13 @@ const analyticsFallback = {
   lowStockProducts: []
 };
 
-export const getAnalytics = async (range = "all") => {
+export const getAnalytics = async (range = "all", branchId = "") => {
   try {
-    const query = range && range !== "all" ? `?range=${encodeURIComponent(range)}` : "";
+    const params = new URLSearchParams();
+    if (range && range !== "all") params.set("range", range);
+    if (branchId) params.set("branchId", branchId);
+    const queryString = params.toString();
+    const query = queryString ? `?${queryString}` : "";
     const data = await request(`/analytics${query}`);
     return data?.data ?? data ?? analyticsFallback;
   } catch (err) {

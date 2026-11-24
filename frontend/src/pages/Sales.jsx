@@ -829,7 +829,7 @@ const Sales = () => {
 
           {viewMode === "active" && (
             <>
-              <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-950/40 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div data-tour="sales-filters" className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-950/40 lg:grid-cols-[1fr_auto] lg:items-end">
                 <div>
                   <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Filter by date</p>
                   <div className="flex flex-wrap gap-2">
@@ -970,7 +970,7 @@ const Sales = () => {
             <div className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Updating transactions…</div>
           )}
 
-          <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-950/60">
+          <div data-tour="sales-log" className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-950/60">
             {viewMode === "follow-ups" ? (
               <div className="border-b border-slate-200 bg-slate-100/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/80">
                 <h2 className="font-bold text-slate-800 dark:text-slate-100">Customer follow-ups</h2>
@@ -1083,7 +1083,7 @@ const Sales = () => {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between gap-2 px-4 py-3 md:py-4">
+                      <div data-tour="sales-receipt-actions" className="flex items-center justify-between gap-2 px-4 py-3 md:py-4">
                         <button type="button" onClick={() => navigate(`/app/sales/${sale._id}`)} className="text-left">
                           <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">#{sale.receiptId}</div>
                           <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(sale.createdAt).toLocaleString()}</div>

@@ -14,5 +14,6 @@ router.get("/me", protect, authController.getCurrentUser);
 router.patch("/appearance", protect, authController.updateAppearance);
 router.patch("/password", protect, authController.changePassword);
 router.patch("/profile", protect, authController.updateProfileName);
+router.patch("/onboarding", protect, authController.updateOnboardingProgress);
 
 export default router;

@@ -30,6 +30,7 @@ import { applyAccentColor, applyColorMode, defaultAccentColor, getColorMode } fr
 import BusinessChatWidget from "../BusinessChatWidget.jsx";
 import DemoGuideBadge from "../DemoGuideBadge.jsx";
 import { useBranding } from "../../context/BrandingContext.jsx";
+import { OnboardingProvider } from "../../context/OnboardingContext.jsx";
 
 const defaultNavGroups = [
   {
@@ -116,29 +117,31 @@ export default function AppShell({ children, navigationGroups = defaultNavGroups
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/90 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
-      <Sidebar
-        navigationGroups={navigationGroups}
-        mobileOpen={mobileOpen}
-        setMobileOpen={setMobileOpen}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        onCollapseChange={setSidebarCollapsed}
-      />
-
-      <div className={mobileOpen ? "" : sidebarCollapsed ? "lg:pl-20" : "lg:pl-72"}>
-        <Topbar
-          onMenuClick={() => setMobileOpen(true)}
+    <OnboardingProvider>
+      <div className="min-h-screen bg-slate-50/90 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
+        <Sidebar
+          navigationGroups={navigationGroups}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
           theme={theme}
           toggleTheme={toggleTheme}
+          onCollapseChange={setSidebarCollapsed}
         />
 
-        <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-          {children ?? <Outlet />}
-        </main>
+        <div className={mobileOpen ? "" : sidebarCollapsed ? "lg:pl-20" : "lg:pl-72"}>
+          <Topbar
+            onMenuClick={() => setMobileOpen(true)}
+            theme={theme}
+            toggleTheme={toggleTheme}
+          />
+
+          <main className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+            {children ?? <Outlet />}
+          </main>
+        </div>
+        {user?.role !== "affiliate" && (business?._id || business?.businessId || impersonatedBusiness || user?.business) && <BusinessChatWidget />}
+        <DemoGuideBadge />
       </div>
-      {user?.role !== "affiliate" && (business?._id || business?.businessId || impersonatedBusiness || user?.business) && <BusinessChatWidget />}
-      <DemoGuideBadge />
-    </div>
+    </OnboardingProvider>
   );
 }

@@ -8,3 +8,14 @@ test("user appearance stores a validated default accent color", () => {
   assert.ok(accentColor.options.match.test("#2563eb"));
   assert.ok(!accentColor.options.match.test("blue"));
 });
+
+test("user onboarding progress has a versioned per-user default", () => {
+  const onboardingVersion = User.schema.path("onboardingTourVersion");
+  assert.equal(onboardingVersion.options.default, "");
+
+  const user = new User({ name: "Test User", email: "onboarding@example.com", password: "password" });
+  assert.deepEqual(user.onboardingTours.completedTours, []);
+  assert.equal(user.onboardingTours.flowStatus, "not_started");
+  assert.equal(user.onboardingTours.flowStep, "dashboard");
+  assert.equal(user.onboardingTours.checklistDismissed, false);
+});

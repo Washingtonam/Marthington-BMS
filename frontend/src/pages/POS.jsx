@@ -9,6 +9,7 @@ import { buildTransactionWhatsAppMessage, buildWhatsAppUrl } from "../utils/what
 import { buildCustomerDisplayUrl, resolveCustomerDisplayTitle } from "../utils/customerDisplay.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import PlanUpgradeNotice from "../components/PlanUpgradeNotice.jsx";
+import { useOnboarding } from "../context/OnboardingContext.jsx";
 
 const formatDisplayText = (value = "") => {
   const raw = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -66,6 +67,7 @@ const getNextPaymentMethod = (usedMethods) => (
 const POS = () => {
   const navigate = useNavigate();
   const { user, business } = useAuth();
+  const { progress: onboardingProgress, recordPosSale } = useOnboarding();
   const userBranchId = user?.branch?._id || user?.branch || "";
   
   // ====================================
@@ -601,12 +603,16 @@ useEffect(() => {
 
       if (res?.offline) {
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: `PENDING-${res.operationId}` });
+        recordPosSale();
         setCart([]);
         setCustomer({ name: "", phone: "", notes: "" });
         setPaymentMethod("cash");
         setPaymentReference("");
         setPaymentBreakdown([]);
         setUpgradeMsg("Sale saved on this device and will sync automatically when you are online.");
+        if (onboardingProgress.flowStatus === "in_progress" && onboardingProgress.flowStep === "pos") {
+          navigate("/app/sales");
+        }
         return;
       }
 
@@ -615,6 +621,7 @@ useEffect(() => {
         const receiptId = salePayload.receiptId || salePayload.receipt_id;
 
         if (bc.current) bc.current.postMessage({ type: "SALE_COMPLETE", receiptId: receiptId || `PENDING-${saleId}` });
+        recordPosSale();
 
         if (autoSend && customer.phone && isPro) {
           const cleanPhone = customer.phone.replace(/\D/g, "").replace(/^0/, "234");
@@ -635,13 +642,17 @@ useEffect(() => {
         setPaymentReference("");
         setPaymentBreakdown([]);
 
-        navigate(`/app/sales/${saleId}`, {
-          state: {
-            autoPrint: true,
-            autoSend: Boolean(autoSend && customer.phone && isPro),
-            phone: customer.phone || ""
-          }
-        });
+        if (onboardingProgress.flowStatus === "in_progress" && onboardingProgress.flowStep === "pos") {
+          navigate("/app/sales");
+        } else {
+          navigate(`/app/sales/${saleId}`, {
+            state: {
+              autoPrint: true,
+              autoSend: Boolean(autoSend && customer.phone && isPro),
+              phone: customer.phone || ""
+            }
+          });
+        }
         return;
       }
 
@@ -720,7 +731,7 @@ useEffect(() => {
           ))}
         </div>
 
-        <div className="grid max-h-[calc(100vh-180px)] grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar">
+        <div data-tour="pos-catalog" className="grid max-h-[calc(100vh-180px)] grid-cols-1 gap-3 overflow-y-auto pr-2 custom-scrollbar">
           {activeTab === "products" ? (
             filteredProducts.map(p => {
               const pulseActive = pulseId === p._id && pulseType === "product";
@@ -801,6 +812,7 @@ useEffect(() => {
         )}
         <div
           role={cartOpen ? "dialog" : undefined}
+          data-tour="pos-cart"
           aria-modal={cartOpen ? "true" : undefined}
           aria-label={cartOpen ? "Cart checkout" : undefined}
           onClick={(event) => event.stopPropagation()}
@@ -946,7 +958,7 @@ useEffect(() => {
                 <span className="text-3xl font-black tracking-tight text-slate-900">{formatCurrency(total)}</span>
             </div>
 
-            <section aria-labelledby="payment-method-heading" className="space-y-2">
+            <section data-tour="pos-payment" aria-labelledby="payment-method-heading" className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <h2 id="payment-method-heading" className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
                   Payment method
@@ -1126,6 +1138,7 @@ useEffect(() => {
             {upgradeMsg && <p role="alert" className="rounded-2xl bg-rose-50 p-2 text-center text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">{upgradeMsg}</p>}
 
             <button
+              data-tour="pos-checkout"
               onClick={checkout}
               disabled={!cart.length || processing || (paymentBreakdown.length > 0 && !isSplitPaymentValid)}
               className={`w-full rounded-2xl py-4 text-sm font-black uppercase tracking-[0.2em] text-white transition-all active:translate-y-[1px] ${
@@ -1142,6 +1155,7 @@ useEffect(() => {
       {!cartOpen && (
         <button
           type="button"
+          data-tour="pos-open-cart"
           onClick={() => setCartOpen(true)}
           className="fixed right-4 top-20 z-50 flex items-center gap-3 rounded-full bg-slate-900 px-4 py-3 text-left text-white shadow-[0_14px_32px_rgba(15,23,42,0.28)] lg:hidden"
           aria-label="Open cart"

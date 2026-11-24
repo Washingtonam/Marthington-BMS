@@ -5,6 +5,8 @@ import request from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency } from "../utils/formatters.js";
 import { subscribeToSalesUpdates } from "../utils/salesEvents.js";
+import { getBranches } from "../api/branches.js";
+import OnboardingChecklist from "../components/onboarding/OnboardingChecklist.jsx";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -62,14 +64,26 @@ const Dashboard = () => {
   );
   const canReviewExpenses = Boolean(user?.role === "owner" || user?.role === "super_admin");
   const [pendingPayments, setPendingPayments] = useState(0);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const canFilterBranches = user?.role === "owner"
+    || user?.role === "super_admin"
+    || user?.permissions?.canViewBranches === true;
+
+  useEffect(() => {
+    if (!canFilterBranches) return;
+    getBranches()
+      .then((response) => setBranches(Array.isArray(response) ? response : response?.branches || []))
+      .catch((branchError) => console.error("Could not load dashboard branches:", branchError));
+  }, [canFilterBranches]);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
         const [data, salesData, outstandingData, expenseData] = await Promise.all([
-          getAnalytics("today"),
-          request("/sales?limit=10").catch(() => ({ sales: [] })),
+          getAnalytics("today", selectedBranchId),
+          request(`/sales?limit=10${selectedBranchId ? `&branchId=${encodeURIComponent(selectedBranchId)}` : ""}`).catch(() => ({ sales: [] })),
           canViewInvoices ? request("/invoices/outstanding-summary").catch(() => null) : Promise.resolve(null),
           canReviewExpenses ? request("/expenses?status=pending").catch(() => ({ expenses: [] })) : Promise.resolve({ expenses: [] }),
         ]);
@@ -102,7 +116,7 @@ const Dashboard = () => {
     });
 
     return unsubscribe;
-  }, [canReviewPayments, canViewInvoices, canReviewExpenses, refreshKey]);
+  }, [canReviewPayments, canViewInvoices, canReviewExpenses, refreshKey, selectedBranchId]);
 
   const { metrics, recentActivity } = useMemo(() => {
     const metricValues = analytics?.metrics || {};
@@ -256,7 +270,7 @@ const Dashboard = () => {
 
   return (
     <section className="mx-auto max-w-7xl space-y-6">
-      <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/30">
+      <div data-tour="dashboard-overview" className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-emerald-50 p-5 shadow-sm sm:p-6 dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-emerald-950/30">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
@@ -273,7 +287,21 @@ const Dashboard = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {canFilterBranches && branches.length > 0 && (
+              <label data-tour="dashboard-branch-filter" className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-950">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Branch</span>
+                <select
+                  aria-label="Filter dashboard by branch"
+                  value={selectedBranchId}
+                  onChange={(event) => setSelectedBranchId(event.target.value)}
+                  className="max-w-40 bg-transparent text-sm font-semibold text-slate-700 outline-none dark:text-slate-200"
+                >
+                  <option value="">All branches</option>
+                  {branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}
+                </select>
+              </label>
+            )}
             <button
               onClick={() => setRefreshKey((prev) => prev + 1)}
               className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition-all duration-150 hover:-translate-y-0.5 hover:bg-slate-50 active:scale-[0.99] focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -292,6 +320,8 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <OnboardingChecklist />
+
       {error && (
         <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300">
           <span>⚠️</span>
@@ -299,7 +329,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="dashboard-quick-stats" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {executiveCards.map((card) => (
           <div
             key={card.label}
@@ -368,7 +398,7 @@ const Dashboard = () => {
       )}
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+        <div data-tour="dashboard-quick-actions" className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Quick workflows</h2>
@@ -405,7 +435,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+        <div data-tour="dashboard-modules" className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Module launchers</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Main operational areas</p>
 

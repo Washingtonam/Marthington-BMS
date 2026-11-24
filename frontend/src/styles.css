@@ -2485,3 +2485,191 @@ label input:focus {
   .staff-modal { max-height: calc(100vh - 24px); padding: 20px; border-radius: 20px; }
   .staff-modal .permission-grid { grid-template-columns: 1fr; }
 }
+.bms-tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.bms-tour-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.58);
+  pointer-events: none;
+}
+
+.bms-tour-spotlight {
+  position: fixed;
+  z-index: 1;
+  border: 2px solid #34d399;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.58), 0 0 0 6px rgba(16, 185, 129, 0.22);
+  pointer-events: none;
+  transition: top 180ms ease, left 180ms ease, width 180ms ease, height 180ms ease;
+}
+
+.bms-tour-card {
+  position: fixed;
+  z-index: 2;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(85vh, 560px);
+  overflow-y: auto;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 20px;
+  background: #fff;
+  padding: 18px;
+  color: #0f172a;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  pointer-events: auto;
+}
+
+.dark .bms-tour-card {
+  border-color: #334155;
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+.bms-tour-card-top,
+.bms-tour-progress-row,
+.bms-tour-actions,
+.bms-tour-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bms-tour-eyebrow {
+  color: #059669;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.dark .bms-tour-eyebrow {
+  color: #6ee7b7;
+}
+
+.bms-tour-close {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: #64748b;
+  font-size: 22px;
+}
+
+.bms-tour-close:hover {
+  background: #f1f5f9;
+}
+
+.dark .bms-tour-close:hover {
+  background: #1e293b;
+}
+
+.bms-tour-progress-row {
+  margin-top: 16px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dark .bms-tour-progress-row {
+  color: #94a3b8;
+}
+
+.bms-tour-progress-track {
+  width: 88px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.dark .bms-tour-progress-track {
+  background: #334155;
+}
+
+.bms-tour-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #10b981;
+}
+
+.bms-tour-card h2 {
+  margin-top: 15px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bms-tour-card p {
+  margin-top: 8px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dark .bms-tour-card p {
+  color: #cbd5e1;
+}
+
+.bms-tour-card .bms-tour-error {
+  border-radius: 10px;
+  background: #fff7ed;
+  padding: 8px 10px;
+  color: #9a3412;
+  font-size: 11px;
+}
+
+.bms-tour-actions {
+  margin-top: 18px;
+}
+
+.bms-tour-skip,
+.bms-tour-back,
+.bms-tour-next {
+  min-height: 38px;
+  border-radius: 11px;
+  padding: 0 13px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bms-tour-skip,
+.bms-tour-back {
+  color: #64748b;
+}
+
+.bms-tour-skip:hover,
+.bms-tour-back:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.dark .bms-tour-skip:hover,
+.dark .bms-tour-back:hover {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.bms-tour-next {
+  background: #059669;
+  color: white;
+  box-shadow: 0 5px 12px rgba(5, 150, 105, 0.2);
+}
+
+.bms-tour-next:hover {
+  background: #047857;
+}
+
+@media (max-width: 480px) {
+  .bms-tour-card {
+    padding: 16px;
+  }
+}

@@ -168,6 +168,58 @@ const updateProfileName = async (req, res) => {
   }
 };
 
+const updateOnboardingProgress = async (req, res) => {
+  const allowedTours = new Set([
+    "dashboard", "pos", "sales", "invoices", "payments", "customers",
+    "products", "services", "inventory", "suppliers", "supplier-performance",
+    "purchase-orders", "expenses", "budget-management", "budget-alerts",
+    "cost-trends", "billing", "reports", "analytics", "staff", "roles",
+    "branches", "settings", "user-guide", "pos-sale", "product-created"
+  ]);
+  const allowedFlowStatuses = new Set(["not_started", "in_progress", "completed", "skipped"]);
+  const allowedFlowSteps = new Set(["dashboard", "products", "pos", "sales", "completed"]);
+  const body = req.body?.onboardingTours;
+
+  if (
+    req.body?.onboardingTourVersion !== "v1" ||
+    !body ||
+    !Array.isArray(body.completedTours) ||
+    !body.completedTours.every((tour) => typeof tour === "string" && allowedTours.has(tour)) ||
+    !allowedFlowStatuses.has(body.flowStatus) ||
+    !allowedFlowSteps.has(body.flowStep) ||
+    typeof body.checklistDismissed !== "boolean"
+  ) {
+    return res.status(400).json({ message: "Invalid onboarding progress." });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: {
+          onboardingTourVersion: "v1",
+          onboardingTours: {
+            completedTours: [...new Set(body.completedTours)],
+            flowStatus: body.flowStatus,
+            flowStep: body.flowStep,
+            checklistDismissed: body.checklistDismissed
+          }
+        }
+      },
+      { new: true, runValidators: true }
+    ).select("onboardingTourVersion onboardingTours");
+
+    if (!user) return res.status(404).json({ message: "User not found." });
+    return res.json({
+      onboardingTourVersion: user.onboardingTourVersion,
+      onboardingTours: user.onboardingTours
+    });
+  } catch (error) {
+    console.error("UPDATE ONBOARDING PROGRESS ERROR:", error);
+    return res.status(500).json({ message: "Could not save onboarding progress." });
+  }
+};
+
 const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
@@ -567,5 +619,6 @@ export default {
   getCurrentUser,
   updateAppearance,
   updateProfileName,
+  updateOnboardingProgress,
   changePassword
 };

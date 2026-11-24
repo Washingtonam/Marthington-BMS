@@ -20,6 +20,7 @@ import {
 } from "react-icons/fa";
 import { getUserGuide } from "../api/userGuide.js";
 import { defaultPartnerGuides } from "../data/partnerGuides.js";
+import { useOnboarding } from "../context/OnboardingContext.jsx";
 
 const tabs = [
   { id: "workflows", label: "Core Workflows" },
@@ -197,6 +198,90 @@ const moduleDirectory = [
     summary: "Branding, profile details, and business configuration.",
     action: "Open Settings",
   },
+  {
+    title: "Payments",
+    path: "/app/payments",
+    summary: "Review incoming payment records and their verification status.",
+    action: "View Payments",
+  },
+  {
+    title: "Services",
+    path: "/app/services",
+    summary: "Manage your service catalog and pricing.",
+    action: "Manage Services",
+  },
+  {
+    title: "Suppliers",
+    path: "/app/suppliers",
+    summary: "Organize supplier details and purchasing contacts.",
+    action: "View Suppliers",
+  },
+  {
+    title: "Supplier Performance",
+    path: "/app/supplier-performance",
+    summary: "Compare supplier activity and performance across purchasing history.",
+    action: "View Supplier Performance",
+  },
+  {
+    title: "Purchase Orders",
+    path: "/app/purchase-orders",
+    summary: "Create and track inventory replenishment orders.",
+    action: "View Purchase Orders",
+  },
+  {
+    title: "Expenses",
+    path: "/app/expenses",
+    summary: "Record operating expenses and follow approvals.",
+    action: "Manage Expenses",
+  },
+  {
+    title: "Budget Management",
+    path: "/app/budget-management",
+    summary: "Set and review spending plans for business categories.",
+    action: "Manage Budgets",
+  },
+  {
+    title: "Budget Alerts",
+    path: "/app/budget-alerts",
+    summary: "Review budget thresholds and alerts that need attention.",
+    action: "View Budget Alerts",
+  },
+  {
+    title: "Cost Trends",
+    path: "/app/cost-trends",
+    summary: "Track changes in operating costs over time.",
+    action: "View Cost Trends",
+  },
+  {
+    title: "Billing",
+    path: "/app/billing",
+    summary: "Review subscription status and business billing options.",
+    action: "Open Billing",
+  },
+  {
+    title: "Analytics",
+    path: "/app/analytics",
+    summary: "Explore trends and indicators across your business.",
+    action: "View Analytics",
+  },
+  {
+    title: "Roles & Permissions",
+    path: "/app/settings?tab=access",
+    summary: "Control what each team role can access.",
+    action: "Manage Roles",
+  },
+  {
+    title: "Branches",
+    path: "/app/branches",
+    summary: "Set up and manage your business locations.",
+    action: "Manage Branches",
+  },
+  {
+    title: "User Guide",
+    path: "/app/user-guide",
+    summary: "Find workflows, module references, and troubleshooting help.",
+    action: "Open User Guide",
+  },
 ];
 
 const onboardingChecklist = [
@@ -271,6 +356,7 @@ const getStoredChecklist = (items = onboardingChecklist) => {
 };
 
 const UserGuide = () => {
+  const { startFullOnboarding, replayTour, pageRoutes } = useOnboarding();
   const [activeTab, setActiveTab] = useState("workflows");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("all");
@@ -375,8 +461,27 @@ ${guideContent.workflows
     URL.revokeObjectURL(url);
   };
 
+  const getTourPageKey = (path) => Object.entries(pageRoutes)
+    .find(([, route]) => route === path)?.[0]
+    || Object.entries(pageRoutes).find(([, route]) => route.split("?")[0] === path)?.[0];
+
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8">
+      <section className="flex flex-col gap-5 rounded-[28px] border border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-slate-50 p-6 shadow-sm dark:border-emerald-900/60 dark:from-emerald-950/30 dark:via-slate-900 dark:to-slate-900 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-300">Guided setup</p>
+          <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">Need a Full System Walkthrough?</h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Restart the dashboard-to-sales onboarding flow whenever you need a refresher.</p>
+        </div>
+        <button
+          type="button"
+          onClick={startFullOnboarding}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700"
+        >
+          Restart Full Onboarding Tour (Go to Dashboard)
+          <FaArrowRight />
+        </button>
+      </section>
       <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-xl dark:border-slate-800">
         <div className="flex flex-col gap-6 p-6 md:p-8 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl space-y-4">
@@ -664,13 +769,24 @@ ${guideContent.workflows
                   </p>
                 </div>
 
-                <Link
-                  to={module.path}
-                  className="mt-5 inline-flex items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-indigo-600 dark:hover:bg-indigo-500"
-                >
-                  <span>{module.action}</span>
-                  <FaChevronRight className="ml-2 text-xs" />
-                </Link>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Link
+                    to={module.path}
+                    className="inline-flex flex-1 items-center justify-between rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+                  >
+                    <span>{module.action}</span>
+                    <FaChevronRight className="ml-2 text-xs" />
+                  </Link>
+                  {getTourPageKey(module.path) && (
+                    <button
+                      type="button"
+                      onClick={() => replayTour(getTourPageKey(module.path))}
+                      className="inline-flex items-center justify-center rounded-2xl border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                    >
+                      Replay Tour
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -9,7 +9,8 @@ import {
 import {
   loginUser,
   registerUser,
-  getCurrentUser
+  getCurrentUser,
+  saveOnboardingProgress as saveOnboardingProgressRequest
 } from "../api/auth.js";
 import { registerAffiliateUser } from "../api/affiliateAuth.js";
 
@@ -379,6 +380,18 @@ export const AuthProvider = ({ children }) => {
     return updatedUser;
   };
 
+  const saveOnboardingProgress = async (onboardingTours) => {
+    const response = await saveOnboardingProgressRequest(onboardingTours);
+    const updatedUser = normalizeUser({
+      ...user,
+      onboardingTourVersion: response.onboardingTourVersion,
+      onboardingTours: response.onboardingTours
+    });
+    localStorage.setItem("bms_user", JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    return response.onboardingTours;
+  };
+
   // 🔥 DERIVED STATE
   const permissions = usePermissions(user, business);
   const isPro = permissions.isPro;
@@ -434,6 +447,7 @@ export const AuthProvider = ({ children }) => {
       activateAgentMode,
       updateAppearance,
       updateProfileName,
+      saveOnboardingProgress,
 
       impersonatedBusiness,
 
