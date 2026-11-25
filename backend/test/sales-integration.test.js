@@ -194,6 +194,49 @@ describe("sales integration with an in-memory replica set", { concurrency: false
       { method: "bank_transfer", amount: 60, reference: "TRANSFER-TEST-1" }
     ]);
 
+    const salesResponse = await request({
+      path: "/api/sales",
+      token: tenant.token
+    });
+    assert.equal(salesResponse.statusCode, 200);
+    assert.deepEqual(salesResponse.body.reconciliation.paymentTotals, {
+      cash: 40,
+      card: 0,
+      bank_transfer: 60,
+      credit: 0,
+      other: 0
+    });
+    assert.deepEqual(
+      salesResponse.body.sales[0].paymentBreakdown.map(({ method, amount }) => ({ method, amount })),
+      [{ method: "cash", amount: 40 }, { method: "bank_transfer", amount: 60 }]
+    );
+
+    tenant.user.permissions.canViewReports = true;
+    await tenant.user.save();
+    tenant.token = jwt.sign({ id: tenant.user._id.toString() }, jwtSecret);
+
+    const overviewResponse = await request({
+      path: "/api/reports/overview",
+      token: tenant.token
+    });
+    assert.equal(overviewResponse.statusCode, 200);
+    const overviewSale = overviewResponse.body.sales.find(({ _id }) => _id === savedSale._id.toString());
+    assert.deepEqual(
+      overviewSale.paymentBreakdown.map(({ method, amount }) => ({ method, amount })),
+      [{ method: "cash", amount: 40 }, { method: "bank_transfer", amount: 60 }]
+    );
+
+    const saleDate = new Date(savedSale.createdAt).toISOString().slice(0, 10);
+    const dailyReportResponse = await request({
+      path: `/api/reports/daily-analysis?date=${saleDate}`,
+      token: tenant.token
+    });
+    assert.equal(dailyReportResponse.statusCode, 200);
+    assert.deepEqual(dailyReportResponse.body.paymentMethods, [
+      { method: "bank_transfer", count: 1, amount: 60 },
+      { method: "cash", count: 1, amount: 40 }
+    ]);
+
     const statusUpdate = () => request({
       path: `/api/sales/${savedSale._id}/status`,
       method: "PATCH",
