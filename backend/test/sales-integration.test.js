@@ -360,6 +360,56 @@ describe("sales integration with an in-memory replica set", { concurrency: false
     assert.equal(await Sale.countDocuments({ business: tenant.business._id }), 1);
   });
 
+  test("returns tender totals for all filtered sales, not only the current page", async () => {
+    const tenant = await createTenant("PaymentTotals");
+    const splitSale = await createSale(tenant);
+    assert.equal(splitSale.statusCode, 200);
+
+    await Sale.insertMany(Array.from({ length: 10 }, (_, index) => {
+      const isSearchMatch = index === 0;
+      const amount = isSearchMatch ? 7 : 10;
+      return {
+        items: [{ name: `Payment test item ${index}`, quantity: 1, sellingPrice: amount, total: amount }],
+        totalAmount: amount,
+        paymentMethod: isSearchMatch ? "bank_transfer" : "cash",
+        paymentBreakdown: [],
+        business: tenant.business._id,
+        branch: tenant.branch._id,
+        createdBy: tenant.user._id,
+        receiptId: isSearchMatch ? "PAYMENT-SEARCH-UNIQUE" : `PAYMENT-TEST-${index}`,
+        status: isSearchMatch ? "posted" : "pending"
+      };
+    }));
+
+    const firstPage = await request({
+      path: "/api/sales?page=1&limit=10",
+      token: tenant.token
+    });
+    assert.equal(firstPage.statusCode, 200);
+    assert.equal(firstPage.body.sales.length, 10);
+    assert.equal(firstPage.body.pagination.total, 11);
+    assert.deepEqual(firstPage.body.reconciliation.paymentTotals, {
+      cash: 130,
+      card: 0,
+      bank_transfer: 67,
+      credit: 0,
+      other: 0
+    });
+
+    const filtered = await request({
+      path: "/api/sales?status=posted&search=PAYMENT-SEARCH-UNIQUE",
+      token: tenant.token
+    });
+    assert.equal(filtered.statusCode, 200);
+    assert.deepEqual(filtered.body.reconciliation.paymentTotals, {
+      cash: 0,
+      card: 0,
+      bank_transfer: 7,
+      credit: 0,
+      other: 0
+    });
+  });
+
   test("concurrent and sequential offline retries with one operation ID create one sale", async () => {
     const tenant = await createTenant("Offline");
     const operationId = "offline-operation-1";

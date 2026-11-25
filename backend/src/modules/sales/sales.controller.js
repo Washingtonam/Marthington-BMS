@@ -826,7 +826,7 @@ const getSales = async (req, res) => {
       }
     }
 
-    const [sales, total, reconciliationRows] = await Promise.all([
+    const [sales, total, reconciliationRows, paymentRows] = await Promise.all([
       Sale.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
@@ -851,6 +851,42 @@ const getSales = async (req, res) => {
             reversedCount: { $sum: { $cond: [{ $eq: ["$status", "reversed"] }, 1, 0] } }
           }
         }
+      ]),
+      Sale.aggregate([
+        { $match: reconciliationQuery },
+        {
+          $project: {
+            paymentEntries: {
+              $cond: [
+                { $gt: [{ $size: { $ifNull: ["$paymentBreakdown", []] } }, 0] },
+                "$paymentBreakdown",
+                {
+                  $cond: [
+                    { $ne: [{ $ifNull: ["$paymentMethod", "cash"] }, "split"] },
+                    [{
+                      method: { $ifNull: ["$paymentMethod", "cash"] },
+                      amount: { $ifNull: ["$totalAmount", 0] }
+                    }],
+                    []
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        { $unwind: "$paymentEntries" },
+        {
+          $group: {
+            _id: {
+              $cond: [
+                { $eq: ["$paymentEntries.method", "transfer"] },
+                "bank_transfer",
+                "$paymentEntries.method"
+              ]
+            },
+            amount: { $sum: { $ifNull: ["$paymentEntries.amount", 0] } }
+          }
+        }
       ])
     ]);
 
@@ -861,6 +897,13 @@ const getSales = async (req, res) => {
       postedCount: 0,
       reversedCount: 0
     };
+    reconciliation.paymentTotals = { cash: 0, card: 0, bank_transfer: 0, credit: 0, other: 0 };
+    for (const paymentRow of paymentRows) {
+      if (Object.prototype.hasOwnProperty.call(reconciliation.paymentTotals, paymentRow._id)) {
+        reconciliation.paymentTotals[paymentRow._id] = paymentRow.amount;
+      }
+    }
+
     res.json({
       sales,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },

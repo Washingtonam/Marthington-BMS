@@ -3,22 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getReport, REPORT_TYPES } from "../api/reportApi.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { parseReportDetailRoute } from "../utils/reportDateRouting.js";
+import { aggregateSalePayments, saleUsesPaymentMethod } from "../utils/salePayments.js";
 import { FiDownload, FiGrid, FiList, FiPrinter, FiShare2 } from "react-icons/fi";
 
 const getDateLabel = (date) => {
   if (!date || Number.isNaN(date.getTime())) return "Custom";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
-};
-
-const normalizePaymentMethod = (value) => {
-  const method = String(value ?? "cash").toLowerCase().trim();
-
-  if (["cash", "cash payment", "cash sale", "cashless"].includes(method)) return "cash";
-  if (["card", "debit card", "credit card", "visa", "mastercard", "pos", "card payment"].includes(method)) return "card";
-  if (["bank transfer", "bank transfer payment", "bank_transfer", "bank-transfer", "bank", "transfer"].includes(method)) return "bank_transfer";
-  if (["credit", "debt", "credit sale", "account"].includes(method)) return "credit";
-
-  return "other";
 };
 
 const getEntryItems = (entry) => {
@@ -218,7 +208,7 @@ const ReportsDetailPage = () => {
       const inRange = createdAt >= range.start && createdAt <= range.end;
       if (!inRange) return false;
       if (paymentFilter === "all") return true;
-      return normalizePaymentMethod(sale.paymentMethod) === paymentFilter;
+      return saleUsesPaymentMethod(sale, paymentFilter);
     });
   }, [reportSales, range.start, range.end, paymentFilter]);
 
@@ -231,17 +221,12 @@ const ReportsDetailPage = () => {
   }, [reportTransactions, range.start, range.end, paymentFilter]);
 
   const paymentBreakdown = useMemo(() => {
-    const totals = { cash: 0, card: 0, bank_transfer: 0, credit: 0, other: 0 };
-
-    reportSales.forEach((sale) => {
+    const salesInRange = reportSales.filter((sale) => {
       const createdAt = new Date(sale.createdAt);
-      if (createdAt >= range.start && createdAt <= range.end) {
-        const method = normalizePaymentMethod(sale.paymentMethod);
-        totals[method] += Number(sale.totalAmount || 0);
-      }
+      return createdAt >= range.start && createdAt <= range.end;
     });
 
-    return totals;
+    return aggregateSalePayments(salesInRange);
   }, [reportSales, range.start, range.end]);
 
   const metrics = useMemo(() => {

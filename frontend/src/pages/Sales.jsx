@@ -6,7 +6,7 @@ import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
 import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
-import { getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
+import { aggregateSalePayments, getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -57,7 +57,8 @@ const Sales = () => {
     totalAmount: 0,
     pendingCount: 0,
     postedCount: 0,
-    reversedCount: 0
+    reversedCount: 0,
+    paymentTotals: { cash: 0, card: 0, bank_transfer: 0, credit: 0, other: 0 }
   });
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 0 });
@@ -217,12 +218,7 @@ const Sales = () => {
   }, [sales]);
 
   const paymentBreakdown = useMemo(() => {
-    const totals = {};
-
-    sales.forEach((sale) => {
-      const method = (sale.paymentMethod || "cash").toLowerCase();
-      totals[method] = (totals[method] || 0) + Number(sale.totalAmount || 0);
-    });
+    const totals = reconciliation.paymentTotals || aggregateSalePayments(sales);
 
     const palette = {
       cash: "#10b981",
@@ -233,22 +229,24 @@ const Sales = () => {
     };
 
     const entries = Object.entries(totals)
+      .filter(([, value]) => Number(value) > 0)
       .map(([method, value]) => ({
         method,
-        label: method.replace("_", " "),
-        value,
+        label: PAYMENT_METHOD_LABELS[method] || method.replace("_", " "),
+        value: Number(value),
         color: palette[method] || "#64748b",
       }))
       .sort((a, b) => b.value - a.value);
 
-    const total = entries.reduce((sum, item) => sum + item.value, 0) || 1;
+    const total = entries.reduce((sum, item) => sum + item.value, 0);
+    const chartTotal = total || 1;
 
     let cursor = 0;
     const withPercent = entries.map((item) => {
       const start = cursor;
-      const end = cursor + (item.value / total) * 100;
+      const end = cursor + (item.value / chartTotal) * 100;
       cursor = end;
-      return { ...item, start, end, percent: ((item.value / total) * 100).toFixed(1) };
+      return { ...item, start, end, percent: ((item.value / chartTotal) * 100).toFixed(1) };
     });
 
     return {
@@ -262,7 +260,7 @@ const Sales = () => {
           }
         : { background: "conic-gradient(#e2e8f0 0 100%)" },
     };
-  }, [sales]);
+  }, [reconciliation.paymentTotals, sales]);
 
   const topStaff = useMemo(() => {
     const totals = {};
@@ -1115,10 +1113,11 @@ const Sales = () => {
                           {sale.paymentMethod === "split" ? "Split payment" : (sale.paymentMethod || "cash").replace("_", " ")}
                         </span>
                         {sale.paymentMethod === "split" && (
-                          <ul className="mt-2 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                          <ul className="mt-2 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
                             {getSalePaymentBreakdown(sale).map((payment, index) => (
-                              <li key={`${payment.method}-${index}`}>
-                                {PAYMENT_METHOD_LABELS[payment.method] || payment.method}: {formatCurrency(payment.amount)}
+                              <li key={`${payment.method}-${index}`} className="flex items-center justify-between gap-3">
+                                <span>{PAYMENT_METHOD_LABELS[payment.method] || payment.method}</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-100">{formatCurrency(payment.amount)}</span>
                               </li>
                             ))}
                           </ul>
