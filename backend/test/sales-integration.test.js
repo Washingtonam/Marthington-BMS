@@ -260,6 +260,122 @@ describe("sales integration with an in-memory replica set", { concurrency: false
     ]);
   });
 
+  test("corrects an Other sale to split tenders across Sales and Reports without changing its financial totals", async () => {
+    const tenant = await createTenant("PaymentCorrection");
+    tenant.user.role = "owner";
+    tenant.user.permissions.canViewReports = true;
+    await tenant.user.save();
+    tenant.token = jwt.sign({ id: tenant.user._id.toString() }, jwtSecret);
+
+    const saleItems = [{
+      itemType: "product",
+      product: tenant.product._id.toString(),
+      quantity: 1,
+      sellingPrice: 500
+    }];
+    const correctedSaleResponse = await createSale(tenant, {
+      items: saleItems,
+      paymentMethod: "other",
+      paymentBreakdown: []
+    });
+    const unrelatedOtherResponse = await createSale(tenant, {
+      items: saleItems,
+      paymentMethod: "other",
+      paymentBreakdown: []
+    });
+    assert.equal(correctedSaleResponse.statusCode, 200);
+    assert.equal(unrelatedOtherResponse.statusCode, 200);
+
+    const correctedSaleId = correctedSaleResponse.body.sale._id;
+    const unrelatedSaleId = unrelatedOtherResponse.body.sale._id;
+    for (const saleId of [correctedSaleId, unrelatedSaleId]) {
+      const posted = await request({
+        path: `/api/sales/${saleId}/status`,
+        method: "PATCH",
+        token: tenant.token,
+        body: { status: "posted" }
+      });
+      assert.equal(posted.statusCode, 200);
+    }
+
+    const originalLedgerEntry = await Transaction.findOne({
+      businessId: tenant.business._id,
+      sourceModel: "Sale",
+      sourceId: correctedSaleId
+    }).lean();
+    assert.equal(originalLedgerEntry.amount, 500);
+    assert.equal(originalLedgerEntry.profit, 460);
+    assert.equal(originalLedgerEntry.paymentMethod, "other");
+
+    const correctionResponse = await request({
+      path: `/api/sales/${correctedSaleId}/payment`,
+      method: "PATCH",
+      token: tenant.token,
+      body: {
+        paymentMethod: "split",
+        paymentBreakdown: [
+          { method: "cash", amount: 150 },
+          { method: "bank_transfer", amount: 350 }
+        ]
+      }
+    });
+    assert.equal(correctionResponse.statusCode, 200);
+
+    const savedCorrectedSale = await Sale.findById(correctedSaleId).lean();
+    assert.equal(savedCorrectedSale.totalAmount, 500);
+    assert.equal(savedCorrectedSale.paymentMethod, "split");
+    assert.deepEqual(savedCorrectedSale.paymentBreakdown.map(({ method, amount }) => ({ method, amount })), [
+      { method: "cash", amount: 150 },
+      { method: "bank_transfer", amount: 350 }
+    ]);
+
+    const updatedLedgerEntry = await Transaction.findOne({
+      businessId: tenant.business._id,
+      sourceModel: "Sale",
+      sourceId: correctedSaleId
+    }).lean();
+    assert.equal(updatedLedgerEntry.amount, 500);
+    assert.equal(updatedLedgerEntry.profit, 460);
+    assert.equal(updatedLedgerEntry.paymentMethod, "split");
+    assert.deepEqual(updatedLedgerEntry.paymentBreakdown.map(({ method, amount }) => ({ method, amount })), [
+      { method: "cash", amount: 150 },
+      { method: "bank_transfer", amount: 350 }
+    ]);
+
+    const salesResponse = await request({ path: "/api/sales", token: tenant.token });
+    assert.equal(salesResponse.statusCode, 200);
+    assert.deepEqual(salesResponse.body.reconciliation.paymentTotals, {
+      cash: 150,
+      card: 0,
+      bank_transfer: 350,
+      credit: 0,
+      other: 500
+    });
+    const salesById = new Map(salesResponse.body.sales.map((sale) => [sale._id, sale]));
+    assert.equal(salesById.get(unrelatedSaleId).paymentMethod, "other");
+    assert.deepEqual(salesById.get(unrelatedSaleId).paymentBreakdown, []);
+
+    const overviewResponse = await request({ path: "/api/reports/overview", token: tenant.token });
+    assert.equal(overviewResponse.statusCode, 200);
+    const overviewSalesById = new Map(overviewResponse.body.sales.map((sale) => [sale._id, sale]));
+    assert.deepEqual(
+      overviewSalesById.get(correctedSaleId).paymentBreakdown.map(({ method, amount }) => ({ method, amount })),
+      [{ method: "cash", amount: 150 }, { method: "bank_transfer", amount: 350 }]
+    );
+    assert.equal(overviewSalesById.get(unrelatedSaleId).paymentMethod, "other");
+
+    const saleDate = new Date(savedCorrectedSale.createdAt).toISOString().slice(0, 10);
+    const dailyResponse = await request({
+      path: `/api/reports/daily-analysis?date=${saleDate}`,
+      token: tenant.token
+    });
+    assert.equal(dailyResponse.statusCode, 200);
+    assert.deepEqual(
+      Object.fromEntries(dailyResponse.body.paymentMethods.map(({ method, amount }) => [method, amount])),
+      { cash: 150, bank_transfer: 350, other: 500 }
+    );
+  });
+
   test("replaces the legacy sparse operation index with the compatible partial index", async () => {
     await Sale.collection.dropIndex("business_1_clientOperationId_1");
     await Sale.collection.createIndex(

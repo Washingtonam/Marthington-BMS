@@ -6,7 +6,12 @@ import { bulkUpdateSaleStatus, updateSaleStatus } from "../api/sales.js";
 import { formatCurrency } from "../utils/formatters.js";
 import { notifySalesUpdated } from "../utils/salesEvents.js";
 import { buildCustomerFollowUpMessage, buildTransactionWhatsAppMessage, openWhatsAppMessage } from "../utils/whatsappMessages.js";
-import { aggregateSalePayments, getSalePaymentBreakdown, PAYMENT_METHOD_LABELS } from "../utils/salePayments.js";
+import {
+  aggregateSalePayments,
+  getSalePaymentBreakdown,
+  isValidSalePaymentBreakdown,
+  PAYMENT_METHOD_LABELS
+} from "../utils/salePayments.js";
 import AutocompleteSearch from "../components/AutocompleteSearch.jsx";
 import { FiMessageCircle } from "react-icons/fi";
 
@@ -36,6 +41,13 @@ const STATUS_META = {
     className: "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200",
   },
 };
+
+const PAYMENT_CORRECTION_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "card", label: "Card / POS" },
+  { value: "other", label: "Other" }
+];
 
 const Sales = () => {
   const navigate = useNavigate();
@@ -76,6 +88,7 @@ const Sales = () => {
   const [paymentTarget, setPaymentTarget] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentReference, setPaymentReference] = useState("");
+  const [paymentParts, setPaymentParts] = useState([]);
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [updatingSaleStatusId, setUpdatingSaleStatusId] = useState(null);
   const [selectedSaleIds, setSelectedSaleIds] = useState(new Set());
@@ -87,6 +100,36 @@ const Sales = () => {
     user?.role === "super_admin" ||
     user?.permissions?.canManagePayments
   );
+
+  const paymentCorrectionIsValid = paymentMethod !== "split"
+    || isValidSalePaymentBreakdown(paymentParts, paymentTarget?.totalAmount);
+  const paymentPartsTotal = paymentParts.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+
+  const openPaymentCorrection = (sale) => {
+    const existingBreakdown = getSalePaymentBreakdown(sale);
+    setPaymentTarget(sale);
+    setPaymentMethod(sale.paymentMethod || "cash");
+    setPaymentReference(sale.paymentReference || "");
+    setPaymentParts(sale.paymentMethod === "split" && existingBreakdown.length
+      ? existingBreakdown.map((payment) => ({
+          method: payment.method,
+          amount: String(payment.amount),
+          reference: payment.reference || ""
+        }))
+      : [
+          { method: "cash", amount: "", reference: "" },
+          { method: "bank_transfer", amount: "", reference: "" }
+        ]);
+  };
+
+  const addPaymentCorrectionPart = () => {
+    const method = PAYMENT_CORRECTION_METHODS.find(({ value }) => (
+      !paymentParts.some((payment) => payment.method === value)
+    ))?.value;
+    if (method) {
+      setPaymentParts((current) => [...current, { method, amount: "", reference: "" }]);
+    }
+  };
 
   const handleShareSaleWhatsApp = (sale) => {
     const phone = sale.customerPhone || window.prompt("Enter customer WhatsApp number");
@@ -464,14 +507,24 @@ const Sales = () => {
   };
 
   const handlePaymentUpdate = async () => {
-    if (!paymentTarget) return;
+    if (!paymentTarget || !paymentCorrectionIsValid) return;
     try {
       setUpdatingPayment(true);
       await request(`/sales/${paymentTarget._id}/payment`, {
         method: "PATCH",
-        body: JSON.stringify({ paymentMethod, paymentReference }),
+        body: JSON.stringify({
+          paymentMethod,
+          paymentReference: paymentMethod === "split" ? "" : paymentReference,
+          ...(paymentMethod === "split" && {
+            paymentBreakdown: paymentParts.map((payment) => ({
+              ...payment,
+              amount: Number(payment.amount)
+            }))
+          })
+        }),
       });
       setPaymentTarget(null);
+      setPaymentParts([]);
       setStatusMessage("Payment method updated");
       notifySalesUpdated();
       await loadSales();
@@ -1122,6 +1175,16 @@ const Sales = () => {
                             ))}
                           </ul>
                         )}
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={() => openPaymentCorrection(sale)}
+                            className="mt-2 text-xs font-bold text-emerald-700 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200"
+                            aria-label={`Correct payment for receipt ${sale.receiptId}`}
+                          >
+                            Correct payment
+                          </button>
+                        )}
                       </div>
 
                       <div className="px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 md:py-4">
@@ -1227,14 +1290,78 @@ const Sales = () => {
                 <option value="bank_transfer">Bank transfer</option>
                 <option value="credit">Credit / debt</option>
                 <option value="other">Other</option>
+                <option value="split">Split payment</option>
               </select>
-              {paymentMethod !== "cash" && paymentMethod !== "credit" && (
+              {paymentMethod === "split" ? (
+                <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Allocate {formatCurrency(paymentTarget.totalAmount)} across distinct methods.
+                  </p>
+                  {paymentParts.map((payment, index) => (
+                    <div key={`correction-${index}`} className="grid grid-cols-2 gap-2">
+                      <select
+                        aria-label={`Correction payment ${index + 1} method`}
+                        value={payment.method}
+                        onChange={(event) => setPaymentParts((current) => current.map((part, partIndex) => (
+                          partIndex === index ? { ...part, method: event.target.value } : part
+                        )))}
+                        className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                      >
+                        {PAYMENT_CORRECTION_METHODS.map(({ value, label }) => (
+                          <option
+                            key={value}
+                            value={value}
+                            disabled={paymentParts.some((part, partIndex) => partIndex !== index && part.method === value)}
+                          >
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0.01"
+                        step="0.01"
+                        aria-label={`Correction payment ${index + 1} amount`}
+                        value={payment.amount}
+                        onChange={(event) => setPaymentParts((current) => current.map((part, partIndex) => (
+                          partIndex === index ? { ...part, amount: event.target.value } : part
+                        )))}
+                        placeholder="Amount"
+                        className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+                  ))}
+                  {paymentParts.length < PAYMENT_CORRECTION_METHODS.length && (
+                    <button
+                      type="button"
+                      onClick={addPaymentCorrectionPart}
+                      className="text-xs font-bold text-emerald-700 dark:text-emerald-300"
+                    >
+                      + Add tender
+                    </button>
+                  )}
+                  {paymentParts.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentParts((current) => current.slice(0, -1))}
+                      className="ml-3 text-xs font-bold text-slate-500 dark:text-slate-400"
+                    >
+                      Remove last tender
+                    </button>
+                  )}
+                  <p className={`text-xs font-semibold ${paymentCorrectionIsValid ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`} role="status">
+                    Allocated {formatCurrency(paymentPartsTotal)} of {formatCurrency(paymentTarget.totalAmount)}
+                    {!paymentCorrectionIsValid && " — enter distinct positive amounts that exactly match the sale total."}
+                  </p>
+                </div>
+              ) : paymentMethod !== "cash" && paymentMethod !== "credit" ? (
                 <input value={paymentReference} onChange={(e) => setPaymentReference(e.target.value)} placeholder="Reference (optional)" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-400" />
-              )}
+              ) : null}
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setPaymentTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-600 dark:text-slate-300">Cancel</button>
-              <button type="button" onClick={handlePaymentUpdate} disabled={updatingPayment} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950">{updatingPayment ? "Saving..." : "Save correction"}</button>
+              <button type="button" onClick={handlePaymentUpdate} disabled={updatingPayment || !paymentCorrectionIsValid} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950">{updatingPayment ? "Saving..." : "Save correction"}</button>
             </div>
           </div>
         </div>

@@ -36,6 +36,40 @@ export const saleUsesPaymentMethod = (sale, method) => (
   )
 );
 
+export const isValidSalePaymentBreakdown = (payments = [], totalAmount = 0) => {
+  const hasAtMostTwoDecimals = (value) => /^\d+(?:\.\d{1,2})?$/.test(String(value ?? "").trim());
+  const total = Number(totalAmount);
+  const totalCents = Math.round(total * 100);
+  if (!Array.isArray(payments) || payments.length < 2
+    || !Number.isFinite(total) || total <= 0
+    || !hasAtMostTwoDecimals(totalAmount)
+    || Math.abs(total * 100 - totalCents) >= 0.000001) {
+    return false;
+  }
+
+  const methods = new Set();
+  let paidCents = 0;
+  for (const payment of payments) {
+    if (!["cash", "card", "bank_transfer", "other"].includes(payment.method)
+      || !hasAtMostTwoDecimals(payment.amount)
+      || methods.has(payment.method)) {
+      return false;
+    }
+
+    const amount = Number(payment.amount);
+    const amountCents = Math.round(amount * 100);
+    if (!Number.isFinite(amount) || amount <= 0
+      || Math.abs(amount * 100 - amountCents) >= 0.000001) {
+      return false;
+    }
+
+    methods.add(payment.method);
+    paidCents += amountCents;
+  }
+
+  return paidCents === totalCents;
+};
+
 export const aggregateSalePayments = (sales = []) => {
   const totals = { cash: 0, card: 0, bank_transfer: 0, credit: 0, other: 0 };
 

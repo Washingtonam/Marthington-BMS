@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateSalePayments,
   getSalePaymentBreakdown,
+  isValidSalePaymentBreakdown,
   saleUsesPaymentMethod
 } from "../utils/salePayments.js";
 
@@ -44,5 +45,43 @@ describe("sale payment breakdown helpers", () => {
       credit: 0,
       other: 0
     });
+  });
+
+  it("validates exact, distinct, positive tender allocations to cents", () => {
+    expect(isValidSalePaymentBreakdown([
+      { method: "cash", amount: "150" },
+      { method: "bank_transfer", amount: "350.00" }
+    ], 500)).toBe(true);
+
+    expect(isValidSalePaymentBreakdown([
+      { method: "cash", amount: "150.001" },
+      { method: "bank_transfer", amount: "349.999" }
+    ], 500)).toBe(false);
+    expect(isValidSalePaymentBreakdown([
+      { method: "cash", amount: "150" },
+      { method: "cash", amount: "350" }
+    ], 500)).toBe(false);
+    expect(isValidSalePaymentBreakdown([
+      { method: "cash", amount: "0" },
+      { method: "bank_transfer", amount: "500" }
+    ], 500)).toBe(false);
+    expect(isValidSalePaymentBreakdown([
+      { method: "cash", amount: "150" },
+      { method: "bank_transfer", amount: "349" }
+    ], 500)).toBe(false);
+  });
+
+  it("keeps unrelated Other sales separate from a corrected mixed-tender sale", () => {
+    expect(aggregateSalePayments([
+      {
+        totalAmount: 500,
+        paymentMethod: "split",
+        paymentBreakdown: [
+          { method: "cash", amount: 150 },
+          { method: "bank_transfer", amount: 350 }
+        ]
+      },
+      { totalAmount: 100, paymentMethod: "other" }
+    ])).toEqual({ cash: 150, card: 0, bank_transfer: 350, credit: 0, other: 100 });
   });
 });
