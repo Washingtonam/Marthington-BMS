@@ -3,6 +3,7 @@ import Product from "../products/product.model.js";
 import Transaction from "../transactions/transaction.model.js";
 import BranchInventory from "../branches/branchInventory.model.js";
 import { getScopedBranchQuery, isPrivileged } from "../../utils/branchAccess.js";
+import { normalizePaymentMethod } from "../sales/sales.utils.js";
 
 const retailSalesFilter = (businessId) => ({
   $and: [
@@ -21,7 +22,7 @@ const retailSalesFilter = (businessId) => ({
   ]
 });
 
-const reportSaleProjection = "items totalAmount paymentMethod paymentReference branch createdBy createdAt receiptId customerName status";
+const reportSaleProjection = "items totalAmount paymentMethod paymentBreakdown paymentReference branch createdBy createdAt receiptId customerName status";
 
 const getSaleProfitValue = (sale = {}) => {
   if (!sale || typeof sale !== "object") return 0;
@@ -233,10 +234,18 @@ export const buildDailyAnalysisSnapshot = ({ sales = [], transactions = [], date
   const paymentMethods = {};
 
   dailySales.forEach((sale) => {
-    const method = sale.paymentMethod || "cash";
-    if (!paymentMethods[method]) paymentMethods[method] = { method, count: 0, amount: 0 };
-    paymentMethods[method].count += 1;
-    paymentMethods[method].amount += Number(sale.totalAmount || 0);
+    const payments = Array.isArray(sale.paymentBreakdown) && sale.paymentBreakdown.length
+      ? sale.paymentBreakdown
+      : sale.paymentMethod !== "split"
+        ? [{ method: sale.paymentMethod || "cash", amount: sale.totalAmount }]
+        : [];
+
+    payments.forEach((payment) => {
+      const method = normalizePaymentMethod(payment.method);
+      if (!paymentMethods[method]) paymentMethods[method] = { method, count: 0, amount: 0 };
+      paymentMethods[method].count += 1;
+      paymentMethods[method].amount += Number(payment.amount || 0);
+    });
   });
 
   const revenue = dailySales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);

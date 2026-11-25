@@ -209,15 +209,25 @@ test('Reports: daily analysis separates payment methods and subtracts expenses',
     sales: [
       { totalAmount: 500, paymentMethod: 'cash', createdAt: `${date}T10:00:00.000Z`, items: [{ costPrice: 200, quantity: 1 }] },
       { totalAmount: 300, paymentMethod: 'bank_transfer', createdAt: `${date}T12:00:00.000Z`, items: [{ costPrice: 100, quantity: 1 }] },
+      {
+        totalAmount: 400,
+        paymentMethod: 'split',
+        paymentBreakdown: [
+          { method: 'cash', amount: 150 },
+          { method: 'bank_transfer', amount: 250 }
+        ],
+        createdAt: `${date}T14:00:00.000Z`,
+        items: []
+      },
       { totalAmount: 900, paymentMethod: 'cash', createdAt: '2026-08-24T12:00:00.000Z', items: [] },
     ],
     transactions: [{ amount: 150, category: 'transport', occurredAt: `${date}T15:00:00.000Z` }],
   });
 
-  assert.deepEqual(snapshot.summary, { salesCount: 2, revenue: 800, cogs: 300, grossProfit: 500, expenses: 150, netProfit: 350 });
+  assert.deepEqual(snapshot.summary, { salesCount: 3, revenue: 1200, cogs: 300, grossProfit: 900, expenses: 150, netProfit: 750 });
   assert.deepEqual(snapshot.paymentMethods, [
-    { method: 'cash', count: 1, amount: 500 },
-    { method: 'bank_transfer', count: 1, amount: 300 },
+    { method: 'cash', count: 2, amount: 650 },
+    { method: 'bank_transfer', count: 2, amount: 550 },
   ]);
 });
 
@@ -285,6 +295,7 @@ test('Reports: sales query includes the sale status in the projection', async ()
     status: 'posted',
     items: [],
     paymentMethod: 'cash',
+    paymentBreakdown: [{ method: 'cash', amount: 300 }],
     createdBy: { _id: 'staff-1', name: 'Alice' },
   };
 
@@ -292,6 +303,7 @@ test('Reports: sales query includes the sale status in the projection', async ()
     Sale.find = () => ({
       select: (projection) => {
         assert.match(projection, /status/);
+        assert.match(projection, /paymentBreakdown/);
         return {
           populate: () => ({
             sort: () => [sale],
@@ -312,6 +324,7 @@ test('Reports: sales query includes the sale status in the projection', async ()
       json: (payload) => {
         assert.ok(Array.isArray(payload.sales));
         assert.equal(payload.sales[0].status, 'posted');
+        assert.deepEqual(payload.sales[0].paymentBreakdown, [{ method: 'cash', amount: 300 }]);
       },
       status: () => res,
     };
